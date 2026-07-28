@@ -1,0 +1,61 @@
+# =============================================================================
+# GBS-ESRA — Wurzel-.gitignore
+#
+# Dieses Repository hat seine Wurzel im ESRA-Ordner. Die folgenden Regeln
+# gelten baumweit und ergaenzen die feinere gbs-campus/.gitignore.
+# =============================================================================
+
+# --- Personenbezogenes Rohmaterial: gehoert NIE ins Repo ---------------------
+# Unredigierte Interview-Quellen mit Klarnamen Dritter, Honorar-, Steuer- und
+# Familienangaben. Bewusst breit gefasst, damit auch Kopien erfasst werden.
+Interview-*.rtf
+*.rtf
+Archiv/Interview-Transkript.txt
+
+# --- Rechnerlokale Werkzeug-/Editor-Artefakte --------------------------------
+.claude/settings.local.json
+.idea/
+.vscode/
+*.swp
+
+# --- macOS / Office / LibreOffice --------------------------------------------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+~$*
+.~lock.*
+
+# --- Secrets (baumweit, ergaenzt gbs-campus/.gitignore) ----------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+id_rsa*
+
+# --- Datenbank-Dumps und Backups ---------------------------------------------
+# ACHTUNG: *.sql NICHT pauschal ausschliessen — die Prisma-Migrationen
+# (gbs-campus/prisma/migrations/*/migration.sql) gehoeren zwingend ins Repo.
+# Deshalb nur echte Dumps/Backups nach Namensmuster.
+*.sql.gz
+*.dump
+*.sqlite
+*.sqlite3
+*-dump.sql
+*.backup.sql
+backups/
+uploads/
+
+# --- Build / Abhaengigkeiten (Sicherheitsnetz, auch wenn tiefer geregelt) ----
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+*.log

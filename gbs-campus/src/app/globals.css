@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   GBS Campus — CREDO Corporate Design
+   Keine Farbverlaeufe. Primaerfarbe Dunkelgrau, dazu die vier Akzentfarben der
+   CREDO-Linie. Schrift: Montserrat mit Arial als Rueckfallebene.
+   ========================================================================== */
+
+@theme {
+  /* Wird in layout.tsx ueber next/font geladen und selbst ausgeliefert. */
+  --font-sans: var(--font-montserrat), Montserrat, Arial, Helvetica, sans-serif;
+
+  /* CREDO-Grundfarben */
+  --color-primary: #575756;
+  --color-primary-foreground: #ffffff;
+
+  --color-credo-gelb: #fbc900;
+  --color-credo-gruen: #6baa24;
+  --color-credo-rot: #e2001a;
+  --color-credo-blau: #009ac6;
+
+  /* Flaechen und Linien */
+  --color-background: #ffffff;
+  --color-foreground: #2b2b2b;
+  --color-muted: #f6f6f5;
+  --color-muted-foreground: #6b6b6a;
+  --color-card: #ffffff;
+  --color-border: #e2e2e0;
+  --color-input: #dadada;
+
+  /* Status-Farben — an die CREDO-Linie gebunden, nicht frei gewaehlt */
+  --color-status-offen: #009ac6;
+  --color-status-laufend: #fbc900;
+  --color-status-erledigt: #6baa24;
+  --color-status-problem: #e2001a;
+  --color-status-ruhend: #6b6b6a;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Fokus muss immer sichtbar sein — WCAG 2.1 AA, Querschnittsanforderung */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}

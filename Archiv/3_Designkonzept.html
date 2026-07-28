@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GBS Campus — Designkonzept & Mockups</title>
+<style>
+/* ============ Seiten-Theme (hell/dunkel) ============ */
+:root{
+  --page-bg:#f4f4f2; --page-fg:#2b2b2a; --page-muted:#6c6c6b; --page-line:#e2e2df; --page-card:#ffffff;
+  --primary:#575756; --accent:#009AC6; --gruen:#6BAA24; --gelb:#FBC900; --rot:#E2001A;
+  --maxw:1140px;
+}
+:root[data-theme=dark]{--page-bg:#121212;--page-fg:#e8e8e6;--page-muted:#9d9d9b;--page-line:#2a2a2a;--page-card:#1b1b1b;}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page-bg:#121212;--page-fg:#e8e8e6;--page-muted:#9d9d9b;--page-line:#2a2a2a;--page-card:#1b1b1b;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page-bg);color:var(--page-fg);
+  font-family:'Montserrat',-apple-system,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px 100px;}
+header.hero{max-width:var(--maxw);margin:0 auto;padding:52px 20px 22px;}
+.kick{color:var(--accent);font-weight:800;letter-spacing:.05em;text-transform:uppercase;font-size:12.5px;}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.08;margin:.3em 0 .2em;letter-spacing:-.01em;}
+.sub{color:var(--page-muted);font-size:17.5px;max-width:720px;}
+nav.toc{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--page-bg) 86%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--page-line);}
+nav.toc .inner{max-width:var(--maxw);margin:0 auto;padding:9px 14px;display:flex;gap:3px;overflow-x:auto;}
+nav.toc a{white-space:nowrap;color:var(--page-muted);text-decoration:none;font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;}
+nav.toc a:hover{color:var(--page-fg);background:var(--page-card);}
+section{padding:44px 0 6px;}
+h2{font-size:25px;letter-spacing:-.01em;margin:0 0 .2em;}
+.secsub{color:var(--page-muted);max-width:760px;margin:.2em 0 20px;font-size:16px;}
+h3.mh{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--page-muted);margin:34px 0 12px;}
+.mock{margin:0 0 10px;}
+.cap{display:flex;gap:10px;align-items:flex-start;margin:12px 2px 40px;color:var(--page-muted);font-size:14px;max-width:900px;}
+.cap .n{flex:0 0 auto;width:24px;height:24px;border-radius:6px;background:var(--primary);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;}
+:root[data-theme=dark] .cap .n{color:#121212;}
+.cap b{color:var(--page-fg);}
+.prin{display:inline-block;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;margin:0 3px 3px 0;}
+
+/* ============ Device-Rahmen (Screens immer hell = App-Look) ============ */
+.frame{--bg:#ffffff;--fg:#2b2b2a;--muted:#7a7a79;--line:#e8e8e5;--soft:#f6f6f4;--soft2:#efefec;
+  border-radius:16px;overflow:hidden;box-shadow:0 18px 50px rgba(20,20,20,.16),0 2px 6px rgba(20,20,20,.06);border:1px solid #d9d9d6;background:#fff;color:var(--fg);}
+.frame *{box-sizing:border-box}
+.chrome{background:#ededea;border-bottom:1px solid #dcdcd8;padding:9px 12px;display:flex;align-items:center;gap:10px;}
+.dots{display:flex;gap:6px}
+.dots i{width:11px;height:11px;border-radius:50%;display:block}
+.dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+.urlbar{flex:1;background:#fff;border:1px solid #dcdcd8;border-radius:7px;padding:4px 12px;font-size:12px;color:#8a8a88;text-align:center;}
+.screen{background:var(--soft);}
+
+/* App-Shell */
+.app{display:flex;min-height:560px;font-size:14px}
+.side{flex:0 0 210px;background:#575756;color:#e9e9e7;padding:16px 12px;display:flex;flex-direction:column;gap:3px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;color:#fff;font-size:15px;padding:4px 6px 14px}
+.brand .logo{width:26px;height:26px;border-radius:7px;background:#009AC6;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:900}
+.nav a{display:flex;align-items:center;gap:10px;color:#cfcfcd;text-decoration:none;padding:8px 10px;border-radius:8px;font-weight:600;font-size:13.5px}
+.nav a svg{width:17px;height:17px;flex:0 0 auto;opacity:.85}
+.nav a.active{background:rgba(255,255,255,.14);color:#fff}
+.nav a:hover:not(.active){background:rgba(255,255,255,.07);color:#fff}
+.side-foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.14);padding-top:12px;display:flex;align-items:center;gap:9px}
+.side-foot .av{width:30px;height:30px;border-radius:50%;background:#009AC6;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.side-foot small{display:block;color:#b7b7b5;font-size:11px}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--soft)}
+.topbar{background:#fff;border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;gap:14px}
+.topbar h4{margin:0;font-size:16px;font-weight:800}
+.spacer{flex:1}
+.ycombo{border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:700;color:#575756;background:var(--soft);display:flex;align-items:center;gap:6px}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;color:var(--muted);font-size:12.5px;background:var(--soft);min-width:150px}
+.iconbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--soft);display:flex;align-items:center;justify-content:center;color:#575756;position:relative}
+.iconbtn .dot{position:absolute;top:5px;right:6px;width:8px;height:8px;border-radius:50%;background:#E2001A;border:2px solid #fff}
+.av2{width:32px;height:32px;border-radius:50%;background:#575756;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.content{padding:20px;overflow:auto}
+.ph{font-size:13px;color:var(--muted);margin:0 0 14px}
+
+/* generische UI-Bausteine */
+.btn{border:0;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:default;font-family:inherit}
+.btn.pri{background:#575756;color:#fff}
+.btn.acc{background:#009AC6;color:#fff}
+.btn.gh{background:var(--soft2);color:#575756}
+.btn.dgr{background:#fff;color:#E2001A;border:1px solid #f3c7cc}
+.btn.sm{padding:5px 10px;font-size:12px}
+.card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:15px 16px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(4,1fr)}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 15px;position:relative;overflow:hidden}
+.kpi .lab{font-size:12px;color:var(--muted);font-weight:600}
+.kpi .big{font-size:27px;font-weight:800;margin-top:5px;letter-spacing:-.01em}
+.kpi .foot{font-size:11.5px;margin-top:4px;font-weight:700}
+.kpi .bar{position:absolute;left:0;top:0;bottom:0;width:4px}
+.b-g{background:#6BAA24}.b-y{background:#FBC900}.b-r{background:#E2001A}.b-a{background:#009AC6}
+.tg{color:#6BAA24}.ty{color:#b98f00}.tr{color:#E2001A}.ta{color:#009AC6}
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.bg-g{background:#eaf4dc;color:#4d7d14}.bg-y{background:#fdf3cd;color:#96770a}.bg-r{background:#fbe0e3;color:#c60016}.bg-a{background:#dff2fa;color:#0079a3}.bg-n{background:#eeeeeb;color:#7a7a79}
+.dt{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dt.g{background:#6BAA24}.dt.y{background:#FBC900}.dt.r{background:#E2001A}.dt.a{background:#009AC6}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+table.tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+table.tbl td{padding:10px;border-bottom:1px solid var(--line)}
+table.tbl tr:last-child td{border-bottom:0}
+.avn{width:26px;height:26px;border-radius:50%;background:#e7e7e3;color:#575756;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-right:8px;vertical-align:middle}
+.sectitle{font-weight:800;font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.muted{color:var(--muted)}
+.hr{height:1px;background:var(--line);margin:14px 0}
+.todo{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--line)}
+.todo:last-child{border-bottom:0}
+.todo .ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.progress{height:8px;border-radius:99px;background:#eee;overflow:hidden}
+.progress i{display:block;height:100%}
+
+/* Kanban */
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kcol{background:var(--soft2);border-radius:12px;padding:10px}
+.kcol h5{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);display:flex;justify-content:space-between}
+.kcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:9px}
+.kcard .nm{font-weight:700;font-size:13.5px}
+.kcard .mt{font-size:11.5px;color:var(--muted);margin:3px 0 8px}
+.ref{display:flex;gap:5px;align-items:center;font-size:11px;color:var(--muted)}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 16px}
+.tab{padding:9px 13px;font-size:13px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#575756;border-bottom-color:#575756}
+
+/* Wizard / Form */
+.stepper{display:flex;align-items:center;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.stp{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--muted)}
+.stp .c{width:22px;height:22px;border-radius:50%;background:#e7e7e3;color:#7a7a79;display:flex;align-items:center;justify-content:center;font-size:11px}
+.stp.on{color:#575756}.stp.on .c{background:#575756;color:#fff}
+.stp.done .c{background:#6BAA24;color:#fff}
+.stp .ln{width:22px;height:2px;background:#e2e2df}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;font-weight:700;margin-bottom:5px}
+.inp{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13px;background:#fff;color:#2b2b2a}
+.inp.ph{color:#a7a7a4}
+.hintbox{display:flex;gap:8px;background:#dff2fa;border:1px solid #bfe6f3;border-radius:9px;padding:9px 11px;font-size:12px;color:#0079a3;margin-top:6px}
+.lockrow{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#7a7a79;margin-top:5px}
+.check{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.cbx{width:17px;height:17px;border-radius:5px;border:2px solid #575756;flex:0 0 auto;margin-top:1px;display:flex;align-items:center;justify-content:center}
+.cbx.on{background:#575756}
+
+/* Audio player */
+.audio{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+.play{width:38px;height:38px;border-radius:50%;background:#575756;color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.wave{flex:1}
+.wave .p{height:6px;border-radius:99px;background:#e7e7e3;position:relative;overflow:hidden}
+.wave .p i{position:absolute;left:0;top:0;bottom:0;background:#009AC6;border-radius:99px}
+.filerow{display:flex;align-items:center;gap:12px;padding:11px 6px;border-bottom:1px solid var(--line)}
+.filerow:last-child{border-bottom:0}
+.fic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex:0 0 auto}
+
+/* Prüfung Editor */
+.qcard{border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:10px;background:#fff}
+.qtype{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#009AC6}
+.opt{display:flex;align-items:center;gap:9px;font-size:13px;padding:5px 0}
+.rad{width:15px;height:15px;border-radius:50%;border:2px solid #cfcfcc;flex:0 0 auto}
+.rad.ok{border-color:#6BAA24;background:radial-gradient(circle,#6BAA24 42%,transparent 46%)}
+.chainbar{display:flex;gap:5px;align-items:center;font-size:11px;font-weight:700;margin-bottom:14px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:99px;padding:4px 11px;color:var(--muted);background:#fff}
+.chip.on{background:#575756;color:#fff;border-color:#575756}
+.chip.done{background:#eaf4dc;color:#4d7d14;border-color:#cfe6ad}
+
+/* KI-Vorschlag */
+.ki{border:1px dashed #009AC6;background:#f3fbfe;border-radius:11px;padding:12px 13px}
+.ki .h{display:flex;align-items:center;gap:8px;font-weight:800;color:#0079a3;font-size:12.5px;margin-bottom:6px}
+.pillrow{display:flex;gap:8px;flex-wrap:wrap}
+.switch{width:38px;height:22px;border-radius:99px;background:#cfcfcc;position:relative;flex:0 0 auto}
+.switch.on{background:#6BAA24}
+.switch i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.switch.on i{left:18px}
+
+/* Phone */
+.phone{width:340px;background:#111;border-radius:42px;padding:11px;box-shadow:0 22px 55px rgba(20,20,20,.22);border:1px solid #333}
+.phone .scr{background:#f6f6f4;border-radius:32px;overflow:hidden;position:relative}
+.phone .notch{height:26px;background:#111;position:relative}
+.phone .notch:after{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);width:120px;height:20px;background:#111;border-radius:0 0 16px 16px}
+.sbar{display:flex;justify-content:space-between;align-items:center;padding:7px 18px 4px;font-size:12px;font-weight:700;color:#111}
+.papp{padding:6px 15px 12px}
+.phead{display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px}
+.phead .t{font-weight:800;font-size:19px}
+.pcard{background:#fff;border:1px solid #ececea;border-radius:14px;padding:13px 14px;margin-bottom:11px}
+.pcard.acc{border-left:4px solid #009AC6}
+.pcard .lab{font-size:11px;font-weight:700;color:#8a8a88;text-transform:uppercase;letter-spacing:.03em}
+.tabbar{display:flex;justify-content:space-around;padding:9px 6px 12px;border-top:1px solid #ececea;background:#fff}
+.tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#a7a7a4}
+.tabbar a svg{width:20px;height:20px}
+.tabbar a.on{color:#575756}
+.rosterrow{display:flex;align-items:center;gap:11px;padding:11px 2px;border-bottom:1px solid #ececea}
+.rosterrow:last-child{border-bottom:0}
+.seg{display:flex;border:1px solid #e2e2df;border-radius:9px;overflow:hidden;font-size:11px;font-weight:700}
+.seg span{padding:6px 9px;color:#8a8a88}
+.seg span.on-g{background:#6BAA24;color:#fff}.seg span.on-r{background:#E2001A;color:#fff}.seg span.on-y{background:#FBC900;color:#3a2f00}
+
+/* Foundations */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.sw{border:1px solid var(--page-line);border-radius:12px;overflow:hidden;background:var(--page-card)}
+.sw .col{height:64px}
+.sw .meta{padding:9px 11px;font-size:12px}
+.sw .meta b{display:block;font-size:13px}
+.sw .meta code{color:var(--page-muted);font-size:11.5px}
+.compbox{background:var(--page-card);border:1px solid var(--page-line);border-radius:14px;padding:20px;display:flex;flex-wrap:wrap;gap:24px}
+.compbox .grp{display:flex;flex-direction:column;gap:9px}
+.compbox .gl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--page-muted);font-weight:700}
+.typescale > div{border-bottom:1px solid var(--page-line);padding:8px 0}
+.typescale small{color:var(--page-muted);font-size:11px;font-weight:700;display:block;text-transform:uppercase;letter-spacing:.03em}
+footer{max-width:var(--maxw);margin:30px auto 0;padding:22px 20px;border-top:1px solid var(--page-line);color:var(--page-muted);font-size:13px}
+@media(max-width:560px){.app{font-size:13px}.side{display:none}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="kick">Designkonzept · Mockups · CREDO Corporate Design</div>
+  <h1>GBS Campus — so sieht es aus</h1>
+  <p class="sub">Gerenderte Oberflächen-Mockups für alle vier Rollen und die Kernprozesse. Apple-like, ruhig, prozessgesteuert — im CREDO-Design (Montserrat, Primärgrau #575756, Ampelfarben, keine Farbverläufe). Die Screens zeigen echte GBS-Beispieldaten des Jahrgangs 2026–29.</p>
+</header>
+<nav class="toc"><div class="inner">
+  <a href="#found">Design-System</a>
+  <a href="#leiter">Schulleiter</a>
+  <a href="#pipeline">Anmeldungen</a>
+  <a href="#akte">Akte</a>
+  <a href="#anmeldung">Anmelde-Wizard</a>
+  <a href="#portal">Teilnehmer-Portal</a>
+  <a href="#anwesenheit">Anwesenheit</a>
+  <a href="#editor">Prüfungs-Editor</a>
+  <a href="#bewerten">Bewerten & Freigeben</a>
+  <a href="#material">Material</a>
+  <a href="#finanzen">Finanzen</a>
+  <a href="#dozent">Dozent</a>
+  <a href="#admin">Administration</a>
+</div></nav>
+<main class="wrap">
+
+<!-- ================= FOUNDATIONS ================= -->
+<section id="found">
+  <h2>Design-System</h2>
+  <p class="secsub">Ein konsistentes Fundament: gleiche Farben, Typografie und Bausteine über alle 10 Module — der Nutzer lernt ein einziges mentales Modell.</p>
+
+  <h3 class="mh">Farbpalette (CREDO-Linie)</h3>
+  <div class="swatches">
+    <div class="sw"><div class="col" style="background:#575756"></div><div class="meta"><b>Primärgrau</b><code>#575756 · Buttons, Links, Nav</code></div></div>
+    <div class="sw"><div class="col" style="background:#009AC6"></div><div class="meta"><b>Blau · Akzent</b><code>#009AC6 · Info, aktiv, KI</code></div></div>
+    <div class="sw"><div class="col" style="background:#6BAA24"></div><div class="meta"><b>Grün · Ampel</b><code>#6BAA24 · pünktlich, bestanden</code></div></div>
+    <div class="sw"><div class="col" style="background:#FBC900"></div><div class="meta"><b>Gelb · Ampel</b><code>#FBC900 · Grenzbereich</code></div></div>
+    <div class="sw"><div class="col" style="background:#E2001A"></div><div class="meta"><b>Rot · Ampel</b><code>#E2001A · überfällig, kritisch</code></div></div>
+    <div class="sw"><div class="col" style="background:#f6f6f4"></div><div class="meta"><b>Flächen</b><code>#f6f6f4 / #fff · ruhig, hell</code></div></div>
+  </div>
+
+  <h3 class="mh">Typografie & Bausteine</h3>
+  <div class="compbox">
+    <div class="grp typescale" style="min-width:210px">
+      <div><small>H1 / Montserrat 800</small><span style="font-size:24px;font-weight:800">Schulleiter-Dashboard</span></div>
+      <div><small>Fließtext / 400</small><span style="font-size:14px">Neben Beruf und Dienst studieren.</span></div>
+      <div><small>Label / 700</small><span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#7a7a79">Offene Beiträge</span></div>
+    </div>
+    <div class="grp"><span class="gl">Buttons</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri">Genehmigen</button><button class="btn acc">Freigeben</button><button class="btn gh">Abbrechen</button><button class="btn dgr">Ablehnen</button></div>
+    </div>
+    <div class="grp"><span class="gl">Ampel & Badges</span>
+      <div class="pillrow"><span class="badge bg-g"><span class="dt g"></span>pünktlich</span><span class="badge bg-y"><span class="dt y"></span>Grenzbereich</span><span class="badge bg-r"><span class="dt r"></span>überfällig</span><span class="badge bg-a">aktiv</span><span class="badge bg-n">pausiert</span></div>
+    </div>
+    <div class="grp"><span class="gl">Eingaben</span>
+      <div style="display:flex;gap:8px;align-items:center"><span class="inp ph" style="width:150px">anmeldung@…</span><span class="switch on"><i></i></span><span class="muted" style="font-size:12px">Schalter</span></div>
+    </div>
+  </div>
+  <div class="cap"><span class="n">i</span><div>Diese Bausteine wiederholen sich in jedem Screen. <b>Keine Farbverläufe, keine hartcodierten Sonderfarben</b> — nur die CREDO-Variablen. Icons im Lucide-Stil (dünne Linien).</div></div>
+</section>
+
+<!-- ================= SCHULLEITER DASHBOARD ================= -->
+<section id="leiter">
+  <h2>1 · Schulleiter-Dashboard</h2>
+  <p class="secsub">Die Kommandozentrale. Der (oft ehrenamtliche) Leiter sieht sofort, was zu tun ist — nicht einen Menübaum, sondern fällige Aktionen.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/dashboard</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Teilnehmer</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Anmeldungen <span style="margin-left:auto;background:#E2001A;color:#fff;border-radius:99px;font-size:10px;padding:1px 6px">7</span></a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.2z"/></svg> Kommunikation</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg> Termine & Anwesenheit</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V6a2 2 0 0 1 2-2h13v16H6a2 2 0 0 1-2-2z"/></svg> Prüfungen</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Finanzen</a>
+        </nav>
+        <div class="side-foot"><span class="av">AW</span><div><b style="font-size:12px">Andreas Weber</b><small>Schulleiter</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar">
+          <h4>Übersicht</h4><div class="spacer"></div>
+          <span class="ycombo">Jahrgang 2026–29 · Sem. 1 ▾</span>
+          <span class="search"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg> Name / E-Mail…</span>
+          <span class="iconbtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot"></span></span>
+          <span class="av2">AW</span>
+        </div>
+        <div class="content">
+          <div class="grid kpis" style="margin-bottom:16px">
+            <div class="kpi"><span class="bar b-r"></span><div class="lab">Zu genehmigen</div><div class="big">7</div><div class="foot tr">3 prüfbereit</div></div>
+            <div class="kpi"><span class="bar b-y"></span><div class="lab">Unter 80 % Anwesenheit</div><div class="big">2</div><div class="foot ty">1 kritisch (rot)</div></div>
+            <div class="kpi"><span class="bar b-r"></span><div class="lab">Offene Beiträge</div><div class="big">640 €</div><div class="foot tr">5 Teilnehmer überfällig</div></div>
+            <div class="kpi"><span class="bar b-a"></span><div class="lab">Offene Bewertungen</div><div class="big">12</div><div class="foot ta">Freitext-Antworten</div></div>
+          </div>
+          <div class="grid" style="grid-template-columns:1.4fr 1fr">
+            <div class="card">
+              <div class="sectitle">Zu genehmigen <span class="badge bg-r">3 prüfbereit</span></div>
+              <div class="ph">Bewerbungen mit vollständigen Referenzen — ein Klick in die Entscheidung.</div>
+              <div class="todo"><span class="ic bg-g"><span class="dt g"></span></span><div style="flex:1"><b style="font-size:13.5px">Sarah König</b><div class="muted" style="font-size:12px">Referenzen vollständig · EFG Minden</div></div><button class="btn pri sm">Prüfen</button></div>
+              <div class="todo"><span class="ic bg-g"><span class="dt g"></span></span><div style="flex:1"><b style="font-size:13.5px">Ruth &amp; Jonas Mahler <span class="badge bg-a" style="margin-left:4px">Ehepaar</span></b><div class="muted" style="font-size:12px">Referenzen vollständig · FeG Porta</div></div><button class="btn pri sm">Prüfen</button></div>
+              <div class="todo"><span class="ic bg-y"><span class="dt y"></span></span><div style="flex:1"><b style="font-size:13.5px">Daniel Fischer</b><div class="muted" style="font-size:12px">1 Referenz ausstehend (Pastor)</div></div><button class="btn gh sm">Warten</button></div>
+            </div>
+            <div class="card">
+              <div class="sectitle">Anwesenheit-Warnungen</div>
+              <div class="ph">Kumulativ über alle Semester.</div>
+              <div class="todo"><span class="avn">TR</span><div style="flex:1"><b style="font-size:13px">Tobias Reim</b><div class="muted" style="font-size:11.5px">78 % · noch 0 Fehltage möglich</div></div><span class="badge bg-r">rot</span></div>
+              <div class="todo"><span class="avn">HV</span><div style="flex:1"><b style="font-size:13px">Hanna Vogt</b><div class="muted" style="font-size:11.5px">82 % · 1 Fehltag möglich</div></div><span class="badge bg-y">gelb</span></div>
+              <div class="hr"></div>
+              <div class="muted" style="font-size:12px">Nächster Abend: <b style="color:#2b2b2a">Di 22.07. · Systematik</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Rollen-Dashboard „Was ist jetzt dran?“</span> <span class="prin">Ampel statt Zahlenwüste</span> <span class="prin">Jahrgangs-Umschalter als globaler Filter</span> <span class="prin">Ein-Klick in die Akte</span>. Jede Kachel ist ein Sprungziel; leerer Zustand vor Semesterstart zeigt „Anmeldelink teilen“.</div></div>
+</section>
+
+<!-- ================= PIPELINE ================= -->
+<section id="pipeline">
+  <h2>2 · Anmeldungen — Genehmigungs-Pipeline</h2>
+  <p class="secsub">Der DSGVO-kritische MS-Forms-Prozess wird abgelöst. Kern ist das Bibelschul-Gate: die <b>Pastoren-/Charakterreferenz</b> muss vorliegen, bevor entschieden wird.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/anmeldungen</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Teilnehmer</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Anmeldungen</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.2z"/></svg> Kommunikation</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg> Termine</a>
+        </nav>
+        <div class="side-foot"><span class="av">AW</span><div><b style="font-size:12px">Andreas Weber</b><small>Schulleiter</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4>Anmeldungen · Jahrgang 2026–29</h4><div class="spacer"></div><button class="btn gh sm">Anmeldelink kopieren</button><button class="btn pri sm">Formular bearbeiten</button></div>
+        <div class="content">
+          <div class="kanban">
+            <div class="kcol"><h5>Eingegangen <span>4</span></h5>
+              <div class="kcard"><div class="nm">Markus Brand</div><div class="mt">vor 2 Std · EFG Minden</div><div class="ref"><span class="dt y"></span> Referenzen: 0/2 angefragt</div></div>
+              <div class="kcard"><div class="nm">Lea Sommer</div><div class="mt">gestern · CG Lübbecke</div><div class="ref"><span class="dt y"></span> Referenzen: 1/2</div></div>
+            </div>
+            <div class="kcol"><h5>Prüfbereit <span>3</span></h5>
+              <div class="kcard" style="border-color:#cfe6ad"><div class="nm">Sarah König</div><div class="mt">Bewerbung komplett</div><div class="ref"><span class="dt g"></span> Referenzen: 2/2 erhalten</div><div style="margin-top:9px;display:flex;gap:6px"><button class="btn pri sm">Genehmigen</button><button class="btn gh sm">Ansehen</button></div></div>
+              <div class="kcard" style="border-color:#cfe6ad"><div class="nm">Ruth &amp; Jonas Mahler <span class="badge bg-a">Ehepaar</span></div><div class="mt">Beitrag: 120 € + 60 € (−50 %)</div><div class="ref"><span class="dt g"></span> Referenzen: 2/2</div></div>
+            </div>
+            <div class="kcol"><h5>Genehmigt <span>18</span></h5>
+              <div class="kcard"><div class="nm">Hanna Vogt</div><div class="mt">→ Kartei · Debitor #4021</div><div class="ref"><span class="dt g"></span> Willkommensmail versandt</div></div>
+              <div class="kcard"><div class="nm">Tobias Reim</div><div class="mt">→ Kartei · Debitor #4022</div><div class="ref"><span class="dt a"></span> Magic-Link aktiv</div></div>
+            </div>
+            <div class="kcol"><h5>Warteliste <span>2</span></h5>
+              <div class="kcard"><div class="nm">Daniel Fischer</div><div class="mt">wartet auf Pastor-Referenz</div><div class="ref"><span class="dt y"></span> Reminder in 2 Tagen</div></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:14px;display:flex;gap:14px;align-items:center">
+            <div class="fic" style="background:#009AC6">✓</div>
+            <div style="flex:1;font-size:13px"><b>Ein Klick „Genehmigen“ erledigt vier Dinge:</b> <span class="muted">Übernahme in die Kartei (M1) · Optigem-Debitor + Abo „Semesterbeitrag“ via n8n (M4) · Willkommens-E-Mail mit Magic-Link (M3) · Zuordnung zum Terminplan der 10 Dienstagabende.</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Referenz-Workflow als Gate (P0)</span> <span class="prin">Ein Klick, keine Doppelerfassung</span> <span class="prin">Ehepaar-50 %-Logik sichtbar</span> <span class="prin">Vollständigkeits-Ampel je Karte</span>. Die Referenzantworten selbst sind für den Bewerber nie sichtbar und verschlüsselt.</div></div>
+</section>
+
+<!-- ================= AKTE ================= -->
+<section id="akte">
+  <h2>3 · Teilnehmer-Akte (360°-Profil)</h2>
+  <p class="secsub">Alles zu einer Person auf einer Seite — der zentrale Arbeitsplatz. Anwesenheits- und Finanz-Ampel stehen ganz oben.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/teilnehmer/hanna-vogt</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Teilnehmer</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Anmeldungen</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.2z"/></svg> Kommunikation</a>
+        </nav>
+        <div class="side-foot"><span class="av">AW</span><div><b style="font-size:12px">Andreas Weber</b><small>Schulleiter</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4 style="font-weight:700;color:#7a7a79">Teilnehmer /</h4><h4>Hanna Vogt</h4><div class="spacer"></div><button class="btn gh sm">E-Mail schreiben</button></div>
+        <div class="content">
+          <div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:14px">
+            <span class="av2" style="width:52px;height:52px;font-size:17px">HV</span>
+            <div style="flex:1">
+              <div style="font-size:18px;font-weight:800">Hanna Vogt <span class="badge bg-a" style="margin-left:6px">Aktiv</span></div>
+              <div class="muted" style="font-size:13px">Jahrgang 2026–29 · Semester 1 · FeG Bad Oeynhausen · Debitor #4021</div>
+            </div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px;font-weight:700">ANWESENHEIT</div><div style="font-size:20px;font-weight:800" class="ty">82 %</div><span class="badge bg-y">1 Fehltag frei</span></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px;font-weight:700">BEITRAG</div><div style="font-size:20px;font-weight:800" class="tg">bezahlt</div><span class="badge bg-g">120 €</span></div>
+          </div>
+          <div class="tabs"><span class="tab on">Stammdaten</span><span class="tab">Leistungen</span><span class="tab">Finanzen</span><span class="tab">Kommunikation</span><span class="tab">Verlauf</span></div>
+          <div class="grid" style="grid-template-columns:1fr 1fr">
+            <div class="card">
+              <div class="sectitle">Kontakt</div>
+              <table class="tbl"><tr><td class="muted">E-Mail</td><td>hanna.vogt@example.de</td></tr><tr><td class="muted">Telefon</td><td>0571 · 44 22 10</td></tr><tr><td class="muted">Gemeinde</td><td>FeG Bad Oeynhausen</td></tr><tr><td class="muted">Geburtsdatum</td><td>14.03.1991</td></tr></table>
+            </div>
+            <div class="card">
+              <div class="sectitle">Leistung Semester 1</div>
+              <table class="tbl">
+                <tr><td>Altes Testament</td><td><span class="badge bg-g">bestanden</span></td></tr>
+                <tr><td>Bibelkunde</td><td><span class="badge bg-g">bestanden</span></td></tr>
+                <tr><td>Systematik</td><td><span class="badge bg-n">offen</span></td></tr>
+                <tr><td>Lektüre</td><td><span class="muted">3 / 4 bestätigt</span></td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="card" style="margin-top:14px;display:flex;gap:10px;align-items:center;font-size:12.5px">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#009AC6" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span class="muted"><b style="color:#2b2b2a">DSGVO-Werkzeuge:</b> Einwilligungen (Audio-Aufnahmen: erteilt · Glaubensangaben: erteilt) · <span class="ta">Datenkopie exportieren</span> · geschützte Felder AES-256-verschlüsselt.</span>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Ampel prominent oben</span> <span class="prin">Ein Wahrheitsort je Datum</span> <span class="prin">Datenschutz sichtbar am Feld</span> <span class="prin">gefühlter Statuswechsel als State-Machine</span>. Der Dozent sähe diese Akte gar nicht — nur der Leiter.</div></div>
+</section>
+
+<!-- ================= ANMELDE-WIZARD (Phone) ================= -->
+<section id="anmeldung">
+  <h2>4 · Öffentlicher Anmelde-Wizard</h2>
+  <p class="secsub">Der Interessent bewirbt sich abends am Handy — ohne Account, in Etappen, mit „Speichern &amp; Fortsetzen“. Sensible Felder erklären sich selbst.</p>
+  <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
+    <div class="phone mock">
+      <div class="scr">
+        <div class="notch"></div>
+        <div class="sbar"><span>19:42</span><span>Bibelschule ESRA · GBS</span><span>▮▮▮</span></div>
+        <div class="papp">
+          <div class="phead"><div class="t">Anmeldung</div><span class="badge bg-g">gespeichert ✓</span></div>
+          <div class="stepper">
+            <span class="stp done"><span class="c">✓</span></span><span class="ln"></span>
+            <span class="stp done"><span class="c">✓</span></span><span class="ln"></span>
+            <span class="stp on"><span class="c">3</span> Bank &amp; Beitrag</span><span class="ln"></span>
+            <span class="stp"><span class="c">4</span></span>
+          </div>
+          <div class="pcard">
+            <div class="field"><label>Zahlweise</label><div class="pillrow"><span class="chip on">120 € / Semester</span><span class="chip">20 € / Monat</span></div></div>
+            <div class="field"><label>IBAN (SEPA-Lastschrift)</label><span class="inp ph" style="display:block">DE00 0000 0000 0000 0000 00</span>
+              <div class="hintbox"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="flex:0 0 auto"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Warum? Für den Semesterbeitrag. <b>Verschlüsselt gespeichert</b> (AES-256), nur der Schulleiter sieht sie.</span></div>
+            </div>
+            <div class="field"><label>Ehepartner mit anmelden?</label><div style="display:flex;align-items:center;gap:9px"><span class="switch on"><i></i></span><span class="muted" style="font-size:12px">Ja — Partner erhält 50 % Rabatt &amp; eigenen Link</span></div></div>
+          </div>
+          <button class="btn pri" style="width:100%;padding:12px">Weiter zu Schritt 4 →</button>
+          <div class="lockrow" style="justify-content:center;margin-top:10px">← Zurück · Fortschritt bleibt 14 Tage gespeichert</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <div class="card" style="background:var(--page-card);border-color:var(--page-line);margin-bottom:12px">
+        <div class="sectitle" style="color:var(--page-fg)">Schritt 4 · Einwilligungen</div>
+        <div class="check" style="margin-bottom:9px"><span class="cbx on" style="color:#fff">✓</span><div><b>Datenschutzerklärung</b> gelesen und akzeptiert. <span class="muted">(Pflicht — behebt den MS-Forms-Befund)</span></div></div>
+        <div class="check" style="margin-bottom:9px"><span class="cbx on" style="color:#fff">✓</span><div><b>Glaubensangaben</b> (Art. 9): Ich willige gesondert in die Verarbeitung meiner Angaben zur Gemeindezugehörigkeit ein.</div></div>
+        <div class="check"><span class="cbx"></span><div><b>Unterrichts-Audioaufnahmen</b>: Ich bin mit Aufnahmen einverstanden. <span class="muted">(optional, jederzeit widerrufbar)</span></div></div>
+      </div>
+      <div class="cap" style="margin:0"><span class="n">✦</span><div><b>Prinzipien:</b> <span class="prin">Wizard mit Auto-Save</span> <span class="prin">Speichern &amp; Fortsetzen (14-Tage-Token)</span> <span class="prin">aktive Einwilligung, kein Vorabhaken</span> <span class="prin">getrennte Art.9-Zustimmung</span>. Feldtypen kommen aus dem Formular-Builder — der Leiter pflegt die Fragen selbst.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PORTAL (Phone) ================= -->
+<section id="portal">
+  <h2>5 · Teilnehmer-Portal (Startseite)</h2>
+  <p class="secsub">Nach dem Magic-Link-Login sieht der berufstätige Erwachsene sofort seinen Stand und verpasst nichts. Echte Accounts statt Teams-Gastzugang.</p>
+  <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
+    <div class="phone mock">
+      <div class="scr">
+        <div class="notch"></div>
+        <div class="sbar"><span>20:15</span><span></span><span>▮▮▮</span></div>
+        <div class="papp">
+          <div class="phead"><div><div class="muted" style="font-size:12px;font-weight:700">Guten Abend,</div><div class="t">Hanna</div></div><span class="av2">HV</span></div>
+          <div class="pcard acc"><div class="lab">Nächster Termin</div><div style="font-size:16px;font-weight:800;margin-top:3px">Di 22.07. · 19:30</div><div class="muted" style="font-size:12.5px">Systematische Theologie · Gemeindehaus, Raum 2</div></div>
+          <div class="pcard" style="border-left:4px solid #E2001A"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="lab">Offene Prüfung</div><div style="font-weight:800;margin-top:2px">Bibelkunde · Semestertest</div></div><span class="badge bg-r">bis Fr</span></div><button class="btn pri sm" style="width:100%;margin-top:9px">Jetzt starten</button></div>
+          <div style="display:flex;gap:10px">
+            <div class="pcard" style="flex:1;margin-bottom:0"><div class="lab">Anwesenheit</div><div style="font-size:19px;font-weight:800" class="ty">82 %</div><div class="muted" style="font-size:11px">noch 1 Fehltag frei</div></div>
+            <div class="pcard" style="flex:1;margin-bottom:0"><div class="lab">Lektüre</div><div style="font-size:19px;font-weight:800">3<span class="muted" style="font-size:13px">/4</span></div><div class="ta" style="font-size:11px;font-weight:700">1 bestätigen ›</div></div>
+          </div>
+          <div class="pcard" style="margin-top:11px;margin-bottom:4px"><div style="display:flex;justify-content:space-between;align-items:center"><div class="lab" style="display:flex;gap:6px;align-items:center"><span class="dt a"></span> Neues Material</div><span class="badge bg-a">2 neu</span></div><div class="muted" style="font-size:12.5px;margin-top:4px">Systematik · Vorlesung Abend 3 (Audio) + Skript</div></div>
+        </div>
+        <div class="tabbar">
+          <a class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Start</a>
+          <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H6l-2 2z"/></svg>Material</a>
+          <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M8 3v4M16 3v4"/></svg>Prüfungen</a>
+          <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profil</a>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <div class="cap" style="margin-top:8px"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Passwortlos als Grundhaltung</span> <span class="prin">Mobile-first</span> <span class="prin">Ampel-Kontingent statt nackter Prozent</span> <span class="prin">klare Call-to-Action</span> <span class="prin">Deep-Links ins Fach</span>.</div></div>
+      <div class="card" style="background:var(--page-card);border-color:var(--page-line)">
+        <div class="sectitle" style="color:var(--page-fg)">Warum das den Kern-Schmerz löst</div>
+        <p class="muted" style="margin:0;font-size:13.5px">Der Schulleiter nannte Teams-Berechtigungschaos als Hauptproblem. Hier hat jeder Teilnehmer einen <b>echten, eigenen Zugang</b> — er tippt seine E-Mail, klickt den Link im Postfach, ist drin. Kein Passwort, kein „Passwort vergessen“, kein Gastaccount.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ANWESENHEIT (Phone) ================= -->
+<section id="anwesenheit">
+  <h2>6 · Mobile Anwesenheitsliste</h2>
+  <p class="secsub">Der Dozent hakt die Präsenz eines Dienstagabends in Sekunden ab — Default „alle anwesend“, nur Abweichungen umstellen, Ampel live.</p>
+  <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start">
+    <div class="phone mock">
+      <div class="scr">
+        <div class="notch"></div>
+        <div class="sbar"><span>19:34</span><span></span><span>▮▮▮</span></div>
+        <div class="papp">
+          <div class="phead"><div><div class="muted" style="font-size:12px;font-weight:700">Di 22.07. · Systematik</div><div class="t" style="font-size:17px">Anwesenheit</div></div><span class="badge bg-a">18 / 20 da</span></div>
+          <div class="rosterrow"><span class="avn">SK</span><div style="flex:1"><b style="font-size:13.5px">Sarah König</b></div><div class="seg"><span class="on-g">Da</span><span>Fehlt</span><span>Entsch.</span></div></div>
+          <div class="rosterrow"><span class="avn">TR</span><div style="flex:1"><b style="font-size:13.5px">Tobias Reim</b><div class="tr" style="font-size:11px;font-weight:700">⚠ würde unter 80 % fallen</div></div><div class="seg"><span>Da</span><span class="on-r">Fehlt</span><span>Entsch.</span></div></div>
+          <div class="rosterrow"><span class="avn">HV</span><div style="flex:1"><b style="font-size:13.5px">Hanna Vogt</b></div><div class="seg"><span class="on-g">Da</span><span>Fehlt</span><span>Entsch.</span></div></div>
+          <div class="rosterrow"><span class="avn">RM</span><div style="flex:1"><b style="font-size:13.5px">Ruth Mahler</b></div><div class="seg"><span>Da</span><span>Fehlt</span><span class="on-y">Entsch.</span></div></div>
+          <div class="rosterrow"><span class="avn">JM</span><div style="flex:1"><b style="font-size:13.5px">Jonas Mahler</b></div><div class="seg"><span class="on-g">Da</span><span>Fehlt</span><span>Entsch.</span></div></div>
+          <button class="btn pri" style="width:100%;padding:12px;margin-top:12px">Speichern · 20 erfasst</button>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <div class="cap" style="margin-top:8px"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Mobile-first, große Tap-Ziele</span> <span class="prin">Bulk-Default „alle da“</span> <span class="prin">Live-Ampel beim Erfassen</span> <span class="prin">Frühwarnung 80 %</span>. Jede spätere Korrektur erzeugt einen Audit-Eintrag.</div></div>
+      <div class="card" style="background:var(--page-card);border-color:var(--page-line)">
+        <div class="sectitle" style="color:var(--page-fg)">Statuswerte (P0-Ergänzung)</div>
+        <div class="pillrow"><span class="badge bg-g">Anwesend</span><span class="badge bg-r">Fehlend</span><span class="badge bg-y">Verspätet</span><span class="badge bg-a">Entschuldigt</span></div>
+        <p class="muted" style="font-size:13px;margin:10px 0 0">„Entschuldigt“ ist getrennt von „Fehlend“ und durchläuft einen kleinen Genehmigungs-Workflow (Beleg-Upload → Leiter genehmigt → Quote neu). Bei nur 2 erlaubten Fehltagen entscheidend für Fairness.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRÜFUNGS-EDITOR ================= -->
+<section id="editor">
+  <h2>7 · Prüfungs-Editor</h2>
+  <p class="secsub">Der Dozent baut eine Prüfung schnell und fehlerfrei — mit wiederverwendbarem Fragenkatalog und Live-Punktesumme. Erster Teil des Schulleiter-Wunschprozesses.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/pruefungen/bibelkunde-semestertest/bearbeiten</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H6l-2 2z"/></svg> Material</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4M8 12h8M8 16h5"/></svg> Prüfungen</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4"/></svg> Anwesenheit</a>
+        </nav>
+        <div class="side-foot"><span class="av" style="background:#6BAA24">MK</span><div><b style="font-size:12px">M. Klein</b><small>Dozent · Bibelkunde</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4>Bibelkunde · Semestertest</h4><div class="spacer"></div><span class="muted" style="font-size:13px;margin-right:6px">∑ 40 Punkte</span><button class="btn gh sm">Vorschau</button><button class="btn acc sm">Veröffentlichen ▾</button></div>
+        <div class="content">
+          <div class="chainbar"><span class="chip done">Entwurf</span>›<span class="chip on">Geplant</span>›<span class="chip">Läuft</span>›<span class="chip">Bewertung</span>›<span class="chip">Freigegeben</span></div>
+          <div class="grid" style="grid-template-columns:1.5fr .8fr">
+            <div>
+              <div class="qcard"><div style="display:flex;justify-content:space-between"><span class="qtype">Multiple Choice · auto</span><span class="muted" style="font-size:12px">2 Pkt</span></div><div style="font-weight:700;font-size:13.5px;margin:5px 0 7px">Welches Buch gehört zu den Evangelien?</div><div class="opt"><span class="rad"></span> Apostelgeschichte</div><div class="opt"><span class="rad ok"></span> Lukas</div><div class="opt"><span class="rad"></span> Römer</div></div>
+              <div class="qcard"><div style="display:flex;justify-content:space-between"><span class="qtype">Lückentext · auto (Toleranz)</span><span class="muted" style="font-size:12px">3 Pkt</span></div><div style="font-weight:700;font-size:13.5px;margin:5px 0">Das AT umfasst ____ Bücher (nach ev. Zählung).</div><div class="muted" style="font-size:12px">Akzeptiert: „39“, „neununddreißig“ · NFC-normalisiert</div></div>
+              <div class="qcard" style="border-color:#bfe6f3;background:#f7fcfe"><div style="display:flex;justify-content:space-between"><span class="qtype">Freitext · manuell + Rubric</span><span class="muted" style="font-size:12px">10 Pkt</span></div><div style="font-weight:700;font-size:13.5px;margin:5px 0">Skizziere den roten Faden der Heilsgeschichte.</div><div class="muted" style="font-size:12px">Rubric: 3 Kriterien hinterlegt → Anker für die KI-Vorbewertung</div></div>
+            </div>
+            <div>
+              <div class="card"><div class="sectitle">Einstellungen</div>
+                <div class="field"><label>Verfügbar von–bis</label><span class="inp" style="display:block;font-size:12.5px">15.07. 18:00 – 18.07. 23:59</span></div>
+                <div class="field"><label>Bearbeitungs-Zeitlimit</label><div style="display:flex;align-items:center;gap:9px"><span class="switch on"><i></i></span><span class="muted" style="font-size:12px">45 Min ab Start (Auto-Abgabe)</span></div></div>
+                <div class="field"><label>Fragen mischen</label><div style="display:flex;align-items:center;gap:9px"><span class="switch on"><i></i></span><span class="muted" style="font-size:12px">Reihenfolge je Teilnehmer</span></div></div>
+                <div class="field" style="margin:0"><label>Versuche</label><span class="chip on">1 Versuch</span></div>
+              </div>
+              <div class="card" style="margin-top:12px"><div class="sectitle">Fragenkatalog</div><p class="muted" style="font-size:12.5px;margin:0">Jede Frage landet automatisch in der Bank — im nächsten Jahrgang per Klick wiederverwendbar.</p><button class="btn gh sm" style="margin-top:9px">+ Aus Katalog einfügen</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Statuskette Entwurf→Freigegeben</span> <span class="prin">Live-Punktesumme</span> <span class="prin">Zeitfenster ≠ Zeitlimit</span> <span class="prin">Rubric als KI-Anker</span> <span class="prin">Blueprint statt leerer Seite</span>. Nur objektive Fragen werden automatisch ausgewertet.</div></div>
+</section>
+
+<!-- ================= BEWERTEN & FREIGEBEN ================= -->
+<section id="bewerten">
+  <h2>8 · Bewerten &amp; Freigeben — mit KI-Vorbewertung</h2>
+  <p class="secsub">Der Endpunkt des Schulleiter-Wunsches: Freitext bewerten (Ollama schlägt lokal Punkte vor), dann bewusst freigeben — und die Schüler werden benachrichtigt.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/pruefungen/bibelkunde-semestertest/bewerten</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H6l-2 2z"/></svg> Material</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4M8 12h8"/></svg> Prüfungen</a>
+        </nav>
+        <div class="side-foot"><span class="av" style="background:#6BAA24">MK</span><div><b style="font-size:12px">M. Klein</b><small>Dozent · Bibelkunde</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4>Bewerten · Frage 3 (Freitext)</h4><div class="spacer"></div><span class="muted" style="font-size:12.5px;margin-right:8px">14 / 18 bewertet</span><button class="btn acc sm">Alle freigeben ▾</button></div>
+        <div class="content">
+          <div class="ph">Frageweise über alle Teilnehmer — für einheitliche Bewertung, optional anonymisiert.</div>
+          <div class="card" style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13.5px">Teilnehmer #7 (anonymisiert)</b><span class="muted" style="font-size:12px">Frage: roter Faden der Heilsgeschichte · 10 Pkt</span></div>
+            <p style="font-size:13px;background:#f6f6f4;border-radius:9px;padding:11px 12px;margin:9px 0">„Von der Schöpfung über den Bund mit Abraham und Israel führt die Linie auf Christus zu, in dem Verheißung und Erfüllung zusammenkommen; die Gemeinde lebt heute aus diesem Heil in Erwartung der Vollendung.“</p>
+            <div class="ki">
+              <div class="h"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg> KI-Vorbewertung (lokal · Ollama)</div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="font-size:22px;font-weight:800" class="ta">8 / 10</span><span class="muted" style="font-size:12.5px;flex:1">Kriterien Schöpfung–Bund–Christus erfüllt; Vollendung genannt. Bund als Struktur nur knapp — leichter Abzug.</span></div>
+              <div class="pillrow" style="margin-top:10px"><button class="btn acc sm">Übernehmen</button><button class="btn gh sm">8 Pkt anpassen</button><span class="muted" style="font-size:11px;align-self:center">Der Dozent entscheidet — die KI schlägt nur vor.</span></div>
+            </div>
+          </div>
+          <div class="card" style="display:flex;gap:14px;align-items:center;background:#f7fcfe;border-color:#bfe6f3">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#009AC6" stroke-width="2" style="flex:0 0 auto"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            <div style="flex:1;font-size:13px"><b>Freigabe mit Vorschau.</b> <span class="muted">„Alle freigeben“ zeigt zuerst <i>„So sieht es der Teilnehmer“</i> und ist gesperrt, solange Freitexte offen sind. Danach: Ergebnis fließt automatisch in die Leistung (M6) + E-Mail „Deine Ergebnisse sind da“ (kein Ergebnis im Betreff).</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Genau dein Beispiel:</b> Test gestalten → freigeben inkl. Benachrichtigung. <span class="prin">Human-in-the-Loop KI</span> <span class="prin">Release-Sperre bei offenen Freitexten</span> <span class="prin">„So sieht es der Teilnehmer“-Vorschau</span> <span class="prin">Ergebnis fließt automatisch weiter</span>. Keine Antwort verlässt das eigene Netz.</div></div>
+</section>
+
+<!-- ================= MATERIAL ================= -->
+<section id="material">
+  <h2>9 · Materialplattform &amp; Audio</h2>
+  <p class="secsub">Ersetzt Teams als Dateiablage: Präsentationen, Skripte und die Unterrichts-Audioaufnahmen — direkt im Browser abspielbar, wichtig für Schichtdienstler.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/material/systematik/semester-1</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H6l-2 2z"/></svg> Material</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4"/></svg> Prüfungen</a>
+        </nav>
+        <div class="side-foot"><span class="av">HV</span><div><b style="font-size:12px">Hanna Vogt</b><small>Teilnehmerin</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4 style="font-weight:700;color:#7a7a79">Semester 1 · Systematik /</h4><h4>Abend 3</h4><div class="spacer"></div><span class="muted" style="font-size:12.5px">Breadcrumb: Semester › Fach › Abend</span></div>
+        <div class="content">
+          <div class="audio" style="margin-bottom:14px">
+            <span class="play"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            <div class="wave"><div style="display:flex;justify-content:space-between;font-size:12px"><b>Vorlesung Abend 3 — Die Lehre von der Gnade</b><span class="muted">32:14 / 1:12:40</span></div><div class="p" style="margin-top:7px"><i style="width:44%"></i></div></div>
+            <span class="chip">1.25×</span>
+            <button class="btn gh sm"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Download</button>
+          </div>
+          <div class="card">
+            <div class="sectitle">Dateien · Abend 3 <span class="badge bg-a">2 neu</span></div>
+            <div class="filerow"><span class="fic" style="background:#009AC6">MP3</span><div style="flex:1"><b style="font-size:13.5px">Vorlesung Abend 3.mp3</b><div class="muted" style="font-size:12px">86 MB · Audio · vor 1 Std</div></div><span class="badge bg-a">neu</span></div>
+            <div class="filerow"><span class="fic" style="background:#E2001A">PDF</span><div style="flex:1"><b style="font-size:13.5px">Skript — Gnadenlehre.pdf</b><div class="muted" style="font-size:12px">2,4 MB · vor 1 Std</div></div><span class="badge bg-a">neu</span></div>
+            <div class="filerow"><span class="fic" style="background:#6BAA24">PPT</span><div style="flex:1"><b style="font-size:13.5px">Folien Abend 3.pptx</b><div class="muted" style="font-size:12px">5,1 MB · gestern</div></div><span class="muted" style="font-size:12px">gelesen</span></div>
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:12px;display:flex;gap:8px;align-items:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#6BAA24" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> Sichtbarkeit automatisch aus dem Jahrgang · Upload mit Magic-Bytes-Prüfung · Download mit Path-Traversal-Schutz.</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">3-Ebenen-Navigation Semester › Fach › Abend</span> <span class="prin">Browser-Audio mit Tempo &amp; Download</span> <span class="prin">neu/ungelesen-Markierung</span> <span class="prin">Rechte implizit aus dem Jahrgang</span>. Eine gebündelte „neues Material“-Mail statt Einzelspam.</div></div>
+</section>
+
+<!-- ================= FINANZEN ================= -->
+<section id="finanzen">
+  <h2>10 · Finanz-Dashboard &amp; Optigem-Abgleich</h2>
+  <p class="secsub">Der Leiter sieht auf einen Blick, wer im Rückstand ist. Die Zahlen kommen automatisch per n8n aus Optigem — gebucht wird nur dort, die Software zeigt an und erinnert.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/finanzen</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Teilnehmer</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Finanzen</a>
+        </nav>
+        <div class="side-foot"><span class="av">AW</span><div><b style="font-size:12px">Andreas Weber</b><small>Schulleiter</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4>Finanzen · offene Posten</h4><div class="spacer"></div><span class="badge bg-g" style="margin-right:6px"><span class="dt g"></span> Optigem-Sync vor 12 Min</span><button class="btn pri sm">Sammel-Erinnerung ▾</button></div>
+        <div class="content">
+          <div class="grid kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+            <div class="kpi"><span class="bar b-g"></span><div class="lab">Beitragssoll Sem. 1</div><div class="big">2.280 €</div><div class="foot muted">20 TN · inkl. 2× −50 %</div></div>
+            <div class="kpi"><span class="bar b-y"></span><div class="lab">Eingegangen</div><div class="big">1.640 €</div><div class="foot tg">72 %</div></div>
+            <div class="kpi"><span class="bar b-r"></span><div class="lab">Überfällig</div><div class="big">640 €</div><div class="foot tr">5 Teilnehmer</div></div>
+          </div>
+          <div class="card">
+            <table class="tbl">
+              <tr><th>Teilnehmer</th><th>Soll</th><th>Offen</th><th>Fällig seit</th><th>Status</th><th></th></tr>
+              <tr><td><span class="avn">TR</span>Tobias Reim</td><td>120 €</td><td class="tr"><b>120 €</b></td><td>32 Tage</td><td><span class="badge bg-r"><span class="dt r"></span>überfällig</span></td><td><button class="btn gh sm">Erinnern</button></td></tr>
+              <tr><td><span class="avn">LS</span>Lea Sommer</td><td>120 €</td><td class="ty"><b>60 €</b></td><td>9 Tage</td><td><span class="badge bg-y"><span class="dt y"></span>Rate offen</span></td><td><button class="btn gh sm">Erinnern</button></td></tr>
+              <tr><td><span class="avn">RM</span>Ruth Mahler <span class="badge bg-a">−50 %</span></td><td>60 €</td><td class="tg"><b>0 €</b></td><td>–</td><td><span class="badge bg-g"><span class="dt g"></span>bezahlt</span></td><td></td></tr>
+              <tr><td><span class="avn">HV</span>Hanna Vogt</td><td>120 €</td><td class="tg"><b>0 €</b></td><td>–</td><td><span class="badge bg-g"><span class="dt g"></span>bezahlt</span></td><td></td></tr>
+            </table>
+          </div>
+          <div class="card" style="margin-top:12px;display:flex;gap:12px;align-items:center;font-size:12.5px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#7a7a79" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg><span class="muted"><b style="color:#2b2b2a">Gestaffelte, seelsorgliche Mahnkette:</b> freundlich bei Fälligkeit → +7 Tage → +14 Tage · Stopp automatisch bei Zahlungseingang · aktive Ratenpläne ausgenommen. Teilnehmer-Finanzsicht: Schalter vorbereitet, derzeit aus.</span></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Ampel je Teilnehmer</span> <span class="prin">Optigem führend, read-only</span> <span class="prin">Ehepartner −50 % transparent</span> <span class="prin">Ein-Klick-Erinnerung</span> <span class="prin">Sync-Status sichtbar</span>. Aging im CFO-Stil (wer schuldet wie viel, wie alt).</div></div>
+</section>
+
+<!-- ================= DOZENT ================= -->
+<section id="dozent">
+  <h2>11 · Dozent-Dashboard (gescopet)</h2>
+  <p class="secsub">Die ab Start aktive Dozentenrolle sieht <b>nur das eigene Fach</b> — keine Finanzen, keine fremden Teilnehmer. „Verboten“ heißt hier: gar nicht sichtbar.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/dashboard</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Meine Fächer</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v14H6l-2 2z"/></svg> Material</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4"/></svg> Prüfungen</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4"/></svg> Anwesenheit</a>
+        </nav>
+        <div class="side-foot"><span class="av" style="background:#6BAA24">MK</span><div><b style="font-size:12px">Michael Klein</b><small>Dozent · Bibelkunde</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4>Meine Fächer</h4><div class="spacer"></div><span class="badge bg-a">Kontext: Bibelkunde · Sem. 1</span></div>
+        <div class="content">
+          <div class="grid" style="grid-template-columns:1fr 1fr">
+            <div class="card" style="border-top:3px solid #009AC6">
+              <div class="sectitle">Bibelkunde <span class="muted" style="font-weight:600;font-size:12px">· Semester 1</span></div>
+              <div class="todo"><span class="ic bg-a"><span class="dt a"></span></span><div style="flex:1"><b style="font-size:13px">4 Freitext-Antworten offen</b><div class="muted" style="font-size:11.5px">Semestertest · zu bewerten</div></div><button class="btn acc sm">Bewerten</button></div>
+              <div class="todo"><span class="ic bg-g"><span class="dt g"></span></span><div style="flex:1"><b style="font-size:13px">Nächster Termin: Di 22.07.</b><div class="muted" style="font-size:11.5px">Anwesenheit erfassen</div></div><button class="btn gh sm">Liste</button></div>
+              <div class="todo"><span class="ic bg-n">＋</span><div style="flex:1"><b style="font-size:13px">Material Abend 4</b><div class="muted" style="font-size:11.5px">noch nichts hochgeladen</div></div><button class="btn gh sm">Upload</button></div>
+            </div>
+            <div class="card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#a7a7a4">
+              <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+              <p style="font-size:13px;margin:10px 0 0;max-width:220px">Keine Finanz- oder Verwaltungskacheln — für den Dozenten <b>ausgeblendet</b>, nicht nur gesperrt. Serverseitig auf sein Fach gescopet (IDOR-Schutz).</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Berechtigung formt die Oberfläche</span> <span class="prin">sichtbarer Scope „Fach · Semester“</span> <span class="prin">Row-Level-Scoping (P0)</span>. Der Leiter bleibt Fallback/Vertretung und kann überall nacherfassen.</div></div>
+</section>
+
+<!-- ================= ADMIN ================= -->
+<section id="admin">
+  <h2>12 · Administration &amp; Systemstatus</h2>
+  <p class="secsub">Alles Konfigurierbare an einem Ort — plus der technische Gesundheits-Check. Nichts ist im Code festgeschrieben; der Leiter bleibt unabhängig.</p>
+  <div class="frame mock">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar">gbs-campus.de/admin</div></div>
+    <div class="screen"><div class="app">
+      <aside class="side">
+        <div class="brand"><span class="logo">G</span> GBS Campus</div>
+        <nav class="nav">
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Übersicht</a>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-4l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L4.1 11a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.4h4l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a7 7 0 0 0 .1-1z"/></svg> Administration</a>
+        </nav>
+        <div class="side-foot"><span class="av" style="background:#575756">PV</span><div><b style="font-size:12px">Projektverantwortlicher</b><small>Administrator</small></div></div>
+      </aside>
+      <div class="main">
+        <div class="topbar"><h4>Administration</h4><div class="spacer"></div><button class="btn dgr sm">Als Teilnehmer anmelden</button></div>
+        <div class="content">
+          <div class="grid kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+            <div class="kpi"><span class="bar b-g"></span><div class="lab">SMTP-Versand</div><div style="font-size:15px;font-weight:800;margin-top:6px" class="tg">bereit</div><div class="foot muted">SPF ✓ DKIM ✓ DMARC ⚠</div></div>
+            <div class="kpi"><span class="bar b-g"></span><div class="lab">Optigem-Sync (n8n)</div><div style="font-size:15px;font-weight:800;margin-top:6px" class="tg">vor 12 Min</div><div class="foot muted">stündlich</div></div>
+            <div class="kpi"><span class="bar b-g"></span><div class="lab">Letztes Backup</div><div style="font-size:15px;font-weight:800;margin-top:6px" class="tg">03:00 Uhr</div><div class="foot ty">Restore-Test fällig</div></div>
+            <div class="kpi"><span class="bar b-a"></span><div class="lab">API-Keys</div><div style="font-size:15px;font-weight:800;margin-top:6px">3 aktiv</div><div class="foot muted">1 läuft in 20 T ab</div></div>
+          </div>
+          <div class="grid" style="grid-template-columns:1fr 1fr">
+            <div class="card"><div class="sectitle">Konfigurierbar (kein Entwickler nötig)</div>
+              <div class="filerow"><span class="fic" style="background:#575756">✎</span><div style="flex:1"><b style="font-size:13px">Anmeldeformular · Formular-Builder</b><div class="muted" style="font-size:11.5px">26 Fragen · Version 3 · öffentlich</div></div><span class="ta" style="font-size:12px;font-weight:700">Bearbeiten ›</span></div>
+              <div class="filerow"><span class="fic" style="background:#575756">✉</span><div style="flex:1"><b style="font-size:13px">E-Mail-Vorlagen</b><div class="muted" style="font-size:11.5px">9 Prozesse · Test-Versand aktiv</div></div><span class="ta" style="font-size:12px;font-weight:700">Bearbeiten ›</span></div>
+              <div class="filerow"><span class="fic" style="background:#575756">⚑</span><div style="flex:1"><b style="font-size:13px">Struktur &amp; Bewertung</b><div class="muted" style="font-size:11.5px">Jahrgänge · 7 Fächer · Pass/Fail + 80 %</div></div><span class="ta" style="font-size:12px;font-weight:700">Bearbeiten ›</span></div>
+            </div>
+            <div class="card"><div class="sectitle">Audit-Log <span class="badge bg-n">append-only</span></div>
+              <div class="ph">Wer hat wann was geändert/gesehen — unveränderlich.</div>
+              <table class="tbl" style="font-size:12px">
+                <tr><td>10:24</td><td>A. Weber</td><td>Note geändert · Bibelkunde</td></tr>
+                <tr><td>09:58</td><td>System</td><td>Consent v3 · S. König</td></tr>
+                <tr><td>09:12</td><td>M. Klein</td><td>Prüfung freigegeben</td></tr>
+                <tr><td>08:40</td><td>n8n-Service</td><td>OP-Sync 20 Debitoren</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="cap"><span class="n">✦</span><div><b>Angewandte Prinzipien:</b> <span class="prin">Konfigurierbarkeit statt Hardcoding</span> <span class="prin">technisch/fachlich getrennt</span> <span class="prin">Impersonation mit Banner &amp; Audit</span> <span class="prin">zentrales Audit-Log (P0)</span> <span class="prin">Restore-Test als Ops-Pflicht</span>.</div></div>
+</section>
+
+</main>
+<footer>
+GBS Campus · Designkonzept &amp; Mockups · 12.07.2026 · CREDO Corporate Design (Montserrat, Primärgrau #575756, Ampelfarben, keine Farbverläufe). Alle Screens sind gerenderte HTML/CSS-Mockups mit Beispieldaten — kein Foto, kein Bild. Grundlage: Spezifikation v2 und die US-Bibelschul-Deep-Research. · Tipp: Taste <b>t</b> schaltet Hell/Dunkel der Seite.
+</footer>
+<script>
+document.addEventListener('keydown',function(ev){if(ev.key==='t'){var r=document.documentElement;var cur=r.getAttribute('data-theme');var sysDark=matchMedia('(prefers-color-scheme:dark)').matches;var next=cur?(cur==='dark'?'light':'dark'):(sysDark?'light':'dark');r.setAttribute('data-theme',next);}});
+</script>
+</body>
+</html>

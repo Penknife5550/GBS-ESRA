@@ -1,0 +1,51 @@
+{
+  "name": "gbs-campus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GBS Campus — Verwaltung der Gemeindebibelschule Minden (Christliches Werk Esra e.V.)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose up -d --build",
+    "pruefen": "tsx scripts/pruefe-formularlogik.ts && tsx scripts/pruefe-semesterlogik.ts && tsx scripts/pruefe-eigene-daten.ts && tsx scripts/pruefe-passwort.ts",
+    "pruefen:db": "tsx scripts/pruefe-einstellungen.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "exceljs": "^4.4.0",
+    "jose": "^6.2.1",
+    "next": "^15.3.2",
+    "nodemailer": "^8.0.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.7",
+    "@types/node": "^22.15.18",
+    "@types/nodemailer": "^7.0.11",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "^15.3.2",
+    "postcss": "^8.5.3",
+    "prisma": "^6.9.0",
+    "tailwindcss": "^4.1.7",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "esbuild": "^0.24.0"
+  }
+}

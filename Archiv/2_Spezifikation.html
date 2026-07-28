@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GBS Campus — Spezifikation v2</title>
+<style>
+:root{
+ --bg:#ffffff; --fg:#2b2b2a; --muted:#6c6c6b; --line:#e6e6e4; --card:#fafafa; --cardline:#ececea;
+ --primary:#575756; --accent:#009AC6; --gruen:#6BAA24; --gelb:#FBC900; --rot:#E2001A;
+ --gruen-bg:#eef6e3; --gelb-bg:#fdf4cf; --rot-bg:#fce4e6; --blau-bg:#e2f4fa;
+ --radius:14px; --maxw:1080px;
+}
+:root[data-theme=dark]{--bg:#141414;--fg:#e8e8e6;--muted:#a2a2a0;--line:#2b2b2b;--card:#1c1c1c;--cardline:#2c2c2c;
+ --primary:#c9c9c7;--gruen-bg:#20301a;--gelb-bg:#302a12;--rot-bg:#3a1a1e;--blau-bg:#10303a;}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141414;--fg:#e8e8e6;--muted:#a2a2a0;--line:#2b2b2b;--card:#1c1c1c;--cardline:#2c2c2c;--primary:#c9c9c7;--gruen-bg:#20301a;--gelb-bg:#302a12;--rot-bg:#3a1a1e;--blau-bg:#10303a;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+ font-family:'Montserrat',-apple-system,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px 90px;}
+header.hero{max-width:var(--maxw);margin:0 auto;padding:56px 22px 26px;}
+.kicker{color:var(--accent);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:13px;}
+h1{font-size:clamp(28px,4vw,44px);line-height:1.1;margin:.3em 0 .25em;letter-spacing:-.01em;}
+.sub{color:var(--muted);font-size:18px;max-width:760px;}
+.meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;color:var(--muted);font-size:14px;}
+.meta b{color:var(--fg);}
+nav.toc{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
+ backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
+nav.toc .inner{max-width:var(--maxw);margin:0 auto;padding:10px 14px;display:flex;gap:4px;overflow-x:auto;}
+nav.toc a{white-space:nowrap;color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:600;padding:7px 11px;border-radius:9px;}
+nav.toc a:hover{color:var(--fg);background:var(--card);}
+section{padding:40px 0 8px;border-top:1px solid var(--line);margin-top:22px;}
+section:first-of-type{border-top:none;}
+h2{font-size:26px;letter-spacing:-.01em;margin:0 0 .4em;}
+h3.modh,h3.prioh{font-size:17px;margin:26px 0 12px;color:var(--fg);}
+h3.prioh{display:flex;align-items:center;gap:10px;}
+.prio-sub{color:var(--muted);margin:-6px 0 14px;font-size:14.5px;}
+h4{margin:0 0 .4em;font-size:16.5px;}
+p{margin:.5em 0;}
+.lead{color:var(--muted);font-size:16.5px;max-width:820px;}
+.hint{color:var(--muted);font-size:14px;}
+.verdict{background:var(--card);border:1px solid var(--cardline);border-left:4px solid var(--accent);
+ border-radius:var(--radius);padding:18px 20px;font-size:16.5px;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 6px;}
+.stat{background:var(--card);border:1px solid var(--cardline);border-radius:var(--radius);padding:16px;text-align:center;}
+.stat .num{display:block;font-size:30px;font-weight:800;color:var(--accent);}
+.stat .lab{font-size:12.5px;color:var(--muted);}
+.tw{overflow-x:auto;border:1px solid var(--cardline);border-radius:var(--radius);margin:10px 0 4px;}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:640px;}
+th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top;}
+thead th{background:var(--card);font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);position:sticky;top:0;}
+tbody tr:last-child td{border-bottom:none;}
+td.area,td.cap{font-weight:600;min-width:220px;}
+td.note{color:var(--muted);}
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;}
+.st-covered{background:var(--gruen-bg);color:var(--gruen);}
+.st-partial{background:var(--gelb-bg);color:#9a7b00;}
+.st-missing{background:var(--rot-bg);color:var(--rot);}
+:root[data-theme=dark] .st-partial{color:var(--gelb);}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .st-partial{color:var(--gelb);}}
+.pr-P0{background:var(--rot-bg);color:var(--rot);}
+.pr-P1{background:var(--gelb-bg);color:#9a7b00;}
+.pr-P2{background:var(--blau-bg);color:var(--accent);}
+:root[data-theme=dark] .pr-P1{color:var(--gelb);}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .pr-P1{color:var(--gelb);}}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin:12px 0;}
+.card{background:var(--card);border:1px solid var(--cardline);border-radius:var(--radius);padding:16px 18px;}
+.card p{margin:.35em 0 0;font-size:14.5px;color:var(--muted);}
+.card.add .add-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;}
+.tm{background:var(--primary);color:#fff;border-radius:7px;padding:2px 8px;font-size:12px;font-weight:700;}
+:root[data-theme=dark] .tm{color:#141414;}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .tm{color:#141414;}}
+.card.add h4{font-size:15px;margin:0;flex:1;min-width:180px;}
+.p0card{border-left:4px solid var(--rot);}
+.rolecards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:6px 0 16px;}
+.rolecard{border-top:3px solid var(--accent);}
+.legend{font-size:13px;color:var(--muted);margin:6px 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.lvl{text-align:center;font-weight:700;font-size:12.5px;width:104px;}
+.lvl span{display:inline-block;padding:3px 10px;border-radius:999px;}
+.lv-full span{background:var(--gruen-bg);color:var(--gruen);}
+.lv-own span{background:var(--blau-bg);color:var(--accent);}
+.lv-read span{background:var(--card);color:var(--muted);border:1px solid var(--cardline);}
+.lv-none span{color:var(--muted);opacity:.5;}
+.badge.lv-full{background:var(--gruen-bg);color:var(--gruen);}
+.badge.lv-own{background:var(--blau-bg);color:var(--accent);}
+.badge.lv-read{background:var(--card);color:var(--muted);border:1px solid var(--cardline);}
+.badge.lv-none{color:var(--muted);}
+table.roles td.cap{min-width:260px;}
+ul.notes li{margin:.3em 0;color:var(--muted);font-size:14.5px;}
+.flow{position:relative;}
+.flow.feat{border:1px solid var(--accent);box-shadow:0 0 0 3px var(--blau-bg);}
+.flag{position:absolute;top:-11px;right:14px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;}
+.flow h4{font-size:16px;padding-right:120px;}
+.trigger{font-size:14px;color:var(--muted);margin:.2em 0 .6em;}
+ol.steps{margin:0;padding:0;counter-reset:s;list-style:none;}
+ol.steps>li{position:relative;padding:10px 0 10px 40px;border-top:1px dashed var(--line);}
+ol.steps>li:before{counter-increment:s;content:counter(s);position:absolute;left:0;top:10px;width:26px;height:26px;
+ border-radius:50%;background:var(--primary);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+:root[data-theme=dark] ol.steps>li:before{color:#141414;}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) ol.steps>li:before{color:#141414;}}
+.actor{display:inline-block;background:var(--card);border:1px solid var(--cardline);color:var(--fg);
+ font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:7px;margin-right:8px;}
+.stepaction{font-size:14.5px;}
+.sub{display:block;font-size:13px;margin-top:5px;padding:6px 10px;border-radius:9px;}
+.sub b{font-weight:700;}
+.notif{background:var(--blau-bg);color:var(--accent);}
+.auto{background:var(--gruen-bg);color:var(--gruen);}
+.princ{display:flex;gap:14px;align-items:flex-start;}
+.pn{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--gelb);color:#3a2f00;font-weight:800;
+ display:flex;align-items:center;justify-content:center;font-size:14px;}
+.screen ul{margin:.4em 0 0;padding-left:18px;}
+.screen li{font-size:13.5px;color:var(--muted);margin:.25em 0;}
+.screen .purpose{color:var(--fg);font-weight:500;}
+.timeline{display:flex;flex-direction:column;gap:12px;margin-top:12px;}
+.tl{background:var(--card);border:1px solid var(--cardline);border-left:4px solid var(--accent);border-radius:var(--radius);padding:14px 18px;}
+.tl-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;}
+.tl-ph{font-weight:800;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.03em;}
+.tl-when{color:var(--muted);font-size:13.5px;font-weight:600;}
+.tl h4{margin:.3em 0 .2em;}
+.tl p{font-size:14.5px;color:var(--muted);margin:.2em 0;}
+.tl-res{color:var(--fg)!important;}
+td.dn{font-weight:800;color:var(--accent);width:34px;}
+td.dq{font-weight:600;min-width:160px;}
+footer{max-width:var(--maxw);margin:40px auto 0;padding:24px 22px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px;}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr);}.flow h4{padding-right:0;}.flag{position:static;display:inline-block;margin-bottom:6px;}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="kicker">Funktions-, Rollen- &amp; Prozess-Spezifikation · Entwurf v2</div>
+  <h1>GBS Campus — die vollständige Spezifikation</h1>
+  <p class="sub">Aus dem Softwarekonzept v1 plus einer US-Bibelschul-Deep-Research zu einem entscheidungsreifen Plan verdichtet: Funktionen, Rechte &amp; Rollen und Prozesse — lückenlos abgeglichen, Apple-like gedacht.</p>
+  <div class="meta">
+    <span><b>Auftraggeber</b> Gemeindebibelschule Minden · Christliches Werk Esra e.V.</span>
+    <span><b>Stand</b> 12.07.2026</span>
+    <span><b>Kursstart</b> 15.09.2026 (Jahrgang 2026–29)</span>
+  </div>
+</header>
+<nav class="toc"><div class="inner"><a href="#zusammenfassung">Zusammenfassung</a><a href="#entscheidungen">Entscheidungen</a><a href="#methodik">Methodik</a><a href="#deckung">Deckungsmatrix</a><a href="#ergaenzungen">Ergänzungen</a><a href="#rollen">Rollen &amp; Rechte</a><a href="#prozesse">Prozesse</a><a href="#ux">UX/UI</a><a href="#betrieb">Betrieb</a><a href="#roadmap">Roadmap</a><a href="#todos">To-dos</a></div></nav>
+<main class="wrap">
+
+<section id="zusammenfassung"><h2>1 · Zusammenfassung</h2>
+<div class="verdict"><p>Der 10-Modul-Plan ist als Verwaltungs-/Lernkern (M1, M3, M6-Anwesenheit, M7-Material, M9-Portal, M8-Prüfungen) für eine 20-60-Personen-Abendbibelschule solide und trifft die Vereinfachungs-Entscheidungen (Kohortenmodell, Pass/Fail, Optigem führend, kein Proctoring/GPA) meist richtig — die Overengineering-Gefahr ist bewusst gebannt. Er hat jedoch drei GoLive-blockierende Lücken: (1) der verbindliche Referenz-/Pastorenempfehlungs-Workflow — das eigentliche Zulassungs-Gate einer Bibelschule — ist in KEINEM Modul vorgesehen; (2) der DSGVO-Unterbau ist unvollständig: getrennte Art.9-Einwilligung, revisionssichere Consent-Protokollierung, Lösch-/Retention-Konzept und vor allem ein zentrales Audit-Log fehlen komplett und sind nachträglich nicht rekonstruierbar; (3) die serverseitige Zugriffskontrolle für die ab Start aktive Dozentenrolle ist nur konzeptionell beschrieben — ohne hartes Row-Level-Scoping drohen IDOR-Lecks auf Noten-, Prüfungs- und Finanzdaten. Hinzu kommen wichtige, aber überschaubare Ergänzungen (Entschuldigungs-Workflow + kumulative 80%-Anwesenheit, Schulvertrag, Aufgaben-Feature für Ausarbeitungen, Ankündigungen/Content-Release als Teams-Ablösung, rollenspezifische Dashboards, SMTP-DKIM). Empfehlung: GoLive-MVP auf M1/M2/M3/M6/M7/M9/M10 fokussieren, die drei P0-Blocker plus SMTP-Auth zuerst schließen, und M5-Voll-API sowie Zertifikat-PDF (erster Abschluss 2029) bewusst nachlagern.</p></div>
+<div class="stats">
+  <div class="stat"><span class="num">37</span><span class="lab">Recherche-Agenten</span></div>
+  <div class="stat"><span class="num">12</span><span class="lab">Fachdomänen (US-Benchmark)</span></div>
+  <div class="stat"><span class="num">40</span><span class="lab">Funktionen abgeglichen</span></div>
+  <div class="stat"><span class="num">11</span><span class="lab">GoLive-Blocker (P0)</span></div>
+</div>
+<h3 class="modh">Die drei fachlichen GoLive-Blocker</h3>
+<div class="cards">
+<div class="card add p0card"><div class="add-top"><span class="badge pr-P0">P0</span><span class="tm">M2</span><h4>Referenz-/Pastorenempfehlungs-Workflow (tokenisiert, ohne Login, vertraulich)</h4></div><p>Bewerber benennt 1-2 Referenzgeber (Pastor/Charakter). System versendet automatisch einmaligen Magic-Link zu separatem Empfehlungsformular ohne Account. Antworten verschlüsselt (AES-256), für Bewerber NICHT sichtbar. Statustracking (angefragt/erhalten) je Bewerbung, automatische Reminder nach x Tagen, Adress-Korrektur/Neuversand. Neue externe Rolle &#x27;Referenzgeber&#x27;. Bewerbung erst &#x27;prüfbereit&#x27; wenn Pflichtreferenzen vorliegen.</p></div>
+<div class="card add p0card"><div class="add-top"><span class="badge pr-P0">P0</span><span class="tm">M2</span><h4>DSGVO Art.9 getrennte Einwilligung + revisionssichere Consent-Protokollierung</h4></div><p>Separate, ausdrückliche Einwilligung für Religions-/Gemeindezugehörigkeit und geistliche/seelsorgliche Angaben (besondere Kategorie). Aktive Zustimmung (kein Vorabhaken), Speicherung von Datenschutz-Version + Zeitstempel + IP als Audit-Trail, Re-Consent bei Versionswechsel. Glaubensbekenntnis-Zustimmung mit gleicher Mechanik. Admin-editierbare Versionen in M10.</p></div>
+<div class="card add p0card"><div class="add-top"><span class="badge pr-P0">P0</span><span class="tm">M2</span><h4>Separate, langlebige Token für Bewerbung-Fortsetzen und Referenzgeber</h4></div><p>&#x27;Speichern &amp; später fortsetzen&#x27; braucht eigenen 7-14-Tage-Token (mehrfach nutzbar) — darf NICHT die 15-Min-Magic-Link-Regel erben (Berufstätige füllen abends über Tage aus). Referenzgeber-Link ebenso längerlebig. Sonst brechen die zwei wichtigsten Admissions-Flows ab.</p></div>
+</div><p class="hint">Alle P0-Punkte (fachlich + Betrieb) sind in Abschnitt 4 und 8 vollständig gelistet und in die Roadmap (Abschnitt 9) eingezogen.</p></section>
+<section id="entscheidungen"><h2>2 · Getroffene Entscheidungen (12.07.2026)</h2>
+<div class="tw"><table class="dec"><thead><tr><th>#</th><th>Frage</th><th>Entscheidung</th></tr></thead><tbody>
+<tr><td class="dn">1</td><td class="dq">Optigem-Struktur</td><td>Je Teilnehmer Debitor + Abo-Artikel „Semesterbeitrag“ (wiederkehrende Rechnung) → exakter Offene-Posten-Sync per Saldo je Rechnung.</td></tr>
+<tr><td class="dn">2</td><td class="dq">Teilnehmer-Finanzsicht</td><td>Zunächst nur Leiter-Sicht; Teilnehmer-Sicht als Schalter vorbereitet (Default aus).</td></tr>
+<tr><td class="dn">3</td><td class="dq">Bewertungsschema</td><td>Konfigurierbar; Default bestanden / nicht bestanden + 80 % Anwesenheit als Abschlussvoraussetzung.</td></tr>
+<tr><td class="dn">4</td><td class="dq">Hosting &amp; Betrieb</td><td>Getrennte Docker-Instanz, eigener GBS-Server, eigene AVV (saubere Trägertrennung).</td></tr>
+<tr><td class="dn">5</td><td class="dq">SMTP-Domain</td><td>Noch offen → DNS-Anforderungen (SPF/DKIM/DMARC) dokumentiert, Voraussetzung für Phase 1.</td></tr>
+<tr><td class="dn">6</td><td class="dq">Dozenten-Rolle</td><td>Ab Start aktiv — 4 Rollen ab Tag 1 (Referenten laden Material hoch, legen Prüfungen an, bewerten).</td></tr>
+<tr><td class="dn">7</td><td class="dq">Produktname</td><td>„GBS Campus“ (konfigurierbar hinterlegt).</td></tr>
+</tbody></table></div></section>
+
+<section id="methodik"><h2>Methodik der Analyse</h2>
+<p class="lead">Ein Multi-Agenten-Workflow (37 Agenten, ~2 Mio Tokens) hat die Praxis der größten US-amerikanischen Bibelschulen und Seminare als Maßstab genommen — dort steht die größte Dichte an Erfahrung mit theologischer Ausbildungsverwaltung.</p>
+<div class="cards">
+<div class="card"><h4>Benchmark-Institutionen</h4><p>Moody Bible Institute, Dallas Theological Seminary, The Master's University &amp; Seminary, Liberty University, Gordon-Conwell, Southern/Southeastern Baptist Theological Seminary, Grace, Multnomah, Columbia International University.</p></div>
+<div class="card"><h4>Untersuchte Systeme</h4><p>Populi, CAMS (Three Rivers), Empower, Sonis, Jenzabar, Anthology/Slate, Blackbaud, Rock RMS, Canvas, Brightspace, Moodle, Gradelink, FACTS/RenWeb.</p></div>
+<div class="card"><h4>Vorgehen</h4><p>12 Fachdomänen parallel recherchiert → jede sofort gegen die 10 geplanten Module abgeglichen (Deckung + Priorität) → Synthese (Deckungsmatrix, Rechte-Matrix, Prozessflüsse, UX) → Vollständigkeits-Kritiker → Nachrecherche der gefundenen Lücken.</p></div>
+</div>
+</section>
+
+<section id="deckung"><h2>3 · Funktions-Deckungsmatrix</h2>
+<p class="lead">Jede an großen US-Bibelschulen bewährte Funktion, abgeglichen gegen unseren Plan. <b>1</b> abgedeckt · <b>26</b> teilweise · <b>13</b> fehlend.</p>
+<h3 class="modh">M1 · Teilnehmerverwaltung</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Status-Lebenszyklus als validierte State-Machine mit protokollierten Übergängen</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Status-Enum vorhanden, aber Übergänge nicht validiert/protokolliert (wer/wann/Grund), Rückwege (Pausiert→Aktiv, Warteliste→Genehmigt) nicht modelliert.</td></tr>
+<tr><td class="area">Person-Core vs. Login-Rolle + Mehrfachrollen</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">4 Rollen sind Login-Rollen; Person kann zugleich Dozent+Teilnehmer+Alumnus sein → n:m-Modell nötig, sonst Doppelanlagen über Jahrgänge.</td></tr>
+<tr><td class="area">Löschkonzept / Retention / Anonymisierung</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Soft-Delete vs. DSGVO Art.17 ungelöst; keine datenklassen-getrennten Fristen (Finanz 10J vs. Kontakt), kein Anonymisierungs-Job, kein Löschprotokoll. GoLive-Blocker.</td></tr>
+<tr><td class="area">DSGVO-Auskunft Art.15 + Feld-Audit-Trail + Deprovisioning bei Statuswechsel</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Werkzeuge genannt; Ein-Klick-Datenkopie, Feld-Änderungslog und Sofort-Entzug von Sessions/Magic-Links bei Absolvent/Abgebrochen fehlen.</td></tr>
+<tr><td class="area">Duplikat-Erkennung + Merge/Dedupe</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Suche implizit; Bestandsabgleich bei Einreichung und Merge-Werkzeug (zweiten als &#x27;gemerged&#x27; markieren) fehlen → doppelte Optigem-Debitoren.</td></tr>
+<tr><td class="area">Listen/Filter/Export + Custom-Fields/Tags + Household-Relation</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Listen/Export covered; Zusatzfeld &#x27;Gemeinde&#x27;, Tag-System und echte Person↔Person-Ehe-Relation (statt Formular-Flag) fehlen.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M2 · Anmeldung &amp; Formular-Builder</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Referenz-/Pastorenempfehlungs-Workflow (tokenisiert, ohne Login, vertraulich)</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">KRITISCHSTE Lücke: Kern-Zulassungs-Gate einer Bibelschule fehlt komplett — Token-Versand, Statustracking, Reminder, Vertraulichkeit vor Bewerber.</td></tr>
+<tr><td class="area">DSGVO Art.9 getrennte Einwilligung + revisionssichere Consent-Protokollierung</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Nur Checkbox+AES; separate Einwilligung für Religions-/geistliche Daten und Speicherung Version+Zeitstempel+IP fehlen. Rechtlicher GoLive-Blocker.</td></tr>
+<tr><td class="area">Speichern &amp; Fortsetzen mit eigenem langlebigen Token + Bewerber-Checkliste/Gate</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Öffentlicher Link da; 7-14-Tage-Fortsetzen-Token (nicht 15-Min-Regel), Vollständigkeits-Gate &#x27;prüfbereit&#x27; und Bewerber-Upload fehlen.</td></tr>
+<tr><td class="area">Enrollment-Agreement/Schulvertrag (Checkbox+Zeitstempel+PDF) + Kohorten-Sammeleinschreibung</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Vertrag (80% Pflicht, 120€, Datenschutz) vor Aktivierung fehlt; Sammel-Einschreibung ganzer Jahrgang in alle Fächer nicht als 1 Schritt modelliert.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M3 · Kommunikation / E-Mail</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Abmelde/Opt-out + Trennung transaktional/Rundschreiben + Footer/Impressum</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Abmeldelink, Opt-out-Speicherung, Unterdrückung Abgemeldeter und Regel &#x27;keine Note/Betrag in Betreff/URL&#x27; fehlen. DSGVO-Pflicht.</td></tr>
+<tr><td class="area">SPF/DKIM/DMARC + Bounce-Handling in Akte</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Eigenes SMTP geplant, aber DNS-Auth offen (Entscheidung 5) → Spam-Risiko für Magic-Links/alle Mails; Bounce-Rückmeldung in Akte fehlt.</td></tr>
+<tr><td class="area">Terminerinnerung (+ICS) / Notfall-Broadcast / gebündelte Trigger</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Automatische Erinnerung vor Dienstagabenden, Ein-Klick-Ausfall-Broadcast an Jahrgang und Digest-Bündelung (gegen Mail-Flut) fehlen.</td></tr>
+<tr><td class="area">Ereignis→Vorlage-Trigger + Vorlagen je Entscheidungsstufe</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Vorlagen/Platzhalter covered; schlanke Status→Aktion-Zuordnung und Vorlagen für Zusage/Absage/Warteliste/Willkommen/Ergebnis als Trigger fehlen.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M4 · Finanzen &amp; Optigem</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Zahlungsplan/Raten (6×20€, Ehepartner 3×20€) als Soll-Anzeige</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Nur Zahlungserinnerung; Soll-Ratenplan mit Fälligkeiten/Fortschritt (Zuordnung via Rest-Saldo) fehlt; Ratenwunsch-Feld in M2 fehlt.</td></tr>
+<tr><td class="area">Ehepartner-50%-Logik korrekt nach Optigem</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Ehepaar-Anmeldung da, aber Ableitung welcher Partner voll/halb, Vier-Augen-Bestätigung und Abo-Artikel-Abbildung nicht durchgezogen → Fehlbuchungen.</td></tr>
+<tr><td class="area">Mehrstufiges Dunning (idempotent, Stopp bei Zahlung) + OP-Sync-Granularität</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Einstufig; gestaffelte pastorale Stufen, Ausnahmeliste aktiver Pläne, Idempotenz und Saldo+Fälligkeit JE Rechnung (nicht nur Debitor) müssen verifiziert werden.</td></tr>
+<tr><td class="area">Finanz-Dashboard/Ampel + read-only-Garantie + Debitor-Anlage-Trigger</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Ampel covered; Trigger &#x27;Status Aktiv→Debitor prüfen/anlegen&#x27;, kein Schreibpfad nach Optigem und Third-Party-Payer (Gemeinde zahlt) fehlen.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M5 · Offene API &amp; Webhooks</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Serverseitiges Row-Level-Scoping/IDOR-Schutz je Route</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Dozent-Scope nur konzeptionell; jede M6/M7/M8-Route muss auf zugeordnete Fach-IDs filtern, Finanz-Endpoints für Dozent/Teilnehmer-Token sperren.</td></tr>
+<tr><td class="area">API-Keys/Scopes/Events + n8n-Service-Key</td><td><span class="badge st-covered">Abgedeckt</span></td><td class="note">Gut abgedeckt; sicherstellen n8n/Optigem läuft über eigenen Minimal-Scope-Service-Key (nicht menschlicher Account). Voll-API-Ausbau nach GoLive schiebbar.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M6 · Leistung, Anwesenheit, Lektüre</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Anwesenheit: Status P/A/T/E + kumulative 80% über 6 Semester + Audit</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Ampel je Semester da; getrennter &#x27;Entschuldigt&#x27;, kumulierte Gesamtquote (Abschlussvoraussetzung) und Korrektur-Protokoll fehlen — bei 10 Terminen = max 2 Fehltage.</td></tr>
+<tr><td class="area">Entschuldigungs-Workflow (Beleg-Upload=Art.9, Genehmigung, Neuberechnung)</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Fehlt komplett; ohne ihn ist die 80%-Regel unfair/angreifbar. Atteste als Gesundheitsdaten verschlüsseln, nur Leiter.</td></tr>
+<tr><td class="area">Noten-Finalisierung/Lock + Änderungsantrag + Frühwarnung + Graduation-Clearance</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Erfassung da; unwiderruflicher Lock, genehmigungspflichtige Notenänderung, Alert bei rechnerisch unerreichbaren 80% und Clearance-Prozess fehlen.</td></tr>
+<tr><td class="area">Andacht/Chapel als getrennt zählbarer Block</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Termine da; eigener Termintyp/Flag mit optionaler Quote fehlt. Vor Bau klären ob abschlussrelevant + wer abhakt (Leiter vs. Fachdozent).</td></tr>
+</tbody></table></div>
+<h3 class="modh">M7 · Materialplattform</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Fach-Kursraum als Objekt + Lektions-/Abend-Ordner + Content-Release (sichtbar-ab)</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Nur lose Datei-Ordner; Kursraum-Kopf (Beschreibung/Dozent/Termine), zweite Ebene je Abend und Entwurf/veröffentlicht-Steuerung fehlen.</td></tr>
+<tr><td class="area">Aufgaben/Assignments (Datei-/Text-Abgabe, Bewertung→M6)</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Echte Lücke: schriftliche Ausarbeitungen/Exegese passen weder in M8 (Klausur) noch M6 (nur Ergebnis) → wandern sonst zurück in Teams/Mail.</td></tr>
+<tr><td class="area">Audio HTTP-Range/Byte-Serving + Offline-Download + Speicher/Backup-Konzept</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Player geplant; Tempo-Regler, Range-Requests (Spulen bei 500MB), großer Download-Button und Storage-/Retention-Plan (kein DB-Blob) fehlen.</td></tr>
+<tr><td class="area">Diskussion/Q&amp;A moderiert + jahrgangsweite Ankündigung als Entität</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">&#x27;Optional eigene Beiträge&#x27; zu vage; moderiertes Fach-Q&amp;A und Ankündigung (Portal-Anzeige+Mail, Empfängerkreis Fach/Jahrgang) fehlen — Kern der Teams-Ablösung.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M8 · Online-Prüfungen</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Zeitlimit getrennt vom Verfügbarkeitsfenster + Auto-Abgabe</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Nur Fenster von-bis; Bearbeitungs-Zeitlimit ab Start mit Auto-Abgabe und Übersteuerungsregel fehlen → Streitpotenzial.</td></tr>
+<tr><td class="area">Rubric für Freitext (Anker für Ollama) + Feedback-Sichtbarkeit + Release-Sperre</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Freitext+Ollama da, aber ohne Kriterienraster nicht belastbar; Sichtbarkeits-Schalter und Sperre gegen Teil-Freigabe bei offenen Freitexten fehlen.</td></tr>
+<tr><td class="area">Randomisierung + Ausnahmen/Nachteilsausgleich + Live-Abgabe-Monitoring + Unicode</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Fragen-Mischen (billigste Integrität statt Proctoring), abweichende Zeitfenster je TN, Abgabe-Liste und NFC-Vergleich für Griechisch/Hebräisch fehlen.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M9 · Teilnehmerportal</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Rollenspezifische Dashboards + Benachrichtigungs-Glocke + Onboarding-Checkliste</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Nur Teilnehmer-Startseite; Leiter/Dozent/Admin-Dashboards, In-App-Inbox mit Ungelesen-Zähler und geführte Post-Genehmigung-Checkliste fehlen.</td></tr>
+<tr><td class="area">Re-Enrollment je Semester + Readmission nach Pause</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Schlanker Klick-Bestätigen-Schritt (+Beitrags-Trigger) vor Semesterstart und niedrigschwelliger Wiedereinstieg für Pausierte fehlen.</td></tr>
+<tr><td class="area">Magic-Link-Härtung + Directory-Opt-in + eigene Anwesenheitsquote</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">15-Min-Login ok, aber Single-Use, Rate-Limit, Invalidierung alter Links, Opt-in-Sichtbarkeit und &#x27;verbleibende Fehltage&#x27; im Portal fehlen.</td></tr>
+</tbody></table></div>
+<h3 class="modh">M10 · Administration</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Dozent↔Fach/Semester/Termin-Zuordnung + Curriculum-Snapshot/Klon je Jahrgang</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">Struktur da; explizite &#x27;Termin→Fach→Dozent&#x27;-Zuordnung (Dozent ab Start aktiv) und Einfrieren/Klonen der Fächer-/Anforderungsstruktur je Jahrgang fehlen.</td></tr>
+<tr><td class="area">Rechte-Matrix als DB-Datensatz + Consent-/Feld-Verschlüsselungs-/Termintyp-Config</td><td><span class="badge st-partial">Teilweise</span></td><td class="note">4 feste Rollen ok, aber als DB-Matrix (Rolle×Modul×Aktion) statt if(role===) modellieren; Consent-Versionen, Feldkatalog sensibel und Andacht-Termintyp konfigurierbar.</td></tr>
+</tbody></table></div>
+<h3 class="modh">NEU · Modulübergreifend / neu</h3>
+<div class="tw"><table class="cov"><thead><tr><th>Funktionsbereich</th><th>Status</th><th>Anmerkung</th></tr></thead><tbody>
+<tr><td class="area">Zentrales append-only Audit-Log (Noten/Anwesenheit/Stammdaten/Rollen/Consent/Freigaben)</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">In keinem Modul vorgesehen; DSGVO Art.5(2)/30-Nachweispflicht + Belastbarkeit der Zeugnisse. Nachträglich nicht rekonstruierbar → vor GoLive.</td></tr>
+<tr><td class="area">Kohorten-Dashboard/Reporting + Early-Alert-Risikoliste + Träger-Jahresbericht</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Keine Analytik-Ebene; Retention/Abschlussquote, kombinierte Risiko-Liste (Anwesenheit+Prüfung+Lektüre+OP) und Esra-e.V.-Preset-Export fehlen. k-Anonymität bei kleinen Kohorten beachten.</td></tr>
+<tr><td class="area">Rolle &#x27;Referenzgeber&#x27; (extern, ohne Konto, nur Magic-Link zu 1 Formular)</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Nicht im 4-Rollen-Modell; zwingend für Referenz-Workflow. Antwort für Bewerber nie einsehbar, Link zeit-/einmal-begrenzt.</td></tr>
+<tr><td class="area">Barrierefreiheit WCAG 2.1 AA / BFSG/BITV als Querschnitts-DoD</td><td><span class="badge st-missing">Fehlt</span></td><td class="note">Nicht verankert; Tastatur/Fokus/Screenreader/Kontrast/Audio-Transkript. Radix hilft, aber als Definition-of-Done aufnehmen (rechtlich DE + Zielgruppe).</td></tr>
+</tbody></table></div>
+</section>
+<section id="ergaenzungen"><h2>4 · Priorisierte Ergänzungen zum Plan</h2>
+<p class="lead">Was ergänzt/geschärft werden muss, sortiert nach Dringlichkeit. <b>11×</b> P0 (GoLive-Blocker) · <b>16×</b> P1 (wichtig) · <b>4×</b> P2 (später).</p>
+<h3 class="prioh pr-P0-h"><span class="badge pr-P0">P0</span> P0 — GoLive-Blocker (zuerst schließen)</h3><p class="prio-sub">Rechtlich oder sicherheitskritisch: ohne diese Punkte darf nicht scharfgeschaltet werden.</p>
+<div class="cards">
+<div class="card add"><div class="add-top"><span class="tm">M2</span><h4>Referenz-/Pastorenempfehlungs-Workflow (tokenisiert, ohne Login, vertraulich)</h4></div><p>Bewerber benennt 1-2 Referenzgeber (Pastor/Charakter). System versendet automatisch einmaligen Magic-Link zu separatem Empfehlungsformular ohne Account. Antworten verschlüsselt (AES-256), für Bewerber NICHT sichtbar. Statustracking (angefragt/erhalten) je Bewerbung, automatische Reminder nach x Tagen, Adress-Korrektur/Neuversand. Neue externe Rolle &#x27;Referenzgeber&#x27;. Bewerbung erst &#x27;prüfbereit&#x27; wenn Pflichtreferenzen vorliegen.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M2</span><h4>DSGVO Art.9 getrennte Einwilligung + revisionssichere Consent-Protokollierung</h4></div><p>Separate, ausdrückliche Einwilligung für Religions-/Gemeindezugehörigkeit und geistliche/seelsorgliche Angaben (besondere Kategorie). Aktive Zustimmung (kein Vorabhaken), Speicherung von Datenschutz-Version + Zeitstempel + IP als Audit-Trail, Re-Consent bei Versionswechsel. Glaubensbekenntnis-Zustimmung mit gleicher Mechanik. Admin-editierbare Versionen in M10.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M2</span><h4>Separate, langlebige Token für Bewerbung-Fortsetzen und Referenzgeber</h4></div><p>&#x27;Speichern &amp; später fortsetzen&#x27; braucht eigenen 7-14-Tage-Token (mehrfach nutzbar) — darf NICHT die 15-Min-Magic-Link-Regel erben (Berufstätige füllen abends über Tage aus). Referenzgeber-Link ebenso längerlebig. Sonst brechen die zwei wichtigsten Admissions-Flows ab.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M5</span><h4>Serverseitiges Row-Level-Scoping / IDOR-Schutz für Dozentenrolle</h4></div><p>Da Dozent AB START aktiv: jede M6/M7/M8/M5-Route MUSS serverseitig auf die dem Dozenten zugeordneten Fach-/Semester-IDs filtern (nicht nur UI-Ausblendung). Finanz-Endpoints für Dozent-/Teilnehmer-Token hart sperren. Zentrale Autorisierung in lib/authz.ts, nicht pro Route dupliziert. Sonst fremde Notenblätter/Prüfungen via ID-Manipulation abrufbar.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M10</span><h4>Zentrales append-only Audit-Log</h4></div><p>Unveränderliches Protokoll (wer/wann/was/Alt→Neu/IP) für Notenänderung nach Freigabe, Anwesenheitskorrektur, Stammdaten-/Sensibelfeld-Zugriff, Rollenvergabe/-entzug, Finanzsicht und Consent. Auch Admin kann nicht löschen. Für 20-60 TN reicht eine Audit-Tabelle + Schulleiter-Ansicht. DSGVO-Rechenschaft + Zeugnis-Belastbarkeit; nachträglich nicht rekonstruierbar.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M1</span><h4>Löschkonzept / Retention / Anonymisierung</h4></div><p>Soft-Delete statt Hard-Delete; datenklassen-getrennte Aufbewahrungsfristen (Finanzbelege ~10J vs. Kontaktdaten), Anonymisierungs-Job nach Fristablauf, Löschprotokoll. DSGVO-Auskunfts- und Löschantrag als Workflow (Datenkopie → Fristprüfung → Anonymisieren/Sperren → Bestätigung). Löst Spannungsfeld &#x27;Profil nie löschen&#x27; vs. Art.17.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M3</span><h4>Abmelde/Opt-out + Trennung transaktional/Rundschreiben + Datensparsamkeit in Mails</h4></div><p>Abmeldelink + Impressum im Footer nicht-transaktionaler Mails, Opt-out je Nutzer speichern, Abgemeldete automatisch aus Rundschreiben unterdrücken. Regel als UX-Standard: keine sensiblen Daten (Note/Betrag) in Betreff oder URL — nur Portal-Verweis.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M10</span><h4>SMTP-Domain + SPF/DKIM/DMARC vor GoLive festlegen</h4></div><p>Entscheidung 5 schließen und DNS-Authentifizierung einrichten/dokumentieren. Ohne saubere Auth landen Magic-Links, Anmelde-/Genehmigungs- und Erinnerungsmails im Spam — das bricht sowohl M3 als auch das passwortlose Login. Bounce-Handling: unzustellbare Adressen in Akte markieren.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M9</span><h4>Magic-Link-Härtung</h4></div><p>Single-Use (nach 1x Einlösen ungültig), Rate-Limit pro E-Mail/IP, Invalidierung alter Links bei Neuanforderung, Resend-Button. Ablaufzeit für abendliche/mobile Zielgruppe UX-prüfen (ggf. 30 Min). Der Magic-Link ist der alleinige Kontoschlüssel.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M6</span><h4>Anwesenheit: Status P/A/T/E, kumulative 80% über 6 Semester, Korrektur-Audit</h4></div><p>Mindestens 4 konfigurierbare Status (Anwesend/Fehlend/Verspätet/Entschuldigt); &#x27;Entschuldigt&#x27; getrennt von &#x27;Fehlend&#x27;. Quote kumulativ über ALLE 6 Semester aggregieren (Abschlussvoraussetzung ist gesamt, nicht je Semester). Jede nachträgliche Korrektur protokolliert. Bulk-Default &#x27;alle anwesend&#x27;, Dozent stellt nur Abweichungen um.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M6</span><h4>Entschuldigungs-Workflow mit Beleg-Upload und Genehmigung</h4></div><p>Mini-Workflow beantragt→in Prüfung→genehmigt/abgelehnt: Teilnehmer/Dozent reicht ein, optionaler Attest-Upload (Magic-Bytes/Path-Traversal-Härtung aus M7), Schulleiter genehmigt, Quote neu berechnet, Ergebnis-Mail. Atteste = Gesundheitsdaten (Art.9) verschlüsselt, nur Leiter. Bei nur 2 erlaubten Fehltagen zentral für Fairness.</p></div>
+</div>
+<h3 class="prioh pr-P1-h"><span class="badge pr-P1">P1</span> P1 — Wichtig (im MVP-Umfeld)</h3><p class="prio-sub">Hoher Nutzen, klar begrenzte Umsetzung — gehört in die frühen Phasen.</p>
+<div class="cards">
+<div class="card add"><div class="add-top"><span class="tm">M2</span><h4>Kohorten-Sammeleinschreibung + Matrikulation als Ein-Klick-Konvertierung</h4></div><p>Genehmigen-Klick übernimmt Bewerbung 1:1 in die Kartei (kein Abtippen), ordnet Jahrgang 2026-29 + Startsemester zu, schreibt ganzen Jahrgang in alle Semesterfächer (ein Schritt, nicht Fach-für-Fach), löst n8n-Webhook &#x27;Debitor+Abo anlegen&#x27; und Willkommens-/Magic-Link-Mail aus. Keine individuelle Kurswahl (Kohortenmodell).</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M2</span><h4>Enrollment-Agreement/Schulvertrag + Bewerber-Checkliste/Gate</h4></div><p>Bei Zusage Ausbildungsvertrag (80%-Pflicht, 120€/Semester, Datenschutz) den TN vor Aktivierung digital bestätigt (Checkbox+Zeitstempel+PDF in Akte — keine Voll-E-Signatur). Explizite Vollständigkeits-Checkliste je Bewerbung (Formular, Pflichtreferenzen, Consent, ggf. Dokumente) steuert Übergang &#x27;eingereicht→prüfbereit&#x27; und zeigt dem Bewerber &#x27;Was fehlt noch?&#x27;.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M7</span><h4>Aufgaben/Assignments im Kursraum (Datei-/Text-Abgabe, Bewertung→M6)</h4></div><p>Schlankes Feature: Beschreibung + Fälligkeit + Abgabe (Datei ODER Freitext mit Autospeicherung), Zeitstempel, verspätet-Kennzeichnung. Dozenten-Rückmeldung (Punkte/bestanden + Kommentar), Freigabe fließt automatisch in M6. Deckt Exegese-/Hausarbeiten ab, die weder in M8 (Klausur) noch M6 (nur Ergebnis) passen. Kein SpeedGrader-Umfang.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M7</span><h4>Fach-Kursraum als Objekt + Content-Release (Entwurf/sichtbar-ab) + Ankündigungen</h4></div><p>Kursraum je Fach/Semester mit Kopf (Beschreibung, Dozent, 10 Termine, Lektüreliste) als Aufhänger für Material/Ankündigung/Diskussion/Prüfung/Anwesenheit. Material-Status Entwurf/veröffentlicht + optional &#x27;sichtbar ab Datum&#x27; (Cron-Freischaltung zum Dienstagabend). Ankündigung als eigene Entität (Empfängerkreis Fach-/Jahrgang, Portal-Anzeige + Mail) — Kern der Teams-Ablösung.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M7</span><h4>Audio: HTTP-Range/Byte-Serving, Tempo-Regler, Offline-Download, Storage-Konzept</h4></div><p>Range-Requests sicherstellen (sonst kein Spulen bei 500MB), Tempo 0.75x-2x, großer Download-Button je Audio (Offline-Hören unterwegs = prägender Use-Case), Wiedereinstiegs-Merker &#x27;zuletzt gehört&#x27;. Dateien auf Filesystem (kein DB-Blob), Backup-/Retention-Plan für 7 Fächer × 10 Abende × 6 Semester × Jahrgänge. Am echten Handy (iOS-Range/Hintergrund) testen.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M6</span><h4>Noten-Finalisierung/Lock + genehmigungspflichtige Änderung + Frühwarnung + Clearance</h4></div><p>Dozent &#x27;reicht Endnoten ein&#x27;→schreibgeschützt (zweistufiger Dialog); danach nur via Änderungsantrag mit Begründung + Leiter-Genehmigung + Protokoll. Release-Sperre solange offene Freitexte unbewertet. Frühwarn-Alert an TN+Leiter sobald 80% rechnerisch unerreichbar. Graduation-Clearance (7 Fächer bestanden + 80% gesamt + Lektüre + OP-Ampel) → Statuswechsel Aktiv→Absolvent (Datenmodell jetzt, PDF 2029).</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M4</span><h4>Zahlungsplan/Raten + Ehepartner-50%-Logik nach Optigem</h4></div><p>Leiter hinterlegt Soll-Ratenplan (6×20€, Ehepartner 3×20€) mit Fälligkeiten, Fortschritt als Progressbar (Zuordnung via Rest-Saldo, GBS bucht nichts). Ehe als First-Class-Relation; Regel bestimmt welcher Partner voll/halb (Vier-Augen-Bestätigung, Grund in Akte), korrekt an Optigem-Abo. Ratenwunsch-Feld in M2. Third-Party-Payer (Gemeinde als Debitor) mitdenken.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M4</span><h4>Mehrstufiges idempotentes Dunning + OP-Sync-Granularität verifizieren</h4></div><p>Konfigurierbare, eskalierende aber pastorale Erinnerungsstufen (bei Fälligkeit, +7, +14) mit automatischem Stopp bei Zahlungseingang und Ausnahmeliste für aktive Ratenpläne. Idempotenter Abgleich je Rechnungsnummer+Saldo (keine Doppelmahnung bei n8n-Reruns). VOR Bau prüfen: liefert Optigem Saldo UND Fälligkeit JE Rechnung (nicht nur Debitor-Gesamtsaldo)? Sonst keine exakte Ampel/Raten möglich.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M9</span><h4>Rollenspezifische Dashboards + Benachrichtigungs-Glocke + Onboarding-Checkliste</h4></div><p>Startseite je Rolle statt Menübaum: Leiter (offene Anmeldungen als To-Do, Anwesenheits-/OP-Ampeln, zu bewertende Prüfungen), Dozent (eigene Fächer, heutiger Termin+Anwesenheitsliste, offene Freitext-Bewertungen), Admin (SMTP/Sync-Status). In-App-Glocke mit Ungelesen-Zähler (E-Mail bleibt Default gespiegelt). Nach Genehmigung geführte Onboarding-Checkliste für neue TN.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M9</span><h4>Re-Enrollment je Semester + Readmission nach Pause + Deprovisioning</h4></div><p>Leichter Klick-Bestätigen-Schritt vor Semesterstart (keine Neubewerbung) stößt neuen Beitragslauf an; Leiter-Liste &#x27;noch nicht rückbestätigt&#x27;. Kurzer Readmission-Workflow (Antrag→Prüfung→Reaktivierung) für Pausierte. Bei Statuswechsel Pausiert/Abgebrochen/Absolvent: Optigem-Abo koppeln UND Rolle/Sessions/offene Magic-Links sofort invalidieren (Absolvent = read-only Archiv).</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M1</span><h4>Person-Core-Datenmodell + Mehrfachrollen + Status-State-Machine</h4></div><p>EIN Personendatensatz mit Rollen als Attribut (n:m); Login-Rolle vs. fachliche Rolle vs. Status trennen (Schulleiter unterrichtet auch, Ehepartner meldet sich Folgejahrgang erneut an). Status als validierte State-Machine mit erlaubten Übergängen, Verlaufseintrag (Zeitstempel/Nutzer/Grund) und modellierten Rückwegen. Duplikat-Erkennung (Name+Mail+Geburtsdatum) + Merge-Werkzeug.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M3</span><h4>Terminerinnerung (+ICS) und Notfall-Broadcast</h4></div><p>Konfigurierbare Erinnerung x Tage vor jedem Dienstagabend (Cron/n8n), ICS-Anhang für alle 10 Abende in der Willkommensmail. Ein-Klick-Broadcast an alle aktiven TN eines Jahrgangs bei Ausfall/Raumänderung (E-Mail + Portal-Glocke, 1-2 vorkonfigurierte Kurzvorlagen). Material-/Diskussions-Benachrichtigungen als Tages-Digest bündeln (Anti-Mailflut).</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M8</span><h4>Prüfungen: Zeitlimit vom Fenster trennen, Rubric, Randomisierung, Ausnahmen, Unicode</h4></div><p>Optionales Bearbeitungs-Zeitlimit ab Start mit Auto-Abgabe zusätzlich zum Verfügbarkeitsfenster (Übersteuerungsregel erklären). Leichtes Rubric je Prüfung als Anker für Ollama-Vorbewertung (immer als &#x27;KI-Vorschlag&#x27; kennzeichnen, Dozent bestätigt). Reihenfolge-Mischen statt Proctoring. Abweichende Zeitfenster/Nachschreibtermine je TN (Recht: Leiter). NFC-Normalisierung für Griechisch/Hebräisch-Vergleich. Auto-Save-Recovery bei Verbindungsabbruch real testen.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M10</span><h4>Dozent↔Fach-Zuordnung + Curriculum-Snapshot je Jahrgang</h4></div><p>Explizite &#x27;Termin→Fach→zuständiger Dozent&#x27;-Zuordnung in M10 (Dozent ab Start aktiv, jeder Abend = ein Fach); Leiter kann als Fallback/Vertretung überall nacherfassen. Fächer-/Anforderungsstruktur je Jahrgang einfrieren + aus Vorjahr klonen, damit spätere Änderungen laufende Jahrgänge nicht rückwirkend verfälschen. Andacht-Termintyp und Rechte-Matrix als DB-Datensatz (Rolle×Modul×Aktion) statt if(role===).</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M1</span><h4>Kohorten-Dashboard + Early-Alert-Risikoliste + Träger-Jahresbericht</h4></div><p>Schlankes Kohorten-Dashboard (Filter Jahrgang/Semester, aktive TN, Anwesenheitsschnitt, Prüfungsdurchgang, offene Beiträge). Regelbasierte Risiko-Liste gefährdeter TN (Anwesenheit unter Schwelle + versäumte Prüfung + offene Lektüre + Zahlungsrückstand) mit seelsorglich-milder Benachrichtigung. Preset-Export für Esra e.V./Vorstand. k-Anonymität-Schwelle bei kleinen Kohorten beachten (Re-Identifikation).</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M9</span><h4>Barrierefreiheit als Querschnitts-Definition-of-Done</h4></div><p>WCAG 2.1 AA / BFSG/BITV als Grundstandard über alle Module: Tastaturbedienung, sichtbarer Fokus, Screenreader-Labels, Kontrast, Zoom, Audio-Transkript. Radix liefert Basis; als DoD prüfen, nicht als eigenes Modul bauen. Rechtlich DE + teilhabefreundlich für erwachsene, teils technikferne Zielgruppe.</p></div>
+</div>
+<h3 class="prioh pr-P2-h"><span class="badge pr-P2">P2</span> P2 — Später / Komfort</h3><p class="prio-sub">Nach GoLive nach Praxiserfahrung priorisieren.</p>
+<div class="cards">
+<div class="card add"><div class="add-top"><span class="tm">M2</span><h4>Interessenten-Zweistufeneinstieg + Herkunftsquelle-Feld</h4></div><p>Optionales leichtes Erst-Kontaktformular (Info-Abend/Interesse) → automatischer Mail-Link zum Vollantrag, mit Dedupe-Prüfung und Herkunftsquelle/Event-Feld für spätere Trichter-Auswertung. Für 20-60 TN bewusst schlank halten, nicht überbauen.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M7</span><h4>PDF-Vorschau, Link-als-Materialtyp, ZIP-Sammel-Download, Datei-Versionierung</h4></div><p>In-Browser-PDF-Vorschau (nicht nur Download), externe Links (Bibelserver/YouVersion) als Materialtyp neben Datei, ZIP-Download je Ordner, &#x27;Datei ersetzen&#x27; ohne Link-Bruch. Alles Komfort nach GoLive.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M10</span><h4>Impersonation für Support + Klartext-Rechte-Matrix + Advisor/Mentor-Feld</h4></div><p>&#x27;Als Teilnehmer anmelden&#x27; nur Admin, mit persistentem Banner + doppeltem Audit-Log (für Support beim Teams-Onboarding). Klartext-&#x27;Was darf wer?&#x27;-Matrix im Admin-Bereich gegen Fehlkonfiguration. Optionales Mentor-/Ansprechperson-Feld je TN (Empfänger der Anwesenheits-Frühwarnung), kein Advising-Apparat. Beratungs-/Eignungsnotizen leiter-only, verschlüsselt, nie für TN sichtbar.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">M4</span><h4>Teilnehmer-Finanzsicht, Kontoauszug-PDF, Kurs-vs-Spende-Trennung</h4></div><p>Read-only eigene Finanzdaten über vorbereiteten Schalter (Entscheidung 2, Phase 1 aus), &#x27;Wie bezahle ich?&#x27;-Hinweis statt Bezahl-Button. Optional Semester-PDF-Statement — dabei Kursbeitrag klar von Spende trennen (keine Zuwendungsbescheinigung, gemeinnütziger Träger). Guthaben/negativer Saldo korrekt als &#x27;Guthaben&#x27; darstellen.</p></div>
+</div>
+</section>
+<section id="rollen"><h2>5 · Rollen- & Rechte-Matrix</h2>
+<div class="rolecards">
+<div class="card rolecard"><h4>Administrator</h4><p>Technischer System-Admin: Einstellungen, SMTP, API-Keys/Webhooks, Optigem-Integration, Benutzer/Rollen, Backups, Audit-Log, DSGVO-Werkzeuge. Trifft KEINE fachlichen/paedagogischen Entscheidungen (Anmeldung genehmigen, Noten) im Regelbetrieb.</p></div>
+<div class="card rolecard"><h4>Schulleiter</h4><p>Fachlicher Vollverantwortlicher (Registrar + Dean + Admissions gebuendelt): Teilnehmer/Stammdaten, Anmeldungen genehmigen, Vorlagen/Formulare, Noten/Anwesenheit aller Faecher, Material, Pruefungen, Finanzuebersicht. KEINE technischen Systemeinstellungen.</p></div>
+<div class="card rolecard"><h4>Dozent</h4><p>Faculty, strikt auf eigene(s) zugeordnete(s) Fach gescopet (Row-Level, serverseitig gegen IDOR): Material hochladen, Pruefungen anlegen/bewerten, Anwesenheit/Noten im eigenen Fach. KEIN Zugriff auf Finanzen, vollstaendige Stammdaten oder fremde Faecher.</p></div>
+<div class="card rolecard"><h4>Teilnehmer</h4><p>Student im Self-Service: eigenes Profil pflegen, Material der eigenen Kurse abrufen, Pruefungen ablegen, Lektuere bestaetigen, eigene Ergebnisse/Anwesenheit sehen. Sieht ausschliesslich eigene Daten.</p></div>
+</div>
+<p class="legend">Legende: <span class="badge lv-full">Voll</span> volle Rechte · <span class="badge lv-own">Eigene</span> nur eigene Daten/eigenes Fach · <span class="badge lv-read">Lesen</span> nur Ansicht · <span class="badge lv-none">–</span> kein Zugriff</p>
+<div class="tw"><table class="roles"><thead><tr><th>Fähigkeit</th>
+<th class="rcol">Administrator</th>
+<th class="rcol">Schulleiter</th>
+<th class="rcol">Dozent</th>
+<th class="rcol">Teilnehmer</th>
+</tr></thead><tbody>
+<tr><td class="cap">System-/Grundeinstellungen (Erscheinungsbild, Logo, Name) (M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">SMTP/Absender konfigurieren, SPF/DKIM/DMARC (M3/M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">API-Keys &amp; Webhooks verwalten, OpenAPI (M5/M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Optigem-Integration/n8n-Sync konfigurieren (M4/M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Backups &amp; Datenexporte, Retention/Loeschung (M1/M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Benutzer &amp; Rollen verwalten, Fach-Zuordnung Dozenten (M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Audit-Log / System-Zugriffslogs einsehen (M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Impersonation (&#x27;Log in as&#x27;) fuer Support (M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">DSGVO-Werkzeuge: Export/Auskunft/Anonymisierung ausfuehren (M1)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Schul-Struktur pflegen: Jahrgaenge/Semester/Faecher/Termine/Lektuere/Bewertungsschema (M10)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Anmeldeformular/Formular-Builder inhaltlich pflegen, Versionierung (M2)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Eigene Bewerbung ausfuellen/einreichen, Referenzgeber benennen (M2)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Anmeldung genehmigen / ablehnen / auf Warteliste setzen (M2)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Bewerbungen inkl. Referenzen/sensibler Felder einsehen (M2)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Glaubensbekenntnis-/Covenant-Zustimmung (Art.9) einsehen (M2)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Teilnehmer-Stammdaten anlegen/bearbeiten (M1)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Teilnehmer-Akte einsehen (Dokumente, Verlauf, interne Notizen) (M1)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Status-Lebenslauf aendern (Interessent-&gt;Aktiv-&gt;Absolvent/Pausiert) (M1)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Namens-/Kursliste der Teilnehmer sehen (M1/M6)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Listen/Filter/Segmente/Export ueber alle Teilnehmer (M1)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">E-Mail-Vorlagen je Prozess erstellen/bearbeiten (M3)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Rundschreiben an gefilterte Segmente senden (M3)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Ankuendigung/Nachricht an Teilnehmer senden (M3)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Versandprotokoll/Zustelllogs einsehen (M3)</td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Eigene Benachrichtigungspraeferenzen setzen, Abmeldung Rundschreiben (M9)</td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Finanzuebersicht/OP-Ampel-Dashboard sehen (M4)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Finanzsicht in Teilnehmer-Akte (Saldo, Zahlungen, Ermaessigung) (M4)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Ehepartner-/Sonder-Ermaessigung (50%) zuweisen/bestaetigen (M4)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Zahlungserinnerung ausloesen (einzeln + Rundschreiben ueberfaellig) (M4)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Eigener Saldo/Zahlungshistorie (Schalter, Default aus) (M4/M9)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Material hochladen/organisieren (Audio/PDF/Office/Bild bis 500MB) (M7)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Material abrufen/herunterladen, Audio abspielen (M7/M9)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Lektuereliste pflegen (M6/M10)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Lektuere selbst bestaetigen (Haekchen) (M6)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Pruefung anlegen/bearbeiten, Fragenkatalog pflegen (M8)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Pruefung durchfuehren/ablegen (Zeitfenster, Auto-Save) (M8)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Pruefung bewerten (Auto + Freitext/Ollama), Ergebnis freigeben (M8)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Noten/Leistungen eintragen (M6)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Noten nach Finalisierung aendern (Aenderungsantrag/Freigabe) (M6/M8)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Anwesenheit erfassen (mobil abhaken, 80%-Ampel) (M6)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Entschuldigung mit Quotenwirkung genehmigen/ablehnen (M6)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Entschuldigung/Beleg selbst einreichen (M6)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Eigene Ergebnisse/Anwesenheitsstand/Fortschritt sehen (M6/M9)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Degree-Audit/Abschluss pruefen, Zertifikat/Transcript freigeben (M6)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Eigenes Zeugnis/Abschluss-PDF herunterladen (nach Freigabe) (M6/M9)</td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+</tr>
+<tr><td class="cap">Kohorten-/Retention-/Abschlussreports ueber alle Faecher (Reporting)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+<tr><td class="cap">Noten-/Anwesenheitsstatistik des eigenen Fachs auswerten (Reporting)</td>
+<td class="lvl lv-read"><span>Lesen</span></td>
+<td class="lvl lv-full"><span>Voll</span></td>
+<td class="lvl lv-own"><span>Eigene</span></td>
+<td class="lvl lv-none"><span>–</span></td>
+</tr>
+</tbody></table></div>
+<h3 class="modh">Hinweise zu heiklen Rechten</h3><ul class="notes">
+<li>Art.-9-Daten (Glaubensbekenntnis/Covenant, Referenzen zu religioeser Ueberzeugung): fachliche Einsicht ausschliesslich Schulleiter. Administrator hat technisch Zugriff auf verschluesselte Felder nur wo betrieblich noetig und stets protokolliert - kein beilaeufiges Lesen.</li>
+<li>Trennung technisch/fachlich (analog Populi System-Admin vs. Academic Admin): Administrator baut Regeln/Struktur, trifft aber KEINE Zulassungs- oder Notenentscheidung; Schulleiter wendet sie an, hat aber KEINE SMTP-/API-/Backup-Rechte.</li>
+<li>IDOR-Schutz kritisch bei Dozent: &#x27;own&#x27; muss serverseitig per Row-Level-Scoping auf die Fach-Zuordnung durchgesetzt werden (nicht nur UI-seitig), sonst Zugriff auf fremde Faecher/Teilnehmer moeglich. Gilt ebenso fuer Teilnehmer &#x27;own&#x27; (nur eigene ID).</li>
+<li>Dozent sieht bewusst KEINE Finanzen (M4) und KEINE vollstaendigen Stammdaten/Sensibelfelder (IBAN, SV-Nr) - nur die fuer den Unterricht noetigen Kontaktdaten der eigenen Kursliste.</li>
+<li>Teilnehmer-Finanzsicht (eigener Saldo): Schalter vorbereitet, Default AUS - initial nur Schulleiter. Bei Aktivierung strikt nur eigene Daten; Ehepartner-Sicht nur mit expliziter Einwilligung.</li>
+<li>Impersonation (&#x27;Log in as&#x27;) nur Administrator und immer mit Audit-Kennzeichnung; standardmaessig dem Admin vorbehalten, nicht dem Schulleiter.</li>
+<li>Audit-Log: Administrator sieht rohe System-/Zugriffslogs; Schulleiter nur fachliche Aenderungsprotokolle (z.B. Notenaenderung Alt-&gt;Neu). Jede Notenaenderung nach Finalisierung erzeugt Pflicht-Audit-Eintrag.</li>
+<li>Hard-Delete/Anonymisierung nur Administrator und nur mit Bestaetigung + Log-Eintrag (Retention-Pruefung); Schulleiter kann nicht hart loeschen.</li>
+<li>Referenzgeber/Pastor ist KEINE Login-Rolle: Zugriff nur ueber tokenisierten, zeit-/einmal-begrenzten Einmal-Link ohne Account; Antwort fuer den Bewerber vertraulich (nicht in &#x27;own&#x27; des Teilnehmers enthalten).</li>
+<li>Optigem bleibt fuehrend: die Software bucht nichts (nur lesender OP-Sync). &#x27;full&#x27; auf Finanzen bedeutet fuer Schulleiter Sicht + Erinnerungs-/Ermaessigungssteuerung, nicht Buchung.</li>
+<li>&#x27;own&#x27; bei Teilnehmer = ausschliesslich eigenes Datensubjekt; kein Zugriff auf andere Teilnehmer, interne Notizen, nicht freigegebene Ergebnisse oder Musterloesungen vor Freigabe.</li>
+<li>Self-Check-in/Anwesenheit: Teilnehmer kann sich NICHT selbst auf &#x27;anwesend&#x27; setzen ohne zeit-/ortsgebundene Verifikation (Missbrauchsschutz); daher kein &#x27;own&#x27;-Schreibrecht auf Anwesenheitsstatus.</li>
+</ul>
+</section>
+<section id="prozesse"><h2>6 · Prozessflüsse (End-to-End)</h2>
+<p class="lead">Die tragenden Abläufe — prozessgesteuert gedacht. Der vom Schulleiter gewünschte Prüfungs-Fluss (gestalten → freigeben → Schüler benachrichtigen) ist hervorgehoben.</p>
+<div class="card flow">
+<h4>Anmeldung → Genehmigung → Account &amp; Willkommen</h4>
+<p class="trigger"><b>Auslöser:</b> Interessent öffnet den öffentlichen Anmeldelink (kein Account nötig)</p>
+<ol class="steps">
+<li>
+<span class="actor">Interessent</span>
+<span class="stepaction">Füllt den geführten Formular-Wizard aus (Stammdaten, programmspezifische Fragen, optional Ehepaar-Kennzeichen)</span>
+<span class="sub auto"><b>Automatisch:</b> Sensible Felder (IBAN, SV-Nr.) werden beim Speichern AES-256-GCM verschlüsselt; Fortschritt speicherbar, später fortsetzbar</span>
+</li>
+<li>
+<span class="actor">Interessent</span>
+<span class="stepaction">Bestätigt Datenschutz-Checkbox und aktuelle Glaubensbekenntnis-Version, benennt 1–2 Referenzgeber (Pastor/Charakter) und reicht die Bewerbung ein</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Eingangsbestätigung per E-Mail an den Bewerber (Vorlage M3)</span>
+<span class="sub auto"><b>Automatisch:</b> Consent-Version + Zeitstempel protokolliert; Status wird auf &#x27;Angemeldet&#x27; gesetzt und erscheint in der Pipeline; bei Ehepaar zweiter verknüpfter Datensatz mit eigenem Link an den Partner</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Erzeugt je Referenzgeber einen tokenisierten Einmal-Link und stößt die Referenzanfragen an</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Referenz-Anforderung an Pastor/Charakterreferenz; interne Benachrichtigung/To-Do &#x27;Neue Anmeldung prüfen&#x27; an den Schulleiter</span>
+<span class="sub auto"><b>Automatisch:</b> Auto-Versand der Referenzanfragen bei Einreichung; Reminder-Kadenz bei Ausbleiben nach X Tagen</span>
+</li>
+<li>
+<span class="actor">Referenzgeber</span>
+<span class="stepaction">Füllt die Empfehlung ohne Account aus und sendet sie ab</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Automatische Erinnerung an säumige Referenzgeber; Info an Schulleiter, sobald prüfbereit</span>
+<span class="sub auto"><b>Automatisch:</b> Referenz wird als &#x27;erhalten&#x27; markiert; Vollständigkeits-Checkliste (Formular + Bekenntnis + alle Pflichtreferenzen) aktualisiert; bei Vollständigkeit Auto-Status &#x27;prüfbereit&#x27;</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Öffnet die prüfbereite Bewerbung inkl. Referenzen/Dokumenten und entscheidet: Genehmigen, Ablehnen oder Warteliste (mit Begründung)</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Bei Ablehnung freundliche Absage mit Kontaktmöglichkeit; bei Warteliste Info zur Warteposition; jeweils Vorlage je Ausgang</span>
+<span class="sub auto"><b>Automatisch:</b> Statuswechsel wird protokolliert (wer/wann/warum); passende Entscheidungs-Vorlage wird ausgelöst</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Genehmigt die Bewerbung</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Zusage-Mail mit nächsten Schritten an den Bewerber; interne Info an Finanzstelle &#x27;Debitor &amp; Beitrag angelegt&#x27;</span>
+<span class="sub auto"><b>Automatisch:</b> Ein-Klick-Übernahme Bewerber→Kartei ohne Doppelerfassung, Status &#x27;Genehmigt&#x27;→&#x27;Aktiv&#x27;, Zuordnung Jahrgang 2026–29; n8n-Webhook legt Optigem-Debitor + Abo-Artikel &#x27;Semesterbeitrag&#x27; an (Ehepartner 50%)</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Aktiviert Teilnehmer-Rolle und passwortlosen Portalzugang</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Willkommens-/Onboarding-Mail mit Magic-Link (15 min), Starttermin, Material-Hinweis und ICS-Kalender aller Abende</span>
+<span class="sub auto"><b>Automatisch:</b> Automatischer Magic-Link-Versand bei Statuswechsel auf &#x27;Aktiv&#x27;; Kohorten-/Terminplan-Zuordnung (10 Dienstagabende ab 15.09.2026)</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Loggt sich per Magic-Link ein, arbeitet die Onboarding-Checkliste ab und vervollständigt sein Profil</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Erinnerung an offene Onboarding-To-Dos</span>
+<span class="sub auto"><b>Automatisch:</b> Erstes Semester-Material wird zum Semesterstart automatisch freigeschaltet</span>
+</li>
+</ol></div>
+<div class="card flow feat">
+<span class="flag">Schulleiter-Wunsch</span>
+<h4>Online-Prüfung: gestalten → freigeben → benachrichtigen → ablegen → auswerten → Ergebnis-Release → fließt in Leistung</h4>
+<p class="trigger"><b>Auslöser:</b> Dozent will für sein Fach eine Prüfungsleistung erheben (M8)</p>
+<ol class="steps">
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Legt eine neue Prüfung an (Titel, Anweisungen) und zieht Fragen aus dem wiederverwendbaren Fragenkatalog oder erstellt neue (MC, Wahr/Falsch, Zuordnung, Reihenfolge, Lückentext, Zahl, Kurzantwort, Freitext)</span>
+<span class="sub auto"><b>Automatisch:</b> Punkte-Summe wird automatisch gebildet und gegen die angekündigte Gesamtpunktzahl auf Konsistenz geprüft; optional generiert Ollama lokal MC-Fragen + Distraktoren aus der Materialplattform als Entwurf</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Hinterlegt bei Kurzantworten akzeptierte Antworten inkl. Teilpunkte, ordnet Freitextfragen eine Rubric zu und setzt Zeitfenster von–bis, ein Versuch (konfigurierbar), Randomisierung und Feedback-Sichtbarkeit</span>
+<span class="sub auto"><b>Automatisch:</b> Prüfung wird als &#x27;geplant&#x27; gespeichert und bleibt für Teilnehmer verborgen</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Veröffentlicht die Prüfung bzw. plant den Öffnungszeitpunkt</span>
+<span class="sub notif"><b>Benachrichtigung:</b> E-Mail + Portal-Hinweis an die Kohorte &#x27;Neue Prüfung verfügbar ab TT.MM. bis TT.MM.&#x27; (kein Prüfungsinhalt im Betreff)</span>
+<span class="sub auto"><b>Automatisch:</b> System schaltet die Prüfung zum Startzeitpunkt automatisch für die Fach-/Jahrgangskohorte frei und schließt sie bei Fensterende (Cron/n8n)</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Überwacht das Zeitfenster und erinnert noch nicht gestartete Teilnehmer</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Reminder-Mail an noch nicht Gestartete</span>
+<span class="sub auto"><b>Automatisch:</b> Automatische Erinnerungs-Kaskade an säumige Teilnehmer vor Fensterende</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Startet die Prüfung via Magic-Link im Zeitfenster und beantwortet die Fragen</span>
+<span class="sub auto"><b>Automatisch:</b> Laufende Zwischenspeicherung mit Wiederaufnahme nach Verbindungsabbruch; Countdown-/Restzeit-Anzeige; randomisierte Fragenreihenfolge je Teilnehmer</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Gibt die Prüfung ab (oder Auto-Abgabe bei Zeit-/Fensterablauf)</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Abgabebestätigung an den Teilnehmer</span>
+<span class="sub auto"><b>Automatisch:</b> Alle geschlossenen Fragen (MC/Wahr-Falsch/Zuordnung/Reihenfolge/Lückentext/Zahl/hinterlegte Kurzantworten inkl. Teilpunkte) werden sofort automatisch ausgewertet; besteht die Prüfung nur daraus, ist sie vollständig benotet</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Bewertet offene Freitext-Antworten je Rubric-Kriterium (optional anonymisiert für Fairness) und vergibt Punkte + Kommentar</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Interne Erinnerung an den Dozenten bei überfälligen Bewertungen</span>
+<span class="sub auto"><b>Automatisch:</b> Ollama liefert lokal einen Rubric-basierten Punktevorschlag mit Begründung; Human-in-the-Loop, der Dozent bestätigt oder überschreibt; Ausreißer-Bewertungen werden markiert</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Gibt das Ergebnis frei (explizites Release, ganze Kohorte auf einen Klick)</span>
+<span class="sub notif"><b>Benachrichtigung:</b> E-Mail + Portal-Meldung an den Teilnehmer &#x27;Deine Prüfungsergebnisse sind verfügbar&#x27; (nur Portal-Verweis, kein Ergebnis im Betreff); bei &#x27;nicht bestanden&#x27; Hinweis auf Wiederholung/Rücksprache; interne Info an den Schulleiter bei nicht bestandenem Fach</span>
+<span class="sub auto"><b>Automatisch:</b> Note + konfiguriertes Feedback werden sichtbar; Ergebnis fließt automatisch in die Leistungserfassung (M6), setzt bestanden/nicht-bestanden und aktualisiert die Abschluss-Voraussetzung — keine Doppelerfassung</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Gewährt bei Bedarf eine Ausnahme (verlängerte Zeit, individuelles Fenster, Nachtermin, zusätzlicher Versuch)</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Benachrichtigung an den betroffenen Teilnehmer über den gewährten Termin/Versuch</span>
+<span class="sub auto"><b>Automatisch:</b> Bei mehreren Versuchen wird die konfigurierte Wertungslogik (höchste/letzte/Durchschnitt) automatisch angewandt</span>
+</li>
+</ol></div>
+<div class="card flow feat">
+<span class="flag">Schulleiter-Wunsch</span>
+<h4>Anwesenheit am Unterrichtsabend mobil erfassen inkl. 80%-Warnung</h4>
+<p class="trigger"><b>Auslöser:</b> Ein Dienstagabend-Termin beginnt bzw. endet</p>
+<ol class="steps">
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Öffnet mobil die Teilnehmerliste des aktuellen Termins seines Fachs</span>
+<span class="sub auto"><b>Automatisch:</b> Alle Teilnehmer stehen per Default auf &#x27;Anwesend&#x27; (Bulk-Default spart Klicks bei kleiner, meist vollzähliger Gruppe)</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Stellt nur die Abweichungen um (Fehlend/Verspätet/Entschuldigt) und speichert</span>
+<span class="sub auto"><b>Automatisch:</b> Quote je Teilnehmer wird sofort neu berechnet und über alle Semester kumulativ aggregiert; Ampel grün ≥80%, gelb im Grenzbereich, rot &lt;80% — kein manuelles Nachzählen</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Prüft nach jeder Erfassung die erreichbare Rest-Quote gegen die 80%-Schwelle</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Frühwarn-Mail an den Teilnehmer &#x27;Deine Anwesenheit nähert sich der 80%-Grenze&#x27;; Eskalations-Alert an den Schulleiter bei rot</span>
+<span class="sub auto"><b>Automatisch:</b> Schwellwert-Trigger vollautomatisch: sobald rechnerisch nur noch wenig Puffer besteht → gelb, sobald 80% nicht mehr erreichbar → rot; gefährdete Teilnehmer erscheinen im Leiter-Dashboard</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Reicht für einen Fehltermin eine Entschuldigung mit Grund und optionalem Attest-Upload ein</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Eingangsbestätigung an den Teilnehmer; Aufgabe/Benachrichtigung an den Schulleiter</span>
+<span class="sub auto"><b>Automatisch:</b> Beleg-Upload mit Magic-Bytes- und Path-Traversal-Schutz; Termin wird vorläufig als &#x27;Entschuldigung beantragt&#x27; markiert; Frist-Logik (Beleg binnen X Tagen, sonst automatischer Verfall)</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Prüft den Beleg und genehmigt (→ &#x27;Entschuldigt&#x27;) oder lehnt ab (→ bleibt &#x27;Fehlend&#x27;)</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Ergebnis-Mail (genehmigt/abgelehnt) an den Teilnehmer</span>
+<span class="sub auto"><b>Automatisch:</b> Quote wird nach der Entscheidung automatisch neu berechnet</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Überwacht die Erfassungspflicht je Termin</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Reminder an den Dozenten</span>
+<span class="sub auto"><b>Automatisch:</b> Erinnerung an den Dozenten, falls der Termin vorbei ist und die Erfassung fehlt</span>
+</li>
+</ol></div>
+<div class="card flow">
+<h4>Lektüre-Selbstbestätigung durch den Teilnehmer</h4>
+<p class="trigger"><b>Auslöser:</b> Pflichtlektüre je Fach/Semester wird hinterlegt oder aktualisiert</p>
+<ol class="steps">
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Hinterlegt in der Administration (M10) die Pflichtlektüre je Fach/Semester</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Benachrichtigung an die Teilnehmer bei neuer/aktualisierter Lektüreliste</span>
+<span class="sub auto"><b>Automatisch:</b> Lektüreliste wird dem Fach zugeordnet und im Portal des berechtigten Jahrgangs sichtbar</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Öffnet die Liste im Portal und hakt gelesene Titel selbst ab (bestätigt Lektüre)</span>
+<span class="sub auto"><b>Automatisch:</b> Fortschritt fließt automatisch in die Fach- und die Abschluss-Übersicht ein</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Erinnert an noch offene Pflichtlektüre vor Semesterende</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Erinnerungs-Mail/Portal-Hinweis an den Teilnehmer</span>
+<span class="sub auto"><b>Automatisch:</b> Auto-Erinnerung an unbestätigte Pflichtlektüre kurz vor Semesterende</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Sieht den Lektüre-Stand und berücksichtigt ihn als Abschlussvoraussetzung</span>
+<span class="sub auto"><b>Automatisch:</b> Eingang in die Abschluss-Checkliste/Degree-Audit automatisch</span>
+</li>
+</ol></div>
+<div class="card flow feat">
+<span class="flag">Schulleiter-Wunsch</span>
+<h4>Neues Material hochladen → Jahrgang benachrichtigen</h4>
+<p class="trigger"><b>Auslöser:</b> Dozent will Unterrichtsmaterial für einen Abend bereitstellen (M7)</p>
+<ol class="steps">
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Öffnet sein Fach im aktuellen Semester und wählt bzw. erstellt die Lektion/den Ordner für den Unterrichtsabend</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Lädt Dateien hoch (Audio bis 500 MB, PDF, Präsentation, Bilder) und ergänzt Titel/Beschreibung sowie optional einen Leseauftrag</span>
+<span class="sub auto"><b>Automatisch:</b> Magic-Bytes-Validierung und Path-Traversal-Schutz, Fortschrittsbalken; Audio-Dauer wird ausgelesen und angezeigt; optional Ollama-Kurzbeschreibung als Suchhilfe</span>
+</li>
+<li>
+<span class="actor">Dozent</span>
+<span class="stepaction">Setzt die Sichtbarkeit (sofort veröffentlichen oder &#x27;sichtbar ab&#x27; Datum, z. B. Abend des Unterrichts) und veröffentlicht</span>
+<span class="sub auto"><b>Automatisch:</b> Bei &#x27;sichtbar ab&#x27; zeitgesteuerte Auto-Veröffentlichung per Cron</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Benachrichtigt den berechtigten Jahrgang über das neue Material</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Gebündelte E-Mail &#x27;Neues Material in &lt;Fach&gt;&#x27; mit Deep-Link ins Portal; Portal-Badge &#x27;neu&#x27; am Fach und im Startseiten-Widget</span>
+<span class="sub auto"><b>Automatisch:</b> Empfänger werden automatisch aus der Jahrgangszugehörigkeit abgeleitet (kein manuelles Rechte-Setzen); mehrere Uploads werden zu einem Digest gebündelt statt als Einzelmails (Anti-Spam) via n8n</span>
+</li>
+</ol></div>
+<div class="card flow">
+<h4>Optigem offener Posten → gestaffelte Zahlungserinnerung</h4>
+<p class="trigger"><b>Auslöser:</b> Geplanter n8n-Cron-Sync liest die offenen Posten aus Optigem</p>
+<ol class="steps">
+<li>
+<span class="actor">System (n8n)</span>
+<span class="stepaction">Liest je Debitor die offenen Posten (Rechnungsnummer + Saldo je Rechnung) aus Optigem</span>
+<span class="sub auto"><b>Automatisch:</b> Periodischer Cron-Sync, idempotent per Rechnungsnummer + Saldo (keine Doppelzählung); Optigem bleibt führend, GBS Campus bucht nichts</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Aktualisiert das Finanz-Dashboard und ordnet Zahlungen gegen den Raten-/Beitragsplan zu</span>
+<span class="sub auto"><b>Automatisch:</b> Ampel je Teilnehmer (bezahlt/teilbezahlt/offen/überfällig) aus OP-Saldo + Fälligkeit; Ehepartner-50%-Tarif korrekt berücksichtigt</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Sieht den OP-Status in der Akte und im Ampel-Dashboard und kann eine Erinnerung auslösen oder ein Hinweis-Flag setzen</span>
+<span class="sub auto"><b>Automatisch:</b> Teilnehmer-Finanzsicht vorerst nur für den Leiter (Schalter vorbereitet); Export für Buchhaltung/Beirat möglich</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Erkennt überfällige Rechnungen/Raten und fährt die gestaffelte Dunning-Kadenz</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Mehrstufige Zahlungserinnerungen an den Teilnehmer (Vorlage M3 mit Platzhaltern Name/Betrag/Fälligkeit/Rechnungsnr.); interne Benachrichtigung an den Schulleiter bei roter Stufe</span>
+<span class="sub auto"><b>Automatisch:</b> Stufe 1 freundlich bei Fälligkeit, Stufe 2 +7 Tage, Stufe 3 deutlicher +14/+30 Tage; Ausnahme-Liste (kein Dunning bei aktivem, pünktlichem Ratenplan); seelsorglicher Ton statt harter Sperre</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Verarbeitet den Zahlungseingang beim nächsten Sync</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Optionale Zahlungseingangs-Bestätigung an den Teilnehmer</span>
+<span class="sub auto"><b>Automatisch:</b> Bei Ausgleich (Saldo 0) stoppt die Mahnkette automatisch, Ampel wird grün</span>
+</li>
+</ol></div>
+<div class="card flow">
+<h4>Abschluss / Degree Audit → Zertifikatsausstellung</h4>
+<p class="trigger"><b>Auslöser:</b> Teilnehmer nähert sich dem Ende des 6. Semesters oder stellt einen Abschlussantrag</p>
+<ol class="steps">
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Prüft laufend die Abschlusskriterien je Teilnehmer</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Hinweis an den Schulleiter &#x27;Teilnehmer X erfüllt die Abschlusskriterien — Zeugnis freigeben&#x27;</span>
+<span class="sub auto"><b>Automatisch:</b> Echtzeit-Clearance: alle 7 Fächer bestanden + 80% Gesamtanwesenheit + Lektüre bestätigt + keine offenen Beiträge (Finanz-Ampel); markiert &#x27;abschlussbereit&#x27;, sobald alle Kriterien erfüllt sind</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Öffnet den Degree Audit, prüft die Datengrundlage per Drill-down und gibt den Abschluss frei</span>
+<span class="sub auto"><b>Automatisch:</b> Automatische Kriterienprüfung inkl. Finanz-Ampel; bei offenen Punkten Rückmeldung statt Freigabe</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Erzeugt den Abschlussnachweis und schließt den Lebenszyklus</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Gratulations-/Abschluss-Mail mit Verweis auf den Zeugnis-Download im Portal; Info an den Schulleiter über die erfolgten Abschlüsse des Jahrgangs</span>
+<span class="sub auto"><b>Automatisch:</b> Zertifikat-/Abschluss-PDF aus M6-Daten im Corporate Design, Ablage in der Akte, Batch-Erzeugung für die ganze Kohorte möglich; Statuswechsel Aktiv→Absolvent + Alumni-Tag; n8n beendet das Optigem-Abo</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Lädt den Abschlussnachweis im Portal (M9) herunter</span>
+</li>
+</ol></div>
+<div class="card flow">
+<h4>Wiedereinschreibung je Semester (Re-Enrollment)</h4>
+<p class="trigger"><b>Auslöser:</b> Vor Beginn eines neuen Semesters im 3-Jahres-Programm</p>
+<ol class="steps">
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Startet die Re-Enrollment-Kampagne für alle aktiven Teilnehmer</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Re-Enrollment-Erinnerung an die Teilnehmer vor Semesterstart</span>
+<span class="sub auto"><b>Automatisch:</b> Automatische Kampagne je Semester via n8n/Cron</span>
+</li>
+<li>
+<span class="actor">Teilnehmer</span>
+<span class="stepaction">Bestätigt die Fortsetzung im Portal (leichter Schritt, keine Voll-Neubewerbung)</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Bestätigung der Wiedereinschreibung an den Teilnehmer</span>
+<span class="sub auto"><b>Automatisch:</b> Kein erneutes Ausfüllen des Anmeldeformulars nötig</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Reaktiviert Beitragslauf und Terminzuordnung fürs neue Semester</span>
+<span class="sub auto"><b>Automatisch:</b> Optigem-Rechnung/Abo fürs neue Semester wird über n8n angestoßen; Zuordnung zu Kohorte und Terminplan (10 Dienstagabende)</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Sieht die Liste noch nicht rückbestätigter Teilnehmer und prüft Grenzfälle</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Leiter-Übersicht offener Rückbestätigungen; Vorschlag &#x27;Pausiert&#x27; zur Bestätigung</span>
+<span class="sub auto"><b>Automatisch:</b> Bei ausbleibender Bestätigung/Anwesenheit regelbasierter Vorschlag Statuswechsel auf &#x27;Pausiert&#x27;; Rückkehrer durchlaufen den verkürzten Readmission-Workflow</span>
+</li>
+</ol></div>
+<div class="card flow">
+<h4>Rundschreiben / Ankündigung an ein Segment</h4>
+<p class="trigger"><b>Auslöser:</b> Schulleiter oder Dozent will ein Segment informieren (Ausfall, Raumänderung, Terminerinnerung)</p>
+<ol class="steps">
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Filtert die Empfänger (Jahrgang/Status/Fach) und wählt eine Vorlage mit Platzhaltern oder verfasst frei</span>
+<span class="sub auto"><b>Automatisch:</b> Gespeicherte Segmente als wiederverwendbare Mailinglisten</span>
+</li>
+<li>
+<span class="actor">Schulleiter</span>
+<span class="stepaction">Führt einen Testversand an sich selbst durch und versendet dann an das Segment</span>
+<span class="sub notif"><b>Benachrichtigung:</b> E-Mail an das Empfängersegment + Portal-Ankündigung</span>
+<span class="sub auto"><b>Automatisch:</b> Platzhalter werden aufgelöst; Versand über eigenes SMTP mit Anzeigename + Reply-To; automatische Unterdrückung abgemeldeter/ungültiger Adressen</span>
+</li>
+<li>
+<span class="actor">System</span>
+<span class="stepaction">Protokolliert Zustellung und Bounces</span>
+<span class="sub notif"><b>Benachrichtigung:</b> Zustell-/Bounce-Rückmeldung an den Absender</span>
+<span class="sub auto"><b>Automatisch:</b> Zustell-/Bounce-Status im Versandprotokoll (M3); optional zeitversetzter/geplanter Versand (z. B. Erinnerung 24 h vor dem Abend) via n8n/Cron</span>
+</li>
+</ol></div>
+</section>
+<section id="ux"><h2>7 · UX/UI-Prinzipien — Apple-like & prozessgesteuert</h2>
+<p class="lead">Leitlinien, damit jeder — auch technikferne Teilnehmer — gerne und logisch mit der Software arbeitet.</p>
+<div class="cards">
+<div class="card princ"><div class="pn">1</div><div><h4>Passwortlos als Grundhaltung, nicht als Feature</h4><p>Jeder Zugang laeuft ueber Magic-Link (Teilnehmerportal 15 Min gueltig, Bewerber ohne Account in M2). Nirgends ein Passwort-Feld, nirgends &#x27;Konto anlegen&#x27;. Das loest gezielt das Teams-Gastaccount-Chaos: Der berufstaetige Abendschueler tippt seine Mail, klickt den Link im Postfach und ist drin. Referenzgeber und (spaeter) Field-Supervisor bekommen genau EINEN tokenisierten Link zu genau EINEM Formular.</p></div></div>
+<div class="card princ"><div class="pn">2</div><div><h4>Rollen-Dashboard beantwortet &#x27;Was ist fuer mich jetzt dran?&#x27;</h4><p>Statt Menuebaum sieht jede der 4 Rollen nach dem Login 3-5 faellige Aktionen: Schulleiter = offene Anmeldungen, kritische Anwesenheitsquoten, offene Beitraege; Dozent = eigene Faecher mit offenen Bewertungen; Teilnehmer = naechster Dienstagabend, neues Material, offene Pruefung, Lektuere-Stand; Administrator = SMTP/Backup/Integrations-Status. Kein leerer Screen, jede Kachel ist ein Ein-Klick-Sprung in die Akte/Pruefung/Material.</p></div></div>
+<div class="card princ"><div class="pn">3</div><div><h4>Ampel statt Zahlenwueste</h4><p>Die zwei GBS-Kernkennzahlen sind farbcodiert: 80%-Anwesenheit (M6) und Finanz-OP aus Optigem (M4) als gruen/gelb/rot am Profil, in Listen und im Dashboard. Kommuniziert wird das Kontingent (&#x27;noch 1 Fehlabend moeglich&#x27;), nicht nur der nackte Prozentwert. CREDO-Ampelfarben (gruen #6BAA24 / gelb #FBC900 / rot #E2001A) ueber Theme-Variablen, keine Farbverlaeufe.</p></div></div>
+<div class="card princ"><div class="pn">4</div><div><h4>Gefuehrte Wizards mit Auto-Save statt Riesenformular</h4><p>Anmeldung (M2) und Pruefungs-Durchfuehrung (M8) laufen Schritt fuer Schritt mit sichtbarem Fortschritt und laufender Zwischenspeicherung. &#x27;Speichern &amp; Fortsetzen&#x27; erlaubt dem Bewerber, abends am Handy in mehreren Etappen fertig zu werden; der Pruefling verliert bei Verbindungsabbruch nichts. Sichtbare &#x27;gespeichert&#x27;-Bestaetigung und Rest-Zeit-Countdown im Pruefungsfenster.</p></div></div>
+<div class="card princ"><div class="pn">5</div><div><h4>Berechtigung formt die Oberflaeche, nicht nur den Zugriff</h4><p>Der Dozent sieht gar keine Finanz- oder Stammdaten-UI, der Teilnehmer keine Verwaltung. Verboten = ausgeblendet, nicht &#x27;Zugriff verweigert&#x27;-Wand. Der Dozent arbeitet immer im sichtbaren Scope &#x27;Fach X, Semester 3&#x27; und sieht nur eigene Faecher. UI-Ausblenden ist immer mit serverseitigem Rollen-Check gekoppelt (Auth-Check zuerst, dann Rolle, dann Validierung).</p></div></div>
+<div class="card princ"><div class="pn">6</div><div><h4>Ein Klick, keine Doppelerfassung</h4><p>Genehmigen in M2 uebernimmt die Formulardaten 1:1 in die Kartei (M1), legt den Optigem-Debitor an und verschickt die Willkommensmail (M3) - kein Abtippen. Freigegebenes Pruefungsergebnis (M8) fliesst automatisch in die Leistungserfassung (M6). Es gibt pro Datum genau einen Wahrheitsort.</p></div></div>
+<div class="card princ"><div class="pn">7</div><div><h4>Mobile-first fuer Teilnehmer und Anwesenheit</h4><p>Der Dienstagabend-Kontext ist mobil: Der Dozent hakt Anwesenheit mit grossen Tap-Zielen ab (Default &#x27;alle da&#x27;, nur Fehlende umstellen), der Teilnehmer hoert Vorlesungs-Audio (M7) und legt Pruefungen (M8) am Handy ab. Dozenten-Backend (Upload, Bewerten) darf desktop-optimiert sein - unterschiedliche Nutzungskontexte, unterschiedliches Layout.</p></div></div>
+<div class="card princ"><div class="pn">8</div><div><h4>Leere Zustaende erklaeren den naechsten Schritt</h4><p>Nie eine blanke Tabelle. Neuer Jahrgang ohne Teilnehmer zeigt &#x27;Noch keine Anmeldungen - Anmeldelink teilen&#x27; mit Kopier-Button; leeres Fach zeigt &#x27;Erstes Material erscheint zum Semesterstart am 15.09.2026&#x27;; keine Pruefungen zeigt Blueprint-Vorschlag (&#x27;Semester-Abschluss: 20 MC + 2 Essays&#x27;).</p></div></div>
+<div class="card princ"><div class="pn">9</div><div><h4>Bestaetigung und Vorschau bei irreversiblen Schritten</h4><p>Ablehnung/Abbruch (M2/M1), Noten-Freigabe und Pruefung schliessen (M8), Abschluss-PDF (M6) erfordern einen bewussten zweiten Klick mit Dialog und Protokoll-Notiz. Der Release-Klick bei Pruefungen hat eine &#x27;So sieht es der Teilnehmer&#x27;-Vorschau, damit niemand Teilergebnisse vor fertiger Freitext-Bewertung sieht. Statuswechsel sind eine State-Machine, die nur gueltige Folgezustaende anbietet.</p></div></div>
+<div class="card princ"><div class="pn">10</div><div><h4>Konfigurierbarkeit statt Hardcoding</h4><p>Anmeldeformular (Formular-Builder mit Versionierung, M2), E-Mail-Vorlagen mit Platzhaltern (M3), Bewertungsschema (Default bestanden/nicht bestanden, M6), Struktur Jahrgang/Semester/Fach/Termine/Lektuerelisten (M10) sind alle vom Schulleiter/Admin editierbar - kein Entwickler noetig. Neue Jahrgaenge/Faecher werden aus dem Vorjahr geklont statt neu erfasst.</p></div></div>
+<div class="card princ"><div class="pn">11</div><div><h4>Datenschutz sichtbar am sensiblen Feld</h4><p>Bei geistlichen/persoenlichen Angaben steht direkt am Feld &#x27;Warum fragen wir das? Verschluesselt gespeichert&#x27; (AES-256-GCM). Die Datenschutz-Checkbox in M2 ist aktive Zustimmung (kein Vorabhaken). Referenz-/Mentoring-Notizen sind fuer den Betroffenen nie sichtbar. Am Profil erreichbar: Einwilligungs-Status und &#x27;Datenkopie exportieren&#x27; fuer die DSGVO-Auskunft. Ergebnisse/Betraege nie in Mail-Betreff, nur &#x27;im Portal ansehen&#x27;.</p></div></div>
+<div class="card princ"><div class="pn">12</div><div><h4>Ein konsistentes System im CREDO-Design</h4><p>Gleiche Labels, Lucide-Icons, Radix-Primitives und Navigationsmuster ueber alle 10 Module - der Nutzer lernt EIN mentales Modell. Montserrat, Primaergrau #575756 fuer Buttons/Links, CREDO-Linie fuer Status, keine Farbverlaeufe, keine hartcodierten Hex-Werte. Basis WCAG 2.1 AA: Tastaturbedienung, sichtbarer Fokus, Kontrast, Audio mit Bedienelementen.</p></div></div>
+</div>
+<h3 class="modh">Screen-Inventar (die wichtigsten Ansichten)</h3>
+<div class="cards">
+<div class="card screen"><h4>Schulleiter-Dashboard (Startseite)</h4><p class="purpose">Der Leiter (oft ehrenamtlich) steuert den gesamten Schulbetrieb aus einer Uebersicht und handelt sofort, ohne zu suchen.</p><ul>
+<li>KPI-Kacheln in CREDO-Ampelfarben: offene Anmeldungen (Badge-Zaehler), Teilnehmer unter 80%-Anwesenheit, offene Optigem-Posten, offene Freitext-Bewertungen</li>
+<li>Aktionsliste &#x27;Zu genehmigen&#x27; mit Ein-Klick-Sprung in den Genehmigungs-Posteingang (M2)</li>
+<li>Jahrgangs-Umschalter oben (2026-29 aktiv) als globaler Filter fuer alle darunter liegenden Sichten</li>
+<li>Schnellsuche Name/E-Mail als schnellster Weg in jede Akte</li>
+<li>Leerer Zustand vor Semesterstart: Hinweis + &#x27;Anmeldelink kopieren&#x27;</li>
+</ul></div>
+<div class="card screen"><h4>Dozent-Dashboard (eigenes Fach)</h4><p class="purpose">Der Dozent sieht am Dienstagabend nur seine Faecher und die drei Dinge, die er tun muss - keine Verwaltung, keine Finanzen.</p><ul>
+<li>Karten je eigenem Fach/Semester mit Kontext-Header &#x27;Systematik, Semester 3&#x27;</li>
+<li>Badges: offene Bewertungen, naechster Termin, neu abgegebene Pruefungen</li>
+<li>Ein-Klick-Aktionen: Anwesenheit erfassen (mobil), Material hochladen, Pruefung anlegen/bewerten</li>
+<li>Bewusst KEINE Finanz-/Stammdaten-Kacheln (ausgeblendet, nicht gesperrt)</li>
+<li>Leerer Zustand: &#x27;Noch kein Fach zugewiesen - der Schulleiter weist Faecher in der Administration zu&#x27;</li>
+</ul></div>
+<div class="card screen"><h4>Teilnehmer-Portal-Home (M9)</h4><p class="purpose">Der berufstaetige Erwachsene sieht nach dem Magic-Link-Login sofort seinen Stand und verpasst nichts.</p><ul>
+<li>&#x27;Naechster Termin&#x27;-Karte (Datum/Fach/Ort des naechsten Dienstagabends)</li>
+<li>&#x27;Neues Material&#x27; mit ungelesen-Markierung, Deep-Link ins Fach (M7)</li>
+<li>&#x27;Offene Pruefungen&#x27; mit Frist und Countdown als klarer Call-to-Action (M8)</li>
+<li>Fortschritts-Ampeln: Anwesenheit (80%-Kontingent), Lektuere-Stand mit Selbstbestaetigung</li>
+<li>Eigene Daten pflegen (Adresse/Telefon inline editierbar), eigene Ergebnisse read-only, Finanzsicht nur wenn Schalter aktiv</li>
+</ul></div>
+<div class="card screen"><h4>Administrator-Dashboard &amp; Systemstatus</h4><p class="purpose">Der technische Admin prueft auf einen Blick, ob Infrastruktur und Integrationen laufen.</p><ul>
+<li>Status-Kacheln: SMTP-Versand (Anzeigename/Reply-To/SPF-DKIM-DMARC), letzter Optigem-Sync via n8n, letztes Backup, API-Key-Ablauf</li>
+<li>Benutzer- und Rollenverwaltung mit Klartext &#x27;Was darf wer?&#x27;-Matrix</li>
+<li>Erscheinungsbild: Logo/Schulname (M10)</li>
+<li>Impersonation mit persistentem Banner &#x27;Sie handeln als [Name] - beenden&#x27;</li>
+<li>Durchsuchbares Audit-Log (wer hat wann was geaendert/gesehen)</li>
+</ul></div>
+<div class="card screen"><h4>Oeffentlicher Anmelde-Wizard (M2)</h4><p class="purpose">Der Interessent bewirbt sich abends am Handy in mehreren Etappen ohne Account und ohne Huerde.</p><ul>
+<li>Schrittweiser Ablauf mit Fortschrittsbalken, Validierung pro Schritt, Vor/Zurueck</li>
+<li>Speichern &amp; Fortsetzen per Magic-Link, sichtbare &#x27;gespeichert&#x27;-Bestaetigung</li>
+<li>Frei konfigurierte Fragen aus dem Formular-Builder (versionierte Fassung)</li>
+<li>Sensible/geistliche Felder mit Hinweis &#x27;Warum? Verschluesselt gespeichert&#x27; (AES-256)</li>
+<li>Ehepaar-Anmeldung (Haushalt verknuepfen), aktive Datenschutz-Checkbox, danach Eingangsbestaetigung per Mail</li>
+</ul></div>
+<div class="card screen"><h4>Genehmigungs-Posteingang / Bewerbungs-Pipeline (M2)</h4><p class="purpose">Der Schulleiter entscheidet ueber Anmeldungen nachvollziehbar und ohne Medienbruch.</p><ul>
+<li>Kanban-/Listenansicht: Karten nach Status (Eingegangen/In Pruefung/Genehmigt/Warteliste/Abgelehnt) mit Vollstaendigkeits-Ampel</li>
+<li>Detailpanel mit allen Formularantworten, Ehepaar-Verknuepfung sichtbar</li>
+<li>Aktionen Genehmigen/Ablehnen/Warteliste - jede mit Pflicht-Notizfeld und Protokoll</li>
+<li>Genehmigen loest Ein-Klick-Matrikulation aus: Kartei (M1) + Optigem-Debitor (M4) + Willkommensmail (M3)</li>
+<li>Ablehnung/Abbruch mit Bestaetigungsdialog (destruktiv)</li>
+</ul></div>
+<div class="card screen"><h4>Teilnehmer-Akte / 360-Grad-Profil (M1)</h4><p class="purpose">Alles zu einer Person auf einer Landeseite - zentraler Arbeitsplatz von Leiter und Sekretariat.</p><ul>
+<li>Tabs: Stammdaten, Akte/Dokumente, Leistungen (M6), Finanzen (M4, nur Leiter), Kommunikation (M3), Verlauf</li>
+<li>Farbcodiertes Status-Badge mit gefuehrtem Statuswechsel (Interessent-&gt;Angemeldet-&gt;Genehmigt-&gt;Aktiv-&gt;Absolvent/Pausiert/Abgebrochen)</li>
+<li>Anwesenheits- und Finanz-Ampel prominent oben</li>
+<li>Ehepaar-Hinweis &#x27;verheiratet mit X&#x27; mit Sprung zum Partnerprofil</li>
+<li>Verlauf als chronologische Timeline (Statuswechsel, Mails, Uploads); DSGVO-Werkzeuge (Einwilligung, Export)</li>
+</ul></div>
+<div class="card screen"><h4>Mobile Anwesenheitsliste (M6)</h4><p class="purpose">Der Dozent erfasst die Praesenz eines Dienstagabends in Sekunden auf dem Handy.</p><ul>
+<li>Roster des Jahrgangs je Termin, Default &#x27;alle anwesend&#x27;, ein Tap pro Fehlender</li>
+<li>Grosse Touch-Ziele, Ehepaare als Zeile gruppiert</li>
+<li>Live-Quote + Ampel beim Erfassen: Warnung, wenn ein weiterer Fehlabend jemanden unter 80% drueckt</li>
+<li>Andacht/Lektuere getrennt erfassbar, aber in Gesamt-Ampel zusammengefuehrt</li>
+<li>Nachtrag/Korrektur mit sichtbarem Audit-Eintrag</li>
+</ul></div>
+<div class="card screen"><h4>Pruefungs-Editor (M8)</h4><p class="purpose">Der Dozent baut eine Pruefung schnell und fehlerfrei, mit Wiederverwendung ueber 6 Semester.</p><ul>
+<li>Statuskette Entwurf-&gt;geplant-&gt;laufend-&gt;Bewertung-&gt;freigegeben mit passenden Aktionen</li>
+<li>Fragetypen: MC/Wahr-Falsch/Zuordnung/Lueckentext/Zahl (auto) + Freitext (manuell); Punkte je Frage mit Live-Punktesumme</li>
+<li>Wiederverwendbarer Fragenkatalog (Frage landet automatisch in der Bank, Import aus anderem Kurs)</li>
+<li>Zeitfenster von-bis getrennt vom Zeitlimit, Erklaerung &#x27;Fenster schlaegt Zeitlimit&#x27;, ein Versuch konfigurierbar</li>
+<li>Feedback-Sichtbarkeit als Schalterliste; Blueprint als Startpunkt statt leerer Seite</li>
+</ul></div>
+<div class="card screen"><h4>Pruefungs-Bewertung &amp; Freigabe (M8)</h4><p class="purpose">Der Dozent bewertet Freitext konsistent und gibt Ergebnisse bewusst frei.</p><ul>
+<li>Frageweise Ansicht ueber alle Teilnehmer (statt teilnehmerweise) fuer einheitliche Bewertung, optional anonymisiert</li>
+<li>Optionaler Ollama-Vorschlag als klar gekennzeichnete &#x27;KI-Vorbewertung&#x27; + Begruendung, Dozent bestaetigt/ueberschreibt (Human-in-the-Loop)</li>
+<li>Getrennter Release-Klick mit &#x27;So sieht es der Teilnehmer&#x27;-Vorschau</li>
+<li>Sammelaktionen: alle freigeben, alle erinnern, Nachschreib-Fenster fuer Einzelne</li>
+<li>Freigabe schreibt Ergebnis automatisch in die Leistungserfassung (M6)</li>
+</ul></div>
+<div class="card screen"><h4>Pruefungs-Durchfuehrung Teilnehmer (M8/M9)</h4><p class="purpose">Der Pruefling legt die Pruefung abends am privaten Geraet ab, ohne Angst vor Datenverlust.</p><ul>
+<li>Ein-Frage-Fokus, Fortschrittsanzeige, Rest-Zeit-Countdown</li>
+<li>Laufende Zwischenspeicherung mit sichtbarer &#x27;gespeichert&#x27;-Bestaetigung, Wiederaufnahme nach Abbruch</li>
+<li>Mobiltaugliches Layout, grosse Bedienelemente</li>
+<li>Bestaetigungsdialog vor endgueltigem Abgeben (irreversibel)</li>
+<li>Nachteilsausgleich sichtbar als Badge &#x27;verlaengerte Zeit&#x27;, falls gesetzt</li>
+</ul></div>
+<div class="card screen"><h4>Materialplattform / Fach-Ordner (M7)</h4><p class="purpose">Teilnehmer finden Unterlagen und Vorlesungs-Audio pro Abend an einem Ort statt im Teams-Chaos.</p><ul>
+<li>3-Ebenen-Navigation Semester -&gt; Fach -&gt; Lektion/Abend mit Breadcrumb</li>
+<li>Datei-Kacheln PDF/Office/Bild/Audio (bis 500MB), neu/ungelesen-Markierung</li>
+<li>Browser-Audio-Player mit Wiedereinstiegs-Merker, Temporegler, Download-Button</li>
+<li>Sichtbarkeit implizit aus Jahrgang/Fachzuweisung; Entwurf vs. veroeffentlicht mit &#x27;sichtbar-ab&#x27;-Datum fuer Dozenten</li>
+<li>Gebuendelte Benachrichtigung &#x27;neues Material&#x27; (ein Digest je Abend, nicht pro Datei)</li>
+</ul></div>
+<div class="card screen"><h4>Finanz-Dashboard &amp; Optigem-Abgleich (M4)</h4><p class="purpose">Der Schulleiter sieht Beitragsstand je Teilnehmer und mahnt gezielt - Optigem bleibt fuehrend, die Software bucht nichts.</p><ul>
+<li>Ampel-Uebersicht je Teilnehmer/Jahrgang (offener Posten je Rechnung, Saldo aus n8n-Sync, read-only)</li>
+<li>Semesterbeitrag 120 EUR, Ehepartner-Ermaessigung transparent ausgewiesen (&#x27;-50% = 60 EUR&#x27;)</li>
+<li>Aging-/Offene-Posten-Report im CFO-Stil (Pareto: wer schuldet wie viel, wie alt)</li>
+<li>Ein-Klick &#x27;Zahlungserinnerung senden&#x27; je roter Zeile; Bulk-Mahnung mit Vorschau + Test-Versand + Bestaetigung</li>
+<li>Feature-Schalter &#x27;Teilnehmer-Finanzsicht&#x27; sichtbar (zunaechst aus)</li>
+</ul></div>
+<div class="card screen"><h4>Administration: Struktur &amp; Formular-Builder (M10/M2)</h4><p class="purpose">Schulleiter/Admin konfigurieren Schule, Kommunikation und Anmeldung selbst - ohne Entwickler.</p><ul>
+<li>Struktur: Jahrgaenge/Semester/Faecher/Termine/Lektuerelisten/Bewertungsschema (Default bestanden/nicht bestanden + 80%), Klonen aus Vorjahr</li>
+<li>Formular-Builder mit frei konfigurierbaren Fragen und Versionierung, oeffentlicher Anmeldelink</li>
+<li>E-Mail-Vorlagen je Prozess mit Platzhaltern, Live-Vorschau, Pflicht-Test-Versand, Versandprotokoll</li>
+<li>Integrationen: API-Keys mit Rechten/Ablauf + Webhooks (M5), Optigem-Verbindung</li>
+<li>Benutzer/Rollen (4 Rollen ab Start aktiv), Erscheinungsbild Logo/Name</li>
+</ul></div>
+</div></section>
+<section id="betrieb"><h2>8 · Betriebs- & Go-Live-Ring</h2>
+<p class="lead">Der 10-Modul-Plan plus die riesige Ergänzungsliste ist inhaltlich außergewöhnlich vollständig: Fachliche Kernprozesse (Anmeldung inkl. Referenz-Workflow, Anwesenheit/80%, Prüfungen, Material, Portal), der DSGVO-Unterbau (Art.9-Consent, Retention/Löschung, zentrales Audit-Log) und die IDOR/Row-Level-Scoping-Blocker sind erkannt und korrekt priorisiert. Die verbleibenden echten Lücken liegen nicht mehr in der Fachlogik, sondern im Betriebs-/Go-Live-Ring drumherum: getesteter Restore, initiale Datenmigration aus Teams für die bereits laufenden Jahrgänge, eine globale Suche, Netzausfall-Härtung der Prüfung im Gemeindehaus-WLAN und Vertretungsregelungen. Diese sind überschaubar und für 20-60 Personen bewusst schlank zu halten - kein Uni-Overengineering nötig, aber ein blinder Restore oder ein fehlender Import der Altjahrgänge kippt den Go-Live genauso hart wie ein DSGVO-Verstoß. Empfehlung: die genannten P0/P1-Betriebspunkte als eigene Ops-Checkliste neben die drei fachlichen P0-Blocker stellen.</p>
+<div class="cards">
+<div class="card add"><div class="add-top"><span class="badge pr-P0">P0</span><h4>Getesteter Restore / Disaster-Recovery-Drill (nicht nur Backup)</h4></div><p>Die Matrix nennt nur &#x27;Backups &amp; Datenexporte&#x27;. Bei EINER getrennten Docker-Instanz auf eigenem GBS-Server ist das ein Single Point of Failure mit echten Studierenden-, Noten- und Finanzdaten. Ein Backup, dessen Wiederherstellung nie getestet wurde, ist kein Backup. Vor Go-Live einmal real zurückspielen (DB + hochgeladenes Material bis 500MB), RTO/RPO grob festlegen, Ablage off-site. Ohne verifizierten Restore sind Zeugnis-Belastbarkeit und Art.5-Integrität nicht gesichert.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P1">P1</span><h4>Initialer Datenimport / Migration der bereits laufenden Jahrgänge aus Teams</h4></div><p>Nur die Sammel-EINSCHREIBUNG eines NEUEN Jahrgangs über die Bewerbung ist modelliert. Beim Teams-Ablöse-Go-Live 09/2026 existieren aber Alt-Kohorten (z.B. 2024-27, 2025-28), die mitten im 6-Semester-Programm stehen und mit bisheriger Anwesenheit/Leistung/Semesterstand importiert werden müssen - ohne Bewerbungs-Flow. Fehlt ein einmaliger Import-/Bulk-Anlage-Pfad (CSV o.Ä. + Dedupe gegen Optigem), müssen Bestandsteilnehmer abgetippt werden oder bleiben in Teams hängen.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P1">P1</span><h4>Globale Volltext-Suche für Leiter/Admin</h4></div><p>Suche wird in der Matrix nur implizit bei Dedupe erwähnt, ist aber als eigenständige Funktion nirgends verankert. Der Leiter muss über Jahrgänge hinweg schnell &#x27;Person/Bewerbung/Akte&#x27; per Name/E-Mail finden (Telefonat, Rückfrage). Bei 20-60 aktiven + wachsendem Alumni-/Interessenten-Bestand reicht Filtern je Liste nicht; eine einfache serverseitig gescopte Suchleiste genügt - kein Elastic nötig.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P1">P1</span><h4>Netzausfall-/Offline-Härtung der Prüfung (Gemeindehaus-WLAN, mobil)</h4></div><p>M8 nennt laufende Zwischenspeicherung und Auto-Save-Recovery, aber die Zielsituation ist Abendschule im Gemeindehaus mit schwachem WLAN auf privaten Handys. Was passiert bei Verbindungsabbruch während laufendem Zeitlimit? Lokaler Draft-Puffer, klare &#x27;offline/wieder verbunden&#x27;-Anzeige, Schutz vor Doppelabgabe beim Reconnect und eine Kulanz-/Nachschreibregel des Leiters sind nötig, sonst Streit um verlorene Antworten. Real am Handy im schlechten Netz testen.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P2">P2</span><h4>Rollen-Vertretung / Delegation (Dozenten-Abwesenheit, Co-Dozent, Leiter-Urlaub)</h4></div><p>Nur &#x27;Leiter als Fallback&#x27; wird beiläufig genannt. In der Praxis fällt ein Dozent aus oder ein Fach wird zu zweit gehalten; der Leiter ist berufsbegleitend selbst nicht immer da. Ein schlanker Weg, einem zweiten Dozenten temporär Zugriff auf ein Fach zu geben bzw. Genehmigungen (Entschuldigung, Notenfreigabe) zu vertreten, verhindert Blockaden. Für diese Größe reicht &#x27;zusätzlicher Dozent je Fach&#x27; + Leiter-Allzugriff, kein Rechte-Workflow-Apparat.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P2">P2</span><h4>Betriebs-Monitoring: Health-Check, Uptime-/Fehler-Alerting, SMTP-Zustellrate</h4></div><p>Einzelner Server, passwortloses Login komplett von E-Mail-Zustellung abhängig. Fällt SMTP oder die Instanz aus, merkt es niemand, bis Teilnehmer sich dienstagabends nicht einloggen können. Ein einfacher Health-Endpoint + Uptime-Ping + Alert an Admin (und Monitoring der Bounce-/Fehlerrate der Magic-Link-Mails) ist minimaler Ops-Standard, in keinem Modul verankert.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P2">P2</span><h4>Admin-Login-Härtung / zweiter Faktor für privilegierte Konten</h4></div><p>Der alleinige Kontoschlüssel ist der Magic-Link; das Admin-Konto kann SMTP, API-Keys, Backups, Impersonation und alle Daten. Ein kompromittierter E-Mail-Posteingang des Admins = Totalübernahme. Für 2-3 privilegierte Konten (Admin/Leiter) einen zweiten Faktor oder zumindest IP-/Geräte-Bestätigung erwägen; Teilnehmer bleiben beim reinen Magic-Link. Nicht überbauen, aber bewusst entscheiden statt implizit weglassen.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P2">P2</span><h4>Warteliste-Nachrück-Prozess</h4></div><p>Warteliste als Status ist vorgesehen, aber das Nachrücken (Platz frei → nächsten Wartenden benachrichtigen/aktivieren, Frist zum Bestätigen) ist nicht als Ablauf modelliert. Bei kleiner Schule selten, aber wenn es auftritt, soll es nicht manuell/vergessen laufen. Ein Ein-Klick &#x27;nachrücken → Zusage-Mail mit Frist&#x27; genügt.</p></div>
+<div class="card add"><div class="add-top"><span class="badge pr-P2">P2</span><h4>Zertifikats-/Transcript-Verifikation für Dritte</h4></div><p>Abschluss-PDF ist bewusst auf 2029 gelegt. Für später (nicht Go-Live) sollte eingeplant sein, wie eine Gemeinde/ein Arbeitgeber die Echtheit eines Zeugnisses prüft (Prüf-URL oder Referenznummer gegen einen minimalen Verifikations-Endpoint). Jetzt nur im Datenmodell mitdenken, nicht bauen - daher niedrige Priorität.</p></div>
+</div></section>
+<section id="roadmap"><h2>9 · Aktualisierte Roadmap</h2>
+<p class="lead">Rückwärts geplant ab Kursstart 15.09.2026; die drei P0-Blocker sind in Phase 1 eingezogen. Termine = Richtwerte.</p>
+<div class="timeline">
+<div class="tl"><div class="tl-h"><span class="tl-ph">Phase 0</span><span class="tl-when">14.–25.07.2026</span></div><h4>Fundament</h4><p>Projekt-Setup, Prisma-Datenmodell (Person-Core + Mehrfachrollen + Status-State-Machine), Auth (Magic-Link gehärtet + JWT), Rechte-Matrix als DB-Datensatz, Audit-Log-Gerüst, Docker-Instanz.</p><p class="tl-res"><b>Ergebnis:</b> Lauffähiges Gerüst mit Login, Rollen, Navigation.</p></div>
+<div class="tl"><div class="tl-h"><span class="tl-ph">Phase 1</span><span class="tl-when">28.07.–29.08.2026</span></div><h4>MVP: Verwalten · Anmelden · Kommunizieren (M1+M2+M3)</h4><p>Teilnehmerkartei, Formular-Builder + öffentliches Formular + Genehmigungs-Pipeline, <b>Referenz-/Pastoren-Workflow</b>, <b>Art.9-Consent + Löschkonzept</b>, E-Mail-Modul mit SMTP/Test-Versand, <b>SPF/DKIM/DMARC</b>. Alle P0-Blocker enthalten.</p><p class="tl-res"><b>Ergebnis:</b> Anmeldeprozess produktiv, MS-Forms abgelöst — vor Kursstart.</p></div>
+<div class="tl"><div class="tl-h"><span class="tl-ph">Kursstart</span><span class="tl-when">15.09.2026</span></div><h4>Jahrgang 2026–29 startet</h4><p>Bestandsdaten-Migration laufender Jahrgänge aus Teams (Bulk-Import P1); minimale Anwesenheitserfassung für den ersten Abend.</p><p class="tl-res"><b>Ergebnis:</b> Betrieb läuft parallel weiter.</p></div>
+<div class="tl"><div class="tl-h"><span class="tl-ph">Phase 2</span><span class="tl-when">Sep–Okt 2026</span></div><h4>Finanzen &amp; Offenheit (M4+M5)</h4><p>REST-API + Keys/Webhooks, n8n-Optigem-OP-Sync, Finanz-Dashboard mit Ampel, Raten-/Ehepartner-Logik, gestaffeltes Dunning, IDOR-/Row-Level-Scoping gehärtet.</p><p class="tl-res"><b>Ergebnis:</b> Offene Beiträge live, System integrierbar.</p></div>
+<div class="tl"><div class="tl-h"><span class="tl-ph">Phase 3</span><span class="tl-when">Okt–Nov 2026</span></div><h4>Portal · Material · Leistung (M9+M7+M6)</h4><p>Teilnehmerportal, Materialplattform mit Audio-Player (Range/Offline), Kursraum + Ankündigungen, Anwesenheit + Entschuldigungs-Workflow, Lektüre-Selbstbestätigung.</p><p class="tl-res"><b>Ergebnis:</b> Teams wird abgeschaltet.</p></div>
+<div class="tl"><div class="tl-h"><span class="tl-ph">Phase 4</span><span class="tl-when">Nov–Dez 2026</span></div><h4>Online-Prüfungen (M8)</h4><p>Prüfungs-Editor, Fragenkatalog, Auto-Auswertung, Rubric + Freitext, Release-Fluss mit Benachrichtigung, Ollama-Vorbewertung optional, Offline-Härtung.</p><p class="tl-res"><b>Ergebnis:</b> Prüfungen digital, Auswertung überwiegend automatisch.</p></div>
+<div class="tl"><div class="tl-h"><span class="tl-ph">Phase 5</span><span class="tl-when">2027+</span></div><h4>Feinschliff &amp; Optionen</h4><p>Kohorten-Reporting/Early-Alert, Vertretungsregeln, Monitoring/Health-Checks, Admin-2FA, Barrierefreiheits-Feinschliff. Zertifikat-PDF zum ersten Abschluss 2029.</p><p class="tl-res"><b>Ergebnis:</b> Komfort nach Praxiserfahrung.</p></div>
+</div></section>
+<section id="todos"><h2>10 · Offene To-dos & externe Abhängigkeiten</h2>
+<p class="lead">Was von außen zugeliefert oder mit Schulleiter/Buchhaltung geklärt werden muss, bevor die betroffene Phase startet.</p>
+<div class="cards">
+<div class="card add"><div class="add-top"><span class="tm">Extern · P0</span><h4>SMTP-Domain + DNS</h4></div><p>Absender-Postfach festlegen und SPF/DKIM/DMARC einrichten (mit IT/DNS). Ohne saubere Auth landen Magic-Links und Prozess-Mails im Spam — bricht Login und Kommunikation. Voraussetzung für Phase 1.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">Extern · P1</span><h4>Optigem-Mandant &amp; Debitoren</h4></div><p>Mit der Buchhaltung: unter welchem Mandanten laufen die GBS-Beiträge? Abo-Artikel „Semesterbeitrag“ je Teilnehmer anlegen (analog Elternbeitrags-Muster). Prüfen: liefert Optigem Saldo UND Fälligkeit je Rechnung? Voraussetzung für Phase 2.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">Extern · P1</span><h4>Bestandsdaten aus Teams</h4></div><p>Laufende Jahrgänge (z. B. 2024–27, 2025–28) mit Anwesenheit/Leistung/Semesterstand exportieren — Grundlage für den einmaligen Bulk-Import zum Go-Live.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">Klärung · P2</span><h4>Andacht/Chapel</h4></div><p>Ist eine Andacht/Chapel-Quote abschlussrelevant und wer hakt sie ab (Leiter vs. Fachdozent)? Als eigener Termintyp konfigurierbar vorgesehen.</p></div>
+<div class="card add"><div class="add-top"><span class="tm">Klärung · P2</span><h4>Glaubensbekenntnis-Version</h4></div><p>Aktuellen Text des Glaubensbekenntnisses / der Selbstverpflichtung bereitstellen (versioniert, Art.9-Zustimmung).</p></div>
+</div></section>
+</main>
+<footer>
+GBS Campus · Spezifikation Entwurf v2 · erstellt 12.07.2026 · Grundlage: Softwarekonzept v1, Anforderungen des Schulleiters und eine Multi-Agenten-Deep-Research (37 Agenten, 12 Domänen) mit den größten US-Bibelschulen/Seminaren als Benchmark. Ampel- und Prioritätsangaben sind Planungsempfehlungen.
+</footer>
+<script>
+// Theme-Toggle respektiert System, erlaubt manuelles Umschalten per Tastendruck 't'
+document.addEventListener('keydown',function(ev){if(ev.key==='t'){var r=document.documentElement;var cur=r.getAttribute('data-theme');var sysDark=matchMedia('(prefers-color-scheme:dark)').matches;var next=cur?(cur==='dark'?'light':'dark'):(sysDark?'light':'dark');r.setAttribute('data-theme',next);}});
+</script>
+</body>
+</html>

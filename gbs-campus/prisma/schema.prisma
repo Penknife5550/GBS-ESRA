@@ -1,0 +1,778 @@
+// =============================================================================
+// GBS Campus — Datenmodell
+// Gemeindebibelschule Minden · Christliches Werk Esra e.V.
+//
+// Umfang: Release 0.1 „Anmeldung & Akte" (M0 Fundament, M1 Akte, M2 Anmeldung,
+// M5 Kommunikation). Stundenplan/Anwesenheit (M3), Honorar (M7), Finanzen (M10)
+// und Pruefungen (M8) kommen in 0.2 bzw. 0.3 — bewusst noch nicht modelliert.
+//
+// Drei Architekturentscheidungen aus 1_Bauplan.html, die hier sichtbar sind:
+//  1. Die Statusmaschine ist eine TABELLE, kein Enum — sie muss sich ohne
+//     Deploy erweitern lassen (Kap. 05).
+//  2. Die Rechtematrix ist ein DATENSATZ, nicht hartcodiert (Kap. 04).
+//  3. Das Audit-Log ist append-only — durchgesetzt auf DB-Ebene per Trigger
+//     und REVOKE, nicht nur per Konvention (siehe migrations/.../append_only.sql).
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Statusmaschine — als Daten, nicht als Enum
+// =============================================================================
+
+/// Ein moeglicher Zustand eines Teilnehmers. Die booleschen Schalter steuern,
+/// welche Automatiken fuer Personen in diesem Zustand ueberhaupt feuern duerfen.
+/// „Verstorben" ist damit ein harter Not-Aus: alle Schalter stehen auf false.
+model TeilnehmerStatus {
+  code         String  @id // INTERESSENT, ANGENOMMEN, AKTIV, BEURLAUBT, ABSOLVENT, ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN
+  bezeichnung  String
+  beschreibung String?
+
+  /// Zaehlt die Person als aktiv im laufenden Semester (Listen, Export, Verteiler)?
+  istAktiv          Boolean @default(false)
+  /// Endzustand — aus ihm fuehrt kein regulaerer Weg zurueck.
+  istTerminal       Boolean @default(false)
+  /// Darf der Beitragslauf fuer diese Person Forderungen erzeugen? (relevant ab 0.3)
+  beitragLaeuft     Boolean @default(false)
+  /// Laeuft die Anwesenheits-Uhr? (relevant ab 0.2)
+  anwesenheitZaehlt Boolean @default(false)
+  /// Duerfen automatisch ausgeloeste Mails (Erinnerung, Re-Enrollment, Mahnung)
+  /// an diese Person gehen? Bei VERSTORBEN und AUSGESCHLOSSEN: nein.
+  automatikMails    Boolean @default(false)
+
+  sortierung Int @default(0)
+
+  personen    Person[]
+  wechselVon  StatusWechsel[] @relation("StatusWechselVon")
+  wechselNach StatusWechsel[] @relation("StatusWechselNach")
+
+  @@map("teilnehmer_status")
+}
+
+/// Jeder Statuswechsel wird protokolliert — auch der erste.
+model StatusWechsel {
+  id       String @id @default(uuid())
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  vonCode  String?
+  von      TeilnehmerStatus? @relation("StatusWechselVon", fields: [vonCode], references: [code])
+  nachCode String
+  nach     TeilnehmerStatus  @relation("StatusWechselNach", fields: [nachCode], references: [code])
+
+  grund           String?
+  ausgeloestVonId String?
+  ausgeloestVon   Person? @relation("StatusWechselAusloeser", fields: [ausgeloestVonId], references: [id])
+  /// true, wenn ein Job den Wechsel ausgeloest hat (z. B. Re-Enrollment-Frist)
+  automatisch     Boolean @default(false)
+
+  erstelltAm DateTime @default(now())
+
+  @@index([personId, erstelltAm])
+  @@map("status_wechsel")
+}
+
+// =============================================================================
+// Rollen & Rechte — als Daten, nicht hartcodiert
+// =============================================================================
+
+model Rolle {
+  code           String  @id // ADMIN, SCHULLEITER, VERWALTUNG, TEILNEHMER, DOZENT, GASTDOZENT
+  bezeichnung    String
+  beschreibung   String?
+  /// Ab welchem Release die Rolle vergeben werden darf. 0.1 = Admin, Schulleiter,
+  /// Verwaltung, Teilnehmer. Dozent/Gastdozent folgen in 0.2.
+  aktivAbRelease String  @default("0.1")
+  sortierung     Int     @default(0)
+
+  rechte      RolleRecht[]
+  zuweisungen PersonRolle[]
+
+  @@map("rollen")
+}
+
+model Recht {
+  code        String @id // z. B. PERSON_LESEN_ALLE, ANMELDUNG_ANNEHMEN, HONORAR_FREIGEBEN
+  bezeichnung String
+  bereich     String // PERSON, ANMELDUNG, KOMMUNIKATION, FINANZEN, SYSTEM
+
+  rollen RolleRecht[]
+
+  @@map("rechte")
+}
+
+model RolleRecht {
+  rolleCode String
+  rolle     Rolle  @relation(fields: [rolleCode], references: [code], onDelete: Cascade)
+  rechtCode String
+  recht     Recht  @relation(fields: [rechtCode], references: [code], onDelete: Cascade)
+
+  @@id([rolleCode, rechtCode])
+  @@map("rolle_recht")
+}
+
+/// Mehrfachrollen sind ausdruecklich vorgesehen: der Schulleiter ist zugleich Dozent.
+model PersonRolle {
+  personId  String
+  person    Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  rolleCode String
+  rolle     Rolle  @relation(fields: [rolleCode], references: [code], onDelete: Cascade)
+
+  erteiltAm    DateTime @default(now())
+  erteiltVonId String?
+
+  @@id([personId, rolleCode])
+  @@map("person_rolle")
+}
+
+// =============================================================================
+// Person-Core — ein Mensch, eine Akte
+// =============================================================================
+
+enum Teilnahmeform {
+  SCHUELER // mit Pruefung, mit Zeugnis
+  HOERER // ohne Pruefungspflicht, ohne Zeugnis — faellt aus jeder Pruefungsautomatik
+}
+
+/// Eine Person. Teilnehmer, Mitarbeiter und Dozenten sind dieselbe Entitaet mit
+/// unterschiedlichen Rollen — nicht drei getrennte Tabellen.
+model Person {
+  id String @id @default(uuid())
+
+  vorname  String
+  nachname String
+  email    String  @unique
+  telefon  String?
+
+  geburtsdatum DateTime? @db.Date
+  strasse      String?
+  plz          String?
+  ort          String?
+
+  /// AES-256-GCM verschluesselt (siehe src/lib/encryption.ts) — nie im Klartext.
+  ibanVerschluesselt String?
+  kontoinhaber       String?
+
+  /// Freiwilliger zweiter Anmeldeweg neben dem Magic-Link.
+  ///
+  /// Warum es ihn gibt: Der Magic-Link haengt am Postfach. Wer sein Postfach
+  /// verliert, kaeme ohne Passwort nicht mehr hinein — ein Passwort ist der
+  /// vom Postfach unabhaengige Weg. Umgekehrt ersetzt der Magic-Link das
+  /// Zuruecksetzen: Wer das Passwort vergisst, meldet sich per Link an und
+  /// setzt ein neues.
+  ///
+  /// Format: "scrypt$N$r$p$salt$hash" (Base64). Nie im Klartext, nie im
+  /// Audit-Log, nie in einer Fehlermeldung.
+  passwortHash       String?
+  passwortGeaendertAm DateTime?
+
+  /// Heimatgemeinde — eine der sechs Traegergemeinden oder eine andere.
+  gemeinde String?
+
+  /// Ehepartner-Kopplung. Ausdruecklich aufloesbar: Ehen enden, und dann darf
+  /// die Software nicht laenger von einem Paar ausgehen. Beide Seiten zeigen
+  /// aufeinander; das Aufloesen setzt beide Verweise zurueck.
+  ehepartnerId  String? @unique
+  ehepartner    Person? @relation("Ehepaar", fields: [ehepartnerId], references: [id], onDelete: SetNull)
+  ehepartnerVon Person? @relation("Ehepaar")
+
+  /// Nachlass auf den Semesterbeitrag. Greift ab Release 0.3 im Beitragslauf.
+  ermaessigungCode String?
+  ermaessigung     Ermaessigung? @relation(fields: [ermaessigungCode], references: [code])
+
+  statusCode String           @default("INTERESSENT")
+  status     TeilnehmerStatus @relation(fields: [statusCode], references: [code])
+
+  teilnahmeform Teilnahmeform?
+
+  notiz String? @db.Text
+
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  rollen             PersonRolle[]
+  statusWechsel      StatusWechsel[] @relation()
+  ausgeloesteWechsel StatusWechsel[] @relation("StatusWechselAusloeser")
+  anmeldungen        Anmeldung[]
+  einwilligungen     Einwilligung[]
+  teilnahmen         Teilnahme[]
+  magicLinks         MagicLink[]
+  emailAenderungen   EmailAenderung[]
+  emails             EmailVersand[]
+  auditEintraege     AuditLog[]      @relation("AuditAkteur")
+
+  @@index([statusCode])
+  @@index([nachname, vorname])
+  @@map("personen")
+}
+
+// =============================================================================
+// Ermaessigungen
+//
+// Bewusst als Tabelle und nicht als fest verdrahtete „50 % fuer Ehepartner":
+// Ein Prozentsatz im Code laesst sich nur mit einem Deploy aendern, und die
+// Schule wird ueber die Jahre weitere Faelle haben (Geschwister, Haertefall,
+// Gemeinde als Zahler). Der Beitragslauf selbst kommt mit Release 0.3 — hier
+// steht nur die Grundlage, damit spaeter nichts nachtraeglich umgebaut werden
+// muss.
+// =============================================================================
+
+model Ermaessigung {
+  code         String  @id // EHEPARTNER, HAERTEFALL, ...
+  bezeichnung  String
+  beschreibung String?
+
+  /// Nachlass in Prozent auf den Semesterbeitrag (0-100).
+  prozent Int
+
+  aktiv      Boolean @default(true)
+  sortierung Int     @default(0)
+
+  personen Person[]
+
+  @@map("ermaessigungen")
+}
+
+// =============================================================================
+// Semester & Teilnahme — Grundlage fuer „Aktive dieses Semester"
+// =============================================================================
+
+model Semester {
+  id          String   @id @default(uuid())
+  code        String   @unique // z. B. "2026-H" (Herbst) / "2027-F" (Fruehjahr)
+  bezeichnung String // "Herbstsemester 2026"
+  start       DateTime @db.Date
+  ende        DateTime @db.Date
+
+  anmeldungVon DateTime? @db.Date
+  anmeldungBis DateTime? @db.Date
+
+  /// Genau ein Semester ist das laufende.
+  ///
+  /// ACHTUNG: Abgesichert durch den partiellen Unique-Index
+  /// `semester_genau_ein_aktuelles` aus der Migration
+  /// `20260727080000_audit_append_only`. Partielle Indexe lassen sich in Prisma
+  /// nicht ausdrücken — `prisma migrate dev` sieht ihn deshalb als „nicht im
+  /// Schema" und nimmt ein DROP INDEX in die nächste erzeugte Migration auf.
+  /// **Jede von `migrate dev` erzeugte Migration vor dem Committen ansehen**
+  /// und ein solches DROP entfernen; sonst fällt die Invariante lautlos weg.
+  /// Dasselbe gilt für die Append-only-Trigger derselben Migration.
+  istAktuell Boolean @default(false)
+
+  erstelltAm DateTime @default(now())
+
+  teilnahmen  Teilnahme[]
+  anmeldungen Anmeldung[]
+
+  @@map("semester")
+}
+
+/// Verbindet Person und Semester. Traegt die Teilnahmeform, weil sie sich
+/// zwischen Semestern aendern darf (vom Hoerer zum Schueler und zurueck).
+model Teilnahme {
+  id         String   @id @default(uuid())
+  personId   String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  semesterId String
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  teilnahmeform Teilnahmeform
+
+  /// Re-Enrollment ab Release 0.2: Ein-Klick-Bestaetigung „bin dabei".
+  bestaetigtAm DateTime?
+
+  erstelltAm DateTime @default(now())
+
+  @@unique([personId, semesterId])
+  @@index([semesterId])
+  @@map("teilnahmen")
+}
+
+// =============================================================================
+// Anmeldung — ersetzt Microsoft Forms
+// =============================================================================
+
+enum AnmeldungStatus {
+  ENTWURF // begonnen, per Fortsetzen-Token wieder aufrufbar
+  EINGEREICHT // wartet auf Entscheidung des Schulleiters
+  ANGENOMMEN
+  ABGELEHNT
+}
+
+/// Kein Referenz-/Zulassungsgate (Entscheidung E-01/E-02): Die Anmeldung kennt
+/// keinen Empfehlungsgeber und keine Zulassungspruefung als Blocker.
+/// Die Fragen kommen aus dem Formular-Builder (E-03). Die Antworten liegen als
+/// JSON, geschluesselt nach FormularFeld.code, und sind ueber die verwendete
+/// Formularversion jederzeit den damals gestellten Fragen zuzuordnen.
+model Anmeldung {
+  id String @id @default(uuid())
+
+  /// Bewusst NICHT mehr `@unique`: Eine Person meldet sich im Lauf der Jahre
+  /// mehr als einmal an — beim Wiedereinstieg nach einer Pause und ab Release
+  /// 0.2 bei der Semesterüberleitung. Ein 1:1 zwischen Person und Anmeldung
+  /// stünde im Widerspruch zum Semesterbezug, den diese Tabelle seit dem
+  /// 27.07. trägt. Eindeutig ist stattdessen das Paar aus Person und Semester
+  /// (siehe `@@unique` unten): zweimal dasselbe Semester ist ein Doppelklick,
+  /// zweimal verschiedene Semester ist ein Lebenslauf.
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  status AnmeldungStatus @default(ENTWURF)
+
+  /// Antworten, geschluesselt nach FormularFeld.code.
+  antworten Json
+
+  /// Fassung, gegen die ausgefuellt wurde. Sie ist unveraenderlich, damit auch
+  /// Jahre spaeter feststeht, welche Frage tatsaechlich gestellt wurde.
+  formularVersionId String
+  formularVersion   FormularVersion @relation(fields: [formularVersionId], references: [id])
+
+  teilnahmeform Teilnahmeform?
+
+  /// Fuer welches Semester diese Anmeldung gilt. Wird beim Einreichen gesetzt:
+  /// das Semester mit offenem Anmeldefenster, sonst das laufende. Bleibt leer,
+  /// wenn zu diesem Zeitpunkt noch gar kein Semester angelegt war — dann steht
+  /// spaeter nur `eingereichtAm` zur Verfuegung, und genau dieses Raten sollte
+  /// das Feld beenden.
+  /// SetNull statt Cascade: Das Loeschen eines Semesters darf keine Anmeldung
+  /// samt Einwilligungsnachweis mitreissen.
+  semesterId String?
+  semester   Semester? @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+
+  /// „Anmeldung fortsetzen": nur der SHA-256-Hash wird gespeichert.
+  fortsetzenTokenHash String?   @unique
+  fortsetzenLaeuftAb  DateTime?
+
+  eingereichtAm    DateTime?
+  entschiedenAm    DateTime?
+  entschiedenVonId String?
+  ablehnungsgrund  String?   @db.Text
+
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  einwilligungen Einwilligung[]
+
+  /// Je Person und Semester höchstens eine Anmeldung. Anmeldungen ohne
+  /// Semesterbezug (angelegt, bevor ein Semester existierte) sind davon nicht
+  /// betroffen — Postgres behandelt NULL in Unique-Indexen als verschieden.
+  @@unique([personId, semesterId])
+  @@index([status])
+  @@index([semesterId])
+  @@map("anmeldungen")
+}
+
+// =============================================================================
+// Formular-Builder — M2
+//
+// Der Schulleiter gestaltet das Anmeldeformular selbst („die Anmeldeformulare,
+// die kannst du auch selber in diesem Cockpit gestalten und die Fragen und so
+// weiter — und die Antworten landen dann automatisch quasi in der Schuelerakte").
+//
+// Versionierung ist der Kern: Eine einmal veroeffentlichte Fassung wird nie mehr
+// geaendert. Wer das Formular bearbeitet, erzeugt eine neue Version. Eine
+// eingereichte Anmeldung haengt fest an ihrer Fassung — sonst waere spaeter nicht
+// mehr nachvollziehbar, welche Frage jemand tatsaechlich beantwortet hat, und das
+// Consent-Protokoll haette keine Grundlage.
+// =============================================================================
+
+model Formular {
+  id           String  @id @default(uuid())
+  code         String  @unique // ANMELDUNG
+  bezeichnung  String
+  beschreibung String?
+
+  erstelltAm DateTime @default(now())
+
+  versionen FormularVersion[]
+
+  @@map("formulare")
+}
+
+enum FormularVersionStatus {
+  ENTWURF // bearbeitbar
+  VEROEFFENTLICHT // ausfuellbar, unveraenderlich
+  ARCHIVIERT // abgeloest, nur noch lesend fuer alte Anmeldungen
+}
+
+model FormularVersion {
+  id         String   @id @default(uuid())
+  formularId String
+  formular   Formular @relation(fields: [formularId], references: [id], onDelete: Cascade)
+
+  version Int
+  status  FormularVersionStatus @default(ENTWURF)
+
+  /// Freitext oben im Formular — Begruessung, Hinweise zum Ablauf.
+  einleitung String? @db.Text
+
+  veroeffentlichtAm    DateTime?
+  veroeffentlichtVonId String?
+
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  abschnitte  FormularAbschnitt[]
+  anmeldungen Anmeldung[]
+
+  @@unique([formularId, version])
+  @@index([status])
+  @@map("formular_versionen")
+}
+
+model FormularAbschnitt {
+  id        String          @id @default(uuid())
+  versionId String
+  version   FormularVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  titel        String
+  beschreibung String? @db.Text
+  reihenfolge  Int
+
+  felder FormularFeld[]
+
+  @@index([versionId, reihenfolge])
+  @@map("formular_abschnitte")
+}
+
+enum FeldTyp {
+  TEXT
+  MEHRZEILIG
+  EMAIL
+  TELEFON
+  DATUM
+  ZAHL
+  AUSWAHL_EINFACH
+  AUSWAHL_MEHRFACH
+  JA_NEIN
+  IBAN
+  HINWEIS // reiner Erklaertext, keine Eingabe
+}
+
+/// Auf welches Feld der Schuelerakte eine Antwort abgebildet wird. NICHTS
+/// bedeutet: die Antwort bleibt in den Formulardaten stehen und wandert nicht
+/// in die Stammdaten. Genau das ist die im Interview gemeinte automatische
+/// Uebernahme in die Akte.
+enum PersonFeld {
+  NICHTS
+  VORNAME
+  NACHNAME
+  EMAIL
+  TELEFON
+  GEBURTSDATUM
+  STRASSE
+  PLZ
+  ORT
+  GEMEINDE
+  IBAN
+  KONTOINHABER
+  TEILNAHMEFORM
+}
+
+model FormularFeld {
+  id          String            @id @default(uuid())
+  abschnittId String
+  abschnitt   FormularAbschnitt @relation(fields: [abschnittId], references: [id], onDelete: Cascade)
+
+  /// Stabiler Schluessel in den gespeicherten Antworten. Innerhalb einer Version
+  /// eindeutig, ueber Versionen hinweg gleichbleibend — nur so lassen sich
+  /// Antworten aus verschiedenen Fassungen nebeneinander auswerten.
+  code String
+
+  typ         FeldTyp
+  label       String
+  hilfetext   String? @db.Text
+  platzhalter String?
+
+  pflicht     Boolean @default(false)
+  reihenfolge Int
+
+  /// Antwortmoeglichkeiten bei AUSWAHL_EINFACH und AUSWAHL_MEHRFACH.
+  optionen Json?
+
+  /// Zuordnung in die Schuelerakte.
+  personFeld PersonFeld @default(NICHTS)
+
+  /// Kennzeichnet Fragen nach Glaube, Gemeindezugehoerigkeit oder Gesundheit.
+  /// Solche Felder duerfen nur ausgefuellt werden, wenn die getrennte
+  /// Art.-9-Einwilligung vorliegt (DSGVO Art. 9 Abs. 2 lit. a).
+  istArt9 Boolean @default(false)
+
+  /// Optionale Zusatzpruefungen, z. B. { "minLaenge": 2, "maxLaenge": 80 }.
+  validierung Json?
+
+  @@unique([abschnittId, code])
+  @@index([abschnittId, reihenfolge])
+  @@map("formular_felder")
+}
+
+// =============================================================================
+// Einwilligungen — revisionssicheres Consent-Protokoll (DSGVO Art. 7 Abs. 1)
+// =============================================================================
+
+/// Der Einwilligungstext ist versioniert. Aendert er sich, entsteht eine neue
+/// Version; alte Einwilligungen bleiben an ihrer Fassung haengen und damit
+/// nachweisbar.
+model EinwilligungsText {
+  id      String @id @default(uuid())
+  code    String // DATENSCHUTZ, GLAUBENSANGABEN, FOTOS
+  version Int
+  titel   String
+  text    String @db.Text
+
+  /// true = besondere Kategorie nach DSGVO Art. 9 (hier: Glaubensangaben).
+  /// Muss getrennt und ausdruecklich eingeholt werden, nie im Sammel-Haken.
+  istArt9 Boolean @default(false)
+
+  pflicht  Boolean   @default(true)
+  aktivAb  DateTime  @default(now())
+  aktivBis DateTime?
+
+  einwilligungen Einwilligung[]
+
+  @@unique([code, version])
+  @@map("einwilligungs_texte")
+}
+
+/// Append-only: eine Einwilligung wird nie geaendert, nur durch einen Widerruf
+/// ergaenzt (widerrufenAm gesetzt durch einen neuen Eintrag ist bewusst nicht
+/// vorgesehen — der Widerruf ist ein eigener Datensatz mit erteilt=false).
+model Einwilligung {
+  id String @id @default(uuid())
+
+  // SetNull statt Cascade, und das ist der Kern der Sache: Vor dem Review riss
+  // das Loeschen EINER Person den gesamten Einwilligungsnachweis mit —
+  // nachgemessen von zwei Zeilen auf null. Damit war die Nachweispflicht aus
+  // DSGVO Art. 7 Abs. 1 nicht eingehalten, obwohl der Kommentar oben
+  // „append-only" behauptete. Zusaetzlich sperrt jetzt ein DELETE-Trigger.
+  personId    String?
+  person      Person?    @relation(fields: [personId], references: [id], onDelete: SetNull)
+  anmeldungId String?
+  anmeldung   Anmeldung? @relation(fields: [anmeldungId], references: [id], onDelete: SetNull)
+
+  textId String
+  text   EinwilligungsText @relation(fields: [textId], references: [id])
+
+  /// true = erteilt, false = widerrufen. Beides sind eigene Zeilen.
+  erteilt Boolean
+
+  /// Nachweis-Trio. Ohne korrektes X-Forwarded-For im Reverse Proxy ist die
+  /// IP wertlos — siehe 1_Bauplan.html Kap. 08, Fallstrick 2.
+  zeitpunkt DateTime @default(now())
+  ipAdresse String?
+  userAgent String?
+
+  @@index([personId])
+  @@index([anmeldungId])
+  @@map("einwilligungen")
+}
+
+// =============================================================================
+// Einstellungen
+//
+// Werte, die der Betrieb ohne Deploy aendern koennen muss: Gueltigkeitsdauern,
+// Drosselschwellen, spaeter die Trigger-Zeitpunkte der Semesterueberleitung und
+// die Honorarsaetze.
+//
+// Der Wert liegt als Text und wird beim Lesen typisiert geprueft. Faellt die
+// Pruefung durch oder fehlt die Zeile, greift der im Code hinterlegte
+// Rueckfallwert — eine kaputte Einstellung darf die Anmeldung nicht lahmlegen.
+// =============================================================================
+
+enum EinstellungTyp {
+  ZAHL
+  TEXT
+  JA_NEIN
+}
+
+model Einstellung {
+  schluessel   String  @id // AUTH_MAGIC_LINK_GUELTIG_MINUTEN, ...
+  bezeichnung  String
+  beschreibung String?
+  bereich      String // AUTH, KOMMUNIKATION, SEMESTER, FINANZEN
+
+  typ  EinstellungTyp
+  wert String
+
+  /// Grenzen fuer Zahlen. Verhindert, dass jemand die Gueltigkeit eines
+  /// Magic-Links versehentlich auf ein Jahr stellt.
+  minimum Int?
+  maximum Int?
+  einheit String? // "Minuten", "Tage", "€"
+
+  sortierung     Int      @default(0)
+  aktualisiertAm DateTime @updatedAt
+
+  @@index([bereich, sortierung])
+  @@map("einstellungen")
+}
+
+// =============================================================================
+// Authentisierung — passwortlos per Magic-Link
+// =============================================================================
+
+/// Single-use. Es wird nur der SHA-256-Hash gespeichert; der Klartext existiert
+/// ausschliesslich in der versendeten URL.
+model MagicLink {
+  id String @id @default(uuid())
+
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  tokenHash String    @unique
+  laeuftAb  DateTime
+  benutztAm DateTime?
+
+  /// IP und User-Agent der Anforderung — fuer Missbrauchserkennung.
+  angefordertVonIp String?
+  userAgent        String?
+
+  erstelltAm DateTime @default(now())
+
+  @@index([personId])
+  @@index([laeuftAb])
+  @@map("magic_links")
+}
+
+/// Eine beantragte Aenderung der E-Mail-Adresse.
+///
+/// Sie wirkt erst, wenn der Link aus der Bestaetigungsmail an die NEUE Adresse
+/// eingeloest ist. Grund: Die E-Mail-Adresse IST der Kontoschluessel — es gibt
+/// kein Passwort und (in Release 0.1) auch keine Oberflaeche, mit der die
+/// Verwaltung eine vertippte Adresse korrigieren koennte. Eine sofort wirksame
+/// Aenderung wuerde bei einem Tippfehler das Konto dauerhaft aussperren.
+///
+/// Wie beim Magic-Link liegt nur der SHA-256-Hash des Tokens in der Datenbank.
+model EmailAenderung {
+  id String @id @default(uuid())
+
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  /// Bereits normalisiert (getrimmt, kleingeschrieben).
+  neueEmail String
+
+  tokenHash String    @unique
+  laeuftAb  DateTime
+  benutztAm DateTime?
+
+  angefordertVonIp String?
+  userAgent        String?
+
+  erstelltAm DateTime @default(now())
+
+  @@index([personId])
+  @@index([laeuftAb])
+  @@map("email_aenderungen")
+}
+
+/// Rate-Limiting fuer die Magic-Link-Anforderung. Bewusst in Postgres statt in
+/// Redis: bei 150 Konten reicht das voellig und spart einen Container im
+/// Notfall-Runbook. Alte Zeilen raeumt der Aufraeumlauf weg.
+model RateLimit {
+  id String @id @default(uuid())
+
+  /// Wonach gedrosselt wird: "MAGIC_LINK:<email>" oder "MAGIC_LINK_IP:<ip>"
+  schluessel String
+  zeitpunkt  DateTime @default(now())
+
+  @@index([schluessel, zeitpunkt])
+  @@map("rate_limit")
+}
+
+// =============================================================================
+// Kommunikation — M5
+// =============================================================================
+
+model EmailVorlage {
+  code         String  @id // ANMELDUNG_EINGEGANGEN, ANMELDUNG_ANGENOMMEN, MAGIC_LINK, ...
+  bezeichnung  String
+  betreff      String
+  textMd       String  @db.Text
+  beschreibung String?
+
+  /// Transaktionsvorlagen duerfen nicht geloescht werden, nur bearbeitet.
+  istSystem Boolean @default(true)
+
+  aktualisiertAm DateTime @updatedAt
+
+  @@map("email_vorlagen")
+}
+
+enum EmailStatus {
+  WARTEND
+  GESENDET
+  FEHLER
+  BOUNCE
+}
+
+/// Versandprotokoll. Bounces landen hier und damit sichtbar in der Akte —
+/// eine tote Adresse darf nicht stillschweigend verschwinden, weil der
+/// Magic-Link der einzige Kontoschluessel ist.
+model EmailVersand {
+  id String @id @default(uuid())
+
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  empfaenger  String
+  betreff     String
+  vorlageCode String?
+
+  status EmailStatus @default(WARTEND)
+  fehler String?     @db.Text
+
+  gesendetAm DateTime?
+  erstelltAm DateTime  @default(now())
+
+  @@index([personId])
+  @@index([status])
+  @@map("email_versand")
+}
+
+// =============================================================================
+// Audit-Log — append-only, auch fuer den Administrator
+// =============================================================================
+
+/// Wer / wann / was / alt→neu / IP. Die Append-only-Eigenschaft wird nicht durch
+/// Prisma garantiert, sondern in der Migration per Trigger (blockiert UPDATE und
+/// DELETE) und REVOKE auf den Anwendungs-Datenbanknutzer. Prisma kennt keinen
+/// Weg, das im Schema auszudruecken — deshalb dieser Hinweis hier.
+model AuditLog {
+  id String @id @default(uuid())
+
+  /// Wer hat gehandelt. Null bei Systemjobs (dann ist quelle = "SYSTEM").
+  akteurId String?
+  akteur   Person? @relation("AuditAkteur", fields: [akteurId], references: [id])
+
+  aktion String // PERSON_ANGELEGT, STATUS_GEWECHSELT, ANMELDUNG_ANGENOMMEN, ...
+  quelle String @default("WEB") // WEB, SYSTEM, IMPERSONATION
+
+  /// Worauf bezieht sich die Aenderung (Tabellenname + ID).
+  objektTyp String
+  objektId  String?
+
+  /// Alter und neuer Zustand der geaenderten Felder.
+  vorher  Json?
+  nachher Json?
+
+  ipAdresse String?
+  userAgent String?
+
+  /// Gesetzt, wenn ein Administrator sich als jemand anderes ausgibt.
+  impersoniertPersonId String?
+
+  erstelltAm DateTime @default(now())
+
+  @@index([akteurId])
+  @@index([objektTyp, objektId])
+  @@index([erstelltAm])
+  @@map("audit_log")
+}

@@ -1,0 +1,138 @@
+# =============================================================================
+# GBS Campus — Docker Compose (Produktion)
+#
+# Start:  docker compose up -d --build
+# Stack:  traefik (TLS) · app (Next.js) · db (PostgreSQL 16) · backup (restic)
+#
+# Netze (1_Bauplan.html Kap. 08):
+#   edge — hat Internetzugang, hier liegt der einzige Weg von aussen (traefik)
+#   data — internal: true, kein Internetzugang, kein Port nach aussen
+# Die Datenbank haengt ausschliesslich im data-Netz und kommt damit weder ins
+# Internet noch ist sie von aussen erreichbar.
+#
+# Abweichung von der Planungsskizze, bewusst: kein redis und kein worker in 0.1.
+#   - Magic-Links sind ueber die Spalte benutztAm in Postgres single-use, dafuer
+#     braucht es keinen zweiten Datenspeicher.
+#   - Rate-Limiting laeuft ueber die Tabelle rate_limit (Postgres) — bei 150 Konten
+#     voellig ausreichend und ein Container weniger im Notfall-Runbook.
+#   - Der worker kommt mit Release 0.2, wenn die Re-Enrollment-Trigger entstehen.
+# =============================================================================
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: gbs-traefik
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      # Beleg-Uploads: Standardlimit ist kleiner als ein Foto vom Zugticket.
+      # Siehe 1_Bauplan.html Kap. 08, Fallstrick 3.
+      - "--entrypoints.websecure.http.middlewares=gbs-sicherheit@docker"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    networks:
+      - edge
+    labels:
+      # Sicherheits-Header zentral, damit sie nicht pro Route vergessen werden
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.gbs-sicherheit.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.gbs-sicherheit.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.gbs-sicherheit.headers.frameDeny=true"
+      - "traefik.http.middlewares.gbs-sicherheit.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.gbs-sicherheit.headers.referrerPolicy=strict-origin-when-cross-origin"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gbs-app
+    restart: unless-stopped
+    # Container laufen per Default in UTC. Die Semester- und Fristenlogik rechnet
+    # mit Datumsgrenzen — siehe 1_Bauplan.html Kap. 08, Fallstrick 4.
+    environment:
+      - TZ=Europe/Berlin
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - edge
+      - data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gbs.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.gbs.entrypoints=websecure"
+      - "traefik.http.routers.gbs.tls.certresolver=le"
+      - "traefik.http.services.gbs.loadbalancer.server.port=3000"
+    # Kein Port-Mapping — die App ist ausschliesslich ueber traefik erreichbar.
+
+  db:
+    image: postgres:16-alpine
+    container_name: gbs-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gbs_campus
+      POSTGRES_USER: gbs
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: Europe/Berlin
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gbs -d gbs_campus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - data
+    # Kein Port-Mapping, kein Internetzugang.
+
+  backup:
+    image: postgres:16-alpine
+    container_name: gbs-backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+      TZ: Europe/Berlin
+    volumes:
+      - ./docker/backup.sh:/backup.sh:ro
+      - backups:/backups
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - data
+      - edge
+
+volumes:
+  pgdata:
+  backups:
+  letsencrypt:
+
+networks:
+  edge:
+  data:
+    internal: true

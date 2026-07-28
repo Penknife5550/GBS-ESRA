@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBS Campus — Zweites Review und Komplettfix</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grau:#575756; --grau-hell:#DADADA;
+  --gelb:#FBC900; --gruen:#6BAA24; --rot:#E2001A; --blau:#009AC6;
+  --bg:#ffffff; --bg2:#f6f6f5; --bg3:#efefee;
+  --tx:#2b2b2b; --tx2:#6b6b6a; --li:#e2e2e0;
+  --code:#f3f3f1;
+}
+html[data-t="dark"]{
+  --bg:#1a1a19; --bg2:#232322; --bg3:#2c2c2a;
+  --tx:#ececeb; --tx2:#a3a3a0; --li:#3a3a38; --code:#232322;
+  --grau:#c9c9c7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:Montserrat,Arial,Helvetica,sans-serif;font-weight:400;
+  font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+a{color:var(--grau);text-decoration:underline;text-underline-offset:3px}
+
+.credo{display:flex;height:9px;width:100%}
+.credo .g{flex:1 1 50%;background:var(--grau)}
+.credo .s{flex:1 1 12.5%}
+.credo .s1{background:var(--gelb)}.credo .s2{background:var(--gruen)}
+.credo .s3{background:var(--rot)}.credo .s4{background:var(--blau)}
+
+header{background:var(--bg2);border-bottom:1px solid var(--li);padding:46px 0 34px}
+.kicker{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--tx2);font-weight:600;margin-bottom:14px}
+h1{font-size:38px;line-height:1.16;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
+.lead{font-size:17.5px;line-height:1.6;color:var(--tx);max-width:78ch;font-weight:400}
+.meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:26px;font-size:13px;color:var(--tx2)}
+.meta b{display:block;color:var(--tx);font-weight:600;font-size:14px;margin-top:2px}
+
+section{padding:52px 0 8px;border-top:1px solid var(--li)}
+section:first-of-type{border-top:none}
+h2{font-size:26px;font-weight:700;letter-spacing:-.015em;margin:0 0 6px;
+   display:flex;align-items:baseline;gap:14px}
+h2 .no{font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:.08em}
+h3{font-size:18.5px;font-weight:600;margin:36px 0 10px;letter-spacing:-.01em}
+h4{font-size:15px;font-weight:600;margin:22px 0 8px}
+.sub{color:var(--tx2);font-size:15px;margin:0 0 26px;max-width:80ch}
+p{margin:0 0 14px;max-width:82ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:82ch}
+li{margin-bottom:7px}
+strong{font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--code);padding:2px 6px;border-radius:3px}
+
+.box{background:var(--bg2);border:1px solid var(--li);border-radius:8px;
+  padding:22px 24px;margin:20px 0}
+.box.acc{border-left:5px solid var(--grau)}
+.box.rot{border-left:5px solid var(--rot)}
+.box.gelb{border-left:5px solid var(--gelb)}
+.box.gruen{border-left:5px solid var(--gruen)}
+.box.blau{border-left:5px solid var(--blau)}
+.box h4{margin-top:0}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+
+.grid{display:grid;gap:16px;margin:22px 0}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+.kpi{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:18px 20px}
+.kpi .n{font-size:30px;font-weight:700;line-height:1.1;letter-spacing:-.02em}
+.kpi .l{font-size:12.5px;color:var(--tx2);margin-top:6px;line-height:1.45}
+
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--li);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:640px}
+th{background:var(--bg3);text-align:left;padding:11px 14px;font-weight:600;
+   font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx2);
+   border-bottom:1px solid var(--li);vertical-align:bottom}
+td{padding:12px 14px;border-bottom:1px solid var(--li);vertical-align:top;line-height:1.5}
+tr:last-child td{border-bottom:none}
+td.nowrap{white-space:nowrap}
+
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;padding:3px 8px;border-radius:3px;white-space:nowrap;
+  color:#fff;line-height:1.5}
+.t-ok{background:var(--gruen)}
+.t-warn{background:var(--gelb);color:#3a2f00}
+.t-err{background:var(--rot)}
+.t-info{background:var(--blau)}
+.t-neu{background:var(--grau);color:#fff}
+html[data-t="dark"] .t-neu{color:#1a1a19}
+
+.tl{margin:22px 0}
+.tlrow{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:14px 0;
+  border-bottom:1px solid var(--li)}
+.tlrow:last-child{border-bottom:none}
+.tld{font-size:12.5px;font-weight:600;color:var(--tx2);padding-top:2px}
+.tlt{font-weight:600;font-size:15px;margin-bottom:3px}
+.tlx{font-size:13.4px;color:var(--tx2);line-height:1.55}
+@media(max-width:700px){.tlrow{grid-template-columns:1fr;gap:4px}}
+
+footer{margin-top:60px;background:var(--bg2);border-top:1px solid var(--li);
+  padding:30px 0;font-size:12.5px;color:var(--tx2)}
+.hint{position:fixed;right:16px;bottom:14px;font-size:11px;color:var(--tx2);
+  background:var(--bg2);border:1px solid var(--li);padding:5px 10px;border-radius:4px;opacity:.75}
+@media print{.hint{display:none}section{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="credo"><div class="g"></div><div class="s s1"></div><div class="s s2"></div><div class="s s3"></div><div class="s s4"></div></div>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">GBS Campus · Zweites Review und Komplettfix</div>
+    <h1>Alles behoben — <span style="color:var(--rot)">nichts verifiziert</span></h1>
+    <p class="lead">Am Abend des 27.07. kamen vier Bausteine dazu: Semester samt Teilnehmerliste, die Schülerakte mit Selbstpflege, der Weg zurück ins Portal für Ausgesperrte und ein Passwort als zweiter Anmeldeweg. Ein zweites Review mit sieben Prüfrichtungen fand <strong>160 Befunde, davon 9 GoLive-Blocker</strong>. Alle CRITICAL- und MAJOR-Befunde sind behoben. <strong>Geprüft ist davon nichts</strong> — die Festplatte lief voll und Docker stürzte ab.</p>
+    <div class="meta">
+      <div>Datum<b>27.07.2026, abends</b></div>
+      <div>Befunde<b>160</b></div>
+      <div>Behoben<b>alle CRITICAL + MAJOR</b></div>
+      <div>Verifiziert<b style="color:var(--rot)">nichts davon</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2><span class="no">00</span>Kernaussage</h2>
+  <p class="sub">Zwei Sätze, wenn man nur zwei liest.</p>
+
+  <div class="grid g4">
+    <div class="kpi"><div class="n" style="color:var(--rot)">9</div><div class="l">CRITICAL — nach Entdopplung 6 echte Blocker-Cluster</div></div>
+    <div class="kpi"><div class="n">55</div><div class="l">MAJOR-Befunde, alle behoben</div></div>
+    <div class="kpi"><div class="n">6</div><div class="l">Agenten haben parallel repariert, auf getrennten Dateimengen</div></div>
+    <div class="kpi"><div class="n" style="color:var(--rot)">0</div><div class="l">Zeilen davon durch Compiler oder Durchstich gelaufen</div></div>
+  </div>
+
+  <div class="box gruen">
+    <h4>Was gut ist</h4>
+    <p>Die Kernmechanik hält dem Blick stand: <strong>kein IDOR</strong> in irgendeiner Route, scrypt-Umsetzung korrekt (Salz je Passwort, Parameter aus dem gespeicherten Wert, <code>timingSafeEqual</code>), IBAN durchgängig sauber behandelt, Transaktionsgrenzen richtig gesetzt, bedingte Updates gegen Doppelklicks. Der nie kompilierte Passwortweg enthielt bei einer Zeile-für-Zeile-Prüfung gegen <code>@types/node</code> und <code>schema.prisma</code> <strong>keinen einzigen Typfehler</strong>.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>Was der Grund für den roten Status ist</h4>
+    <p>Nicht die Befunde — die sind behoben. Sondern der Zustand danach: <strong>Sechs Agenten haben parallel Code geschrieben, ohne dass ein Compiler mitgelesen hat.</strong> Es gab an diesem Abend keinen Build, keinen Testlauf, keinen Durchstich. Rechne mit Tipp- und Typfehlern, bis das Gegenteil bewiesen ist.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">01</span>Was an diesem Tag entstand</h2>
+  <p class="sub">Vier Bausteine, ein Review, ein Komplettfix — und eine volle Festplatte.</p>
+
+  <div class="tl">
+    <div class="tlrow">
+      <div class="tld">Vormittag</div>
+      <div>
+        <div class="tlt">Erstes Code-Review, 11 Blocker</div>
+        <div class="tlx">Sieben Agenten, 211 Befunde. Zehn Blocker behoben und einzeln nachgemessen. Bericht: <a href="2_Code-Review.html">2_Code-Review.html</a></div>
+      </div>
+    </div>
+    <div class="tlrow">
+      <div class="tld">Nachmittag</div>
+      <div>
+        <div class="tlt">Semester, Teilnehmerliste, Excel-Export</div>
+        <div class="tlx">Semester anlegbar, Anmeldungen bekommen einen Semesterbezug, Liste „Aktive dieses Semester" mit Export ohne Bankverbindung. <strong>Verifiziert:</strong> 86 Fachlogik-Prüfungen, 6 Mutationstests, 38 Durchstich-Prüfungen — alle grün.</div>
+      </div>
+    </div>
+    <div class="tlrow">
+      <div class="tld">Nachmittag</div>
+      <div>
+        <div class="tlt">Schülerakte mit Selbstpflege</div>
+        <div class="tlx">Adresse, Telefon und Bankverbindung selbst pflegen; E-Mail-Adresse nur über einen Bestätigungsweg. <strong>Verifiziert:</strong> 115 Prüfungen, 12 Mutationstests, 65 Durchstich-Prüfungen.</div>
+      </div>
+    </div>
+    <div class="tlrow">
+      <div class="tld">Abend</div>
+      <div>
+        <div class="tlt">Zugang wiederherstellen</div>
+        <div class="tlx">Öffentliches Meldeformular für Ausgesperrte, Benutzerverwaltung für Adresse und Anmeldelink. <strong>Verifiziert:</strong> 131 Prüfungen, 15 Mutationstests, 87 Durchstich-Prüfungen.</div>
+      </div>
+    </div>
+    <div class="tlrow">
+      <div class="tld">Abend</div>
+      <div>
+        <div class="tlt">Passwort als zweiter Anmeldeweg</div>
+        <div class="tlx">Auf ausdrücklichen Wunsch: Vergessen soll automatisch gehen. <strong>Teilweise verifiziert:</strong> 29 Fachlogik-Prüfungen grün, dann lief die Platte voll.</div>
+      </div>
+    </div>
+    <div class="tlrow">
+      <div class="tld">Abend</div>
+      <div>
+        <div class="tlt">Zweites Review + Komplettfix</div>
+        <div class="tlx">160 Befunde, alle CRITICAL und MAJOR behoben. <strong>Nicht verifiziert</strong> — Docker tot, 2 GB Plattenplatz.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>Findings-Übersicht</h2>
+  <p class="sub">Sieben Prüfrichtungen, jede mit eigenem Blick auf denselben Code.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Bereich</th><th class="nowrap">CRITICAL</th><th class="nowrap">MAJOR</th><th class="nowrap">MINOR</th><th class="nowrap">INFO</th></tr></thead>
+      <tbody>
+        <tr><td>✅ Testing</td><td><b>4</b></td><td>14</td><td>12</td><td>5</td></tr>
+        <tr><td>🔐 Security</td><td><b>1</b></td><td>9</td><td>6</td><td>6</td></tr>
+        <tr><td>🎨 UI/UX</td><td><b>1</b></td><td>10</td><td>11</td><td>5</td></tr>
+        <tr><td>⚡ Performance</td><td><b>1</b></td><td>3</td><td>5</td><td>5</td></tr>
+        <tr><td>🛡️ Error Handling</td><td><b>1</b></td><td>7</td><td>9</td><td>3</td></tr>
+        <tr><td>💎 Code Quality</td><td><b>1</b></td><td>4</td><td>8</td><td>5</td></tr>
+        <tr><td>🏗️ Architecture</td><td>0</td><td>8</td><td>11</td><td>5</td></tr>
+        <tr><td><strong>Summe</strong></td><td><b>9</b></td><td><b>55</b></td><td><b>62</b></td><td><b>34</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Bemerkenswert ist die Verteilung: Die meisten Blocker fand nicht die Sicherheitsprüfung, sondern die <strong>Testprüfung</strong> — vier Prüfungen, die nachweislich unabhängig von der Regel bestanden, die sie zu prüfen behaupteten. Das ist derselbe Befundtyp wie im ersten Review und der Grund, warum in diesem Projekt jede Prüfung einen Mutationstest braucht.</p>
+</section>
+
+<section>
+  <h2><span class="no">03</span>Die sechs Blocker</h2>
+  <p class="sub">Nach Entdopplung über die sieben Berichte hinweg. Jeder mit dem, was ihn gefährlich machte — und dem, was jetzt dagegen steht.</p>
+
+  <div class="box rot">
+    <h4>B1 · Die Antwortzeit verriet, wer die Bibelschule besucht</h4>
+    <p><code>src/lib/magic-link.ts</code> — Bei einer unbekannten Adresse kehrte <code>fordereMagicLinkAn</code> nach wenigen Millisekunden zurück, bei einer bekannten erst nach dem abgewarteten Mailversand (150–400 ms). Der Unterschied ist über das offene Internet messbar, ohne Anmeldung, mit einer Anfrage je Adresse. Die Drossel bremst das nicht — für einen Treffer genügt ein Versuch.</p>
+    <p>Damit war genau die Zusage verletzt, die im Kopf derselben Datei steht: „Die Antwort verrät nie, ob es die Adresse gibt." Und die Auskunft „diese Person besucht eine Bibelschule" ist eine Angabe zur Religionszugehörigkeit — <strong>Art. 9 DSGVO</strong>.</p>
+    <p><strong>Behoben:</strong> Mindestlaufzeit von 700 ms an allen Ausgängen nach der Personenabfrage. Die beiden Drosseln liegen davor und sind deshalb kein Orakel — das steht jetzt als Begründung im Code, statt stillschweigend zu gelten. Der Passwort-Endpunkt löste dasselbe Problem bereits vorbildlich mit <code>verbrenneZeitWieEinePruefung()</code>; hier fehlte das Gegenstück.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B2 · Ein Unangemeldeter konnte das unlöschbare Protokoll volllaufen lassen</h4>
+    <p><code>api/auth/passwort</code>, <code>api/auth/anmelden</code>, <code>api/zugang-hilfe</code>, <code>api/anmeldung</code> — Kein Zod-Schema hatte eine Längengrenze, und der Drossel-Zweig schrieb <em>jenseits</em> des Limits weiter Audit-Einträge mit der vollständigen Eingabe. Das Audit-Log ist per Trigger und <code>REVOKE</code> append-only: Diese Zeilen bekommt die Anwendung nie wieder heraus.</p>
+    <p>Nebenbefund derselben Ursache: Der Drosselschlüssel <code>PASSWORT:&lt;email&gt;</code> sprengt ab etwa 2.700 Byte den Btree-Index auf <code>rate_limit</code> — die Route hätte 500 statt 401 geliefert.</p>
+    <p><strong>Behoben:</strong> <code>.max()</code> auf jedem öffentlichen String, 64-KB-Grenze über <code>content-length</code> <em>vor</em> <code>request.json()</code>, und die Drossel-Zweige protokollieren keine Eingabeinhalte mehr.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B3 · Die Rettungsmeldung konnte spurlos verschwinden</h4>
+    <p><code>api/zugang-hilfe</code> — Die Empfängergruppe wird dynamisch ermittelt. Ist sie leer (frische Installation, oder der Schulleiter-Datensatz fehlt), lief die Schleife null Mal, es entstand <strong>kein einziger Eintrag</strong> in <code>email_versand</code> — und die Antwort lautete trotzdem „Deine Meldung ist bei der Schulleitung eingegangen."</p>
+    <p>Das ist der einzige Weg eines vollständig Ausgesperrten. Genau der Leitsatz aus dem ersten Review: <strong>Was der Betrieb nicht sehen kann, ist kaputt.</strong></p>
+    <p><strong>Behoben:</strong> Neues Modul <code>src/lib/verteiler.ts</code> — verschickt parallel statt nacheinander, benutzt immer die Vorlage aus der Datenbank, und hinterlässt bei leerer Gruppe oder komplettem Zustellversagen eine FEHLER-Zeile. Der Absender bekommt bei <code>gesendet = 0</code> die Wahrheit zu lesen, samt Verweis auf den Telefonweg. Die Betriebsansicht zeigt zusätzlich die Empfängerzahl, rot bei null.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B4 · Doppelte Feld-Kennungen im Semesterformular</h4>
+    <p><code>verwaltung/semester/semester-formular.tsx</code> — Die Feldkennung war der fachliche Feldname. Das Anlege-Formular steht immer im DOM; jedes aufgeklappte Bearbeiten-Formular brachte dieselben Kennungen mit. Eine Beschriftung löst dann auf das <em>erste</em> Element im Dokument auf: Ein Klick auf „Semesterbeginn" im Bearbeiten-Formular setzte den Fokus ins Anlege-Formular, und Vorleseprogramme lasen den falschen Namen.</p>
+    <p>Derselbe Befundtyp war im ersten Review ein Blocker — hier an neuer Stelle wieder aufgetaucht.</p>
+    <p><strong>Behoben:</strong> Präfix je Formular, wie es die Personenliste bereits richtig machte.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B5 · Vier Prüfungen bestanden unabhängig von der geprüften Regel</h4>
+    <ul>
+      <li><strong>„Leerzeichen werden entfernt"</strong> prüfte den ungepolsterten Wert — entfernt man <code>trim()</code>, bleibt es grün.</li>
+      <li><strong>„leere Angaben werden zu leerem Text"</strong> enthielt keine einzige leere Angabe.</li>
+      <li><strong>Die Laufzeitangleichung</strong> war doppelt unzureichend abgesichert: Eine Toleranz von 30 ms ließ einen komplett entfernten Ausgleich durchgehen, und die Quelltextprüfung war schon durch die Import-Zeile erfüllt.</li>
+      <li><strong>Die Excel-Prüfungen</strong> greppten negativ auf einer möglicherweise leeren Variablen — bei fehlgeschlagenem Auspacken bestanden sie vakuum.</li>
+    </ul>
+    <p>Dazu fehlten die drei wichtigsten Fälle ganz: Art. 9 end-to-end, der Nebenläufigkeitsschutz beim Token-Einlösen, und die Laufzeitmessung im Durchstich.</p>
+    <p><strong>Behoben:</strong> Alle vier repariert, die drei Fälle ergänzt, und jedes Skript prüft jetzt seine <strong>Soll-Anzahl</strong> — ein stiller Ausfall ganzer Abschnitte meldet damit rot statt „0 fehlgeschlagen".</p>
+  </div>
+
+  <div class="box gelb">
+    <h4>B6 · Der lokale Prisma-Client ist ein Platzhalter — offen</h4>
+    <p>In <code>node_modules/.prisma/client</code> liegt nur der ungenerierte Stub. Ein <code>npm run typecheck</code> prüft damit <strong>gar keine</strong> Prisma-Feldnamen und scheitert stattdessen an Symbolen, die es im Stub nicht gibt. Solange <code>prisma generate</code> nicht einmal durchgelaufen ist, beweist ein grüner wie ein roter Lauf nichts.</p>
+    <p><strong>Nicht behebbar an diesem Abend</strong> — der Lauf hängt seit über 15 Minuten ohne Ausgabe. Das ist der erste Punkt der Nachhol-Liste.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>Die wichtigsten MAJOR</h2>
+  <p class="sub">55 Befunde, hier nach Themen gebündelt. Alle behoben.</p>
+
+  <h3>Die Kontowiederherstellung war der gefährlichste Fund</h3>
+  <p>Der Weg, der an diesem Abend erst gebaut wurde, hatte vier Lücken auf einmal:</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Befund</th><th>Warum das zählt</th><th>Jetzt</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Das Recht galt für <strong>jede</strong> Person-Id</td>
+          <td>Zwei Aufrufe genügten fürs Administratorkonto: Adresse auf die eigene ändern, Anmeldelink schicken. Jede Person mit Verwaltungsrechten hatte damit faktisch Administratorrechte.</td>
+          <td>Rechtevergleich — kein Konto, das mehr kann als der Handelnde. Das eigene Konto ebenfalls ausgenommen.</td>
+        </tr>
+        <tr>
+          <td>Offene Anmeldelinks blieben gültig</td>
+          <td>Wer das übernommene Postfach kontrolliert und dort eine ungelesene Link-Mail hat, kommt nach der Rettung weiter hinein.</td>
+          <td>Werden in derselben Transaktion entwertet.</td>
+        </tr>
+        <tr>
+          <td>Ein gesetztes Passwort blieb stehen</td>
+          <td>Der ganze Zweck ist „jemand anderes hat mein Postfach". Wer es übernommen und dort ein Passwort gesetzt hat, behielt vollen Zugang.</td>
+          <td>Wird mit entfernt; beide Adressen erfahren davon.</td>
+        </tr>
+        <tr>
+          <td>Sitzungen überlebten alles</td>
+          <td><code>passwortGeaendertAm</code> wurde geschrieben, aber nie geprüft. Wer reagierte, wurde den Angreifer bis zu zwölf Stunden nicht los.</td>
+          <td>Wird gegen den Ausstellungszeitpunkt des Tokens geprüft — ein Feld, ein Vergleich, an der Stelle, wo die Person ohnehin geladen wird.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Ein Binärsignal im eigenen Postfach</h3>
+  <p>Bei der E-Mail-Änderung stieg der Fall „Adresse bereits vergeben" aus, <em>ohne</em> den Hinweis an die eigene bisherige Adresse zu verschicken. Damit hatte der Antragsteller ein sauberes Signal: Hinweis da = Adresse frei, kein Hinweis = die Person hat ein Konto. Fünfmal pro Stunde gezielt abfragbar — dasselbe Art.-9-Leck, das der Kommentar darüber ausschließen wollte.</p>
+  <p><strong>Jetzt</strong> entstehen in beiden Fällen dieselben zwei Mails an dieselben zwei Adressen. Inhaltlich erfährt nur der Inhaber der belegten Adresse etwas — und der erfährt nicht, wer sie haben wollte.</p>
+
+  <h3>Erfolgsmeldungen, die nicht stimmen mussten</h3>
+  <p>Drei neue Pfade meldeten „ist unterwegs", ohne den Versanderfolg auch nur zu prüfen. Beim Passwort war das besonders heikel: Die Route fragt das bisherige Passwort <strong>bewusst nicht</strong> ab und begründet das damit, dass jede Änderung als Hinweis an die hinterlegte Adresse geht. Kommt dieser Hinweis nicht an, ist die einzige dokumentierte Absicherung wirkungslos.</p>
+  <p><strong>Jetzt</strong> reichen alle Routen <code>mailGesendet</code> durch, und die Oberflächen haben eine dritte Meldungsart bekommen: gelb für „gespeichert, aber die Mail ging nicht raus". Grün wäre gelogen, rot wäre falsch.</p>
+
+  <h3>Zwei Sätze, die seit dem Nachmittag falsch waren</h3>
+  <p>„Ein Passwort gibt es nicht" stand noch auf der Hilfeseite und in der Personenverwaltung — und führte ausgerechnet die ausgesperrte Person vom richtigen Weg weg. Dazu acht veraltete Kopfkommentare („der einzige Weg ins Portal", „passwortlos"). Alle nachgezogen; die Begründungen darin blieben gültig, nur die Absolutheit stimmte nicht mehr.</p>
+
+  <h3>Ein Modellfehler, jetzt eine Zeile</h3>
+  <p><code>Anmeldung.personId</code> war eindeutig — eine Person konnte sich also für immer genau einmal anmelden. Das verträgt sich nicht mit dem Semesterbezug, den dieselbe Tabelle am Nachmittag bekommen hat: Wer nach einer Pause wiederkommt oder ab Release 0.2 über die Semesterüberleitung erneut zusagt, braucht eine zweite Anmeldung.</p>
+  <p><strong>Jetzt</strong> ist das Paar aus Person und Semester eindeutig (Migration <code>20260727230000_anmeldung_je_semester</code>). Solange die Tabelle leer ist, war das eine Zeile — nach dem Livegang wäre es eine Datenmigration gewesen.</p>
+
+  <h3>Was der Betrieb bisher nicht sehen konnte</h3>
+  <ul>
+    <li><strong>WARTEND-Mails</strong> — stirbt der Prozess zwischen Anlegen und Abschließen der Protokollzeile, bleibt sie für immer auf „wir wissen nicht, ob die Mail raus ist". Die Betriebsansicht las nur FEHLER und BOUNCE. Jetzt gibt es einen eigenen Abschnitt für „seit mehr als fünf Minuten wartend".</li>
+    <li><strong>Der Aufräumlauf</strong> — die einzige Löschmechanik für personenbezogene Anmeldeentwürfe (Art. 5 Abs. 1 lit. e DSGVO) konnte monatelang tot sein, ohne dass es auffiel. Jetzt schreibt jeder Lauf einen Audit-Eintrag, und die Betriebsansicht zeigt „zuletzt aufgeräumt", rot ab 48 Stunden.</li>
+    <li><strong>Das Audit-Log selbst</strong> — das Recht dafür existierte, aber keine Seite las es. Neu: <code>/verwaltung/protokoll</code>, mit Filter, und die Schulleitung hat das Recht jetzt auch. Bei Bus-Faktor 1 darf das nicht an einem einzigen Konto hängen.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="no">05</span>Was daraus im Code entstand</h2>
+  <p class="sub">Vier neue Dateien, sechs neue Einstellungen, acht neue Mailvorlagen.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Neu</th><th>Wofür</th></tr></thead>
+      <tbody>
+        <tr><td><code>src/lib/verteiler.ts</code></td><td>„An alle mit Rolle X mailen" stand dreimal im Code, jedes Mal leicht anders — einmal mit rohem Rollenstring statt Konstante, einmal ohne Vorlage. Jetzt einmal, parallel, mit sichtbarem leeren Fall.</td></tr>
+        <tr><td><code>src/lib/pruefwerte.ts</code></td><td>Die IBAN-Prüfung wohnte in einem Modul, das den Prisma-Client mitzieht. Jedes Modul, das sie brauchte, brauchte damit einen generierten Client — genau daran scheiterte <code>npm run pruefen</code> an diesem Abend, obwohl in seinem Kopf „ohne Datenbank" steht.</td></tr>
+        <tr><td><code>verwaltung/protokoll/page.tsx</code></td><td>Audit-Log-Ansicht, Filter nach Aktion. Alt- und Neuwerte nur eingeklappt, mit Hinweis — dort stehen personenbezogene Daten.</td></tr>
+        <tr><td><code>scripts/durchstich.sh</code></td><td>Der Durchstich lag bisher nur im Sitzungsordner. Jetzt versioniert im Projekt, rund 148 Prüfungen.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Neue Einstellungen statt Konstanten im Code</h3>
+  <p>Drei Drosseln liefen bisher unter dem Wert des Anmeldelinks — wer den senkte, verschärfte unbemerkt auch Passwortanmeldung, Adressänderung und Hilfeformular. Und die Aufbewahrungsfristen des Aufräumlaufs waren Codekonstanten, obwohl sie der rechtlich relevante Regler sind.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Schlüssel</th><th>Standard</th><th>Wofür</th></tr></thead>
+      <tbody>
+        <tr><td><code>AUTH_PASSWORT_MIN_LAENGE</code></td><td>10 Zeichen</td><td>Nur Länge, keine Sonderzeichenregeln — die erzeugen „Passwort1!" und Zettel am Bildschirm.</td></tr>
+        <tr><td><code>AUTH_PASSWORT_MAX_VERSUCHE</code></td><td>10</td><td>Eigene Grenze für den Passwort-Login. Erfolgreiche Anmeldungen zählen nicht mehr mit.</td></tr>
+        <tr><td><code>AUTH_EMAIL_AENDERUNG_MAX</code></td><td>5</td><td>Anträge auf eine neue Adresse je Person.</td></tr>
+        <tr><td><code>AUTH_EMAIL_AENDERUNG_GUELTIG_STUNDEN</code></td><td>24 h</td><td>Gültigkeit des Bestätigungslinks.</td></tr>
+        <tr><td><code>ZUGANG_HILFE_MAX_PRO_IP</code></td><td>5</td><td>Meldungen je Anschluss.</td></tr>
+        <tr><td><code>ZUGANG_HILFE_MAX_GESAMT</code></td><td>20</td><td>Globale Grenze — fängt den Fall ab, dass jemand die Anschlussgrenze mit wechselnden Adressen umgeht.</td></tr>
+        <tr><td><code>AUFRAEUMEN_DROSSEL_TAGE</code></td><td>1 Tag</td><td>Aufbewahrung der Drosselzeilen.</td></tr>
+        <tr><td><code>AUFRAEUMEN_TOKEN_TAGE</code></td><td>7 Tage</td><td>Aufbewahrung benutzter Anmelde- und Bestätigungslinks.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">06</span>Der blinde Fleck</h2>
+  <p class="sub">Der wichtigste Abschnitt dieses Berichts.</p>
+
+  <div class="box rot">
+    <h4>Nichts von alledem ist geprüft</h4>
+    <p>Während der Reparatur lief die Festplatte voll — 433 von 460 GB belegt, davon 49 GB Docker. Docker Desktop stürzte ab (<code>input/output error</code>) und ließ sich nicht mehr starten. Lokal hängen <code>tsc</code>, <code>tsx</code> und <code>prisma generate</code> minutenlang ohne Ausgabe; das ist die bekannte Synchronisierungsfalle dieses Rechners.</p>
+    <p>Es gab also <strong>keinen Build, keinen Testlauf, keinen Durchstich</strong> — weder für den Passwortweg noch für die Reparaturen. Sechs Agenten haben parallel geschrieben und jeden Bezeichner von Hand gegen seine Quelldatei geprüft. Das ersetzt keinen Compiler.</p>
+  </div>
+
+  <h3>Reihenfolge zum Nachholen</h3>
+  <ol>
+    <li><strong>Platz schaffen.</strong> <code>docker system prune -a --volumes</code>, bzw. Docker Desktop → Troubleshoot → Purge data.</li>
+    <li><strong><code>npx prisma generate</code></strong> — ohne diesen Lauf prüft der Typecheck keine Feldnamen.</li>
+    <li><strong><code>npm run pruefen</code></strong> — Soll: 43 + 54 + 46 + 34 = <strong>177 Prüfungen</strong>. Jedes Skript meldet am Ende, ob wirklich alle gelaufen sind.</li>
+    <li><strong>Docker-Build</strong> — das ist die einzige verlässliche Typprüfung auf diesem Rechner.</li>
+    <li><strong><code>bash scripts/durchstich.sh</code></strong> — rund 148 Prüfungen gegen das Produktions-Image und eine frische Datenbank.</li>
+    <li><strong>Mutationstests</strong> für <code>passwort.ts</code> — stehen als einzige noch aus.</li>
+  </ol>
+
+  <div class="box gelb">
+    <h4>Zwei Stellen sind maschinenabhängig</h4>
+    <p>Die Laufzeitprüfungen im Durchstich (650 ms Untergrenze, 300 ms Abstand) und der Faktor 2 bei der Laufzeitangleichung im Passwort-Skript können auf einer belasteten Maschine ausschlagen. Wenn sie rot werden: erst prüfen, ob wirklich etwas kaputt ist, bevor die Grenzen aufgeweicht werden.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">07</span>Offene Entscheidungen</h2>
+  <p class="sub">Kein Code — das sind Fragen für den Betrieb.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Frage</th><th>Hintergrund</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Wer sieht die Betriebsansicht?</strong></td>
+          <td>Sie hängt an <code>SYSTEM_EINSTELLUNGEN</code>, das nur der Administrator hat. Die neuen Warnungen (WARTEND-Mails, Empfänger null, Aufräumlauf tot) sieht damit ein einziges Konto. Bei Bus-Faktor 1 ist das die Frage, ob die Schulleitung dazukommen soll. Beim Protokoll ist sie bereits dabei.</td>
+        </tr>
+        <tr>
+          <td><strong>Token im Zugriffsprotokoll des Reverse Proxy</strong></td>
+          <td>Anmelde- und Bestätigungslinks tragen den Token im Abfrageteil der Adresse, und Traefik protokolliert den vollständigen Pfad. Wer die Container-Logs lesen kann, kann Konten übernehmen. Zwei Wege: Token ins Adressfragment verlegen (wird nicht an den Server geschickt) oder das Protokollformat ohne Abfrageteil konfigurieren. Beides ist eine Betriebsentscheidung.</td>
+        </tr>
+        <tr>
+          <td><strong>Speichergrenze für den Anwendungscontainer</strong></td>
+          <td>Ohne <code>mem_limit</code> holt sich der OOM-Killer im Zweifel die Datenbank statt der Anwendung. Empfehlung aus dem Review: 768 MB.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="box blau">
+    <h4>Unverändert offen aus dem ersten Review</h4>
+    <p>Off-Site-Backup mit Restore-Drill · Content-Security-Policy · getrennter, rechtebeschränkter Datenbanknutzer · Absenderadresse und SPF/DKIM/DMARC beim IT-Dienstleister · Laientest durch eine projektfremde Person · das erste Semester anlegen.</p>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    GBS Campus · Gemeindebibelschule Minden · Christliches Werk Esra e.V. — Zweites Code-Review und Komplettfix, 27.07.2026.
+    Fachlicher Stand: <a href="1_Bauplan.html">1_Bauplan.html</a> · Erstes Review: <a href="2_Code-Review.html">2_Code-Review.html</a> · Betrieb: <a href="gbs-campus/UEBERGABE.md">UEBERGABE.md</a>
+  </div>
+</footer>
+
+<div class="hint">Taste <b>t</b> — hell/dunkel</div>
+<script>
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey) return;
+  const el = document.documentElement;
+  el.dataset.t = el.dataset.t === "dark" ? "light" : "dark";
+});
+</script>
+</body>
+</html>

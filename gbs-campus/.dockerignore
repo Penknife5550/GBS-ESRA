@@ -1,0 +1,19 @@
+# Ohne diese Datei kopiert "COPY . ." node_modules und .next mit ins Image —
+# das macht den Build um ein Vielfaches langsamer und das Ergebnis groesser.
+node_modules
+.next
+prisma/compiled
+*.tsbuildinfo
+
+# Secrets gehoeren niemals ins Image
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+README.md
+backups
+uploads
+*.log
+.DS_Store

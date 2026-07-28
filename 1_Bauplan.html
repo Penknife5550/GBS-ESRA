@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBS Campus — Bauplan (gültiger Stand)</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grau:#575756; --grau-hell:#DADADA;
+  --gelb:#FBC900; --gruen:#6BAA24; --rot:#E2001A; --blau:#009AC6;
+  --bg:#ffffff; --bg2:#f6f6f5; --bg3:#efefee;
+  --tx:#2b2b2b; --tx2:#6b6b6a; --li:#e2e2e0;
+  --code:#f3f3f1;
+}
+html[data-t="dark"]{
+  --bg:#1a1a19; --bg2:#232322; --bg3:#2c2c2a;
+  --tx:#ececeb; --tx2:#a3a3a0; --li:#3a3a38; --code:#232322;
+  --grau:#c9c9c7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:Montserrat,Arial,Helvetica,sans-serif;font-weight:400;
+  font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+a{color:var(--grau);text-decoration:underline;text-underline-offset:3px}
+
+/* ---------- CREDO-Linie ---------- */
+.credo{display:flex;height:9px;width:100%}
+.credo .g{flex:1 1 50%;background:var(--grau)}
+.credo .s{flex:1 1 12.5%}
+.credo .s1{background:var(--gelb)}.credo .s2{background:var(--gruen)}
+.credo .s3{background:var(--rot)}.credo .s4{background:var(--blau)}
+
+/* ---------- Kopf ---------- */
+header{background:var(--bg2);border-bottom:1px solid var(--li);padding:46px 0 34px}
+.kicker{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--tx2);font-weight:600;margin-bottom:14px}
+h1{font-size:38px;line-height:1.16;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
+.lead{font-size:17.5px;line-height:1.6;color:var(--tx);max-width:78ch;font-weight:400}
+.meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:26px;font-size:13px;color:var(--tx2)}
+.meta b{display:block;color:var(--tx);font-weight:600;font-size:14px;margin-top:2px}
+
+/* ---------- Struktur ---------- */
+section{padding:52px 0 8px;border-top:1px solid var(--li)}
+section:first-of-type{border-top:none}
+h2{font-size:26px;font-weight:700;letter-spacing:-.015em;margin:0 0 6px;
+   display:flex;align-items:baseline;gap:14px}
+h2 .no{font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:.08em}
+h3{font-size:18.5px;font-weight:600;margin:36px 0 10px;letter-spacing:-.01em}
+h4{font-size:15px;font-weight:600;margin:22px 0 8px}
+.sub{color:var(--tx2);font-size:15px;margin:0 0 26px;max-width:80ch}
+p{margin:0 0 14px;max-width:82ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:82ch}
+li{margin-bottom:7px}
+strong{font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--code);padding:2px 6px;border-radius:3px}
+
+/* ---------- Karten / Boxen ---------- */
+.box{background:var(--bg2);border:1px solid var(--li);border-radius:8px;
+  padding:22px 24px;margin:20px 0}
+.box.acc{border-left:5px solid var(--grau)}
+.box.rot{border-left:5px solid var(--rot)}
+.box.gelb{border-left:5px solid var(--gelb)}
+.box.gruen{border-left:5px solid var(--gruen)}
+.box.blau{border-left:5px solid var(--blau)}
+.box h4{margin-top:0}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+
+.grid{display:grid;gap:16px;margin:22px 0}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+.kpi{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:18px 20px}
+.kpi .n{font-size:30px;font-weight:700;line-height:1.1;letter-spacing:-.02em}
+.kpi .l{font-size:12.5px;color:var(--tx2);margin-top:6px;line-height:1.45}
+
+/* ---------- Tabellen ---------- */
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--li);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:640px}
+th{background:var(--bg3);text-align:left;padding:11px 14px;font-weight:600;
+   font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx2);
+   border-bottom:1px solid var(--li);vertical-align:bottom}
+td{padding:12px 14px;border-bottom:1px solid var(--li);vertical-align:top;line-height:1.5}
+tr:last-child td{border-bottom:none}
+td.nowrap{white-space:nowrap}
+
+/* ---------- Marker ---------- */
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;padding:3px 8px;border-radius:3px;white-space:nowrap;
+  color:#fff;line-height:1.5}
+.t-ok{background:var(--gruen)}
+.t-warn{background:var(--gelb);color:#3a2f00}
+.t-err{background:var(--rot)}
+.t-info{background:var(--blau)}
+.t-neu{background:var(--grau);color:#fff}
+html[data-t="dark"] .t-neu{color:#1a1a19}
+.t-off{background:transparent;color:var(--tx2);border:1px solid var(--li)}
+
+/* ---------- Architektur-Diagramm ---------- */
+.arch{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:26px;margin:22px 0}
+.zone{border:1px dashed var(--li);border-radius:7px;padding:16px 16px 8px;margin-bottom:14px;position:relative}
+.zone .zl{position:absolute;top:-9px;left:14px;background:var(--bg2);padding:0 8px;
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--tx2)}
+.zone.edge{border-color:var(--rot)}
+.zone.web{border-color:var(--blau)}
+.zone.data{border-color:var(--gruen)}
+.svc{display:flex;flex-wrap:wrap;gap:12px}
+.c{background:var(--bg);border:1px solid var(--li);border-radius:6px;padding:11px 14px;
+   flex:1 1 190px;min-width:170px}
+.c .cn{font-weight:600;font-size:14px}
+.c .cd{font-size:11.8px;color:var(--tx2);line-height:1.45;margin-top:3px}
+.c .cp{font-size:11px;color:var(--tx2);margin-top:6px;font-family:ui-monospace,monospace}
+.flow{text-align:center;color:var(--tx2);font-size:19px;line-height:1;margin:-4px 0 10px}
+
+/* ---------- Zeitstrahl ---------- */
+.tl{margin:22px 0}
+.tlrow{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:14px 0;
+  border-bottom:1px solid var(--li)}
+.tlrow:last-child{border-bottom:none}
+.tld{font-size:12.5px;font-weight:600;color:var(--tx2);padding-top:2px}
+.tlt{font-weight:600;font-size:15px;margin-bottom:3px}
+.tlx{font-size:13.4px;color:var(--tx2);line-height:1.55}
+@media(max-width:700px){.tlrow{grid-template-columns:1fr;gap:4px}}
+
+/* ---------- Balken ---------- */
+.bar{height:26px;background:var(--bg3);border-radius:4px;position:relative;overflow:hidden;margin:4px 0}
+.bar span{position:absolute;top:0;bottom:0;display:flex;align-items:center;
+  padding-left:9px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap}
+
+footer{margin-top:60px;background:var(--bg2);border-top:1px solid var(--li);
+  padding:30px 0;font-size:12.5px;color:var(--tx2)}
+.hint{position:fixed;right:16px;bottom:14px;font-size:11px;color:var(--tx2);
+  background:var(--bg2);border:1px solid var(--li);padding:5px 10px;border-radius:4px;opacity:.75}
+@media print{.hint{display:none}section{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="credo"><div class="g"></div><div class="s s1"></div><div class="s s2"></div><div class="s s3"></div><div class="s s4"></div></div>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">Gemeindebibelschule Minden · Christliches Werk Esra e.V.</div>
+    <h1>GBS&nbsp;Campus — Bauplan</h1>
+    <p class="lead">Der <strong>eine gültige fachliche Stand</strong>. Technischer Einstieg: <code>gbs-campus/UEBERGABE.md</code>, Prüfbefunde: <a href="2_Code-Review.html">2_Code-Review.html</a>. Dieses Dokument führt <code>6_Gesamtplan-2.0.html</code> und <code>6_Start-Definition.html</code> zusammen und löst beide ab — mit einheitlicher Modul-Nummerierung, einem einzigen Entscheidungsregister und einem terminierten Erst-Release.</p>
+    <div class="meta">
+      <div>Stand<b>27.07.2026</b></div>
+      <div>Erst-Release<b>0.1 — live am 20.08.2026</b></div>
+      <div>Kursstart<b>15.09.2026 — in 50 Tagen</b></div>
+      <div>Quelle<b>Interview Schulleiter + 7 Plandokumente</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ============================================ 00 -->
+<section>
+  <h2><span class="no">00</span>Was dieses Dokument ist</h2>
+  <p class="sub">Bis heute existierten zwei Pläne nebeneinander, die sich in vier Punkten widersprachen. Das ist hiermit aufgelöst.</p>
+
+  <div class="grid g4">
+    <div class="kpi"><div class="n">24</div><div class="l">Tage bis Release&nbsp;0.1 am 20.08.2026</div></div>
+    <div class="kpi"><div class="n">50</div><div class="l">Tage bis Kursstart Jahrgang&nbsp;2026–29</div></div>
+    <div class="kpi"><div class="n">7</div><div class="l">Entscheidungen am 27.07. getroffen bzw. geklärt</div></div>
+    <div class="kpi"><div class="n">10</div><div class="l">Entscheidungen noch offen — alle terminiert</div></div>
+  </div>
+
+  <h3>Der Widerspruch, den dieses Dokument beendet</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Streitpunkt</th><th>Gesamtplan&nbsp;2.0</th><th>Start-Definition</th><th>Gilt ab jetzt</th></tr></thead>
+      <tbody>
+        <tr><td><b>Formular-Builder</b></td><td>M2, Phase&nbsp;1, P0</td><td>streichen — YAGNI</td><td class="nowrap"><span class="tag t-ok">bleibt · Release 0.1</span></td></tr>
+        <tr><td><b>Anwesenheit/Stundenplan vor Kursstart</b></td><td>Phase&nbsp;1 bis 12.09.</td><td>Release&nbsp;0.2, Mitte Okt.</td><td class="nowrap"><span class="tag t-info">Release 0.2</span></td></tr>
+        <tr><td><b>Materialplattform</b></td><td>M6 „Phase 1 / 4“, unklar</td><td>bleibt vollständig in Teams</td><td class="nowrap"><span class="tag t-ok">bleibt Teams</span></td></tr>
+        <tr><td><b>Modul-Nummern</b></td><td>M0–M11</td><td>eigene, abweichende M-Nummern</td><td class="nowrap"><span class="tag t-neu">M0–M11 gilt</span></td></tr>
+        <tr><td><b>Entscheidungsregister</b></td><td>E-1…E-12</td><td>7 Punkte + 3 „bereits beantwortet“</td><td class="nowrap"><span class="tag t-neu">E-01…E-17</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Die Modul-Nummerierung des Gesamtplans (M0–M11) wird beibehalten, weil sie die vollständigere Taxonomie ist. Der <strong>Scope-Schnitt der Start-Definition</strong> wird übernommen, weil er der einzige ist, der bis zum 15.09. tatsächlich baubar ist. Die Start-Definition benutzte für dieselben Module abweichende Nummern (ihr „M3“ war Kommunikation, im Gesamtplan ist M3 der Stundenplan) — diese Doppelbelegung ist hier aufgelöst.</p>
+
+  <div class="box gelb">
+    <h4>Zur Quellenlage — damit sie nicht falsch weitergetragen wird</h4>
+    <p>Die Datei <code>Interview-Schulleiter-2026-07-25.rtf</code> im Hauptordner ist <strong>byte-identisch</strong> mit der ursprünglichen <code>Anforderungen.rtf</code> (MD5 <code>dd7aa28e…3fb644</code>, 69.885&nbsp;Bytes). Es ist <em>kein</em> zweites, neueres Gespräch — das Datum im Dateinamen führt in die Irre.</p>
+    <p style="margin-bottom:0">Praktische Folge: Der Gesamtplan&nbsp;2.0 begründet seine Neupriorisierung mit „das Interview vom 25.07. liefert jetzt die reale Priorität“ — diese Begründung trägt nicht, weil schon die Dokumente&nbsp;1–5 aus genau diesem Interview entstanden sind. <strong>Seine Inhaltskritik bleibt trotzdem richtig:</strong> Der alte Plan hatte über das Interview hinaus US-Benchmark-Anforderungen aufgenommen (Zulassungsgate, Materialplattform, 80-%-Clearance mit Attestverwaltung, Prüfungs-Engine), die eine Mindener Abendbibelschule so nicht bestellt hat.</p>
+  </div>
+
+  <h3>Abgelöste Dokumente</h3>
+  <p>Alle folgenden Dateien liegen ab jetzt in <code>Archiv/</code> und sind <strong>nicht mehr maßgeblich</strong>: <code>1_Prozesslandschaft.html</code>, <code>2_Spezifikation.html</code>, <code>3_Designkonzept.html</code> (Mockups bleiben als Gestaltungsreferenz nutzbar), <code>4_Umsetzungsplan.html</code>, <code>5_Analyse-Ergebnisse.md</code>, <code>6_Gesamtplan-2.0.html</code>, <code>6_Start-Definition.html</code>, <code>ESRA-Softwarekonzept-v1.html</code>.</p>
+</section>
+
+<!-- ============================================ 01 -->
+<section>
+  <h2><span class="no">01</span>Auftrag &amp; Ausgangslage</h2>
+  <p class="sub">Was der Schulleiter tatsächlich will — nicht als Feature-Liste, sondern als Kern.</p>
+
+  <p>Christliches Werk Esra&nbsp;e.V. trägt die Gemeindebibelschule Minden im Verbund von sechs freikirchlichen Trägergemeinden. 20–60 Teilnehmer, dreijähriges Abendprogramm, 120&nbsp;€ pro Semester, Jahrgang 2026–29 startet am 15.09.2026. Der Betrieb hängt an Microsoft&nbsp;Forms, dem FES-Teams-Mandanten und Excel-Listen.</p>
+
+  <h3>Der rote Faden: Konsolidierung, nicht Ablösung</h3>
+  <div class="box acc"><p style="margin:0;font-size:16px">„Du hast nicht fünf Plattformen … hier hättest du halt alles an einer Akte.“</p></div>
+  <p>Er will Teams <em>nicht</em> ersetzen. Videokonferenz und Aufzeichnung bleiben („da macht Microsoft schon einen guten Job“), Unterrichtsmaterial bleibt („Material und so weiter machen wir dann alles über Teams, korrekt? Das bleibt so.“). Was er will, ist <strong>eine Akte pro Mensch</strong>: wer da ist, was er gemacht hat, was noch fehlt.</p>
+
+  <h3>Fünf Schmerzpunkte, die er selbst benennt</h3>
+  <div class="grid g2">
+    <div class="box"><h4>1 · Anmeldung liegt in den USA</h4><p style="margin-bottom:0">MS&nbsp;Forms — „alles, was bei Forms gespeichert ist, landet am Ende eigentlich in Amerika“. Der Fragebogen ist inhaltlich bereits überarbeitet und soll bleiben. Es geht um den <em>Ort</em>, nicht den Inhalt.</p></div>
+    <div class="box"><h4>2 · Excel-Chaos bei den Aktiven</h4><p style="margin-bottom:0">Listen, die nie stimmen, weil Zu- und Abgänge von Hand gepflegt werden. Er will eine Liste, die stimmt, und einen Export.</p></div>
+    <div class="box"><h4>3 · Semesterwechsel kostet Geld und Nerven</h4><p style="margin-bottom:0">Abmeldungen kommen Wochen nach Semesterstart, Beiträge müssen erstattet werden. „Ich habe dann keinen Bock, mit den Leuten wegen 100&nbsp;Euro zu streiten.“ Lösung aus dem Gespräch: aktive Bestätigung 14&nbsp;Tage vorher.</p></div>
+    <div class="box"><h4>4 · Prüfungen korrigiert er von Hand</h4><p style="margin-bottom:0">Word&nbsp;→ Papier/Foto&nbsp;→ iPad&nbsp;→ Punkte im Kopf&nbsp;→ Note in Excel. „Das will ich eigentlich so schnell wie möglich loswerden.“ Ordnet es aber selbst als „dicker Brocken“ und als <em>später</em> ein.</p></div>
+    <div class="box"><h4>5 · Honorare laufen per Zuruf</h4><p style="margin-bottom:0">Honorare laufen formlos per Zuruf ohne durchgehende Belegkette. Rund 80&nbsp;€ je Seminareinheit, Fahrtkosten teils — ohne systematische Dokumentation. Für einen gemeinnützigen Träger die rechtlich schwächste Stelle.</p></div>
+    <div class="box gruen"><h4>Und was er ausdrücklich <em>nicht</em> will</h4><p style="margin-bottom:0">Keine Referenzen/Zugangsbegrenzung · keine wöchentlichen Erinnerungsmails („too&nbsp;much“) · keine automatisch formulierten Rundmails · keine Belege bei der km-Pauschale · keine praktischen Dienste („kommt alles später“) · keine differenzierten Preise.</p></div>
+  </div>
+
+  <h3>Drei pädagogische Punkte, die die Software nicht kaputtmachen darf</h3>
+  <div class="box blau">
+    <h4>Selbstbestätigung statt Kontrolle</h4>
+    <p style="margin-bottom:0">Die Teilnehmer haken Anwesenheit <strong>selbst</strong> ab — „nicht, dass ich das kontrolliere, sondern sie machen das selbst“. Dazu ein eigener, sichtbar unterschiedener Status <strong>„nachgehört“</strong> neben „war da“: nicht als Kontrolle, sondern damit der Teilnehmer sein eigenes Muster sieht. Kostet ein Enum-Feld und ist der billigste pädagogische Hebel im Projekt.</p>
+  </div>
+  <div class="box blau">
+    <h4>Leitfragen <em>vor</em> der Lektüre, nicht Test danach</h4>
+    <p style="margin-bottom:0">„beim Leseprozess ist es halt immer ganz gut, wenn du mit Fragestellungen liest“ — ein lehrbuchmäßiger <em>advance organizer</em>. Umsetzung: 3–5 Leitfragen je Lektüre, sichtbar beim Zuweisen, ohne Punkte, ohne Auswertung. Nicht als Quiz nach der Lesebestätigung.</p>
+  </div>
+  <div class="box blau">
+    <h4>Hörer ist keine Statusspalte, sondern eine Haltung</h4>
+    <p style="margin-bottom:0">Schüler mit Prüfung, Hörer mit Lektüre- und Anwesenheitsverpflichtung ohne Prüfung — „die kriegen teilgenommen, ein Zeugnis kriegt keiner“. Baurelevant: Der Hörer muss aus <em>jeder</em> Automatik herausfallen (Prüfungserinnerung, Abschluss-Clearance, Zeugnisserienlauf), sonst produziert das System für ein Drittel der Anwesenden falsche Ampeln.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>Dringlichster Punkt im ganzen Interview — und kein Softwarethema</h4>
+    <p>Ein Altzugang im früheren M365-Tenant erlaubt weiterhin Einsicht in dort abgelegte Daten. Das muss geprüft und entzogen werden — ein organisatorischer Punkt, kein Softwarethema.</p>
+    <p style="margin-bottom:0">Unabhängig von diesem Projekt, unabhängig vom Mandanten-Umzug: <strong>eine Berechtigungsprüfung im früheren M365-Tenant, diese Woche</strong> (E-17).</p>
+  </div>
+</section>
+
+<!-- ============================================ 02 -->
+<section>
+  <h2><span class="no">02</span>Der Scope-Schnitt — was gestrichen wurde und warum</h2>
+  <p class="sub">Sechs Stellen, an denen die alte Planung über das Interview hinausging. Alle sechs sind am 27.07.2026 entschieden.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th style="width:150px">Punkt</th><th>Alte Planung</th><th>Interview / Realität</th><th style="width:210px">Entscheidung</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Referenz-/Zulassungsgate</b><br><span class="tag t-err">−1,5 Wo</span></td>
+          <td>„Kritischste Lücke“, P0-GoLive-Blocker, eigene externe Rolle „Referenzgeber“, Token-Versand, Reminder, AES-Verschlüsselung.</td>
+          <td>„wir arbeiten halt nicht mit Referenzen und wir haben eigentlich auch keine Zugangsbegrenzung. Also es gibt eigentlich keinen Grund, warum wir jemanden nicht annehmen sollten.“</td>
+          <td><b>Gestrichen.</b> Nachbau später konfigurierbar, ca. 3–4&nbsp;Tage. Bestätigung durch Trägerkreis einholen (E-02) — nicht blockierend.</td>
+        </tr>
+        <tr>
+          <td><b>Materialplattform + Audio</b><br><span class="tag t-err">−1 Wo</span></td>
+          <td>P0 in Phase&nbsp;1, „Kern der Teams-Ablösung“, Storage/Backup für Audiodateien bis 500&nbsp;MB.</td>
+          <td>„Material und so weiter machen wir dann alles über Teams, korrekt? Das bleibt so.“</td>
+          <td><b>Raus aus Release 0.1 und 0.2.</b> Spart zusätzlich die gesamte Storage-, Range-Request- und Retention-Komplexität im Betrieb.</td>
+        </tr>
+        <tr>
+          <td><b>Formular-Builder</b><br><span class="tag t-ok">bleibt drin</span></td>
+          <td>Eigener Builder als P0, damit der Schulleiter Anmeldeformulare selbst gestaltet.</td>
+          <td>Im Interview ausdrücklich besprochen: „die Anmeldeformulare, die kannst du auch selber in diesem Cockpit gestalten und die Fragen und so weiter — und die Antworten landen dann automatisch quasi in der Schülerakte“.</td>
+          <td><b>Bleibt in Release&nbsp;0.1</b> (Entscheidung 27.07., siehe E-03). Die zwischenzeitliche Streichung stützte sich allein auf den Halbsatz „Fragebogen bleibt weitgehend“ und hat diese Interviewstelle übersehen — sie ist zurückgenommen.</td>
+        </tr>
+        <tr>
+          <td><b>Anwesenheits-UX</b></td>
+          <td>Mobile Liste für den Dozenten, „Bulk-Default alle anwesend, Dozent stellt Abweichungen um“.</td>
+          <td>„so, dass sie es selber anklicken. Also nicht, dass ich das kontrolliere.“ Plus Wunsch nach Status „nachgehört“.</td>
+          <td><b>Nur Selbstbestätigung bauen</b>, Leiter-Korrektur als Zweitweg mit Protokoll. Status P/A/T/E&nbsp;+&nbsp;N. Nicht beide Oberflächen.</td>
+        </tr>
+        <tr>
+          <td><b>80-%-Regel</b></td>
+          <td>Kumulative Quote über 6 Semester, Entschuldigungs-Workflow, Attest-Upload, Härtefall-Override, Frühwarn-Alert.</td>
+          <td>Kommt im Interview praktisch nicht vor. „die zu kontrollieren, das schaffe ich ohnehin nicht.“</td>
+          <td><b>Quote erfassen und anzeigen: ja.</b> Entschuldigungs-Workflow mit Attest: nein — erzeugt Gesundheitsdaten nach Art.&nbsp;9, die man ohne Not nicht speichert.</td>
+        </tr>
+        <tr>
+          <td><b>Dozenten-Honorar</b><br><span class="tag t-ok">hochgezogen</span></td>
+          <td>Phase&nbsp;3, Priorität P2, Status „Braucht Entscheidung“.</td>
+          <td>Der Schulleiter bringt es aktiv ein und bespricht es vollständig durch: Dozent vs. Gastdozent, 80&nbsp;€/SE, km-Pauschale oder Ticket, Gegenzeichnung.</td>
+          <td><b>Auf P1, Release&nbsp;0.2.</b> Klein (ein Formular, eine Freigabe, ein PDF), betrifft ~5 Personen — und schließt die rechtlich schwächste Stelle.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Zur „Weg“-Achse des Kritiker-Panels — der Widerspruch bleibt protokolliert</h3>
+  <p>Das Kritiker-Panel vom 12.07. forderte eine zweite, geistlich-relationale Achse (Mentoring, Dienstnachweis, Berufungsklärung, Gemeinde-Rückkanal) als sieben Arbeitspakete <em>vor</em> den Finanzen. Inhaltlich hat es recht: Eine Bibelschule ohne Begleitung ist Erwachsenenbildung mit frommen Themen.</p>
+  <p><strong>Der Priorisierung wird trotzdem widersprochen.</strong> Software kann geistliche Formung nicht herstellen, nur festhalten, was ohnehin geschieht. Die GBS hat aktuell weder Mentoring-Programm noch Dienstnachweis; zu praktischen Diensten sagt der Schulleiter ausdrücklich „nicht abgedeckt“, „das kommt alles später“. Sieben Arbeitspakete für eine institutionell nicht existierende Achse erzeugen leere Formulare — und verschieben Honorar, Beiträge und Prüfungen um Wochen. <strong>Empfehlung: eine Frage an den Trägerkreis (E-07), kein Arbeitspaket.</strong> Fällt die Antwort „ja“ aus, ist das ein pädagogisches Projekt mit kleinem Softwareanteil für 2027.</p>
+
+  <div class="box gruen">
+    <h4>Eine Annahme, die gegengeprüft wurde — und falsch war</h4>
+    <p>Die alte Planung rechnet mit 120&nbsp;€/Semester, 6&nbsp;×&nbsp;20&nbsp;€ Raten und <strong>50&nbsp;% Ehepartner-Rabatt</strong>. Aus dem Transkript („Wir zahlen alle das gleiche“) wurde hier zunächst ein einheitlicher Beitrag <em>ohne</em> Rabatt gelesen.</p>
+    <p style="margin-bottom:0"><strong>Das war eine Fehllesung.</strong> Den Ehepartner-Rabatt gibt es (bestätigt am 27.07.); der Satz im Interview meint einen einheitlichen Beitragssatz ohne gestaffelte Preise, nicht die Abwesenheit von Ermäßigungen. Gebaut ist er nicht als fest verdrahtete 50&nbsp;%, sondern als konfigurierbares Ermäßigungs-Schema — genau die Bauform, die das Kritiker-Panel eingefordert hatte. Siehe E-10.</p>
+  </div>
+</section>
+
+<!-- ============================================ 03 -->
+<section>
+  <h2><span class="no">03</span>Leitprinzipien</h2>
+  <p class="sub">Gelten unverändert für den gesamten Bau — aus der Analyse übernommen, am Interview geprüft.</p>
+  <div class="grid g3">
+    <div class="box"><h4>Optigem bleibt führend</h4><p style="margin-bottom:0">GBS&nbsp;Campus bucht nichts. Finanzen werden gelesen und gespiegelt, nie dupliziert.</p></div>
+    <div class="box"><h4>Ein Ort statt fünf Plattformen</h4><p style="margin-bottom:0">Konsolidieren statt eine weitere Insellösung schaffen.</p></div>
+    <div class="box"><h4>Automatisierung nur für Mechanik</h4><p style="margin-bottom:0">Trigger, Erinnerungen, Verteiler werden automatisiert. Persönliche Kommunikation bleibt von Menschen formuliert.</p></div>
+    <div class="box"><h4>Mensch bleibt in der Schleife</h4><p style="margin-bottom:0">KI liefert Vorschläge (Prüfungsvorbewertung, Textbausteine), niemals die letzte Entscheidung.</p></div>
+    <div class="box"><h4>Kein Big-Bang</h4><p style="margin-bottom:0">Release-GoLive. Teams läuft parallel weiter — alles, was Teams heute schon kann, ist nicht dringend.</p></div>
+    <div class="box"><h4>Kein Overengineering</h4><p style="margin-bottom:0">Für 150–160 Konten kein Kubernetes, keine Microservices, keine API-Produktstrategie. Docker&nbsp;Compose auf einem Server.</p></div>
+  </div>
+</section>
+
+<!-- ============================================ 04 -->
+<section>
+  <h2><span class="no">04</span>Rollen &amp; Rechte</h2>
+  <p class="sub">Sechs Rollen im Zielbild. <strong>Release&nbsp;0.1 baut nur drei</strong> — das halbiert den Aufwand für das serverseitige Row-Level-Scoping.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Rolle</th><th>Kern</th><th>Darf</th><th class="nowrap">Ab Release</th></tr></thead>
+      <tbody>
+        <tr><td><b>Administrator</b></td><td>technisch, keine fachlichen Entscheidungen</td><td>SMTP, API-Keys, Backups, Benutzer- &amp; Rechteverwaltung, Audit-Log nur lesen, Impersonation nur mit sichtbarem Banner</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td><b>Schulleiter</b></td><td>fachliche Vollverantwortung</td><td>Anmeldungen annehmen/ablehnen, Noten &amp; Anwesenheit aller Fächer, Vorlagen/Fächer/Semester anlegen, Honorare freigeben</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td><b>Verwaltung</b></td><td>Finanzen &amp; Stammdaten</td><td>Benachrichtigung bei Neuanmeldung/Datenänderung, Finanz- und Beitragsübersicht, Kontaktdaten und Bankverbindung — <em>keine</em> pädagogischen Entscheidungen</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td><b>Teilnehmer</b><br><span style="color:var(--tx2);font-size:12px">Schüler oder Hörer</span></td><td>Self-Service, nur eigene Daten</td><td>Anwesenheit und Lesebestätigung selbst abhaken, eigene Stammdaten ändern. Schüler zusätzlich Prüfungen; Hörer keine Prüfungen, kein Zeugnis</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td><b>Dozent</b></td><td>voller Kurs über ein Semester</td><td>Prüfungen erstellen/bewerten, Noten &amp; Anwesenheit im eigenen Fach — serverseitig <em>fach-scoped</em>, kein Zugriff auf Finanzen oder fremde Fächer</td><td class="nowrap"><span class="tag t-info">0.2</span></td></tr>
+        <tr><td><b>Gastdozent</b></td><td>einzelne Unterrichtseinheiten</td><td>Token-Link statt Login („jeden Gastdozenten in das System einzuweisen, ist auch blöd“), vereinfachtes Formular: Datum/Dauer/Stunden, optional Material</td><td class="nowrap"><span class="tag t-info">0.2</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Die Rechtematrix liegt als <strong>Datenbank-Datensatz</strong> vor, nicht hartcodiert. Scoping erfolgt serverseitig — ein Dozent darf fremde Daten nicht bloß nicht <em>sehen</em>, er darf sie serverseitig gar nicht <em>abrufen</em> können.</p>
+</section>
+
+<!-- ============================================ 05 -->
+<section>
+  <h2><span class="no">05</span>Statusmaschine des Teilnehmers</h2>
+  <p class="sub">Die strukturelle Wurzel. Jeder Status schaltet mit: Beitragslauf, Anwesenheits-Uhr und welche Automatik-Mails laufen dürfen.</p>
+
+  <div class="arch">
+    <div class="zone"><span class="zl">Regelpfad</span>
+      <div class="svc">
+        <div class="c"><div class="cn">1 · Interessent</div><div class="cd">Anmeldung eingegangen, noch nicht angenommen</div></div>
+        <div class="c"><div class="cn">2 · Angenommen</div><div class="cd">Aufnahme bestätigt, Akte angelegt, Beitragslauf startet</div></div>
+        <div class="c"><div class="cn">3a · Aktiv&nbsp;· Schüler</div><div class="cd">mit Prüfungspflicht</div></div>
+        <div class="c"><div class="cn">3b · Aktiv&nbsp;· Hörer</div><div class="cd">ohne Prüfung, ohne Zeugnis — <b>parallel</b>, kein Zwischenschritt</div></div>
+        <div class="c"><div class="cn">4 · Beurlaubt</div><div class="cd">Beitrag pausiert, Anwesenheits-Uhr steht</div></div>
+        <div class="c"><div class="cn">5 · Absolvent</div><div class="cd">abgeschlossen</div></div>
+      </div>
+    </div>
+    <div class="zone edge"><span class="zl">Terminal-Zustände · Not-Aus für jede Automatik</span>
+      <div class="svc">
+        <div class="c"><div class="cn">Abgebrochen</div><div class="cd">freiwillig, Beitragslauf stoppt</div></div>
+        <div class="c"><div class="cn">Ausgeschlossen</div><div class="cd">bisher nie genutzt, laut Interview vorzusehen</div></div>
+        <div class="c"><div class="cn">Verstorben</div><div class="cd">harter Not-Aus — verhindert automatische Mahnung oder Erinnerung an Hinterbliebene</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box acc">
+    <h4>Zwei Bauregeln, die daran hängen</h4>
+    <ul style="margin-bottom:0">
+      <li><strong>Statusmaschine als eigene Tabelle, nicht als Enum im Code</strong> — sie muss sich ohne Deploy erweitern lassen.</li>
+      <li><strong>Fach-granularer Fortschritt statt Semester-Lockstep</strong> — der Schulleiter: „nicht semesterabhängig, sondern fachabhängig“. Grundlage für Wiedereinstieg nach Pausen, im Interview mit konkretem Beispiel (Auslandsaufenthalt) bestätigt.</li>
+    </ul>
+  </div>
+
+  <h3>Semesterüberleitung — der Trigger, der Ärger und Geld spart</h3>
+  <p>14&nbsp;Tage vor Semesterstart geht an alle aktiven Teilnehmer eine Bestätigungsmail mit Ein-Klick-Antwort „bin dabei / bin raus“. Erinnerung an T−7 und T−3 — <strong>nicht mehr</strong> („too much“). Wer bis Semesterstart nicht bestätigt, fällt automatisch heraus. Der Trigger-Zeitpunkt ist konfigurierbar, da sich Semestertermine jährlich verschieben.</p>
+</section>
+
+<!-- ============================================ 06 -->
+<section>
+  <h2><span class="no">06</span>Module M0–M11</h2>
+  <p class="sub">Eine verbindliche Nummerierung. Die Release-Spalte ist der Bauauftrag.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th class="nowrap">ID</th><th>Modul</th><th>Kernfunktionen</th><th class="nowrap">Release</th></tr></thead>
+      <tbody>
+        <tr><td class="nowrap"><b>M0</b></td><td>Fundament &amp; Infrastruktur</td><td>Datenmodell, Auth, Rollen/Rechte, Audit-Log, Docker/Domain/Backup</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td class="nowrap"><b>M1</b></td><td>Teilnehmerverwaltung &amp; Schülerakte</td><td>Statusmaschine inkl. Hörer, Akte, Selbstpflege der Stammdaten, Excel-Export</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td class="nowrap"><b>M2</b></td><td>Anmeldung &amp; Formular-Builder</td><td>ersetzt MS&nbsp;Forms, frei gestaltbare versionierte Formulare, Feldzuordnung in die Akte, Art.-9-Consent, kein Referenz-Gate</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td class="nowrap"><b>M5</b></td><td>Kommunikation &amp; E-Mail</td><td>Verteiler aus Filtern, eigene Absenderdomain, SPF/DKIM/DMARC, Bounce in die Akte</td><td class="nowrap"><span class="tag t-neu">0.1</span></td></tr>
+        <tr><td class="nowrap"><b>M3</b></td><td>Stundenplan, Anwesenheit &amp; Lesebestätigung</td><td>mobiles Selbst-Check-in inkl. Status „nachgehört“, Leitfragen je Lektüre, Übersicht für Leiter</td><td class="nowrap"><span class="tag t-info">0.2</span></td></tr>
+        <tr><td class="nowrap"><b>M4</b></td><td>Semester- &amp; Kursplanung</td><td>Semesterobjekt, Anlege-Assistent, Unterrichtseinheiten, Curriculum-Klon, Re-Enrollment-Trigger</td><td class="nowrap"><span class="tag t-info">0.2</span></td></tr>
+        <tr><td class="nowrap"><b>M7</b></td><td>Dozenten- &amp; Honorarverwaltung</td><td>Dozent/Gastdozent, Seminareinheiten × Satz, Fahrtkosten, Gegenzeichnung, PDF ins DMS</td><td class="nowrap"><span class="tag t-info">0.2</span></td></tr>
+        <tr><td class="nowrap"><b>M9</b></td><td>Noten &amp; Zeugnisse</td><td>Fächer/Noten-Grundgerüst; Zeugnisformat offen (E-14)</td><td class="nowrap"><span class="tag t-warn">0.3</span></td></tr>
+        <tr><td class="nowrap"><b>M10</b></td><td>Finanzen &amp; Optigem</td><td>lesender Sync über genau einen n8n-Webhook, Beitragsampel, Mahnung als Vorschlagsliste</td><td class="nowrap"><span class="tag t-warn">0.3</span></td></tr>
+        <tr><td class="nowrap"><b>M8</b></td><td>Prüfungen &amp; Leistungsnachweise</td><td>Stufe&nbsp;1 nur Leistungserfassung; Engine erst nach Entscheidung E-15</td><td class="nowrap"><span class="tag t-warn">0.3</span></td></tr>
+        <tr><td class="nowrap"><b>M6</b></td><td>Materialplattform &amp; Teams</td><td>Ablage/Videokonferenz bleiben in Teams. Organisatorisch: Mandanten-Umzug läuft parallel, kein Blocker</td><td class="nowrap"><span class="tag t-off">später</span></td></tr>
+        <tr><td class="nowrap"><b>M11</b></td><td>Geistlich-relationale Begleitung</td><td>Mentoring, Dienstnachweis, Berufungsklärung — nur nach Bestätigung durch den Trägerkreis (E-07)</td><td class="nowrap"><span class="tag t-off">Ausblick</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================ 07 -->
+<section>
+  <h2><span class="no">07</span>Releases</h2>
+  <p class="sub">Drei Releases statt sechs Phasen. Jeder hat genau ein Versprechen, das am Ende prüfbar ist — und eine Liste dessen, was er bewusst nicht kann.</p>
+
+  <h3>Release&nbsp;0.1 — „Anmeldung &amp; Akte“ <span class="tag t-err">live am 20.08.2026</span></h3>
+  <div class="box acc"><p style="margin:0"><strong>Versprechen:</strong> Der Jahrgang 2026–29 meldet sich nicht mehr über Microsoft&nbsp;Forms an. Die Teilnehmerdaten liegen in Deutschland, in einer Akte, mit Export.</p></div>
+
+  <div class="box gruen">
+    <h4>Baustand 27.07.2026 <span class="tag t-ok">M0 Fundament · M0 Auth · M2 vollständig</span></h4>
+    <p>Projekt <code>gbs-campus/</code> angelegt (Next.js&nbsp;15, Prisma&nbsp;6, PostgreSQL&nbsp;16, Docker&nbsp;Compose mit Traefik). Fertig und gegengeprüft:</p>
+    <ul>
+      <li><strong>Fundament:</strong> Datenmodell mit Statusmaschine als Tabelle, Rollen- und Rechtematrix als Datensatz (6 Rollen, 18 Rechte, 34 Zuordnungen), append-only Audit-Log, versionierte Einwilligungstexte, Health-Endpoint, Backup-Job, Grunddaten-Seed.</li>
+      <li><strong>Anmeldung:</strong> Magic-Link (einmalig, 30&nbsp;Minuten, nur als Hash gespeichert, gedrosselt je Adresse und je IP), Sitzungscookie, serverseitige Rechteprüfung gegen die Matrix in der Datenbank.</li>
+      <li><strong>Formular-Builder:</strong> Abschnitte und Fragen frei gestaltbar, elf Feldtypen, Zuordnung jeder Antwort auf ein Aktenfeld, Art.-9-Kennzeichnung je Feld, Vorschau, Versionierung mit Entwurf/Veröffentlicht/Archiviert. Das Anmeldeformular liegt als Fassung&nbsp;1 vor: 5 Abschnitte, 24 Felder.</li>
+      <li><strong>Ermäßigungen:</strong> Tabelle <code>ermaessigungen</code> mit dem Ehepartner-Nachlass von 50&nbsp;% als Datensatz, dazu eine auflösbare Ehepaar-Kopplung an der Person. Die Datenbank verhindert, dass jemand sich selbst als Ehepartner einträgt. Der Beitragslauf, der das anwendet, kommt mit Release&nbsp;0.3.</li>
+      <li><strong>Öffentliche Anmeldung:</strong> <code>/anmeldung</code> ohne Login — ersetzt Microsoft&nbsp;Forms. Getrennte Art.-9-Einwilligung mit revisionssicherem Consent-Protokoll (Textversion, Zeitstempel, Client-IP), Fortsetzen-Link, Drosselung je Anschluss, Aufnahme in die Akte mit verschlüsselter IBAN, Benachrichtigung der Verwaltung, Entscheidung durch die Schulleitung mit Statuswechsel. Eine bereits bekannte Adresse führt zu keiner zweiten Akte und überschreibt nichts.</li>
+      <li><strong>Einstellungen:</strong> Verwaltungsbereich für die Werte, die der Betrieb ohne Deployment ändern muss — Gültigkeit des Anmeldelinks, Drosselschwellen, Sitzungsdauer, Frist zum Fortsetzen einer Anmeldung. Änderungen greifen sofort und stehen mit Alt- und Neuwert im Audit-Log. Die zulässigen Grenzen sind im Code hinterlegt, damit sich die Link-Gültigkeit auch über die API nicht auf ein Jahr stellen lässt; eine unlesbare Einstellung fällt auf den Standardwert zurück, statt die Anmeldung lahmzulegen.</li>
+    </ul>
+    <p><strong>Nachweise:</strong> Produktionsbuild fehlerfrei · Produktions-Image startet gegen eine leere Datenbank durch, Migration und Seed laufen im Entrypoint, Prozess läuft nicht als root · 41 Prüfungen der Formularlogik und 15 der Einstellungslogik bestanden · <code>UPDATE</code> und <code>DELETE</code> auf dem Audit-Log werden von der Datenbank abgewiesen · eine veröffentlichte Formularfassung lässt sich nicht mehr ändern (409) · ein Magic-Link lässt sich kein zweites Mal einlösen · eine geänderte Link-Gültigkeit wirkt ohne Neustart und wird mit Alt- und Neuwert protokolliert.</p>
+    <p><strong>Code-Review am 27.07. durchgeführt</strong> (7 Agenten, 211 Befunde, 11 GoLive-Blocker) — <strong>alle Blocker behoben und einzeln nachgemessen</strong>, Einzelheiten in <a href="2_Code-Review.html">2_Code-Review.html</a> und <code>gbs-campus/README.md</code>. Die schwersten waren: das Backup-Skript lief nachweislich nie (falsche <code>date</code>-Syntax für BusyBox, stille Crash-Loop), die IBAN stand trotz Verschlüsselung zusätzlich im Klartext daneben, Glaubensangaben landeten über den Zwischenspeichern-Pfad ohne jede Einwilligung in der Datenbank, und der Einwilligungsnachweis ließ sich löschen. <strong>Offen bleibt allein das Off-Site-Backup</strong> — es braucht ein Ziel und einen Restore-Drill.</p>
+    <p style="margin-bottom:0"><strong>Die Anmeldung wurde von außen bis in die Akte durchgespielt:</strong> Absenden ohne Pflicht-Einwilligung wird abgelehnt statt still verworfen · eine IBAN mit Zahlendreher fällt an der Prüfsumme auf · die angelegte Akte enthält die IBAN verschlüsselt, die Teilnahmeform wurde aus dem Freitext erkannt · das Consent-Protokoll trägt Textversion und <em>echte</em> Client-IP, nicht die des Proxys · eine zweite Anmeldung auf dieselbe Adresse mit fremden Daten legt nichts an und überschreibt nichts · die Verwaltung wird benachrichtigt · das Aufnehmen setzt den Status und damit den Beitragslauf, ein zweiter Versuch scheitert mit 409 · die Drosselung greift je Anschluss. Vollständige Liste in <code>gbs-campus/README.md</code>.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>Noch einzutragen, bevor 0.1 live gehen kann</h4>
+    <p style="margin-bottom:0">Die konkreten Werte zu <strong>E-08 (Hoster)</strong> und <strong>E-09 (Domain und Absenderdomain)</strong> stehen noch als Platzhalter in <code>.env.example</code>. Ohne korrekte <code>APP_URL</code> erzeugt die Anwendung Magic-Links auf <code>localhost</code> — und weil der Magic-Link der einzige Kontoschlüssel ist, kommt dann niemand hinein.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th class="nowrap">Modul</th><th>Umfang</th><th>Warum jetzt</th></tr></thead>
+      <tbody>
+        <tr><td class="nowrap"><b>M0</b> Fundament</td><td>Docker-Stack, Reverse Proxy, TLS, Postgres, Backup + <em>getesteter</em> Restore, Break-Glass-Tresor, Health-Endpoint</td><td>Nicht verhandelbar und nicht nachrüstbar. Ein Backup ohne getesteten Restore ist kein Backup.</td></tr>
+        <tr><td class="nowrap"><b>M0</b> Auth</td><td>Magic-Link (single-use, Rate-Limit, Invalidierung), 3 Rollen: Leiter, Verwaltung, Teilnehmer</td><td>Dozentenrolle erst 0.2 — sie wird vor dem ersten Abend nicht gebraucht und halbiert den Scoping-Aufwand.</td></tr>
+        <tr><td class="nowrap"><b>M0</b> Audit-Log</td><td>Append-only: wer / wann / was / alt→neu / IP. Auch für den Administrator nicht löschbar</td><td>Nachträglich nicht rekonstruierbar — muss ab der ersten Zeile mitlaufen.</td></tr>
+        <tr><td class="nowrap"><b>M1</b> Person &amp; Akte</td><td>Person-Core mit Mehrfachrollen, Statusmaschine als Tabelle, Stammdaten, Dokumente, Änderungshistorie</td><td>Die strukturelle Wurzel. Ohne sie feuern später Beitrag, Mahnung und Auto-Mails auf Aussteiger und Trauernde.</td></tr>
+        <tr><td class="nowrap"><b>M2</b> Anmeldung</td><td>Formular-Builder im Cockpit (Abschnitte, Felder, Pflichtangaben, Feldtypen), versionierte Formulare, Wahl Schüler/Hörer, <b>getrennte Art.-9-Einwilligung</b> + Consent-Protokoll (Version/Zeitstempel/IP), Fortsetzen-Token 7–14&nbsp;Tage, Aufnahme → Akte + Mail an Verwaltung</td><td>Der Kern des Releases. Ohne Referenz-Workflow. Antworten fließen über eine Feldzuordnung automatisch in die Schülerakte.</td></tr>
+        <tr><td class="nowrap"><b>M5</b> Kommunikation</td><td>SMTP + SPF/DKIM/DMARC, Verteiler aus Filtern, Rundmail mit selbst formuliertem Text, Transaktionsvorlagen, Opt-out + Impressum, Bounce in die Akte</td><td>Der Schulleiter formuliert selbst — er braucht den Verteiler, nicht den Textgenerator.</td></tr>
+        <tr><td class="nowrap"><b>M1</b> Selbstpflege</td><td>Teilnehmer ändert Adresse / E-Mail / Bankverbindung → Verwaltung wird benachrichtigt</td><td>Direkter Wunsch aus dem Interview, sehr klein, spart der Verwaltung sofort Arbeit.</td></tr>
+        <tr><td class="nowrap"><b>M1</b> Liste &amp; Export</td><td>„Aktive dieses Semester“ als Screen + Excel-Export, globale Suche</td><td>Ersetzt genau die Excel-Liste, über die sich der Schulleiter beklagt. Ein halber Tag.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="box rot">
+    <h4>Bewusst <em>nicht</em> in Release 0.1</h4>
+    <p style="margin-bottom:0">Referenz-/Pastorenworkflow · Materialplattform &amp; Audio · Anwesenheit · Lektüre · Prüfungen · Finanzen/Optigem · Dozenten- und Gastdozentenrolle · Mentoring / „Weg“-Achse · Schulvertrags-PDF · Bestandsdaten-Import der Alt-Jahrgänge · Lehrgrundlage-Text (leere versionierte Tabelle wird vorbereitet, der Text kommt vom Trägerkreis, wann er kommt).</p>
+  </div>
+
+  <h3>Release&nbsp;0.2 — „Semesterbetrieb“ <span class="tag t-info">Mitte Oktober 2026</span></h3>
+  <div class="box acc"><p style="margin:0"><strong>Versprechen:</strong> Keine Excel-Liste mehr im laufenden Semester, die Teilnehmer haben ein Dashboard, und Dozenten rechnen im Portal ab statt per Zuruf.</p></div>
+  <div class="grid g2">
+    <div class="box"><h4>M4 · Stundenplan &amp; Curriculum</h4><ul style="margin-bottom:0">
+      <li>Fächer mit fach-granularem Fortschritt</li>
+      <li>Semesterobjekt mit Start/Ende/Anmeldefenster; Anlege-Assistent mit der Regel des Schulleiters (erster Dienstag im Mai bzw. Dezember, 12&nbsp;Wochen zurück, 2&nbsp;Wochen Pause) als <em>Vorschlag</em>, nicht hartcodiert</li>
+      <li>Unterrichtseinheiten mit Fach/Datum/Thema/Dozent, ins Folgesemester kopierbar</li>
+      <li>Lektüre je Einheit: Pflicht + ergänzend, mit 3–5 Leitfragen vorab</li>
+    </ul></div>
+    <div class="box"><h4>M3 · Selbstbestätigung &amp; Dashboard</h4><ul style="margin-bottom:0">
+      <li>Teilnehmer-Dashboard: Plan sehen, „war da“ / „nachgehört“ / „gelesen“ selbst anklicken</li>
+      <li>Leiter: Kursübersicht, Aktensicht, Export, Korrektur mit Protokoll</li>
+      <li>Anwesenheitsquote sichtbar — ohne harte Clearance, ohne Attest-Upload</li>
+      <li>Trigger-Events für die spätere Quiz-Erweiterung sauber setzen</li>
+    </ul></div>
+    <div class="box"><h4>M7 · Dozenten &amp; Honorar</h4><ul style="margin-bottom:0">
+      <li>Rolle Dozent (fach-scoped, serverseitig) und Gastdozent (Token-Link, kein Login)</li>
+      <li>Erfassung Datum / Fach / Seminareinheiten × Satz (80&nbsp;€, konfigurierbar)</li>
+      <li>Fahrtkosten: km × 0,30&nbsp;€ aus hinterlegter Adresse oder Beleg-Upload</li>
+      <li>Gegenzeichnung durch den Schulleiter → PDF-Beleg → Buchhaltung/DMS</li>
+    </ul></div>
+    <div class="box"><h4>M4 · Re-Enrollment</h4><ul style="margin-bottom:0">
+      <li>Bestätigungsmail T−14 vor Semesterstart, Ein-Klick-Link</li>
+      <li>Erinnerung T−7 und T−3 — nicht mehr</li>
+      <li>Wer bis Semesterstart nicht bestätigt, fällt automatisch heraus</li>
+      <li>Leiter-Liste „noch nicht rückbestätigt“</li>
+    </ul></div>
+  </div>
+
+  <h3>Release&nbsp;0.3 — „Geld &amp; Leistung“ <span class="tag t-warn">Winter 2026/27, nach Entscheidung</span></h3>
+  <div class="grid g3">
+    <div class="box"><h4>M10 · Finanzen</h4><p style="margin-bottom:0">Optigem-Sync über genau <em>einen</em> n8n-Webhook (kein API-Produkt), Ampel-Dashboard, Zahler&nbsp;≠&nbsp;Teilnehmer, Beitrag&nbsp;≠&nbsp;Spende. <strong>Mahnung als Vorschlagsliste mit menschlicher Freigabe</strong> — automatische Mahnstufen an Geschwister aus sechs Gemeinden über 120&nbsp;€ sind pastoral falsch.</p></div>
+    <div class="box"><h4>M8 · Prüfungen Stufe&nbsp;1</h4><p style="margin-bottom:0">Nur Leistungserfassung: Fach, Semester, Datum, Punkte, Note, bestanden, Anhang, Nachschreib-Kennzeichen. Löst das echte Problem des Schulleiters (Übersicht statt Excel) in etwa zwei Tagen. Die Engine bleibt offen.</p></div>
+    <div class="box"><h4>Entscheidungspunkt</h4><p style="margin-bottom:0">Erst dann: eigene Prüfungs-Engine bauen oder die Software eines weiteren Beteiligten per API/MCP anbinden (E-15)? Bei faktisch <em>einem</em> geprüften Fach spricht viel für Anbinden. Der Schulleiter: „das hat er auch angeboten“.</p></div>
+  </div>
+  <div class="box gelb">
+    <h4>Warum eine Prüfungs-Engine schwer zu rechtfertigen ist</h4>
+    <p style="margin-bottom:0">Aus dem Interview: geprüft wird faktisch nur Bibelkunde. Homiletik&nbsp;= Predigt (teilgenommen / nicht, keine Note). Hermeneutik&nbsp;= Übung mit Selbst-Abhaken. Dogmatik und Kirchengeschichte: keine Prüfung. Eine Engine für ein einziges Fach zu bauen, ist nicht zu rechtfertigen — und Ollama lokal würde den Server grundlegend teurer machen (≥&nbsp;16&nbsp;GB&nbsp;RAM).</p>
+  </div>
+</section>
+
+<!-- ============================================ 08 -->
+<section>
+  <h2><span class="no">08</span>Infrastruktur &amp; Betrieb</h2>
+  <p class="sub">Ausgelegt auf 150–160 Konten. Ein internes Verwaltungssystem mit punktuellen Lastspitzen (Dienstagabend-Check-in, Semesterstart), kein öffentlicher Hochlastdienst.</p>
+
+  <div class="arch">
+    <div class="zone edge"><span class="zl">Netz: edge · einziger Weg von außen</span>
+      <div class="svc">
+        <div class="c"><div class="cn">traefik</div><div class="cd">Reverse Proxy, TLS-Terminierung, Let's-Encrypt automatisch, HSTS/CSP/Referrer-Policy zentral, Upload-Limit, Rate-Limit</div><div class="cp">:80 :443 → öffentlich</div></div>
+      </div>
+    </div>
+    <div class="flow">↓&nbsp; X-Forwarded-Proto / -For &nbsp;↓</div>
+    <div class="zone web"><span class="zl">Netz: web</span>
+      <div class="svc">
+        <div class="c"><div class="cn">app</div><div class="cd">Next.js&nbsp;15 / Node&nbsp;LTS, non-root, read-only FS, Healthcheck. Kein Port-Mapping — nur über Traefik erreichbar</div><div class="cp">intern :3000</div></div>
+        <div class="c"><div class="cn">worker</div><div class="cd">Cron &amp; Jobs: Re-Enrollment T−14/−7/−3, Löschläufe, Bounce-Verarbeitung, Backup-Trigger</div><div class="cp">kein Port</div></div>
+      </div>
+    </div>
+    <div class="flow">↓</div>
+    <div class="zone data"><span class="zl">Netz: data · internal: true — kein Internetzugang, kein Port nach außen</span>
+      <div class="svc">
+        <div class="c"><div class="cn">db</div><div class="cd">PostgreSQL&nbsp;16, Volume pgdata, sensible Felder (IBAN) app-seitig AES-256-GCM verschlüsselt</div><div class="cp">nur intern :5432</div></div>
+        <div class="c"><div class="cn">redis</div><div class="cd">Job-Queue, Rate-Limit-Zähler, Magic-Link-Invalidierung</div><div class="cp">nur intern :6379</div></div>
+        <div class="c"><div class="cn">backup</div><div class="cd">nächtlich pg_dump + Uploads → restic → verschlüsselt offsite</div><div class="cp">kein Port</div></div>
+        <div class="c"><div class="cn">(ollama)</div><div class="cd">Erst ab Release&nbsp;0.3, falls überhaupt. Niemals ins edge-Netz, niemals Port-Mapping</div><div class="cp">optional, später</div></div>
+      </div>
+    </div>
+  </div>
+
+  <p>Alles als <strong>Docker-Compose-Stack auf einem einzigen Server</strong>, Konfiguration versioniert in einem privaten Git-Repository, Secrets nur in <code>.env</code>, nie im Repo. Reverse Proxy im Stack (Traefik als Container, Routing über Labels, ACME automatisch) — dann ist die Anwendung aus <em>einer</em> <code>compose.yml</code> reproduzierbar, und jemand anderes kann sie auf einem frischen Server hochziehen. Genau das, was gegen den Bus-Faktor&nbsp;1 verlangt ist.</p>
+
+  <div class="box gruen">
+    <h4>Zwei bewusste Abweichungen von der Skizze oben — beim Bau am 27.07. entschieden</h4>
+    <ul style="margin-bottom:0">
+      <li><strong>Kein Redis in Release&nbsp;0.1.</strong> Seine beiden Aufgaben sind anderweitig erledigt: Magic-Links sind über die Spalte <code>benutztAm</code> in Postgres single-use, das Rate-Limiting läuft über eine eigene Tabelle. Bei 150&nbsp;Konten reicht das — und es ist ein Container weniger, den im Notfall jemand verstehen muss.</li>
+      <li><strong>Kein Worker-Container in Release&nbsp;0.1.</strong> Es gibt noch keine zeitgesteuerte Aufgabe. Er kommt mit 0.2, wenn die Re-Enrollment-Trigger T−14/−7/−3 entstehen.</li>
+    </ul>
+  </div>
+
+  <div class="box rot">
+    <h4>Vier Fallstricke, die in genau dieser Architektur den Login zerstören</h4>
+    <ol style="margin-bottom:0">
+      <li><strong>Falsche absolute URLs in Magic-Link-Mails.</strong> Wird <code>X-Forwarded-Proto</code> nicht durchgereicht oder <code>trustHost</code>/<code>AUTH_URL</code> nicht gesetzt, erzeugt die App <code>http://localhost:3000/…</code>-Links. Da der Magic-Link der einzige Kontoschlüssel ist, ist das ein Totalausfall — und er fällt erst auf, wenn der erste Teilnehmer nicht hineinkommt.</li>
+      <li><strong>Wertloses Consent-Protokoll.</strong> Ohne korrektes <code>X-Forwarded-For</code> loggt die App die Container-IP des Proxys statt der Nutzer-IP. Das Art.-9-Consent-Protokoll ist dann als Nachweis unbrauchbar — und das Rate-Limit greift auf den Proxy statt auf den Angreifer.</li>
+      <li><strong>Beleg-Uploads brechen ab.</strong> Das Standard-Bodylimit im Proxy ist kleiner als ein Foto vom Zugticket. Muss explizit gesetzt werden, sonst scheitert das Honorarmodul reproduzierbar.</li>
+      <li><strong>Zeitzone im Container.</strong> Container laufen per Default in UTC, die Re-Enrollment-Trigger rechnen mit Datumsgrenzen. <code>TZ=Europe/Berlin</code> setzen und die Trigger-Zeit auf einen unverfänglichen Zeitpunkt legen, nicht 00:00.</li>
+    </ol>
+  </div>
+
+  <div class="grid g3">
+    <div class="box"><h4>Dimensionierung</h4><p style="margin-bottom:0">Für 150–160 Konten reichen 2–4&nbsp;vCPU / 8&nbsp;GB / 80–160&nbsp;GB&nbsp;NVMe. Vertikale Skalierung genügt, kein Load-Balancing. Sobald Ollama lokal laufen soll, ändert sich das grundlegend — ein weiterer Grund, die Prüfungs-Engine nicht vorzuziehen.</p></div>
+    <div class="box"><h4>Umgebungen</h4><p style="margin-bottom:0">Getrennte <code>prod</code>- und <code>staging</code>-Umgebung mit anonymisierten Daten; Betriebsdetails im internen Handbuch. Voraussetzung dafür, Restore und Anmeldeprozess zu testen, ohne echte Teilnehmerdaten anzufassen.</p></div>
+    <div class="box"><h4>Sicherheit</h4><p style="margin-bottom:0">Netzwerk- und Serverhärtung nach internem Handbuch. Serverseitiges Row-Level-Scoping. Barrierefreiheit nach WCAG&nbsp;2.1&nbsp;AA als Querschnittsanforderung.</p></div>
+  </div>
+
+  <div class="box acc">
+    <h4>Backup, Notfall und Bus-Faktor</h4>
+    <ul style="margin-bottom:0">
+      <li>Nächtliches verschlüsseltes Backup (Datenbank + Dateien) offsite, Aufbewahrung 30–90&nbsp;Tage.</li>
+      <li>Vierteljährlicher Restore-Test — ein Backup, das nie getestet wurde, ist kein Backup.</li>
+      <li><strong>Break-Glass-Tresor</strong> (z.&nbsp;B. Vaultwarden) für Server-Root, Domain, Datenbank und Verschlüsselungs-Keys, hinterlegt beim Schulleiter und einer zweiten Vertrauensperson (E-12). Ohne den App-Verschlüsselungskey für die IBAN-Felder ist ein Backup wertlos.</li>
+      <li>Runbook von 10–15 Seiten, das eine fachfremde Person durch die Wiederherstellung führt.</li>
+    </ul>
+  </div>
+
+  <div class="box gruen">
+    <h4>Definition of Done — Betrieb, Release 0.1</h4>
+    <ul style="margin-bottom:0">
+      <li>Restore einmal real auf frischem Server durchgeführt, Zeit gestoppt, protokolliert</li>
+      <li>Magic-Link-Mail kommt bei GMX, web.de, Gmail und Outlook im Posteingang an, nicht im Spam (DKIM/SPF/DMARC verifiziert)</li>
+      <li>Health-Endpoint + externer Uptime-Ping + Alert — weil Login&nbsp;=&nbsp;E-Mail: fällt SMTP aus, merkt es sonst niemand bis Dienstagabend</li>
+      <li>Break-Glass-Tresor befüllt und einmal geöffnet</li>
+      <li>Anmeldeprozess von einer projektfremden Person durchgeklickt (eigene Methode des Schulleiters: „ich nutze ganz oft meine Frau für sowas“)</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================ 09 -->
+<section>
+  <h2><span class="no">09</span>Termine</h2>
+  <p class="sub">Ein harter Termin: 20.08. Alles andere ordnet sich diesem unter.</p>
+
+  <div class="tl">
+    <div class="tlrow"><div class="tld"><span class="tag t-ok">27.07. erledigt</span></div><div><div class="tlt">Entscheidungen getroffen, Planung konsolidiert, Fundament gebaut</div><div class="tlx">Scope-Schnitt beschlossen, dieses Dokument gilt. Datenmodell, Statusmaschine, Rechtematrix, Audit-Log und Docker-Stack stehen (siehe Kap.&nbsp;07). Offene Rückfragen an den Schulleiter und den Trägerkreis gehen raus — sie brauchen Kalenderzeit, nicht Bauzeit.</div></div></div>
+    <div class="tlrow"><div class="tld">bis 03.08.</div><div><div class="tlt">Anmeldung am Portal</div><div class="tlx">Magic-Link-Auth mit Rate-Limit, Sitzungen, serverseitiges Rechte-Scoping, Mailversand. Ende der Woche steht ein Gerüst, in das man sich einloggen kann.</div></div></div>
+    <div class="tlrow"><div class="tld">bis 14.08.</div><div><div class="tlt">Anmeldung &amp; Akte</div><div class="tlx">Formular, Consent-Protokoll, Kartei, Akte, Export, Mailversand. Parallel: DKIM/SPF/DMARC verifizieren, Restore-Drill durchführen.</div></div></div>
+    <div class="tlrow"><div class="tld">15.–19.08.</div><div><div class="tlt">Test durch echte Menschen</div><div class="tlx">Der Schulleiter meldet sich selbst an. Eine projektfremde Person meldet sich an. Die Verwaltung prüft, ob sie mit den Daten arbeiten kann. Erst danach live.</div></div></div>
+    <div class="tlrow"><div class="tld"><span class="tag t-err">20.08.</span></div><div><div class="tlt">Release 0.1 live — MS Forms wird abgeschaltet</div><div class="tlx">Der Anmeldelink für Jahrgang 2026–29 zeigt auf GBS Campus. Der einzige harte Termin dieses Releases.</div></div></div>
+    <div class="tlrow"><div class="tld">01.09.</div><div><div class="tlt">T−14 Re-Enrollment</div><div class="tlx">Fällt für diesen Jahrgang bewusst aus — der Bestandsimport ist nicht in 0.1. Bestandsteilnehmer werden dieses eine Mal noch manuell angeschrieben.</div></div></div>
+    <div class="tlrow"><div class="tld">15.09.</div><div><div class="tlt">Kursstart Jahrgang 2026–29</div><div class="tlx">Unterricht, Material und Aufzeichnung laufen wie bisher über Teams. Anwesenheit erfasst der Schulleiter für einige Abende noch von Hand — der bewusst gezahlte Preis.</div></div></div>
+    <div class="tlrow"><div class="tld">Mitte Okt.</div><div><div class="tlt">Release 0.2 — Semesterbetrieb</div><div class="tlx">Stundenplan, Selbstbestätigung, Teilnehmer-Dashboard, Dozentenhonorar. Ab hier trägt die Plattform den laufenden Betrieb.</div></div></div>
+    <div class="tlrow"><div class="tld">Winter 26/27</div><div><div class="tlt">Release 0.3 — Geld &amp; Leistung</div><div class="tlx">Optigem-Anbindung, Leistungserfassung, Entscheidung zur Prüfungs-Engine.</div></div></div>
+  </div>
+
+  <h3>Kritischer Pfad — was nicht in Entwicklerhand liegt</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Abhängigkeit</th><th class="nowrap">Bei wem</th><th>Blockiert</th><th>Bewertung</th></tr></thead>
+      <tbody>
+        <tr><td><b>Web-Domain</b> + DNS-A-Record</td><td class="nowrap">der Projektverantwortliche, der IT-Dienstleister</td><td>Erreichbarkeit, TLS</td><td><span class="tag t-ok">entschieden 27.07.</span> <code>gbs.fes-credo.de</code>, eingetragen in <code>.env.example</code> und im Compose-Stack.</td></tr>
+        <tr><td><b>Absenderadresse für den Mailversand</b> + SPF/DKIM/DMARC</td><td class="nowrap">der IT-Dienstleister</td><td>Alles. Login, Anmeldebestätigung, Verteiler.</td><td><span class="tag t-err">Show-Stopper</span> Noch offen. SPF/DKIM/DMARC gelten für die <em>Absender</em>domain, nicht für die Web-Domain — beide können auseinanderfallen. Ohne zugestellten Magic-Link kommt niemand ins Portal, also vor dem 20.08. gegen GMX, web.de, Gmail und Outlook prüfen.</td></tr>
+        <tr><td><b>Server / Hoster</b></td><td class="nowrap">der Projektverantwortliche</td><td>Fundament</td><td><span class="tag t-ok">geklärt</span> Einrichtung ein halber Tag.</td></tr>
+        <tr><td><b>Lehrgrundlage / Bekenntnis</b></td><td class="nowrap">Trägerkreis</td><td>nichts — entkoppelt</td><td>Ein Text, den sechs Gemeinden gemeinsam freigeben, braucht Monate. Als <em>leere versionierte Tabelle</em> vorbauen; der Bau darf nicht daran hängen.</td></tr>
+        <tr><td><b>M365-Tenant weg von FES</b></td><td class="nowrap">die IT-Verantwortlichen</td><td>nichts an der Software</td><td><span class="tag t-info">parallel</span> Wichtig, aber kein Blocker für GBS&nbsp;Campus.</td></tr>
+        <tr><td><b>Optigem-Struktur</b></td><td class="nowrap">Buchhaltung</td><td>Release&nbsp;0.3</td><td>Zeit bis Oktober. Zu verifizieren: liefert Optigem Saldo <em>und</em> Fälligkeit je Rechnung — nicht nur je Debitor?</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================ 10 -->
+<section>
+  <h2><span class="no">10</span>Entscheidungsregister</h2>
+  <p class="sub">Eine einzige Nummerierung. Rote Fragen werden vor dem zugehörigen Bauschritt geklärt, nicht stillschweigend übersprungen.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th class="nowrap">#</th><th>Frage</th><th class="nowrap">Entscheidet</th><th class="nowrap">Fällig</th><th>Stand</th></tr></thead>
+      <tbody>
+        <tr><td class="nowrap"><b>E-01</b></td><td>Scope Release&nbsp;0.1 — kleiner Schnitt mit hartem Stichtag 20.08.?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">—</td><td><span class="tag t-ok">entschieden 27.07.</span> Ja. Ein prüfbares Versprechen zu einem harten Datum schlägt 16 Arbeitspakete ohne Chance auf Fertigstellung.</td></tr>
+        <tr><td class="nowrap"><b>E-02</b></td><td>Referenz-/Zulassungsgate wirklich vollständig streichen?</td><td class="nowrap">der Schulleiter,<br>Trägerkreis</td><td class="nowrap">vor 20.08.</td><td><span class="tag t-warn">Rückfrage offen</span> Aus P0 gestrichen. Der Trägerkreis der sechs Gemeinden sollte das ausdrücklich bestätigen — nicht blockierend, aber bewusst offen statt versehentlich.</td></tr>
+        <tr><td class="nowrap"><b>E-03</b></td><td>Formular-Builder streichen, Formular fest programmieren?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">—</td><td><span class="tag t-ok">entschieden 27.07.</span> <b>Nein — der Builder wird gebaut.</b> Erst gestrichen, dann am selben Tag zurückgenommen: Der Builder ist im Interview ausdrücklich besprochen, samt automatischer Übernahme der Antworten in die Schülerakte. Die Streichung beruhte auf einer zu engen Lesart.</td></tr>
+        <tr><td class="nowrap"><b>E-04</b></td><td>Materialplattform aus dem Bau nehmen, Teams behalten?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">—</td><td><span class="tag t-ok">entschieden 27.07.</span> Ja, zweimal im Interview bestätigt.</td></tr>
+        <tr><td class="nowrap"><b>E-05</b></td><td>Dozentenhonorar von P2/Phase&nbsp;3 auf Release&nbsp;0.2 hochziehen?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">—</td><td><span class="tag t-ok">entschieden 27.07.</span> Ja. Klein, und schließt die rechtlich schwächste Stelle.</td></tr>
+        <tr><td class="nowrap"><b>E-06</b></td><td>Übungsleiterfreibetrag jetzt mitbauen?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">—</td><td><span class="tag t-ok">entschieden 27.07.</span> Nein. Nachweisaufwand trägt sich bei zwei Personen nicht. Standard-Honorar bauen, Freibetrag als Feld vorsehen (Prüfung mit der zuständigen Steuerperson).</td></tr>
+        <tr><td class="nowrap"><b>E-07</b></td><td>„Weg“-Achse (Mentoring, Dienstnachweis, Berufungsklärung) — gewünscht?</td><td class="nowrap">der Schulleiter,<br>Trägerkreis</td><td class="nowrap">2027</td><td><span class="tag t-warn">Gespräch, kein Arbeitspaket</span> Aktiv nachfragen, nicht stillschweigend bauen oder streichen.</td></tr>
+        <tr><td class="nowrap"><b>E-08</b></td><td>Server / Hoster (EU/DE, Docker-tauglich, AVV)?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">sofort</td><td><span class="tag t-ok">geklärt 27.07.</span> <em>Konkreter Anbieter im Dokument nachzutragen.</em></td></tr>
+        <tr><td class="nowrap"><b>E-09</b></td><td>Domain und Absenderdomain (SMTP/SPF/DKIM/DMARC)?</td><td class="nowrap">der Projektverantwortliche,<br>der IT-Dienstleister</td><td class="nowrap">sofort</td><td><span class="tag t-ok">entschieden 27.07.</span> <b><code>gbs.fes-credo.de</code></b> — in <code>.env.example</code> und im Compose-Stack eingetragen. <b>Noch offen:</b> die Absenderadresse für den Mailversand (z.&nbsp;B. <code>gbs@fes-credo.de</code>) und die Zustellbarkeit — SPF/DKIM/DMARC gelten für die Absenderdomain, nicht für die Web-Domain, und müssen vor dem 20.08. gegen GMX, web.de, Gmail und Outlook geprüft werden.</td></tr>
+        <tr><td class="nowrap"><b>E-10</b></td><td>Beitragsmodell: zahlen alle gleich, oder gibt es 50&nbsp;% Ehepartner-Rabatt?</td><td class="nowrap">der Schulleiter</td><td class="nowrap">—</td><td><span class="tag t-ok">entschieden 27.07.</span> <b>Es gibt einen Ehepartner-Rabatt von 50&nbsp;%.</b> Umgesetzt als <em>konfigurierbares Ermäßigungs-Schema</em> (Tabelle <code>ermaessigungen</code>), nicht als fest verdrahtete 50&nbsp;% — so verlangt es CLAUDE.md, und das Kritiker-Panel hatte die Hartverdrahtung ausdrücklich gerügt. Dazu eine auflösbare Ehepaar-Kopplung an der Person. <em>Hinweis zur Quellenlage: Das Transkript sagt an einer Stelle „Wir zahlen alle das gleiche“ — gemeint ist offenbar ein einheitlicher Satz ohne gestaffelte Preise; der Projektverantwortliche hat den Rabatt am 27.07. bestätigt.</em></td></tr>
+        <tr><td class="nowrap"><b>E-11</b></td><td>Zwei-Faktor-Authentisierung für privilegierte Konten?</td><td class="nowrap">der Projektverantwortliche</td><td class="nowrap">vor 20.08.</td><td><span class="tag t-warn">Empfehlung: ja</span> Für die zwei bis drei privilegierten Konten.</td></tr>
+        <tr><td class="nowrap"><b>E-12</b></td><td>Wer ist die zweite Vertrauensperson für den Break-Glass-Tresor?</td><td class="nowrap">der Schulleiter</td><td class="nowrap">vor 20.08.</td><td><span class="tag t-err">offen</span> Vor Livegang benennen — sonst bleibt der Bus-Faktor bei 1.</td></tr>
+        <tr><td class="nowrap"><b>E-13</b></td><td>Beurlaubungsregeln: maximale Dauer, Wiedereinstiegsprozess?</td><td class="nowrap">der Schulleiter</td><td class="nowrap">vor 03.08.</td><td><span class="tag t-warn">offen</span> Empfehlung: bis zu 2&nbsp;Semester, Leiter genehmigt im Einzelfall. Hängt an der Statusmaschine.</td></tr>
+        <tr><td class="nowrap"><b>E-14</b></td><td>Ob und in welcher Form künftig Zeugnisse ausgestellt werden?</td><td class="nowrap">der Schulleiter</td><td class="nowrap">Release&nbsp;0.3</td><td><span class="tag t-warn">offen</span> Struktur jetzt anlegen, Format später entscheiden. Zwei historische Abschlussarten: „teilgenommen“ / „erfolgreich teilgenommen“.</td></tr>
+        <tr><td class="nowrap"><b>E-15</b></td><td>Prüfungs-Engine: Eigenbau oder Anbindung an das System eines weiteren Beteiligten per API/MCP?</td><td class="nowrap">der Schulleiter</td><td class="nowrap">Release&nbsp;0.3</td><td><span class="tag t-warn">offen</span> Erst die Schnittstelle des weiteren Beteiligten prüfen, dann entscheiden. Bei einem geprüften Fach spricht viel für Anbinden.</td></tr>
+        <tr><td class="nowrap"><b>E-16</b></td><td>Optigem-Struktur: liefert das System Saldo <em>und</em> Fälligkeit je Rechnung?</td><td class="nowrap">Buchhaltung</td><td class="nowrap">Release&nbsp;0.3</td><td><span class="tag t-warn">offen</span> Abo-Artikel „Semesterbeitrag“ je Teilnehmer als Zielbild.</td></tr>
+        <tr><td class="nowrap"><b>E-17</b></td><td>Altzugänge im früheren M365-Tenant prüfen und entziehen</td><td class="nowrap">die IT-Verantwortlichen</td><td class="nowrap"><b>diese Woche</b></td><td><span class="tag t-err">dringend, kein Softwarethema</span> Organisatorisch, unabhängig von diesem Projekt.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================ 11 -->
+<section>
+  <h2><span class="no">11</span>Risiken &amp; Leitplanken</h2>
+  <p class="sub">Was aus dem Kritiker-Panel weiterhin gilt — kompakt, damit es durch die Neupriorisierung nicht verloren geht.</p>
+  <div class="grid g2">
+    <div class="box rot">
+      <h4>Weiterhin ernst zu nehmen</h4>
+      <ul style="margin-bottom:0">
+        <li><strong>Bus-Faktor 1:</strong> Ein einziger Entwickler hält alle Zugänge. Der Break-Glass-Tresor ist kein Luxus, sondern Pflicht vor Livegang.</li>
+        <li><strong>Automatik in sensiblen Momenten:</strong> Mahnung oder Erinnerung zum falschen Zeitpunkt wirkt verletzend. Inhalt bleibt menschlich formuliert, nur die Mechanik ist automatisiert. Der Status „verstorben“ ist der harte Not-Aus.</li>
+        <li><strong>Sechs Trägergemeinden</strong> können unterschiedliche dogmatische Akzente haben — das war die ursprüngliche Begründung für das Referenz-Gate. Mit dessen Streichung (E-02) muss diese Frage <em>bewusst</em> offen bleiben, nicht versehentlich.</li>
+        <li><strong>Ein ungetestetes Backup</strong> ist faktisch kein Backup. Restore-Drill gehört fest in den Betriebskalender.</li>
+        <li><strong>Terminrisiko:</strong> 24 Tage bis 0.1 sind knapp. Fällt etwas aus, wird der Scope weiter geschnitten — nicht der Termin verschoben, denn danach kommt der Kursstart.</li>
+      </ul>
+    </div>
+    <div class="box gruen">
+      <h4>Bewusst nicht gebaut (YAGNI)</h4>
+      <ul style="margin-bottom:0">
+        <li>Kein REST-API-Produkt — nur der eine n8n↔Optigem-Webhook, den es wirklich braucht.</li>
+        <li>Keine Auto-Grading-Engine ohne menschliche Prüfung — widerspricht dem Spannungsfeld „je stumpfer, desto automatisierbarer“ aus dem Interview.</li>
+        <li>Keine Kubernetes- oder Microservice-Architektur.</li>
+        <li>Kein hartcodierter Rabattsatz — der Ehepartner-Nachlass von 50&nbsp;% steht als Datensatz in der Tabelle <code>ermaessigungen</code> und lässt sich ohne Deploy ändern. Weitere Fälle (Geschwister, Härtefall, Gemeinde als Zahler) kommen später als Zeile dazu, nicht als Code.</li>
+        <li>Kein Entschuldigungs-Workflow mit Attest-Upload — er erzeugt Gesundheitsdaten nach Art.&nbsp;9, die ohne Not nicht gespeichert werden.</li>
+        <li>Keine Bestandsdaten-Migration der Alt-Jahrgänge in Release&nbsp;0.1.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ 12 -->
+<section>
+  <h2><span class="no">12</span>Nächste Schritte</h2>
+  <p class="sub">Stand nach dem Bau- und Review-Tag am 27.07.2026.</p>
+
+  <div class="box gruen">
+    <h4>Erledigt am 27.07.</h4>
+    <p style="margin-bottom:0">Planung konsolidiert · M0 Fundament · M0 Anmeldung per Magic-Link · M2 Formular-Builder · M2 öffentliche Anmeldung · Einstellungsbereich · Ermäßigungen · Code-Review mit sieben Prüfrichtungen (211 Befunde) · 10 der 11 GoLive-Blocker behoben und einzeln nachgemessen.</p>
+  </div>
+
+  <h3>Diese Woche — liegt nicht in Entwicklerhand</h3>
+  <ol>
+    <li><strong>Absenderadresse für den Mailversand</strong> beim IT-Dienstleister anstoßen, samt SPF/DKIM/DMARC. Das ist der verbliebene Show-Stopper: Der Magic-Link ist der einzige Zugang, und die Einträge gelten für die <em>Absender</em>domain, nicht für <code>gbs.fes-credo.de</code>.</li>
+    <li><strong>Off-Site-Ziel für das Backup festlegen</strong> — danach Restore-Drill. Das Backup läuft inzwischen, liegt aber noch auf demselben Host wie die Datenbank.</li>
+    <li><strong>E-17 an die Mandanten-Verwalter:</strong> Altzugänge im früheren M365-Tenant. Hat mit dieser Software nichts zu tun und ist trotzdem der dringlichste Punkt aus dem Interview.</li>
+    <li><strong>An den Schulleiter:</strong> E-13 (Beurlaubungsregeln), E-12 (zweite Vertrauensperson für den Notfall-Tresor), E-02 (Bestätigung des Trägerkreises zum Referenz-Gate).</li>
+    <li><strong>An den Datenschutzbeauftragten:</strong> Darf die Art.-9-Einwilligung Pflicht sein? Als Bedingung für die Anmeldung berührt sie das Kopplungsverbot nach Art.&nbsp;7 Abs.&nbsp;4 DSGVO.</li>
+  </ol>
+
+  <h3>Bau — bis zum Laientest</h3>
+  <ol>
+    <li><strong>Schülerakte mit Selbstpflege:</strong> Teilnehmer ändern Adresse, E-Mail und Bankverbindung selbst, die Verwaltung wird informiert.</li>
+    <li><strong>Teilnehmerliste „Aktive dieses Semester" mit Excel-Export</strong> — das Stück, das die beklagte Excel-Liste ablöst. Dafür muss zuerst ein Semester anlegbar werden; die Modelle stehen, die Oberfläche fehlt.</li>
+    <li><strong>Externer Uptime-Ping</strong> auf <code>/api/health</code> einrichten.</li>
+  </ol>
+
+  <h3>15.–19.08. — Test durch echte Menschen</h3>
+  <p>Der Schulleiter meldet sich selbst an. Eine projektfremde Person meldet sich an. Die Verwaltung prüft, ob sie mit den Daten arbeiten kann. Break-Glass-Tresor befüllen und einmal öffnen. Erst danach live.</p>
+  <div class="box acc">
+    <p style="margin-bottom:0">Dieses Dokument ist ab jetzt der gültige Stand. Jede Statusänderung wird hier nachgetragen — in Kapitel&nbsp;07 (Release-Fortschritt), Kapitel&nbsp;09 (Termine) und Kapitel&nbsp;10 (Entscheidungsregister).</p>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    GBS&nbsp;Campus — Bauplan · Stand 27.07.2026 · löst <code>6_Gesamtplan-2.0.html</code> und <code>6_Start-Definition.html</code> ab, die ihrerseits die Dokumente 1–5 abgelöst haben · Quelle: Interview mit dem Schulleiter (identisch mit der ursprünglichen <code>Anforderungen.rtf</code>).<br>
+    Alle Zitate stammen aus einem automatisch erzeugten Transkript und sind stellenweise fehlerbehaftet — inhaltlich tragende Stellen sind als solche gekennzeichnet und sollten beim Schulleiter gegengeprüft werden.<br><br>
+    Christliches Werk Esra&nbsp;e.V. · Gemeindebibelschule Minden
+  </div>
+</footer>
+
+<div class="hint">Taste <b>t</b> = hell / dunkel</div>
+
+<script>
+(function(){
+  var r=document.documentElement;
+  var s=null; try{s=localStorage.getItem('gbs-t');}catch(e){}
+  if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+  r.setAttribute('data-t',s);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='t'||e.key==='T'){
+      var n=r.getAttribute('data-t')==='dark'?'light':'dark';
+      r.setAttribute('data-t',n);
+      try{localStorage.setItem('gbs-t',n);}catch(err){}
+    }
+  });
+})();
+</script>
+</body>
+</html>

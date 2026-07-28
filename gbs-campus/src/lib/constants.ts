@@ -1,0 +1,90 @@
+/**
+ * GBS Campus — zentrale Konstanten
+ *
+ * CLAUDE.md schreibt diese Datei vor, und der Grund ist kein Ordnungssinn:
+ * Rollen-, Status-, Rechte- und Einwilligungs-Codes standen vorher als nackte
+ * Strings in elf Dateien. Ein Tippfehler in `"ANMELDUNG_ENTSCHEIDEN"` erzeugt
+ * keinen Compile-Fehler, sondern **lautlosen Rechteentzug** — die Seite ist
+ * dann für alle gesperrt, ohne dass irgendwo etwas rot wird.
+ *
+ * Die Werte sind die Wahrheit aus `prisma/seed.ts`. Wer dort etwas ergänzt,
+ * ergänzt es hier mit.
+ */
+
+export const ROLLE = {
+  ADMIN: "ADMIN",
+  SCHULLEITER: "SCHULLEITER",
+  VERWALTUNG: "VERWALTUNG",
+  TEILNEHMER: "TEILNEHMER",
+  DOZENT: "DOZENT",
+  GASTDOZENT: "GASTDOZENT",
+} as const;
+export type RolleCode = (typeof ROLLE)[keyof typeof ROLLE];
+
+export const RECHT = {
+  PERSON_LESEN_EIGENE: "PERSON_LESEN_EIGENE",
+  PERSON_BEARBEITEN_EIGENE: "PERSON_BEARBEITEN_EIGENE",
+  PERSON_LESEN_ALLE: "PERSON_LESEN_ALLE",
+  PERSON_BEARBEITEN_ALLE: "PERSON_BEARBEITEN_ALLE",
+  PERSON_STATUS_WECHSELN: "PERSON_STATUS_WECHSELN",
+  PERSON_EXPORTIEREN: "PERSON_EXPORTIEREN",
+  SEMESTER_VERWALTEN: "SEMESTER_VERWALTEN",
+  ANMELDUNG_LESEN: "ANMELDUNG_LESEN",
+  ANMELDUNG_ENTSCHEIDEN: "ANMELDUNG_ENTSCHEIDEN",
+  FORMULAR_BEARBEITEN: "FORMULAR_BEARBEITEN",
+  FORMULAR_VEROEFFENTLICHEN: "FORMULAR_VEROEFFENTLICHEN",
+  MAIL_VERTEILER_SENDEN: "MAIL_VERTEILER_SENDEN",
+  MAIL_VORLAGEN_BEARBEITEN: "MAIL_VORLAGEN_BEARBEITEN",
+  FINANZ_DATEN_LESEN: "FINANZ_DATEN_LESEN",
+  BANKVERBINDUNG_LESEN: "BANKVERBINDUNG_LESEN",
+  BENUTZER_VERWALTEN: "BENUTZER_VERWALTEN",
+  SYSTEM_EINSTELLUNGEN: "SYSTEM_EINSTELLUNGEN",
+  AUDIT_LESEN: "AUDIT_LESEN",
+  IMPERSONATION: "IMPERSONATION",
+} as const;
+export type RechtCode = (typeof RECHT)[keyof typeof RECHT];
+
+/**
+ * Die Zustände der Statusmaschine. Die Tabelle `teilnehmer_status` bleibt die
+ * führende Quelle — hier stehen nur die Codes, die der Code selbst setzt, damit
+ * sie sich nicht vertippen lassen. Neue Zustände kommen weiterhin ohne Deploy
+ * in die Tabelle; sie müssen hier nur auftauchen, wenn Code sie direkt setzt.
+ */
+export const STATUS = {
+  INTERESSENT: "INTERESSENT",
+  ANGENOMMEN: "ANGENOMMEN",
+  AKTIV: "AKTIV",
+  BEURLAUBT: "BEURLAUBT",
+  ABSOLVENT: "ABSOLVENT",
+  ABGEBROCHEN: "ABGEBROCHEN",
+  AUSGESCHLOSSEN: "AUSGESCHLOSSEN",
+  VERSTORBEN: "VERSTORBEN",
+} as const;
+export type StatusCode = (typeof STATUS)[keyof typeof STATUS];
+
+export const EINWILLIGUNG = {
+  DATENSCHUTZ: "DATENSCHUTZ",
+  /** Besondere Kategorie nach Art. 9 DSGVO — Glaube und Gemeindezugehörigkeit. */
+  GLAUBENSANGABEN: "GLAUBENSANGABEN",
+  FOTOS: "FOTOS",
+} as const;
+
+export const MAIL_VORLAGE = {
+  MAGIC_LINK: "MAGIC_LINK",
+  ANMELDUNG_EINGEGANGEN: "ANMELDUNG_EINGEGANGEN",
+  ANMELDUNG_ANGENOMMEN: "ANMELDUNG_ANGENOMMEN",
+  ANMELDUNG_VERWALTUNG: "ANMELDUNG_VERWALTUNG",
+  ANMELDUNG_DOPPELT: "ANMELDUNG_DOPPELT",
+  DATENAENDERUNG_VERWALTUNG: "DATENAENDERUNG_VERWALTUNG",
+  EMAIL_AENDERUNG_BESTAETIGEN: "EMAIL_AENDERUNG_BESTAETIGEN",
+  EMAIL_AENDERUNG_HINWEIS: "EMAIL_AENDERUNG_HINWEIS",
+  EMAIL_GEAENDERT_DURCH_VERWALTUNG: "EMAIL_GEAENDERT_DURCH_VERWALTUNG",
+  PASSWORT_GEAENDERT: "PASSWORT_GEAENDERT",
+  EMAIL_AENDERUNG_ADRESSE_BELEGT: "EMAIL_AENDERUNG_ADRESSE_BELEGT",
+  ANMELDUNG_DOPPELT_VERWALTUNG: "ANMELDUNG_DOPPELT_VERWALTUNG",
+  ZUGANG_HILFE_MELDUNG: "ZUGANG_HILFE_MELDUNG",
+} as const;
+
+/** Millisekunden — damit die Umrechnung nicht viermal ausgeschrieben im Code steht. */
+export const MINUTE_MS = 60_000;
+export const TAG_MS = 24 * 60 * MINUTE_MS;

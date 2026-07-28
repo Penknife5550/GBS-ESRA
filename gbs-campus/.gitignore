@@ -1,0 +1,29 @@
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+prisma/compiled/
+
+# Secrets — gehoeren nie ins Repo, nur in den Break-Glass-Tresor
+# Muster statt Aufzaehlung, damit auch .env.staging/.env.backup o. Ae. fallen.
+# .env.example ist die einzige gewollte Ausnahme.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# Betrieb
+/backups/
+/uploads/
+letsencrypt/
+acme.json
+
+.DS_Store
+*.log

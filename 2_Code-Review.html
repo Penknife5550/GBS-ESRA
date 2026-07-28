@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBS Campus — Code-Review vor GoLive</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grau:#575756; --grau-hell:#DADADA;
+  --gelb:#FBC900; --gruen:#6BAA24; --rot:#E2001A; --blau:#009AC6;
+  --bg:#ffffff; --bg2:#f6f6f5; --bg3:#efefee;
+  --tx:#2b2b2b; --tx2:#6b6b6a; --li:#e2e2e0;
+  --code:#f3f3f1;
+}
+html[data-t="dark"]{
+  --bg:#1a1a19; --bg2:#232322; --bg3:#2c2c2a;
+  --tx:#ececeb; --tx2:#a3a3a0; --li:#3a3a38; --code:#232322;
+  --grau:#c9c9c7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:Montserrat,Arial,Helvetica,sans-serif;font-weight:400;
+  font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+a{color:var(--grau);text-decoration:underline;text-underline-offset:3px}
+
+/* ---------- CREDO-Linie ---------- */
+.credo{display:flex;height:9px;width:100%}
+.credo .g{flex:1 1 50%;background:var(--grau)}
+.credo .s{flex:1 1 12.5%}
+.credo .s1{background:var(--gelb)}.credo .s2{background:var(--gruen)}
+.credo .s3{background:var(--rot)}.credo .s4{background:var(--blau)}
+
+/* ---------- Kopf ---------- */
+header{background:var(--bg2);border-bottom:1px solid var(--li);padding:46px 0 34px}
+.kicker{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--tx2);font-weight:600;margin-bottom:14px}
+h1{font-size:38px;line-height:1.16;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
+.lead{font-size:17.5px;line-height:1.6;color:var(--tx);max-width:78ch;font-weight:400}
+.meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:26px;font-size:13px;color:var(--tx2)}
+.meta b{display:block;color:var(--tx);font-weight:600;font-size:14px;margin-top:2px}
+
+/* ---------- Struktur ---------- */
+section{padding:52px 0 8px;border-top:1px solid var(--li)}
+section:first-of-type{border-top:none}
+h2{font-size:26px;font-weight:700;letter-spacing:-.015em;margin:0 0 6px;
+   display:flex;align-items:baseline;gap:14px}
+h2 .no{font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:.08em}
+h3{font-size:18.5px;font-weight:600;margin:36px 0 10px;letter-spacing:-.01em}
+h4{font-size:15px;font-weight:600;margin:22px 0 8px}
+.sub{color:var(--tx2);font-size:15px;margin:0 0 26px;max-width:80ch}
+p{margin:0 0 14px;max-width:82ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:82ch}
+li{margin-bottom:7px}
+strong{font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:var(--code);padding:2px 6px;border-radius:3px}
+
+/* ---------- Karten / Boxen ---------- */
+.box{background:var(--bg2);border:1px solid var(--li);border-radius:8px;
+  padding:22px 24px;margin:20px 0}
+.box.acc{border-left:5px solid var(--grau)}
+.box.rot{border-left:5px solid var(--rot)}
+.box.gelb{border-left:5px solid var(--gelb)}
+.box.gruen{border-left:5px solid var(--gruen)}
+.box.blau{border-left:5px solid var(--blau)}
+.box h4{margin-top:0}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+
+.grid{display:grid;gap:16px;margin:22px 0}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+.kpi{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:18px 20px}
+.kpi .n{font-size:30px;font-weight:700;line-height:1.1;letter-spacing:-.02em}
+.kpi .l{font-size:12.5px;color:var(--tx2);margin-top:6px;line-height:1.45}
+
+/* ---------- Tabellen ---------- */
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--li);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:640px}
+th{background:var(--bg3);text-align:left;padding:11px 14px;font-weight:600;
+   font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx2);
+   border-bottom:1px solid var(--li);vertical-align:bottom}
+td{padding:12px 14px;border-bottom:1px solid var(--li);vertical-align:top;line-height:1.5}
+tr:last-child td{border-bottom:none}
+td.nowrap{white-space:nowrap}
+
+/* ---------- Marker ---------- */
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;padding:3px 8px;border-radius:3px;white-space:nowrap;
+  color:#fff;line-height:1.5}
+.t-ok{background:var(--gruen)}
+.t-warn{background:var(--gelb);color:#3a2f00}
+.t-err{background:var(--rot)}
+.t-info{background:var(--blau)}
+.t-neu{background:var(--grau);color:#fff}
+html[data-t="dark"] .t-neu{color:#1a1a19}
+.t-off{background:transparent;color:var(--tx2);border:1px solid var(--li)}
+
+/* ---------- Architektur-Diagramm ---------- */
+.arch{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:26px;margin:22px 0}
+.zone{border:1px dashed var(--li);border-radius:7px;padding:16px 16px 8px;margin-bottom:14px;position:relative}
+.zone .zl{position:absolute;top:-9px;left:14px;background:var(--bg2);padding:0 8px;
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--tx2)}
+.zone.edge{border-color:var(--rot)}
+.zone.web{border-color:var(--blau)}
+.zone.data{border-color:var(--gruen)}
+.svc{display:flex;flex-wrap:wrap;gap:12px}
+.c{background:var(--bg);border:1px solid var(--li);border-radius:6px;padding:11px 14px;
+   flex:1 1 190px;min-width:170px}
+.c .cn{font-weight:600;font-size:14px}
+.c .cd{font-size:11.8px;color:var(--tx2);line-height:1.45;margin-top:3px}
+.c .cp{font-size:11px;color:var(--tx2);margin-top:6px;font-family:ui-monospace,monospace}
+.flow{text-align:center;color:var(--tx2);font-size:19px;line-height:1;margin:-4px 0 10px}
+
+/* ---------- Zeitstrahl ---------- */
+.tl{margin:22px 0}
+.tlrow{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:14px 0;
+  border-bottom:1px solid var(--li)}
+.tlrow:last-child{border-bottom:none}
+.tld{font-size:12.5px;font-weight:600;color:var(--tx2);padding-top:2px}
+.tlt{font-weight:600;font-size:15px;margin-bottom:3px}
+.tlx{font-size:13.4px;color:var(--tx2);line-height:1.55}
+@media(max-width:700px){.tlrow{grid-template-columns:1fr;gap:4px}}
+
+/* ---------- Balken ---------- */
+.bar{height:26px;background:var(--bg3);border-radius:4px;position:relative;overflow:hidden;margin:4px 0}
+.bar span{position:absolute;top:0;bottom:0;display:flex;align-items:center;
+  padding-left:9px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap}
+
+footer{margin-top:60px;background:var(--bg2);border-top:1px solid var(--li);
+  padding:30px 0;font-size:12.5px;color:var(--tx2)}
+.hint{position:fixed;right:16px;bottom:14px;font-size:11px;color:var(--tx2);
+  background:var(--bg2);border:1px solid var(--li);padding:5px 10px;border-radius:4px;opacity:.75}
+@media print{.hint{display:none}section{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="credo"><div class="g"></div><div class="s s1"></div><div class="s s2"></div><div class="s s3"></div><div class="s s4"></div></div>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">GBS Campus · Code-Review vor GoLive</div>
+    <h1>GoLive-Status: <span style="color:var(--rot)">nicht bereit</span></h1>
+    <p class="lead">Sieben Review-Agenten haben 45 Dateien mit 6.362 Zeilen geprüft. Ergebnis: <strong>11 GoLive-Blocker</strong>, davon acht am laufenden System nachgemessen. Der Code ist im Kern solide gebaut — die Blocker liegen an den Rändern, wo bei einem Ein-Personen-Betrieb niemand hinsieht.</p>
+    <div class="meta">
+      <div>Datum<b>27.07.2026</b></div>
+      <div>Geprüft<b>45 Dateien · 6.362 Zeilen</b></div>
+      <div>Befunde<b>211</b></div>
+      <div>Bis Release 0.1<b>24 Tage</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2><span class="no">00</span>Kernaussage</h2>
+  <p class="sub">Warum dieser Status.</p>
+
+  <div class="grid g4">
+    <div class="kpi"><div class="n" style="color:var(--rot)">11</div><div class="l">GoLive-Blocker nach Zusammenführung</div></div>
+    <div class="kpi"><div class="n">8</div><div class="l">davon am laufenden System reproduziert</div></div>
+    <div class="kpi"><div class="n">74</div><div class="l">MAJOR-Befunde</div></div>
+    <div class="kpi"><div class="n">0</div><div class="l">Fehlalarme unter den geprüften Blockern</div></div>
+  </div>
+
+  <div class="box rot">
+    <h4>Drei Befunde entwerten Zusagen, die in README und Bauplan stehen</h4>
+    <ul style="margin-bottom:0">
+      <li><strong>„IBAN verschlüsselt"</strong> — sie steht zusätzlich im Klartext in derselben Datenbank.</li>
+      <li><strong>„revisionssicheres Consent-Protokoll"</strong> — es lässt sich löschen und verschwindet beim Löschen der Person.</li>
+      <li><strong>„ohne Art.-9-Einwilligung wird die Angabe verworfen"</strong> — gilt nur beim Absenden, nicht beim Zwischenspeichern.</li>
+    </ul>
+  </div>
+
+  <p>Dazu kommt der teuerste Einzelbefund: <strong>der Backup-Container startet nicht und hat noch nie ein Backup erzeugt.</strong> Er läuft in eine stille Endlos-Schleife. Ausgerechnet in dem Dokument, das „Ein Backup, das nie getestet wurde, ist kein Backup" als Leitsatz führt, wurde das eigene Backup nicht getestet.</p>
+</section>
+
+<section>
+  <h2><span class="no">01</span>Findings-Übersicht</h2>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Bereich</th><th class="nowrap">CRITICAL</th><th class="nowrap">MAJOR</th><th class="nowrap">MINOR</th><th class="nowrap">INFO</th></tr></thead>
+      <tbody>
+        <tr><td>🛡️ Error Handling</td><td><b>4</b></td><td>12</td><td>13</td><td>5</td></tr>
+        <tr><td>🎨 UI/UX</td><td><b>2</b></td><td>15</td><td>13</td><td>6</td></tr>
+        <tr><td>🏗️ Architecture</td><td><b>2</b></td><td>11</td><td>13</td><td>6</td></tr>
+        <tr><td>✅ Testing</td><td><b>2</b></td><td>10</td><td>8</td><td>6</td></tr>
+        <tr><td>🔐 Security</td><td><b>1</b></td><td>12</td><td>10</td><td>6</td></tr>
+        <tr><td>💎 Code Quality</td><td><b>1</b></td><td>12</td><td>17</td><td>6</td></tr>
+        <tr><td>⚡ Performance</td><td>0</td><td>2</td><td>9</td><td>7</td></tr>
+        <tr style="background:var(--bg3)"><td><b>Summe (mit Überschneidungen)</b></td><td><b>12</b></td><td><b>74</b></td><td><b>83</b></td><td><b>42</b></td></tr>
+        <tr style="background:var(--bg3)"><td><b>Nach Zusammenführung</b></td><td><b>11</b></td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Zwei Agenten fanden den Backup-Crash unabhängig voneinander; der löschbare Einwilligungsnachweis wurde von Code Quality als CRITICAL und von Security als MINOR gemeldet. Die Bewertung des schärferen Agenten gilt.</p>
+</section>
+
+<section>
+  <h2><span class="no">02</span>Die 11 GoLive-Blocker</h2>
+  <p class="sub">Jeder mit Fundstelle und, wo geprüft, mit dem gemessenen Nachweis.</p>
+
+  <h3>Datenschutz — drei gebrochene Zusagen</h3>
+
+  <div class="box rot">
+    <h4>B1 · Die IBAN steht im Klartext neben ihrer eigenen Verschlüsselung <span class="tag t-err">reproduziert</span></h4>
+    <p><code>src/lib/anmeldung.ts:248</code> schreibt das geprüfte Antwortobjekt als <code>antworten</code> in die Anmeldung — darin liegt die IBAN als Klartext. Parallel wird <code>Person.ibanVerschluesselt</code> korrekt verschlüsselt. Beide stehen in derselben Datenbank und in demselben <code>pg_dump</code>.</p>
+    <p><strong>Gemessen:</strong> <code>SELECT antworten-&gt;&gt;'iban' FROM anmeldungen</code> → <code>DE89370400440532013000</code></p>
+    <p style="margin-bottom:0"><strong>Warum kritisch:</strong> Die Verschlüsselung schützt genau gegen Datenbank- und Backup-Abfluss. Dieser Pfad hebt sie vollständig auf. Das Audit-Log filtert <code>iban</code> bewusst heraus — die Gefahr war bekannt, dieser Pfad wurde übersehen.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B2 · Glaubensangaben landen ohne jede Einwilligung in der Datenbank <span class="tag t-err">reproduziert</span></h4>
+    <p><code>src/lib/anmeldung.ts:68-103</code>: <code>speichereEntwurf()</code> schreibt die Antworten roh, ohne <code>pruefeAntworten()</code>, ohne Art.-9-Filter, ohne Einwilligungsnachweis. Über die eigene Oberfläche erreichbar: Häkchen setzen, Feld ausfüllen, Häkchen entfernen, „Später weitermachen".</p>
+    <p><strong>Gemessen</strong> (anonymer POST, keine Einwilligung): gespeichert wurden <code>gemeinde</code>, <code>glaube_seit</code> („Bekehrung 2015 in der Gemeinde"), <code>getauft</code> und die IBAN. Einwilligungsnachweise dazu: <strong>0</strong>. Gelöscht wird die Zeile nie.</p>
+    <p style="margin-bottom:0"><strong>Fix:</strong> <code>pruefeAntworten(felder, antworten, false)</code> auch im Entwurfspfad; <code>versionId</code> gegen <code>VEROEFFENTLICHT</code> prüfen; abgelaufene Entwürfe löschen.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B3 · Der Einwilligungsnachweis lässt sich löschen <span class="tag t-err">reproduziert</span></h4>
+    <p>Die Migration legt für <code>einwilligungen</code> nur einen UPDATE-Trigger an, keinen DELETE-Trigger und kein REVOKE. Gleichzeitig steht an beiden Relationen <code>onDelete: Cascade</code>.</p>
+    <p><strong>Gemessen:</strong> <code>DELETE FROM einwilligungen</code> läuft durch. Das Löschen <em>einer Person</em> reduziert den Bestand von 2 auf 0. Das Audit-Log wies sein <code>DELETE</code> im selben Lauf korrekt ab.</p>
+    <p style="margin-bottom:0"><strong>Fix:</strong> DELETE-Trigger analog <code>audit_log</code>, Cascades auf <code>SetNull</code> (beide Felder sind bereits optional).</p>
+  </div>
+
+  <h3>Betrieb — der teuerste Block</h3>
+
+  <div class="box rot">
+    <h4>B4 · Der Backup-Container läuft in eine stille Crash-Loop <span class="tag t-err">reproduziert</span></h4>
+    <p><code>docker/backup.sh:25</code> nutzt <code>date -d "tomorrow 02:30"</code> mit BSD-Fallback <code>date -v+1d</code>. Auf <code>postgres:16-alpine</code> (BusyBox) scheitern <strong>beide</strong>; mit <code>set -e</code> bricht das Skript in der ersten Runde ab.</p>
+    <p><strong>Gemessen:</strong> Exitcode <code>1</code>, null erzeugte Dumps, <code>date: unrecognized option: v</code>. Mit <code>restart: unless-stopped</code> startet der Container endlos neu. Nichts überwacht ihn — <code>/api/health</code> prüft nur die App.</p>
+    <p style="margin-bottom:0"><strong>Fix:</strong> BusyBox-taugliche Zeitrechnung, danach einmal manuell verifizieren, dass eine <code>.sql.gz</code> entsteht. Plus einen Alarm „Backup älter als 48 Stunden".</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B5 · Ein fehlgeschlagener Dump löscht die letzten intakten Stände <span class="tag t-err">reproduziert</span></h4>
+    <p><code>docker/backup.sh:32</code>: <code>if pg_dump … | gzip &gt; "$DATEI"</code> prüft den Status von <code>gzip</code>, nicht den von <code>pg_dump</code>.</p>
+    <p><strong>Gemessen:</strong> <code>false | gzip</code> nimmt den Erfolgszweig. <code>set -o pipefail</code> ist in BusyBox ash verfügbar und behebt es.</p>
+    <p style="margin-bottom:0"><strong>Folge:</strong> Ein abgebrochener Dump erzeugt ein gültiges, aber abgeschnittenes Archiv — und <code>find … -delete</code> in Zeile 34 räumt daraufhin die älteren, noch brauchbaren Stände weg. Die Backup-Kette verrottet still.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B6 · Backups liegen nur lokal, ohne Off-Site-Kopie</h4>
+    <p style="margin-bottom:0">Der Dump landet im Docker-Volume auf demselben Host wie die Datenbank. Der Off-Site-Transfer ist im Skript als „wird vor dem Livegang ergänzt" markiert — der Livegang ist in 24 Tagen. Ein Backup auf derselben Maschine überlebt genau die Ausfälle nicht, gegen die es schützt. Und ohne den <code>ENCRYPTION_KEY</code> aus dem Tresor sind die IBAN-Felder im Dump ohnehin wertlos.</p>
+  </div>
+
+  <h3>Betrieb — was der Ein-Personen-Betrieb nicht sehen kann</h3>
+
+  <div class="box rot">
+    <h4>B7 · Ein Mailversand-Ausfall bleibt vollständig unsichtbar</h4>
+    <p><code>src/lib/mailer.ts</code> protokolliert Fehler korrekt in <code>email_versand</code> — <strong>aber keine Oberfläche liest diese Tabelle.</strong> <code>fordereMagicLinkAn</code> wertet den Rückgabewert nicht aus, die Route antwortet immer „Link ist unterwegs".</p>
+    <p style="margin-bottom:0"><strong>Warum kritisch:</strong> Der Magic-Link ist der einzige Weg ins Portal. Fällt SMTP aus, kommt niemand mehr hinein, alle sehen dieselbe beruhigende Meldung, und die einzige Spur ist ein <code>console.error</code>, das niemand liest.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B8 · Fehlende Konfiguration sperrt alle aus, ohne dass es auffällt</h4>
+    <p>Es gibt keine Startprüfung für <code>SESSION_SECRET</code>, <code>ENCRYPTION_KEY</code>, <code>APP_URL</code> oder SMTP. Schwerwiegender: In <code>src/lib/session.ts:62</code> steht <code>getSchluessel()</code> <em>innerhalb</em> des try-Blocks — ein Konfigurationsfehler wird verschluckt und als „nicht angemeldet" ausgelegt.</p>
+    <p style="margin-bottom:0">Ein zu kurzes <code>SESSION_SECRET</code> ist damit ununterscheidbar von einer abgelaufenen Sitzung. Der Healthcheck meldet weiter „ok", weil er nur <code>SELECT 1</code> prüft.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B9 · Jede Oberfläche hängt dauerhaft bei Netzwerkfehlern</h4>
+    <p>In allen sieben Client-Komponenten steht <code>await antwort.json()</code> ohne <code>try/catch</code>, und <code>setLaeuft(false)</code> folgt erst danach. Bei Netzwerkabbruch, einem 502 während eines Deploys oder jedem 500 (Next liefert dann kein JSON) wirft die Zeile.</p>
+    <p style="margin-bottom:0"><strong>Folge:</strong> Der Knopf bleibt dauerhaft auf „Wird gesendet …", es erscheint <em>keine</em> Fehlermeldung. Wer zehn Minuten am Anmeldeformular gesessen hat, kommt nicht weiter und verliert beim Neuladen alles, was nicht zwischengespeichert war.</p>
+  </div>
+
+  <h3>Barrierefreiheit</h3>
+
+  <div class="box rot">
+    <h4>B10 · Auswahlfragen im öffentlichen Formular sind für Vorlesesoftware unbeschriftet</h4>
+    <p><code>src/app/anmeldung/oeffentliches-formular.tsx:279</code>: Das <code>label htmlFor</code> zeigt bei <code>JA_NEIN</code>, <code>AUSWAHL_EINFACH</code> und <code>AUSWAHL_MEHRFACH</code> auf eine ID, die es nicht gibt — die Eingaben tragen nur <code>name={id}</code>. Kein <code>fieldset</code>, keine <code>legend</code>.</p>
+    <p style="margin-bottom:0">Betrifft das Pflichtfeld „Wie möchtest du teilnehmen?". Vorlesesoftware liest nur die Optionen, nie die Frage. Ein Klick auf die Beschriftung wählt nichts aus. Und der Sprung zum ersten Fehler (Zeile 126) findet die ID nicht — der Nutzer sucht den Fehler in 24 Fragen.</p>
+  </div>
+
+  <div class="box rot">
+    <h4>B11 · Der Formular-Builder hat durchgängig unbeschriftete Eingabefelder</h4>
+    <p style="margin-bottom:0">Sechs <code>label</code> je Feldzeile ohne <code>htmlFor</code>, die zugehörigen Eingaben ohne <code>id</code> und ohne <code>aria-label</code>. Bei rund 20 Feldern × 6 Bedienelementen ist der Builder für Vorlesesoftware nicht bedienbar. WCAG 2.1 AA ist im Bauplan als Querschnittsanforderung gesetzt.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">03</span>GoLive-Checkliste</h2>
+  <p class="sub">Muss vor dem 20.08. erledigt und einzeln nachgewiesen sein.</p>
+  <div class="box acc">
+    <ul style="margin-bottom:0">
+      <li>☐ <strong>B1</strong> IBAN aus <code>anmeldungen.antworten</code> entfernen — plus Migration für bereits gespeicherte Datensätze</li>
+      <li>☐ <strong>B2</strong> Art.-9-Sperre auf den Entwurfspfad ausweiten + Löschlauf für abgelaufene Entwürfe</li>
+      <li>☐ <strong>B3</strong> DELETE-Trigger auf <code>einwilligungen</code>, Cascades auf <code>SetNull</code></li>
+      <li>☐ <strong>B4</strong> Backup-Skript BusyBox-tauglich machen — <em>und einen echten Dump vorzeigen</em></li>
+      <li>☐ <strong>B5</strong> <code>set -o pipefail</code>, Dump in <code>.tmp</code> schreiben, <code>gzip -t</code> prüfen, erst dann rotieren</li>
+      <li>☐ <strong>B6</strong> Off-Site-Ziel einrichten + Restore-Drill auf leerer Datenbank durchführen</li>
+      <li>☐ <strong>B7</strong> Betriebsansicht für <code>email_versand</code>, Health meldet fehlendes SMTP</li>
+      <li>☐ <strong>B8</strong> Startprüfung der Pflichtvariablen, <code>getSchluessel()</code> aus dem try-Block ziehen</li>
+      <li>☐ <strong>B9</strong> <code>try/catch/finally</code> um alle sieben <code>fetch</code>-Aufrufe + Timeout</li>
+      <li>☐ <strong>B10</strong> <code>fieldset</code>/<code>legend</code> für Auswahlgruppen, IDs vergeben</li>
+      <li>☐ <strong>B11</strong> IDs und <code>htmlFor</code> im Formular-Builder</li>
+    </ul>
+  </div>
+  <div class="box gelb">
+    <h4>Zusätzlich vor GoLive, auch wenn formal MAJOR</h4>
+    <ul style="margin-bottom:0">
+      <li>☐ <strong>Umlaute</strong> in allen geseedeten Nutzertexten — Einwilligungstexte, Formularfragen, E-Mail-Vorlagen. Das liest jeder Bewerber.</li>
+      <li>☐ <strong>Montserrat einbinden</strong> — die Schrift ist nur als CSS-Variable gesetzt, nie geladen. Die App läuft in Arial, entgegen dem CREDO-CI.</li>
+      <li>☐ <strong>Abmelden-Knopf</strong> — <code>sitzungBeenden()</code> existiert, wird nirgends aufgerufen. Geteiltes iPad.</li>
+      <li>☐ <strong>Startseite ersetzen</strong> — <code>/</code> zeigt eine Entwickler-Statusseite mit internen Zählwerten und verlinkt die Anmeldung nicht.</li>
+      <li>☐ <strong>Vier scheinbestehende Prüfungen reparieren</strong> — sie belegen nicht, was sie zu belegen vorgeben.</li>
+      <li>☐ <strong>Externer Uptime-Ping</strong> — der Healthcheck markiert nur <code>unhealthy</code>, niemand startet neu, niemand wird alarmiert.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">04</span>Die wichtigsten MAJOR-Befunde, gebündelt</h2>
+
+  <h3>Nebenläufigkeit — vier gleichartige Lücken</h3>
+  <p>An vier Stellen wird eine Bedingung außerhalb der Transaktion geprüft und innerhalb geschrieben. Realistischer Auslöser ist kein Angreifer, sondern ein Doppelklick:</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Stelle</th><th>Folge bei zwei parallelen Anfragen</th></tr></thead>
+      <tbody>
+        <tr><td>Anmeldung annehmen</td><td>zwei Statuswechsel, zwei Willkommensmails an denselben Menschen</td></tr>
+        <tr><td>Anmeldung absenden</td><td>Unique-Verletzung auf der E-Mail → 500 statt der neutralen Antwort</td></tr>
+        <tr><td>Formularfassung speichern</td><td>eine bereits veröffentlichte Fassung wird überschrieben</td></tr>
+        <tr><td>Entwurf anlegen</td><td>doppelte Versionsnummer → 500</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Einheitlicher Fix: Bedingung in die schreibende Anweisung ziehen (<code>updateMany({ where: { id, status: … } })</code>, <code>count</code> prüfen) und <code>P2002</code> abfangen.</p>
+
+  <h3>Was mehrere Agenten unabhängig gefunden haben</h3>
+  <ul>
+    <li><strong>Kein <code>src/lib/constants.ts</code></strong> (Architecture, Code Quality) — CLAUDE.md schreibt sie vor. Rollen-, Status- und Rechte-Codes liegen als nackte Strings in elf Dateien. Ein Tippfehler in <code>"ANMELDUNG_ENTSCHEIDEN"</code> ergibt keinen Compile-Fehler, sondern lautlosen Rechteentzug.</li>
+    <li><strong>Drei Namen für dieselbe Sache</strong> (Architecture, Code Quality) — <code>felder</code>, <code>fehler</code>, <code>maengel</code> neben <code>error</code>. Die Hausregel kennt nur <code>{data}</code> oder <code>{error}</code>.</li>
+    <li><strong>Mailversand synchron im Anfragepfad, ohne Timeouts</strong> (Performance, Architecture, Error Handling) — je Mail ein neuer SMTP-Transport, sequenziell. Hängt der Server, wartet der Anmeldende minutenlang, obwohl seine Akte längst angelegt ist.</li>
+    <li><strong>Der versprochene Aufräumlauf existiert nicht</strong> (Performance, Architecture, Code Quality, Error Handling) — <code>schema.prisma:595</code> behauptet ihn; <code>rate_limit</code>, <code>magic_links</code> und abgelaufene Entwürfe wachsen unbegrenzt.</li>
+    <li><strong>Elf ungenutzte Abhängigkeiten</strong> (Performance, Code Quality) — <code>exceljs</code>, <code>lucide-react</code>, fünf Radix-Pakete, <code>react-hook-form</code> und weitere werden von keiner Zeile importiert.</li>
+  </ul>
+
+  <h3>Zwei stille Datenverfälschungen</h3>
+  <div class="box gelb">
+    <p><strong>Postleitzahl als Zahlenfeld verliert die führende Null.</strong> <code>01067</code> (Dresden) wird zu <code>1067</code>. Der Typ <code>ZAHL</code> ist für das Aktenfeld PLZ erlaubt. Betrifft Adressen in ganz Ostdeutschland — der Datensatz sieht danach plausibel aus.</p>
+    <p style="margin-bottom:0"><strong>Die Teilnahmeform wird aus dem Optionstext geraten.</strong> Ein regulärer Ausdruck sucht nach „hörer", „zuhör" oder „gast". Gemessen: <code>"Gast-Schueler mit Pruefung"</code> ergibt <strong>Hörer</strong>. Der Schulleiter kann die Option jederzeit umbenennen und sieht nirgends, welche Zuordnung daraus folgt. Daran hängen Prüfungspflicht, Zeugnis und ab Release 0.3 der Beitrag.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">05</span>Was gut ist</h2>
+  <p class="sub">Nicht als Trost — sondern weil es die Teile benennt, die man beim Beheben nicht anfassen sollte.</p>
+  <div class="grid g2">
+    <div class="box gruen">
+      <h4>Sicherheit</h4>
+      <ul style="margin-bottom:0">
+        <li>Autorisierung sitzt <strong>lückenlos serverseitig</strong> — jede geschützte Seite und Route beginnt mit <code>ladeMitRecht</code>. Keine Route ohne Prüfung außer den bewusst öffentlichen.</li>
+        <li>Magic-Links liegen nur als SHA-256-Hash in der Datenbank und werden per bedingtem <code>updateMany</code> <strong>race-sicher</strong> entwertet.</li>
+        <li>Rechte werden bei jeder Anfrage frisch geladen statt ins Token geschrieben. Endzustände sperren auch bei gültigem Cookie.</li>
+        <li>Kein Raw-SQL, kein <code>dangerouslySetInnerHTML</code>, kein <code>any</code> im gesamten Code, keine Secrets im Repo.</li>
+      </ul>
+    </div>
+    <div class="box gruen">
+      <h4>Architektur</h4>
+      <ul style="margin-bottom:0">
+        <li>Die <strong>Formularversionierung</strong> ist laut Architektur-Agent der stärkste Teil des Codes und trägt M7 und M8 ohne Umbau.</li>
+        <li>Rechtematrix und Statusmaschine sind echte Datensätze, nicht hartcodiert.</li>
+        <li>Die Anmelde-Transaktion klammert Person, Anmeldung, Einwilligungen und Statuswechsel korrekt zusammen.</li>
+        <li>Der gestufte Rückfallmechanismus bei Einstellungen ist sauber gelöst.</li>
+        <li><strong>Keine N+1-Muster.</strong> Die YAGNI-Entscheidungen (kein Redis, kein Worker) sind für 150 Nutzer richtig.</li>
+      </ul>
+    </div>
+  </div>
+  <p>Mehrere Agenten heben unabhängig voneinander die <strong>Kommentarkultur</strong> hervor: Fast alle Kommentare begründen, <em>warum</em> etwas so gebaut ist, statt zu beschreiben, was dasteht. Genau diese Ehrlichkeit fehlt an drei Stellen — beim Einwilligungsnachweis, beim Aufräumlauf und beim Löschen einer Person behaupten Kommentare Garantien, die der Code nicht einhält. Das ist der eigentliche Grund, warum zwei davon als CRITICAL eingestuft sind: Ein Nachfolger liest „append-only" und baut arglos eine Löschfunktion.</p>
+</section>
+
+<section>
+  <h2><span class="no">06</span>Empfohlene Reihenfolge</h2>
+
+  <h3>Zuerst — halber Tag, verhindert Datenschäden</h3>
+  <ol>
+    <li><strong>Backup reparieren und einen echten Dump vorzeigen</strong> (B4, B5). Solange kein Backup existiert, ist jeder weitere Fehler unumkehrbar.</li>
+    <li><strong>Klartext-IBAN und Art.-9-Lücke schließen</strong> (B1, B2) — beide im selben Modul, beide in einer Migration nachzuziehen.</li>
+    <li><strong>DELETE-Trigger auf <code>einwilligungen</code></strong> (B3).</li>
+  </ol>
+
+  <h3>Danach — ein Tag, macht Ausfälle sichtbar</h3>
+  <ol>
+    <li>Startprüfung der Pflichtvariablen und <code>getSchluessel()</code> aus dem try-Block (B8).</li>
+    <li><code>try/catch/finally</code> um alle <code>fetch</code>-Aufrufe, plus <code>error.tsx</code> mit deutschem Text (B9).</li>
+    <li>Betriebsansicht für <code>email_versand</code>, SMTP-Prüfung im Healthcheck, externer Uptime-Ping (B7).</li>
+    <li>Off-Site-Backup und Restore-Drill (B6).</li>
+  </ol>
+
+  <h3>Vor dem Laientest — halber Tag, sonst fällt es dem ersten Nutzer auf</h3>
+  <ol>
+    <li>Barrierefreiheit der Auswahlfelder und des Builders (B10, B11).</li>
+    <li>Umlaute, Montserrat, Abmelden-Knopf, Startseite.</li>
+    <li>Vier scheinbestehende Prüfungen reparieren, PLZ-Typ einschränken, Teilnahmeform explizit zuordnen statt raten.</li>
+  </ol>
+
+  <h3>Nächster Sprint, nicht vor dem 20.08.</h3>
+  <p style="margin-bottom:0"><code>src/lib/constants.ts</code>, einheitliche Fehlerform, zentraler Statuswechsel-Service, Nebenläufigkeitslücken, Mailversand aus dem Anfragepfad, Aufräumlauf, ungenutzte Abhängigkeiten, gemeinsames Verwaltungs-Layout.</p>
+</section>
+
+<section>
+  <h2><span class="no">07</span>Was das über die bisherige Berichterstattung sagt</h2>
+  <div class="box rot">
+    <p>Ich habe im Verlauf dieses Projekts mehrfach „verifiziert" gemeldet. Drei dieser Meldungen waren zu selbstsicher:</p>
+    <ul>
+      <li><strong>„IBAN verschlüsselt (kein Klartext in der Spalte)"</strong> — ich habe die richtige Spalte geprüft und die falsche übersehen. Der Klartext lag daneben.</li>
+      <li><strong>„ohne Art.-9-Einwilligung wird die Angabe verworfen"</strong> — geprüft habe ich den Absende-Pfad. Den Zwischenspeichern-Pfad habe ich zwei Schritte später selbst gebaut und nicht erneut gegen diese Zusage gehalten.</li>
+      <li><strong>„29 Prüfungen bestanden"</strong> — belastbar sind 25. Vier bestehen wegen eines Nebenfehlers im Testaufbau, unabhängig von der geprüften Regel.</li>
+    </ul>
+    <p style="margin-bottom:0">Und das Backup habe ich als Bestandteil des Fundaments gemeldet, ohne es je laufen zu lassen — in einem Projekt, dessen Bauplan „Ein Backup, das nie getestet wurde, ist kein Backup" als Regel führt.</p>
+  </div>
+  <p style="margin-bottom:0">Die Lehre für den weiteren Bau: Eine Zusage gilt erst, wenn <em>alle</em> Schreibpfade gegen sie geprüft sind — nicht der, für den sie geschrieben wurde. Und ein Prüfskript, das grün ist, beweist nichts, solange nicht einmal gezeigt wurde, dass es bei entfernter Regel rot wird.</p>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    GBS Campus · Code-Review vor GoLive · 27.07.2026 · 7 parallele Review-Agenten über 45 Dateien und 6.362 Zeilen · 211 Befunde, 11 GoLive-Blocker nach Zusammenführung, davon 8 am laufenden System reproduziert.<br><br>
+    Christliches Werk Esra&nbsp;e.V. · Gemeindebibelschule Minden
+  </div>
+</footer>
+
+<div class="hint">Taste <b>t</b> = hell / dunkel</div>
+
+<script>
+(function(){
+  var r=document.documentElement;
+  var s=null; try{s=localStorage.getItem('gbs-t');}catch(e){}
+  if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}
+  r.setAttribute('data-t',s);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='t'||e.key==='T'){
+      var n=r.getAttribute('data-t')==='dark'?'light':'dark';
+      r.setAttribute('data-t',n);
+      try{localStorage.setItem('gbs-t',n);}catch(err){}
+    }
+  });
+})();
+</script>
+</body>
+</html>

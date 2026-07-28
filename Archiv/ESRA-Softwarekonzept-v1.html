@@ -1,0 +1,1106 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESRA Campus — Softwarekonzept & Projektplan</title>
+<style>
+  :root {
+    --ground: #faf9f6;
+    --surface: #ffffff;
+    --surface-2: #f2f0ea;
+    --text: #26282e;
+    --text-muted: #6a6d76;
+    --ink: #27407c;
+    --ink-deep: #1d2b52;
+    --accent: #a97b1e;
+    --accent-soft: #f5ecd8;
+    --line: #e4e1d8;
+    --ok: #3f7d3f;
+    --ok-soft: #e7f0e7;
+    --warn: #a86a12;
+    --warn-soft: #f7edda;
+    --crit: #a2322c;
+    --crit-soft: #f8e7e6;
+    --info-soft: #e8edf8;
+    --font-display: "Iowan Old Style", Charter, Georgia, Cambria, "Times New Roman", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #12141b;
+      --surface: #191c26;
+      --surface-2: #21242f;
+      --text: #e6e4dd;
+      --text-muted: #9a9da8;
+      --ink: #92a7e0;
+      --ink-deep: #b9c6ec;
+      --accent: #d4a94c;
+      --accent-soft: #2b2517;
+      --line: #2c303d;
+      --ok: #7dbb7d;
+      --ok-soft: #1c2a1c;
+      --warn: #d99a3f;
+      --warn-soft: #2e2413;
+      --crit: #d97a70;
+      --crit-soft: #331c1a;
+      --info-soft: #1e2536;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #12141b;
+    --surface: #191c26;
+    --surface-2: #21242f;
+    --text: #e6e4dd;
+    --text-muted: #9a9da8;
+    --ink: #92a7e0;
+    --ink-deep: #b9c6ec;
+    --accent: #d4a94c;
+    --accent-soft: #2b2517;
+    --line: #2c303d;
+    --ok: #7dbb7d;
+    --ok-soft: #1c2a1c;
+    --warn: #d99a3f;
+    --warn-soft: #2e2413;
+    --crit: #d97a70;
+    --crit-soft: #331c1a;
+    --info-soft: #1e2536;
+  }
+  :root[data-theme="light"] {
+    --ground: #faf9f6;
+    --surface: #ffffff;
+    --surface-2: #f2f0ea;
+    --text: #26282e;
+    --text-muted: #6a6d76;
+    --ink: #27407c;
+    --ink-deep: #1d2b52;
+    --accent: #a97b1e;
+    --accent-soft: #f5ecd8;
+    --line: #e4e1d8;
+    --ok: #3f7d3f;
+    --ok-soft: #e7f0e7;
+    --warn: #a86a12;
+    --warn-soft: #f7edda;
+    --crit: #a2322c;
+    --crit-soft: #f8e7e6;
+    --info-soft: #e8edf8;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15.5px;
+    line-height: 1.65;
+    margin: 0;
+  }
+  .page { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- Kopf ---------- */
+  header.hero { padding: 64px 0 40px; border-bottom: 3px double var(--line); }
+  .kicker {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 5.5vw, 52px);
+    line-height: 1.12;
+    font-weight: 500;
+    color: var(--ink-deep);
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .hero p.lede { font-size: 18px; color: var(--text-muted); max-width: 62ch; margin: 0 0 24px; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 13.5px; color: var(--text-muted); }
+  .hero-meta strong { color: var(--text); font-weight: 600; }
+
+  /* ---------- Navigation ---------- */
+  nav.toc {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--ground);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -24px; padding: 10px 24px;
+    display: flex; gap: 8px; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav.toc::-webkit-scrollbar { display: none; }
+  nav.toc a {
+    flex: 0 0 auto;
+    font-size: 12.5px; font-weight: 600;
+    color: var(--text-muted); text-decoration: none;
+    padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  nav.toc a:hover { color: var(--ink); border-color: var(--ink); }
+  nav.toc a:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- Sektionen ---------- */
+  section { padding-top: 56px; }
+  h2 {
+    font-family: var(--font-display);
+    font-size: 30px; font-weight: 500; line-height: 1.2;
+    color: var(--ink-deep);
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .section-sub { color: var(--text-muted); margin: 0 0 26px; max-width: 68ch; }
+  h3 { font-size: 17px; font-weight: 700; margin: 32px 0 10px; color: var(--text); }
+  h4 { font-size: 14.5px; font-weight: 700; margin: 20px 0 8px; }
+  p { max-width: 72ch; }
+  a { color: var(--ink); }
+  ul { padding-left: 22px; margin: 8px 0 16px; }
+  li { margin: 4px 0; max-width: 70ch; }
+  code {
+    font-family: var(--font-mono); font-size: 0.86em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Karten & Tabellen ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin: 18px 0;
+  }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 18px 0; }
+  .card-grid .card { margin: 0; padding: 18px 20px; }
+  .card h3:first-child, .card h4:first-child { margin-top: 0; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th {
+    text-align: left; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 12px 16px; border-bottom: 2px solid var(--line);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  td { padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  td .sub { display: block; font-weight: 400; color: var(--text-muted); font-size: 13px; margin-top: 2px; white-space: normal; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    display: inline-flex; align-items: center;
+    border-radius: 999px; padding: 2px 10px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .badge.kern    { background: var(--accent-soft); color: var(--accent); }
+  .badge.ausbau  { background: var(--info-soft); color: var(--ink); }
+  .badge.spaeter { background: var(--surface-2); color: var(--text-muted); }
+  .badge.ok      { background: var(--ok-soft); color: var(--ok); }
+  .badge.warn    { background: var(--warn-soft); color: var(--warn); }
+  .badge.crit    { background: var(--crit-soft); color: var(--crit); }
+
+  /* ---------- Module ---------- */
+  .modul { margin: 26px 0; }
+  .modul-kopf { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+  .modul-nr {
+    font-family: var(--font-display);
+    font-size: 15px; font-weight: 600;
+    color: var(--accent);
+    min-width: 34px;
+  }
+  .modul-kopf h3 { margin: 0; font-size: 20px; font-family: var(--font-display); font-weight: 600; color: var(--ink-deep); }
+  .modul-ziel { color: var(--text-muted); margin: 2px 0 12px; max-width: 70ch; }
+
+  /* ---------- Flow / Stepper ---------- */
+  .flow { list-style: none; padding: 0; margin: 20px 0; }
+  .flow li {
+    position: relative;
+    padding: 0 0 22px 42px;
+    max-width: none;
+  }
+  .flow li::before {
+    content: attr(data-step);
+    position: absolute; left: 0; top: 0;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--surface);
+    font-size: 12.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flow li::after {
+    content: "";
+    position: absolute; left: 12.5px; top: 30px; bottom: 2px;
+    width: 1px; background: var(--line);
+  }
+  .flow li:last-child::after { display: none; }
+  .flow li.branch::before { background: var(--accent); }
+  .flow strong { display: block; }
+  .flow .mail-hinweis {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 6px;
+    font-size: 12.5px; font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 6px; padding: 3px 10px;
+  }
+
+  /* ---------- Datenfluss ---------- */
+  .pipeline { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 20px 0; }
+  .pipeline .node {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 16px;
+    min-width: 150px;
+    flex: 1 1 150px;
+  }
+  .pipeline .node strong { display: block; font-size: 14px; color: var(--ink-deep); }
+  .pipeline .node span { font-size: 12.5px; color: var(--text-muted); }
+  .pipeline .arrow {
+    display: flex; align-items: center;
+    padding: 0 10px;
+    color: var(--accent); font-weight: 700; font-size: 18px;
+    flex: 0 0 auto;
+  }
+  @media (max-width: 640px) {
+    .pipeline { flex-direction: column; }
+    .pipeline .arrow { transform: rotate(90deg); justify-content: center; padding: 4px 0; }
+  }
+
+  /* ---------- Roadmap ---------- */
+  .phase { display: grid; grid-template-columns: 120px 1fr; gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .phase:last-child { border-bottom: none; }
+  .phase-label { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--accent); }
+  .phase-label .dauer { display: block; font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-top: 4px; }
+  .phase h4 { margin: 0 0 6px; font-size: 15.5px; }
+  .phase p { margin: 0 0 6px; font-size: 14px; color: var(--text-muted); }
+  .phase .liefert { font-size: 13px; color: var(--text); }
+  .phase .liefert strong { color: var(--ok); }
+  @media (max-width: 560px) { .phase { grid-template-columns: 1fr; gap: 6px; } }
+
+  /* ---------- Fragen ---------- */
+  .frage { border-left: 3px solid var(--accent); padding: 4px 0 4px 18px; margin: 18px 0; }
+  .frage h4 { margin: 0 0 4px; }
+  .frage p { margin: 0; font-size: 14px; color: var(--text-muted); }
+  .frage .empfehlung { color: var(--text); margin-top: 6px; }
+  .frage .empfehlung strong { color: var(--accent); }
+
+  .hinweis {
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 14px;
+    margin: 18px 0;
+  }
+  .hinweis strong { color: var(--accent); }
+
+  footer { margin-top: 72px; padding-top: 24px; border-top: 3px double var(--line); font-size: 13px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="hero">
+    <p class="kicker">Softwarekonzept · Entwurf v1 · 11. Juli 2026</p>
+    <h1>ESRA Campus — die Verwaltungs- und Lernplattform für die Gemeindebibelschule Minden</h1>
+    <p class="lede">
+      Eine maßgeschneiderte Webanwendung, die den Schulleiter von der ersten Anmeldung bis zum Abschluss entlastet:
+      Teilnehmerverwaltung, flexibler Anmeldeprozess mit Genehmigung, E-Mail-Kommunikation über eigenes SMTP,
+      Finanzabgleich mit Optigem, Materialplattform und Online-Prüfungen — alles in einem System mit offener API.
+    </p>
+    <div class="hero-meta">
+      <span>Auftraggeber: <strong>GBS Minden / Bibelschule ESRA</strong></span>
+      <span>Zielgruppe: <strong>Schulleiter + ca. 20–60 Teilnehmer</strong></span>
+      <span>Name: <strong>„ESRA Campus" (Arbeitstitel)</strong></span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Inhalt">
+    <a href="#ausgangslage">Ausgangslage</a>
+    <a href="#rollen">Rollen</a>
+    <a href="#module">Module</a>
+    <a href="#anmeldeprozess">Anmeldeprozess</a>
+    <a href="#optigem">Optigem</a>
+    <a href="#api">API</a>
+    <a href="#technik">Technik</a>
+    <a href="#datenmodell">Datenmodell</a>
+    <a href="#sicherheit">Sicherheit</a>
+    <a href="#markt">Marktanalyse</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#fragen">Offene Fragen</a>
+  </nav>
+
+  <!-- ================================================================ -->
+  <section id="ausgangslage">
+    <h2>Ausgangslage & Ziele</h2>
+    <p class="section-sub">
+      Die Gemeindebibelschule Minden (Träger: Christliches Werk Esra e.V., Porta Westfalica) bietet eine dreijährige
+      theologische Grundbildung neben Beruf und Dienst: 180 Unterrichtsstunden in 7 Fächern, 10 Dienstagabende pro
+      Semester, 80&nbsp;% Anwesenheitspflicht, 120&nbsp;€ Semesterbeitrag (oder 20&nbsp;€ monatlich, Ehepartner 50&nbsp;% Rabatt),
+      getragen von sechs freikirchlichen Gemeinden. Der Jahrgang 2026–29 startet am 15.09.2026.
+    </p>
+
+    <h3>So läuft es heute</h3>
+    <div class="card-grid">
+      <div class="card">
+        <h4>Microsoft Teams als Notlösung</h4>
+        <p style="font-size:14px; margin:0;">Materialaustausch und Prüfungen laufen über Teams. Die Teilnehmer haben
+        nur Gastaccounts — Berechtigungsprobleme sind an der Tagesordnung. Der Schulleiter wünscht sich ausdrücklich
+        „richtige Accounts".</p>
+      </div>
+      <div class="card">
+        <h4>Manuelle Verwaltung</h4>
+        <p style="font-size:14px; margin:0;">Teilnehmerlisten, Prüfungsleistungen, Anwesenheiten und
+        Lektürebestätigungen werden von Hand geführt. Prüfungen über Teams-Aufgaben müssen komplett manuell
+        ausgewertet werden.</p>
+      </div>
+      <div class="card">
+        <h4>Kein Finanzüberblick</h4>
+        <p style="font-size:14px; margin:0;">Die Beiträge werden in Optigem gebucht, aber der Schulleiter sieht
+        nicht auf einen Blick, welche Teilnehmer mit welchen Beträgen im Rückstand sind.</p>
+      </div>
+    </div>
+
+    <div class="hinweis" style="border-left: 3px solid var(--crit);">
+      <strong style="color: var(--crit);">Dringender Befund aus der IST-Analyse:</strong> Das aktuelle Bewerbungsformular
+      läuft über Microsoft Forms und erhebt IBAN, Bankverbindung und detaillierte Glaubensfragen (besondere Kategorien
+      nach Art.&nbsp;9 DSGVO — religiöse Überzeugung) <em>ohne hinterlegte Datenschutzerklärung und ohne
+      Einwilligungs-Checkbox</em>. Microsoft blendet im Formular selbst die Warnung ein, keine vertraulichen Daten
+      anzugeben; zudem ist die Formulardefinition über die öffentliche Forms-API ungeschützt abrufbar. Das sollte
+      unabhängig von der Software-Entscheidung kurzfristig ersetzt oder nachgebessert werden — das neue Anmeldemodul
+      (M2) löst dieses Problem strukturell.
+    </div>
+
+    <h3>Ziele der neuen Software</h3>
+    <ul>
+      <li><strong>Ein System statt Flickenteppich:</strong> Anmeldung, Verwaltung, Kommunikation, Unterricht und Finanzen in einer Anwendung — Teams wird vollständig abgelöst.</li>
+      <li><strong>Der Schulleiter arbeitet selbstständig:</strong> Formularfragen, E-Mail-Vorlagen und Semester verwaltet er ohne Entwicklerhilfe im Menü (Konfigurierbarkeit als Grundprinzip).</li>
+      <li><strong>Teilnehmer bekommen echte Accounts:</strong> passwortloser Zugang per Magic Link, eigenes Portal mit Material, Prüfungen und Selbstbestätigungen.</li>
+      <li><strong>Offenheit:</strong> REST-API in beide Richtungen, damit n8n und künftige Systeme Daten lesen und schreiben können.</li>
+      <li><strong>Weniger Handarbeit:</strong> automatische E-Mails je Prozessschritt, (teil-)automatische Prüfungsauswertung, automatischer Offene-Posten-Abgleich mit Optigem.</li>
+    </ul>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="rollen">
+    <h2>Rollen & Berechtigungen</h2>
+    <p class="section-sub">Bewusst schlank gehalten — vier Rollen reichen für eine Schule dieser Größe.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Rolle</th><th>Wer</th><th>Darf</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Administrator</td>
+            <td>Der Projektverantwortliche (technischer Betreiber)</td>
+            <td>Alles: Systemeinstellungen, SMTP, API-Keys, Benutzerverwaltung, Backups.</td>
+          </tr>
+          <tr>
+            <td>Schulleiter</td>
+            <td>Leiter der GBS</td>
+            <td>Teilnehmer, Anmeldungen genehmigen, E-Mail-Vorlagen und Formulare bearbeiten, Noten/Anwesenheit erfassen, Material hochladen, Prüfungen erstellen, Finanzübersicht einsehen.</td>
+          </tr>
+          <tr>
+            <td>Dozent <span class="badge spaeter">optional, später</span></td>
+            <td>Referenten einzelner Fächer</td>
+            <td>Eigenes Fach: Material hochladen, Prüfungen anlegen und bewerten, Anwesenheit erfassen. Kein Zugriff auf Finanzen und Stammdaten.</td>
+          </tr>
+          <tr>
+            <td>Teilnehmer</td>
+            <td>Studierende der Bibelschule</td>
+            <td>Eigenes Profil, Material abrufen, Prüfungen ablegen, Lektüre bestätigen, eigene Ergebnisse und ggf. eigene offene Beiträge einsehen.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="module">
+    <h2>Die zehn Module im Detail</h2>
+    <p class="section-sub">
+      Jedes Modul ist einzeln nutzbar, alle greifen ineinander. Die Badges zeigen die Ausbaustufe:
+      <span class="badge kern">Kern (MVP)</span> <span class="badge ausbau">Ausbau</span> <span class="badge spaeter">Später</span>
+    </p>
+
+    <!-- M1 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M1</span>
+        <h3>Teilnehmerverwaltung</h3>
+        <span class="badge kern">Kern (MVP)</span>
+      </div>
+      <p class="modul-ziel">Die zentrale Kartei: jeder Teilnehmer mit Stammdaten, Jahrgang, Status und Historie — ersetzt die bisherige Datei-Liste.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Stammdaten</td><td>Name, Adresse, Kontaktdaten, Gemeinde, Geburtsdatum, Foto (optional), Notizfeld für den Leiter.</td></tr>
+            <tr><td>Jahrgänge & Semester</td><td>Teilnehmer gehören zu einem Jahrgang (z.&nbsp;B. „Jahrgang 2026"), der über 6 Semester läuft. Semester werden zentral gepflegt.</td></tr>
+            <tr><td>Status-Lebenslauf</td><td>Interessent → Angemeldet → Genehmigt → Aktiv → Absolvent / Pausiert / Abgebrochen. Jeder Wechsel wird protokolliert und kann eine E-Mail auslösen.</td></tr>
+            <tr><td>Listen & Filter</td><td>Volltextsuche, Filter nach Jahrgang/Status/Gemeinde, Spalten konfigurierbar, CSV-/Excel-Export.</td></tr>
+            <tr><td>Akte je Teilnehmer</td><td>Detailseite mit allen Bereichen: Anmeldedaten, Leistungen, Anwesenheit, Lektüre, E-Mail-Verlauf, offene Beiträge.</td></tr>
+            <tr><td>DSGVO-Werkzeuge</td><td>Datenexport je Person, anonymisiertes Löschen nach Austritt, Einwilligungen (z.&nbsp;B. Audio-Aufnahmen) dokumentiert.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M2 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M2</span>
+        <h3>Anmeldeprozess & Formular-Builder</h3>
+        <span class="badge kern">Kern (MVP)</span>
+      </div>
+      <p class="modul-ziel">Ein öffentliches Anmeldeformular, dessen Fragen der Schulleiter selbst zusammenstellt — mit Genehmigungsschritt und automatischer Kommunikation.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Formular-Builder</td><td>Fragen frei anlegen, sortieren, als Pflichtfeld markieren. Feldtypen: Text, Textbereich, Einfach-/Mehrfachauswahl, Ja/Nein, Datum, Zahl, E-Mail, Telefon, Datei-Upload, Überschrift/Infotext.</td></tr>
+            <tr><td>Versionierung</td><td>Änderungen am Formular gelten für neue Anmeldungen; alte Anmeldungen behalten die damaligen Fragen und Antworten.</td></tr>
+            <tr><td>Öffentlicher Link</td><td>Das Formular läuft unter einer eigenen URL und kann auf gbs-minden.de verlinkt oder eingebettet werden. Spam-Schutz über Honeypot + Rate-Limiting (kein Captcha-Zwang).</td></tr>
+            <tr><td>Eingangsbestätigung</td><td>Automatische E-Mail an den Interessenten sofort nach Absenden (Vorlage anpassbar, siehe M3).</td></tr>
+            <tr><td>Genehmigung durch den Leiter</td><td>Neue Anmeldungen erscheinen in einem Posteingang. Der Leiter sieht alle Antworten und entscheidet: Genehmigen, Ablehnen oder Warteliste — jeweils mit optionaler persönlicher Nachricht, die in die E-Mail übernommen wird.</td></tr>
+            <tr><td>Übernahme in die Kartei</td><td>Bei Genehmigung wird automatisch ein Teilnehmer im gewählten Jahrgang angelegt und die Account-Einladung verschickt. Duplikat-Warnung bei bekannter E-Mail-Adresse.</td></tr>
+            <tr><td>Ehepaar-Anmeldung</td><td>Gemeinsame Anmeldung von Ehepaaren in einem Vorgang (50&nbsp;% Rabatt für den Ehepartner wird vermerkt) — heute muss der Partner separat ausfüllen.</td></tr>
+            <tr><td>Sensible Felder geschützt</td><td>Bankverbindung (IBAN, Zahlweise, SEPA-Einverständnis) wird AES-256-GCM-verschlüsselt gespeichert; Glaubensfragen (Art.-9-Daten) mit expliziter Einwilligung und eingeschränkter Sichtbarkeit (nur Schulleiter).</td></tr>
+            <tr><td>Datenschutz eingebaut</td><td>Pflicht-Checkbox mit verlinkter Datenschutzerklärung vor dem Absenden — behebt den DSGVO-Befund des heutigen MS-Forms-Formulars.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hinweis" style="margin-bottom:0;"><strong>Startvorlage vorhanden:</strong> Das heutige Bewerbungsformular
+      (26 Fragen in 5 Sektionen: Persönliche Daten, Bildung &amp; Beruf, geistlicher Werdegang, Bewerbungshintergrund,
+      Bankverbindung) wurde in der IST-Analyse vollständig dokumentiert und wird 1:1 als Seed-Vorlage in den
+      Formular-Builder übernommen — der Schulleiter startet nicht bei null.</p>
+    </div>
+
+    <!-- M3 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M3</span>
+        <h3>Kommunikation & E-Mail-Modul</h3>
+        <span class="badge kern">Kern (MVP)</span>
+      </div>
+      <p class="modul-ziel">Alle E-Mails des Systems laufen über dieses eine Modul — versendet über den eigenen SMTP-Server der Schule, mit anpassbaren Vorlagen je Prozess.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>SMTP-Anbindung</td><td>Host, Port, Verschlüsselung (TLS/STARTTLS), Benutzer, Passwort — im Einstellungsmenü konfigurierbar. Zugangsdaten werden verschlüsselt gespeichert (AES-256-GCM).</td></tr>
+            <tr><td>Absender konfigurierbar</td><td>Anzeigename (z.&nbsp;B. „Bibelschule ESRA") und Antwort-an-Adresse (Reply-To) sind getrennt vom technischen Absender einstellbar — genau wie gefordert.</td></tr>
+            <tr><td>Vorlagen je Prozess</td><td>Für jedes Systemereignis eine eigene, im Menü editierbare Vorlage: Anmeldung eingegangen, genehmigt, abgelehnt, Warteliste, Account-Einladung, Zahlungserinnerung, Prüfung freigeschaltet, neues Material, Terminerinnerung.</td></tr>
+            <tr><td>Platzhalter</td><td>Variablen wie <code>{{vorname}}</code>, <code>{{jahrgang}}</code>, <code>{{offener_betrag}}</code>, <code>{{pruefung}}</code> werden beim Versand gefüllt. Eine Legende zeigt je Vorlage, welche Platzhalter verfügbar sind.</td></tr>
+            <tr><td>Test-Versand</td><td>Jede Vorlage hat einen „Test senden"-Knopf: verschickt die Vorlage mit Beispieldaten an eine frei wählbare Adresse — vor dem Scharfschalten prüfbar, wie gefordert.</td></tr>
+            <tr><td>Rundschreiben</td><td>Freie E-Mail an ausgewählte Empfänger: ganzer Jahrgang, gefilterte Liste oder einzelne Teilnehmer. Mit Anhängen.</td></tr>
+            <tr><td>Versandprotokoll</td><td>Jede gesendete E-Mail wird protokolliert (Empfänger, Vorlage, Zeitpunkt, Erfolg/Fehler) und ist in der Teilnehmerakte sichtbar. Fehlversand wird im Dashboard angezeigt.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M4 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M4</span>
+        <h3>Finanzen & Optigem-Abgleich</h3>
+        <span class="badge ausbau">Ausbau · Phase 2</span>
+      </div>
+      <p class="modul-ziel">Der Schulleiter sieht jederzeit, welche Beiträge offen sind — die Zahlen kommen automatisch per n8n aus Optigem, gebucht wird weiterhin nur dort.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Optigem-Verknüpfung</td><td>Jeder Teilnehmer trägt seine Optigem-Personen-Nummer (Debitor) im Profil. Zuordnung manuell oder per Vorschlagsliste (Namensabgleich).</td></tr>
+            <tr><td>Offene-Posten-Sync</td><td>Ein n8n-Workflow fragt zyklisch die offenen Posten je Personenkonto ab (Saldo je Rechnungsnummer auf dem Forderungskonto — exakt, ohne FIFO-Schätzung) und schreibt sie per API in die Software.</td></tr>
+            <tr><td>Finanz-Dashboard</td><td>Übersicht aller Teilnehmer mit offenem Betrag, Fälligkeit, Tagen überfällig und Mahnstufe. Ampel: pünktlich / überfällig / stark überfällig. Summenzeile je Jahrgang.</td></tr>
+            <tr><td>Sicht in der Akte</td><td>Offene Posten und Zahlungshistorie erscheinen direkt in der Teilnehmerakte.</td></tr>
+            <tr><td>Zahlungserinnerung</td><td>Per Knopfdruck (oder optional automatisch nach X Tagen) eine Erinnerung über das E-Mail-Modul — Vorlage inklusive <code>{{offener_betrag}}</code>.</td></tr>
+            <tr><td>Klare Grenze</td><td>Die Software bucht nichts und ersetzt keine Buchhaltung: Optigem bleibt führend, ESRA Campus zeigt an und erinnert.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hinweis" style="margin-bottom:0;"><strong>Vorsprung:</strong> Das Optigem-Datenbankschema (Buchungen, Rechnungen, Personenkonten, Aging-Logik inkl. EB-Vortrags-Falle) ist aus den CREDO-IKS-Projekten bereits vollständig dokumentiert und produktiv im Einsatz — die Abfragen müssen nur auf den ESRA-Mandanten angepasst werden.</p>
+    </div>
+
+    <!-- M5 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M5</span>
+        <h3>Offene API & Webhooks</h3>
+        <span class="badge ausbau">Ausbau · Phase 2</span>
+      </div>
+      <p class="modul-ziel">Die Software ist bewusst offen: alles, was die Oberfläche kann, kann auch die API — n8n ist der erste Nutzer, weitere Systeme können folgen.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>REST-API <code>/api/v1</code></td><td>Lesen und Schreiben von Teilnehmern, Anmeldungen, Jahrgängen, offenen Posten, E-Mail-Aufträgen. Antwortformat einheitlich <code>{ data }</code> / <code>{ error }</code>.</td></tr>
+            <tr><td>API-Keys</td><td>Mehrere Schlüssel mit Rechteumfang (nur lesen / lesen+schreiben) und Ablaufdatum, im Adminmenü verwaltbar, Nutzung protokolliert.</td></tr>
+            <tr><td>Webhooks</td><td>Bei Ereignissen (Anmeldung eingegangen, genehmigt, Teilnehmer geändert, Prüfung abgeschlossen) ruft die Software konfigurierbare URLs auf — ideal für n8n-Trigger.</td></tr>
+            <tr><td>Dokumentation</td><td>OpenAPI-Spezifikation unter <code>/api/docs</code> — selbsterklärend für spätere Integrationen.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M6 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M6</span>
+        <h3>Leistungserfassung: Prüfungen, Anwesenheit, Lektüre</h3>
+        <span class="badge ausbau">Ausbau · Phase 3</span>
+      </div>
+      <p class="modul-ziel">Die drei Erfassungswünsche des Schulleiters in einem Modul — mit Selbstbedienung für die Teilnehmer, wo es sinnvoll ist.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Prüfungsleistungen</td><td>Ergebnisse je Fach und Semester (Note, Punkte oder bestanden/nicht bestanden — Bewertungsschema konfigurierbar). Manuell erfassbar oder automatisch aus M8 übernommen.</td></tr>
+            <tr><td>Anwesenheit</td><td>Die 10 Abendtermine je Semester werden angelegt; der Leiter hakt am Abend auf einer mobiltauglichen Liste ab (anwesend / entschuldigt / fehlt). Quote je Teilnehmer automatisch berechnet — mit Ampel gegen die 80-%-Anwesenheitspflicht der Schulordnung.</td></tr>
+            <tr><td>Lektürebestätigung</td><td>Der Leiter pflegt je Semester eine Lektüreliste; Teilnehmer kreuzen im Portal selbst an, was sie gelesen haben — genau der gewünschte Online-Selbstbestätigungs-Workflow, inkl. Zeitstempel.</td></tr>
+            <tr><td>Fortschrittsübersicht</td><td>Je Teilnehmer eine Gesamtsicht: Prüfungen, Anwesenheitsquote, Lektürestand — auf einen Blick erkennbar, wer Rückstände hat.</td></tr>
+            <tr><td>Zertifikat / Abschluss</td><td><span class="badge spaeter">Später</span> PDF-Bescheinigung je Semester oder zum Abschluss nach drei Jahren, generiert aus den erfassten Leistungen.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M7 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M7</span>
+        <h3>Materialplattform</h3>
+        <span class="badge ausbau">Ausbau · Phase 3</span>
+      </div>
+      <p class="modul-ziel">Ersetzt Teams als Dateiablage: Präsentationen, Unterrichts-Audioaufnahmen und Literatur — ohne Gastaccount-Ärger, mit klaren Berechtigungen je Jahrgang.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Struktur</td><td>Ordner je Semester und Fach; der Leiter lädt hoch, Teilnehmer sehen genau die Ordner ihres Jahrgangs.</td></tr>
+            <tr><td>Dateitypen</td><td>PDF, Office-Dateien, Bilder, Audio (MP3/M4A für Unterrichtsaufnahmen). Upload mit Magic-Bytes-Prüfung; Größenlimit für Audio großzügiger (z.&nbsp;B. 500&nbsp;MB, konfigurierbar).</td></tr>
+            <tr><td>Audio-Player</td><td>Aufnahmen direkt im Browser abspielbar (auch mobil), zusätzlich Download — wichtig für Schichtdienstler, die Abende verpassen.</td></tr>
+            <tr><td>Benachrichtigung</td><td>Optional automatische E-Mail „Neues Material verfügbar" an den Jahrgang (Vorlage in M3, abschaltbar).</td></tr>
+            <tr><td>Speicher</td><td>Ablage auf dem eigenen Server (Docker-Volume), optional S3-kompatibel. Download mit Berechtigungsprüfung und Path-Traversal-Schutz.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M8 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M8</span>
+        <h3>Online-Prüfungen mit automatischer Auswertung</h3>
+        <span class="badge ausbau">Ausbau · Phase 4</span>
+      </div>
+      <p class="modul-ziel">Löst die Teams-Aufgaben ab und erfüllt den Wunsch nach zumindest teilautomatischer Auswertung — objektive Fragen wertet das System sofort aus, Freitext bleibt beim Leiter (mit KI-Unterstützung als Option).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Prüfungs-Editor</td><td>Prüfung je Fach/Semester anlegen, Fragen aus einem wiederverwendbaren Fragenkatalog zusammenstellen, Punkte je Frage, optionale Zeitbegrenzung und Bearbeitungsfenster (von–bis).</td></tr>
+            <tr><td>Automatisch auswertbare Fragetypen</td><td>Einfach-/Mehrfachauswahl, Wahr/Falsch, Zuordnung, Lückentext (mit Toleranz für Schreibvarianten), Zahleneingabe. Ergebnis steht sofort fest.</td></tr>
+            <tr><td>Freitextfragen</td><td>Manuelle Bewertung mit Punkteschema und Kommentarfeld. Übersichtliche Korrekturansicht: eine Frage, alle Antworten untereinander.</td></tr>
+            <tr><td>KI-Vorbewertung <span class="badge spaeter">Option</span></td><td>Freitextantworten können lokal per Ollama (bestehende Instanz) mit Musterlösung verglichen werden — die KI schlägt Punkte und Begründung vor, der Leiter bestätigt oder korrigiert. Keine Antwort verlässt das eigene Netz.</td></tr>
+            <tr><td>Durchführung</td><td>Teilnehmer legen die Prüfung im Portal ab: Fortschritt wird laufend gespeichert (kein Datenverlust), Abgabe per Klick, ein Versuch (konfigurierbar).</td></tr>
+            <tr><td>Ergebnis & Übernahme</td><td>Nach Freigabe durch den Leiter sehen Teilnehmer Punkte und Feedback; das Ergebnis fließt automatisch in die Leistungserfassung (M6).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M9 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M9</span>
+        <h3>Teilnehmerportal & Accounts</h3>
+        <span class="badge ausbau">Ausbau · Phase 3</span>
+      </div>
+      <p class="modul-ziel">Echte, eigene Accounts für alle Teilnehmer — passwortlos per Magic Link, damit niemand Passwörter verwalten muss und der Support-Aufwand minimal bleibt.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Funktion</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr><td>Anmeldung per Magic Link</td><td>Teilnehmer geben ihre E-Mail-Adresse ein und erhalten einen Anmelde-Link (15&nbsp;Minuten gültig). Kein Passwort, kein „Passwort vergessen", kein Gastaccount-Chaos.</td></tr>
+            <tr><td>Startseite</td><td>Nächster Termin, neues Material, offene Prüfungen, Lektüre-Stand — das Wichtigste auf einen Blick, mobiltauglich.</td></tr>
+            <tr><td>Eigene Daten</td><td>Kontaktdaten selbst aktualisieren (entlastet den Leiter), Einwilligungen einsehen.</td></tr>
+            <tr><td>Eigene Leistungen</td><td>Freigegebene Prüfungsergebnisse, Anwesenheitsquote und Lektüre-Checkliste.</td></tr>
+            <tr><td>Eigene Beiträge <span class="badge spaeter">Option</span></td><td>Auf Wunsch sehen Teilnehmer ihren eigenen offenen Beitrag — zu entscheiden (siehe offene Fragen).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- M10 -->
+    <div class="modul card">
+      <div class="modul-kopf">
+        <span class="modul-nr">M10</span>
+        <h3>Administration & Einstellungen</h3>
+        <span class="badge kern">Kern (wächst mit)</span>
+      </div>
+      <p class="modul-ziel">Alles Konfigurierbare an einem Ort — nichts ist im Code festgeschrieben, der Leiter bleibt unabhängig.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Bereich</th><th>Inhalt</th></tr></thead>
+          <tbody>
+            <tr><td>Schule & Struktur</td><td>Jahrgänge, Semester, Fächer, Termine, Lektürelisten, Bewertungsschema.</td></tr>
+            <tr><td>E-Mail</td><td>SMTP-Zugang, Anzeigename, Reply-To, alle Prozess-Vorlagen mit Test-Versand (M3).</td></tr>
+            <tr><td>Anmeldeformular</td><td>Formular-Builder, Zieljahrgang, Öffnen/Schließen der Anmeldephase (M2).</td></tr>
+            <tr><td>Integrationen</td><td>API-Keys, Webhooks, Optigem-Mandant/Konten-Parameter für den n8n-Sync.</td></tr>
+            <tr><td>Benutzer</td><td>Rollen zuweisen, Accounts einladen/deaktivieren, Anmeldeprotokoll.</td></tr>
+            <tr><td>Erscheinungsbild</td><td>Logo und Schulname für Portal und E-Mail-Fußzeile.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="anmeldeprozess">
+    <h2>Der Anmeldeprozess im Ablauf</h2>
+    <p class="section-sub">Vom Interesse bis zum aktiven Teilnehmer — jeder Schritt löst die passende, vom Leiter formulierte E-Mail aus.</p>
+    <ol class="flow">
+      <li data-step="1">
+        <strong>Interessent füllt das Online-Formular aus</strong>
+        Öffentlicher Link auf gbs-minden.de — mit genau den Fragen, die der Schulleiter im Formular-Builder hinterlegt hat.
+        <span class="mail-hinweis">✉ automatisch: „Anmeldung eingegangen"</span>
+      </li>
+      <li data-step="2">
+        <strong>Anmeldung landet im Posteingang des Leiters</strong>
+        Übersicht aller offenen Anmeldungen mit sämtlichen Antworten; Duplikat-Warnung, falls die E-Mail-Adresse schon bekannt ist.
+      </li>
+      <li data-step="3" class="branch">
+        <strong>Der Leiter entscheidet</strong>
+        Genehmigen, ablehnen oder auf die Warteliste setzen — jeweils mit optionaler persönlicher Nachricht, die in die E-Mail eingefügt wird.
+        <span class="mail-hinweis">✉ automatisch: „Zusage" / „Absage" / „Warteliste"</span>
+      </li>
+      <li data-step="4">
+        <strong>Bei Zusage: Teilnehmer wird angelegt</strong>
+        Automatische Übernahme in den Jahrgang (M1) und Einladung ins Portal per Magic Link (M9).
+        <span class="mail-hinweis">✉ automatisch: „Willkommen + Zugang"</span>
+      </li>
+      <li data-step="5">
+        <strong>Finanz-Anbindung</strong>
+        Der Teilnehmer wird in Optigem als Debitor angelegt (manuell oder n8n-gestützt) und in der Software verknüpft — ab dann laufen die offenen Beiträge automatisch ein (M4).
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="optigem">
+    <h2>Optigem-Integration im Detail</h2>
+    <p class="section-sub">Optigem bleibt das führende Finanzsystem. ESRA Campus liest nur — über n8n als Brücke, in beide Richtungen offen.</p>
+
+    <div class="pipeline" role="img" aria-label="Datenfluss von Optigem über n8n zur ESRA-Software">
+      <div class="node"><strong>Optigem</strong><span>SQL-Datenbank: Rechnungen, Buchungen, Personenkonten</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><strong>n8n</strong><span>Zeitgesteuerte Abfrage: offener Saldo je Rechnung und Debitor</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><strong>ESRA Campus API</strong><span>POST offene Posten, Zuordnung über Personen-Nr</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><strong>Finanz-Dashboard</strong><span>Offene Beträge, Fälligkeit, Ampel je Teilnehmer</span></div>
+    </div>
+
+    <h3>Bewährte Abfrage-Logik</h3>
+    <ul>
+      <li><strong>Exaktes Aging:</strong> Offener Betrag = Saldo je Rechnungsnummer auf dem Forderungskonto (Soll minus Haben). Saldo&nbsp;0 = bezahlt, größer&nbsp;0 = offen, kleiner&nbsp;0 = Gutschrift/Überzahlung.</li>
+      <li><strong>EB-Vortrags-Falle bekannt:</strong> Salden-Abfragen filtern aufs laufende Geschäftsjahr, sonst zählen die jährlichen Eröffnungsbuchungen mehrfach. Vorjahres-Forderungen erscheinen als eigener Posten.</li>
+      <li><strong>Stornierte Buchungen</strong> werden ausgefiltert; das unzuverlässige „abgeschlossen"-Kennzeichen der Rechnungen wird bewusst nicht verwendet.</li>
+      <li><strong>Rückkanal:</strong> Neue genehmigte Teilnehmer meldet die Software per Webhook an n8n — daraus kann eine (teil-)automatische Debitoren-Anlage in Optigem entstehen.</li>
+    </ul>
+    <p class="hinweis"><strong>Zu klären:</strong> Unter welchem Optigem-Mandanten laufen die ESRA-Beiträge, und existieren dort bereits Rechnungen/Abo-Artikel je Teilnehmer (analog zum Elternbeitrags-Muster)? Davon hängt ab, ob der Sync sofort oder erst nach einer Beitrags-Strukturierung in Optigem starten kann.</p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="api">
+    <h2>Offene API — Endpunkte (Auszug)</h2>
+    <p class="section-sub">Authentifizierung per API-Key im Header, Versionierung unter <code>/api/v1</code>, dokumentiert als OpenAPI.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Endpunkt</th><th>Methoden</th><th>Zweck</th></tr></thead>
+        <tbody>
+          <tr><td><code>/api/v1/teilnehmer</code></td><td>GET · POST · PATCH</td><td>Teilnehmer lesen, anlegen, aktualisieren (inkl. Optigem-Personen-Nr).</td></tr>
+          <tr><td><code>/api/v1/anmeldungen</code></td><td>GET · PATCH</td><td>Anmeldungen lesen, Status setzen (genehmigt/abgelehnt) — auch aus n8n heraus möglich.</td></tr>
+          <tr><td><code>/api/v1/jahrgaenge</code></td><td>GET</td><td>Jahrgänge und Semester mit Teilnehmerzahlen.</td></tr>
+          <tr><td><code>/api/v1/finanzen/offene-posten</code></td><td>GET · PUT</td><td>n8n schreibt den aktuellen Stand je Teilnehmer; Dashboard und Akte lesen ihn.</td></tr>
+          <tr><td><code>/api/v1/emails</code></td><td>POST</td><td>E-Mail-Auftrag über das zentrale Modul auslösen (Vorlage + Empfänger + Variablen).</td></tr>
+          <tr><td><code>/api/v1/webhooks</code></td><td>GET · POST · DELETE</td><td>Ereignis-Abos verwalten: <code>anmeldung.eingegangen</code>, <code>anmeldung.genehmigt</code>, <code>teilnehmer.geaendert</code>, <code>pruefung.abgeschlossen</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="technik">
+    <h2>Technik & Architektur</h2>
+    <p class="section-sub">Bewusst derselbe Stack wie in einem bestehenden internen Projekt — erprobt, wartbar aus einer Hand, und Muster (Auth, Verschlüsselung, Upload-Schutz, E-Mail) lassen sich direkt übernehmen.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Baustein</th><th>Wahl</th><th>Begründung</th></tr></thead>
+        <tbody>
+          <tr><td>Frontend + Backend</td><td>Next.js 15 (App Router), React 19, TypeScript strict</td><td>Eine Codebasis für Portal, Verwaltung und API; Server Components für schnelle Listen.</td></tr>
+          <tr><td>Datenbank</td><td>PostgreSQL 16 + Prisma 6</td><td>Relationales Modell passt exakt (Jahrgänge, Prüfungen, Posten); Migrationen versioniert.</td></tr>
+          <tr><td>UI</td><td>Tailwind CSS 4 + Radix Primitives + Lucide</td><td>Apple-like, schlicht, barrierearm; Theme zentral in globals.css.</td></tr>
+          <tr><td>Auth</td><td>JWT + Magic Links</td><td>Passwortlos für Teilnehmer, bewährtes Muster aus einem bestehenden internen Projekt; Rate-Limiting am Login.</td></tr>
+          <tr><td>E-Mail</td><td>Nodemailer über eigenes SMTP</td><td>Volle Kontrolle, keine Drittanbieter-Abhängigkeit; DKIM/SPF über den Mailserver der Schule.</td></tr>
+          <tr><td>Dateien</td><td>Lokales Volume, optional S3-kompatibel</td><td>Audio-Aufnahmen können groß werden; Speicherort bleibt austauschbar.</td></tr>
+          <tr><td>Automatisierung</td><td>n8n (bestehende Instanz)</td><td>Optigem-Sync, optionale Folgeprozesse; Webhooks in beide Richtungen.</td></tr>
+          <tr><td>KI (optional)</td><td>Ollama, lokal</td><td>Freitext-Vorbewertung ohne Datenabfluss — vorhandene Infrastruktur.</td></tr>
+          <tr><td>Betrieb</td><td>Docker Compose (App + DB + Volume)</td><td>Ein Server genügt; tägliche DB-Dumps + Datei-Backup.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="datenmodell">
+    <h2>Datenmodell (Kern-Entitäten)</h2>
+    <p class="section-sub">Rund 20 Tabellen — hier die tragenden, gruppiert nach Modul.</p>
+    <div class="card-grid">
+      <div class="card">
+        <h4>Menschen & Struktur</h4>
+        <ul style="font-size:13.5px; margin-bottom:0;">
+          <li><code>Teilnehmer</code> — Stammdaten, Status, Jahrgang, Optigem-Nr</li>
+          <li><code>Jahrgang</code> → <code>Semester</code> → <code>Fach</code></li>
+          <li><code>Termin</code> — Unterrichtsabende je Semester</li>
+          <li><code>Benutzer</code> — Login, Rolle (Leiter, Teilnehmer …)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Anmeldung</h4>
+        <ul style="font-size:13.5px; margin-bottom:0;">
+          <li><code>Formular</code> + <code>FormularFeld</code> — versioniert</li>
+          <li><code>Anmeldung</code> — Status, Entscheidung, Zeitpunkte</li>
+          <li><code>AnmeldungAntwort</code> — Antwort je Feld</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Kommunikation</h4>
+        <ul style="font-size:13.5px; margin-bottom:0;">
+          <li><code>EmailVorlage</code> — je Prozess, mit Platzhaltern</li>
+          <li><code>EmailLog</code> — jeder Versand, Erfolg/Fehler</li>
+          <li><code>SmtpEinstellung</code> — verschlüsselt</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Leistung & Unterricht</h4>
+        <ul style="font-size:13.5px; margin-bottom:0;">
+          <li><code>Anwesenheit</code> — Teilnehmer × Termin</li>
+          <li><code>LektuereItem</code> + <code>LektuereBestaetigung</code></li>
+          <li><code>Pruefung</code> + <code>Frage</code> + <code>Versuch</code> + <code>Antwort</code></li>
+          <li><code>Leistung</code> — Ergebnis je Fach/Semester</li>
+          <li><code>Material</code> — Datei, Ordner, Jahrgangs-Freigabe</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Finanzen & Integration</h4>
+        <ul style="font-size:13.5px; margin-bottom:0;">
+          <li><code>OffenerPosten</code> — Rechnung, Betrag, Fälligkeit, Sync-Zeit</li>
+          <li><code>ApiKey</code> — Rechteumfang, Ablauf</li>
+          <li><code>Webhook</code> — Ereignis, Ziel-URL, Secret</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="sicherheit">
+    <h2>Sicherheit & DSGVO</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Thema</th><th>Maßnahme</th></tr></thead>
+        <tbody>
+          <tr><td>Sensible Daten</td><td>IBAN/Bankverbindung, SMTP-Passwort und API-Secrets AES-256-GCM-verschlüsselt in der Datenbank; keine Secrets in Logs oder Fehlermeldungen.</td></tr>
+          <tr><td>Art.-9-Daten</td><td>Glaubensfragen aus dem Bewerbungsformular (religiöse Überzeugung = besondere Kategorie) nur mit expliziter Einwilligung, Sichtbarkeit auf den Schulleiter beschränkt, im Löschkonzept priorisiert.</td></tr>
+          <tr><td>Zugriffsschutz</td><td>Auth-Prüfung vor Rollen-Prüfung vor Validierung in jeder API-Route; Teilnehmer sehen ausschließlich eigene Daten (IDOR-Schutz auf jeder Detailroute).</td></tr>
+          <tr><td>Uploads & Downloads</td><td>Magic-Bytes-Validierung, Größenlimits, Path-Traversal-Schutz, Berechtigungsprüfung vor jedem Download.</td></tr>
+          <tr><td>Login</td><td>Magic Links mit kurzer Gültigkeit und Einmal-Verwendung; Rate-Limiting; CSP-Header über Middleware.</td></tr>
+          <tr><td>DSGVO</td><td>Datensparsames Formular (nur konfigurierte Fragen), dokumentierte Einwilligungen (insb. Unterrichts-Audioaufnahmen!), Auskunftsexport, Löschkonzept nach Austritt, Hosting in Deutschland, AVV mit der Schule.</td></tr>
+          <tr><td>Backups</td><td>Täglicher DB-Dump + Datei-Backup, getestete Wiederherstellung vor GoLive.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hinweis"><strong>Hinweis Audio-Aufnahmen:</strong> Unterrichtsmitschnitte enthalten Stimmen von Dozenten und Teilnehmern — hierfür braucht es eine dokumentierte Einwilligung. Die Software hält diese im Teilnehmerprofil fest; ein Textbaustein für das Anmeldeformular wird vorbereitet.</p>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="markt">
+    <h2>Marktanalyse: Gibt es das schon fertig?</h2>
+    <p class="section-sub">
+      Deep-Research über fünf Kategorien: deutsche Kirchen-/Gemeindesoftware, deutsche Seminarverwaltung,
+      internationale Schulverwaltungssysteme, Lernplattformen (LMS) und Formular-/Workflow-Tools — insgesamt über
+      35 Lösungen geprüft, anschließend von einer dreiköpfigen Bewertungs-Jury (Pragmatiker, Produktstratege,
+      Skeptiker) unabhängig beurteilt und durch einen Vollständigkeits-Kritiker gegengeprüft.
+    </p>
+
+    <h3>Das Kernergebnis</h3>
+    <p><strong>Keine einzige Lösung am Markt erfüllt alle neun Anforderungen.</strong> Die Lücken liegen ausgerechnet
+    bei den ESRA-Spezialanforderungen: Offene-Posten-Sicht aus Optigem, E-Mail-Vorlagen pro Prozess mit eigenem SMTP,
+    Test-Versand und Reply-To, ein vom Schulleiter selbst pflegbarer Formular-Builder mit Genehmigungsschritt sowie
+    die Lektüre-Selbstbestätigung — das bietet kein Produkt out-of-the-box.</p>
+
+    <h3>Die stärksten Kandidaten im Vergleich</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Lösung</th><th>Eignung</th><th>Kosten</th><th>Stark</th><th>Entscheidender Haken</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>SEMCO<span class="sub">Seminarverwaltung, DE</span></td>
+            <td class="num">8/10</td>
+            <td class="num">≈ 3.000–3.600 €/Jahr</td>
+            <td>Genehmigungsworkflow, Prozess-E-Mails, REST-API (lesen+schreiben), Teilnehmerportal, Hetzner-Hosting DE.</td>
+            <td>Preis frisst einen Großteil der Beitragseinnahmen; Formulare passt nur der Hersteller an — der Leiter kann Fragen nicht selbst pflegen.</td>
+          </tr>
+          <tr>
+            <td>Classe365<span class="sub">Schulverwaltung, AUS</span></td>
+            <td class="num">7,5/10</td>
+            <td class="num">≈ 2.800 €/Jahr</td>
+            <td>Deckt 8 von 9 Anforderungen: Formular-Builder mit Status-Workflow, eigenes SMTP, API, Quiz mit Auto-Auswertung.</td>
+            <td>EU-Serverstandort nicht belegt, Qualität der deutschen Oberfläche ungeprüft — bei Art.-9-Glaubensdaten ein K.-o.-Risiko.</td>
+          </tr>
+          <tr>
+            <td>ChurchTools<span class="sub">Gemeindesoftware, DE</span></td>
+            <td class="num">7/10</td>
+            <td class="num">348 €/Jahr (XS)</td>
+            <td>Kulturell passend (freikirchlich), echte Accounts, Gruppenanmeldung mit Genehmigungsstufe, gute REST-API für n8n, Hosting DE.</td>
+            <td>Keine Prüfungen, keine Notenverwaltung, kein eigenes SMTP (Self-Hosting 2024 eingestellt) — bräuchte zwingend ein zweites System.</td>
+          </tr>
+          <tr>
+            <td>Moodle<span class="sub">LMS, Open Source</span></td>
+            <td class="num">7/10</td>
+            <td class="num">0 € + Hosting</td>
+            <td>Ausgereifte Prüfungs-Engine (MC, Lückentext, KI-Freitext), Anwesenheits- und Checklisten-Plugins, n8n-Node vorhanden.</td>
+            <td>Deckt nur die Unterrichts-Hälfte — Verwaltung, Anmeldung, E-Mail-Prozesse, Finanzen fehlen; 2 Major-Updates/Jahr Pflegeaufwand.</td>
+          </tr>
+          <tr>
+            <td>OpenOlat<span class="sub">LMS, CH</span></td>
+            <td class="num">6,5/10</td>
+            <td class="num">0 € + Hosting</td>
+            <td>Bestes eingebautes Absenzenmanagement, exam-taugliche Prüfungen, erstklassig deutschsprachig.</td>
+            <td>API-Lücken genau bei der Anwesenheit (kein n8n-Abgleich), Java-Betrieb sperrig, Managed Hosting ≈ 3.000 CHF/Jahr.</td>
+          </tr>
+          <tr>
+            <td>SeminarDesk<span class="sub">Seminarverwaltung, DE</span></td>
+            <td class="num">6/10</td>
+            <td class="num">ab 289 €/Monat*</td>
+            <td>Beste API des Feldes (Keys, Webhooks, External References) — ideal für n8n.</td>
+            <td>Genehmigungsworkflows laut eigener FAQ ausdrücklich nicht enthalten; Teilnehmer-Accounts erst im teuren Basic-Paket (*mit Teilnehmer-Konten).</td>
+          </tr>
+          <tr>
+            <td>Jotform<span class="sub">Formular-Tool, US</span></td>
+            <td class="num">5/10</td>
+            <td class="num">0–34 $/Monat</td>
+            <td>Nativer Genehmigungs-Flow, eigener SMTP-Absender, EU-Rechenzentrum Frankfurt aktivierbar — taugliche Interimslösung fürs Anmeldemodul.</td>
+            <td>Nur Formulare: keine Teilnehmerverwaltung, keine Accounts, kein Unterricht — löst 1 von 9 Anforderungen.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px; color: var(--text-muted);">Ebenfalls geprüft und ausgeschieden: Populi (US-Hosting, kein Deutsch, 4.200–8.200&nbsp;€/Jahr),
+    ILIAS (keine brauchbare REST-API), kOOL/OpenKool (veraltet bzw. ungepflegt), ChurchDesk (keine Teilnehmer-Accounts, 109&nbsp;€/Monat),
+    easySoft/KuferSQL/cmxOrganize/TCmanager (auf VHS-/Konzern-Größe zugeschnitten), Yolawo (keine API), Gradelink (keine API),
+    Regpack/CourseStorm (keine Schulverwaltung), Sycamore/Blackbaud (US, K-12/Enterprise), Google Classroom (DSGVO-Drittlandproblematik),
+    Typeform/HeyFlow/Cognito Forms (nur Formulare, teils US-Hosting), Tally & Formbricks (gute DSGVO-Interims-Kandidaten, aber ohne Genehmigungsworkflow).</p>
+
+    <h3>Nachprüfung durch den Vollständigkeits-Kritiker</h3>
+    <p>Ein separater Kontroll-Agent hat gezielt nach übersehenen Lösungen gesucht — Ergebnis: Eine dedizierte
+    Bibelschul-Software für den deutschsprachigen Raum existiert nicht (auch das Institut für Gemeindebibelschulen
+    bietet keine Plattform an). Vier Funde sind dennoch erwähnenswert:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fund</th><th>Warum interessant</th><th>Warum er das Urteil nicht kippt</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>OpenEduCat<span class="sub">Odoo-Education-ERP, Open Source</span></td>
+            <td>Stärkster Nachzügler: Admission-Workflow, Prüfungen, Anwesenheit, E-Mail-Templates je Prozess mit eigenem SMTP, Portal — n8n hat sogar einen nativen Odoo-Node.</td>
+            <td>Volles ERP für eine 40-Personen-Abendschule; Anpassungen erfordern Odoo-/Python-Know-how (fremder Stack), deutsche Lokalisierung der Education-Module lückenhaft, Optigem-OP-Sicht und Lektüre-Checkliste wären trotzdem Eigenentwicklung — nur eben im fremden Framework.</td>
+          </tr>
+          <tr>
+            <td>Rock RMS<span class="sub">Kirchensoftware, Open Source</span></td>
+            <td>Workflow-Designer, REST-API, SMTP-Templates, seit v17 sogar eingebautes LMS.</td>
+            <td>Oberfläche nur englisch (K.-o. für die Zielgruppe), ASP.NET/Windows-Hosting, steile Lernkurve.</td>
+          </tr>
+          <tr>
+            <td>EduPage<span class="sub">Schulverwaltung, DE-Server</span></td>
+            <td>≈ 849 €/Jahr komplett, deutsch, Noten/Anwesenheit/Auto-Tests, Schüler-App.</td>
+            <td>Auf Regelschulen (Stundenplan, Klassenbuch) zugeschnitten; offene API schwach — Optigem-/n8n-Anbindung und freier Anmelde-Workflow kaum machbar.</td>
+          </tr>
+          <tr>
+            <td>WordPress + LearnDash<span class="sub">LMS-Baukasten</span></td>
+            <td>Günstig (~200–400 $/Jahr), REST-API, Quizze, deutsch, self-hosted.</td>
+            <td>Bastellösung aus 5+ Plugins (Forms, Approval, SMTP, LMS) mit laufender Update-Reibung — genau die Flickenteppich-Situation, die abgelöst werden soll.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Das Urteil der Jury: Eigenbau (2:1)</h3>
+    <div class="card-grid">
+      <div class="card">
+        <h4>Pragmatiker (TCO) — Eigenbau</h4>
+        <p style="font-size:13.5px; margin:0;">Jeder Kauf erzwingt trotzdem Zusatzsysteme und n8n-Workarounds — man zahlt
+        Lizenz <em>und</em> Integrationsaufwand. SEMCO/Classe365 kosten über 5 Jahre 14.000–18.000&nbsp;€ bei einem
+        Schul-Jahresumsatz von maximal ~14.400&nbsp;€. Eigenbau-Betrieb: ~15–30&nbsp;€/Monat Server.</p>
+      </div>
+      <div class="card">
+        <h4>Produktstratege — Eigenbau</h4>
+        <p style="font-size:13.5px; margin:0;">Die Lücken der Kauflösungen liegen genau bei den differenzierenden
+        Kernprozessen. Stammdaten, Material, Accounts sind mit dem vorhandenen internen Stack günstige Wiederverwendung;
+        die Optigem-n8n-Anbindung existiert produktiv als Muster. Ein System, eine UX — statt neuem Systembruch.</p>
+      </div>
+      <div class="card">
+        <h4>Skeptiker — Kauf (ChurchTools + Moodle)</h4>
+        <p style="font-size:13.5px; margin:0;">Wichtigster Einwand: Bus-Faktor&nbsp;1 — die Schule hinge an einem einzigen
+        Entwickler, der bereits mehrere Systeme wartet. Eine gereifte Prüfungs-Engine (Moodle) schlägt jeden Neubau;
+        eine falsch ausgewertete Prüfung kostet sofort Vertrauen.</p>
+      </div>
+    </div>
+
+    <h3>Empfehlung</h3>
+    <p><strong>Eigenbau mit klaren Leitplanken.</strong> Die Argumente sind auf dieser Projektgröße eindeutig:
+    Kein Produkt liefert die ESRA-Spezialanforderungen, die Fertiglösungen im passenden Funktionsumfang kosten ein
+    Vielfaches des Schulbudgets, und Stack samt Optigem-Anbindung liegen erprobt vor. Die berechtigten Einwände des
+    Skeptikers werden ernst genommen und aktiv entschärft:</p>
+    <ul>
+      <li><strong>Bus-Faktor:</strong> Standard-Stack ohne Exoten, Docker-Deployment, README-Doku je Modul und eine schriftliche Wartungsabsprache mit dem Trägerkreis.</li>
+      <li><strong>Prüfungsmodul-Disziplin:</strong> MVP bewusst schmal (Einfach-/Mehrfachauswahl + Lückentext automatisch, Freitext manuell). Falls die Anforderungen doch eskalieren, bleibt Moodle als dokumentierte Rückfallebene — Kopplung über die Moodle-API und den fertigen n8n-Node ist vorbereitet denkbar.</li>
+      <li><strong>DSGVO von Tag 1:</strong> Verschlüsselung sensibler Felder, Einwilligungen, Löschkonzept und Datenschutzerklärung sind Bestandteil von Phase 1 — nicht Nacharbeit.</li>
+      <li><strong>Kein Interims-Provisorium nötig:</strong> Da Phase 1 den Anmeldeprozess in wenigen Wochen liefert, wird das DSGVO-kritische MS-Forms-Formular direkt durch das neue Modul ersetzt statt durch ein Übergangswerkzeug.</li>
+    </ul>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="roadmap">
+    <h2>Roadmap</h2>
+    <p class="section-sub">Phasen-Ansatz wie gewohnt: erst ein nutzbarer Kern, dann Ausbau — jede Phase endet mit etwas, das der Schulleiter sofort produktiv einsetzen kann. Aufwände sind Richtwerte.</p>
+
+    <div class="card" style="padding: 8px 26px;">
+      <div class="phase">
+        <div class="phase-label">Phase 0<span class="dauer">~1 Woche</span></div>
+        <div>
+          <h4>Fundament</h4>
+          <p>Projekt-Setup, Datenbankmodell, Auth (Magic Link + JWT), Rollen, Grundlayout, Docker-Umgebung.</p>
+          <span class="liefert"><strong>Ergebnis:</strong> Lauffähiges Gerüst mit Login und Navigation.</span>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-label">Phase 1<span class="dauer">~3–4 Wochen</span></div>
+        <div>
+          <h4>MVP: Verwalten, Anmelden, Kommunizieren (M1 + M2 + M3)</h4>
+          <p>Teilnehmerkartei, Formular-Builder mit öffentlichem Formular und Genehmigungs-Posteingang, komplettes E-Mail-Modul mit SMTP, Vorlagen und Test-Versand.</p>
+          <span class="liefert"><strong>Ergebnis:</strong> Der komplette Anmeldeprozess läuft produktiv über die Software — rechtzeitig planbar zum nächsten Anmeldefenster.</span>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-label">Phase 2<span class="dauer">~1–2 Wochen</span></div>
+        <div>
+          <h4>Finanzen & Offenheit (M4 + M5)</h4>
+          <p>REST-API mit Keys und Webhooks, n8n-Workflow für den Optigem-Offene-Posten-Sync, Finanz-Dashboard, Zahlungserinnerungen.</p>
+          <span class="liefert"><strong>Ergebnis:</strong> Der Leiter sieht offene Beiträge live; das System ist nach außen integrierbar.</span>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-label">Phase 3<span class="dauer">~2–3 Wochen</span></div>
+        <div>
+          <h4>Teilnehmerportal (M9 + M7 + M6)</h4>
+          <p>Portal mit Magic-Link-Zugang, Materialplattform mit Audio-Player, Anwesenheitserfassung, Lektüre-Selbstbestätigung, Leistungsübersicht.</p>
+          <span class="liefert"><strong>Ergebnis:</strong> Teams wird abgeschaltet — Material und Selbstverwaltung laufen im Portal.</span>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-label">Phase 4<span class="dauer">~2–3 Wochen</span></div>
+        <div>
+          <h4>Online-Prüfungen (M8)</h4>
+          <p>Prüfungs-Editor, Fragenkatalog, automatische Auswertung objektiver Fragen, Korrekturansicht für Freitext, Ergebnis-Freigabe.</p>
+          <span class="liefert"><strong>Ergebnis:</strong> Prüfungen laufen digital, die Auswertung ist überwiegend automatisch.</span>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-label">Phase 5<span class="dauer">offen</span></div>
+        <div>
+          <h4>Feinschliff & Optionen</h4>
+          <p>KI-Vorbewertung von Freitextantworten (Ollama), Zertifikats-PDF, Dozenten-Rolle, automatische Zahlungserinnerungen, Statistiken.</p>
+          <span class="liefert"><strong>Ergebnis:</strong> Komfortfunktionen nach Praxiserfahrung priorisiert.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="fragen">
+    <h2>Offene Fragen & Entscheidungen</h2>
+    <p class="section-sub">Diese Punkte sollten wir vor bzw. während Phase 1 gemeinsam klären — mit jeweils einer Empfehlung als Startpunkt.</p>
+
+    <div class="frage">
+      <h4>1 · Optigem-Struktur für ESRA</h4>
+      <p>Unter welchem Mandanten laufen die ESRA-Beiträge? Gibt es je Teilnehmer bereits Debitoren + Rechnungen (Voraussetzung für den Offene-Posten-Sync)?</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Vor Phase 2 gemeinsam mit der Buchhaltung prüfen; ggf. Abo-Artikel „Semesterbeitrag" analog zum Elternbeitrags-Muster anlegen.</p>
+    </div>
+    <div class="frage">
+      <h4>2 · Sehen Teilnehmer ihre eigenen offenen Beträge?</h4>
+      <p>Transparenz kann Rückfragen sparen — oder Irritation stiften, wenn Buchungen zeitverzögert sind.</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Zunächst nur Leiter-Sicht; Teilnehmer-Sicht als Schalter vorbereiten.</p>
+    </div>
+    <div class="frage">
+      <h4>3 · Bewertungsschema</h4>
+      <p>Noten, Punkte oder bestanden/nicht bestanden? Zählt Anwesenheit für den Abschluss (Mindestquote)?</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Mit dem Schulleiter festlegen; das Schema ist konfigurierbar angelegt.</p>
+    </div>
+    <div class="frage">
+      <h4>4 · Hosting & Betrieb</h4>
+      <p>Eigener Server der CREDO-Infrastruktur oder separater Server für die GBS (eigenständiger Träger, eigene AVV)?</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Getrennte Docker-Instanz, damit die Datentrennung zwischen Trägern sauber bleibt.</p>
+    </div>
+    <div class="frage">
+      <h4>5 · Absender-Domain für E-Mails</h4>
+      <p>Über welche Domain/Postfach versendet die Schule (z. B. anmeldung@gbs-minden.de)? SPF/DKIM müssen dort passen, sonst landen Mails im Spam.</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Frühzeitig SMTP-Zugang und DNS-Einträge klären — Voraussetzung für Phase 1.</p>
+    </div>
+    <div class="frage">
+      <h4>6 · Dozenten-Rolle von Anfang an?</h4>
+      <p>Laden Referenten ihr Material selbst hoch, oder macht das der Leiter zentral?</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Start ohne Dozenten-Rolle (Leiter zentral); Rolle ist im Datenmodell vorgesehen.</p>
+    </div>
+    <div class="frage">
+      <h4>7 · Produktname</h4>
+      <p>„ESRA Campus" ist ein Arbeitstitel — Alternativen: „ESRA Portal", „GBS Campus", oder ein Name aus der Schule selbst.</p>
+      <p class="empfehlung"><strong>Empfehlung:</strong> Den Schulleiter entscheiden lassen — kostet nichts, schafft Identifikation.</p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <section id="naechste-schritte">
+    <h2>Nächste Schritte</h2>
+    <ol>
+      <li><strong>Feedback zu diesem Konzept</strong> — Module bestätigen, streichen oder ergänzen; offene Fragen 1–7 beantworten (gern gemeinsam mit dem Schulleiter).</li>
+      <li><strong>SMTP-Zugang & Optigem-Mandant klären</strong> — die beiden externen Abhängigkeiten.</li>
+      <li><strong>Phase 0 + 1 starten</strong> — Projektgerüst und MVP (Teilnehmer, Anmeldung, E-Mail); erster Zwischenstand nach ca. zwei Wochen.</li>
+    </ol>
+  </section>
+
+  <footer>
+    ESRA Campus · Softwarekonzept Entwurf v1 · erstellt am 11. Juli 2026 ·
+    Grundlage: Anforderungen des Projektverantwortlichen, Wunschliste des Schulleiters (Anforderungen.rtf) und gbs-minden.de
+  </footer>
+
+</div>
+
+</body>
+</html>
