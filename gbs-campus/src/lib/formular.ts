@@ -377,7 +377,12 @@ function pruefeFeld(feld: FeldEingabe, roh: unknown): { wert: Antwortwert } | { 
  * Genau das war vor dem Review der Fall.
  */
 export function geheimeFeldcodes(felder: FeldEingabe[]): Set<string> {
-  return new Set(felder.filter((f) => f.personFeld === PersonFeld.IBAN).map((f) => f.code));
+  // Am Feldtyp UND am Aktenfeld: Ein IBAN-Feld ist auch dann geheim, wenn es (versehentlich) nicht
+  // der Akte zugeordnet ist. Sonst hinge der Klartextschutz allein an der personFeld-Zuordnung, und
+  // eine IBAN ohne personFeld=IBAN läge unverschlüsselt im Antwort-JSON.
+  return new Set(
+    felder.filter((f) => f.typ === FeldTyp.IBAN || f.personFeld === PersonFeld.IBAN).map((f) => f.code),
+  );
 }
 
 /** Entfernt die Antworten zu den genannten Feldern aus einem Antwortobjekt. */

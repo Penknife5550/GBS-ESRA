@@ -62,6 +62,64 @@ wirklich etwas kaputt ist, bevor die Grenzen aufgeweicht werden.
 
 ---
 
+## Am Nachmittag des 28.07. dazugekommen
+
+**Das Anmeldeformular bildet jetzt die Bewerbungs-Vorlage der Schule ab.** Aus der bisherigen schlanken
+Fassung wurde ein vollständiges Bewerbungsformular: 6 Abschnitte, 30 Felder — persönliche Daten, Bildung
+und Beruf, geistlicher Werdegang, Bewerbungshintergrund, Teilnahmeform, Bankverbindung. Die Definition
+liegt versioniert in [`scripts/anmeldeformular-bewerbung.ts`](scripts/anmeldeformular-bewerbung.ts) und
+wurde als neue Formular-Fassung veröffentlicht (die alte automatisch archiviert). **Wichtig:** Das ist
+**noch nicht der Seed-Standard** — ein frischer `db:seed` legt weiter die ältere Fassung an. Für die
+Dauerhaftigkeit gehört die Definition in den Seed übertragen; dann den Durchstich (150 Prüfungen) gegen
+das größere Formular nachziehen.
+
+**Neuer IBAN-Prüfer** im öffentlichen Formular ([`oeffentliches-formular.tsx`](src/app/anmeldung/oeffentliches-formular.tsx),
+Komponente `IbanEingabe`): Live-Formatierung in Vierergruppen, Prüfziffer-Check nach ISO 13616 über die
+**geteilte** Funktion `istIbanGueltig` (`src/lib/pruefwerte.ts` — Client und Server prüfen identisch),
+grün bei gültiger Prüfziffer, rot beim Verlassen eines falschen Felds. Der Cursor bleibt beim
+Umformatieren an seiner Stelle.
+
+**Mehr-Agenten-Code-Review** (`/engineering:code-review` als Workflow, 15 Agenten) fand 12 verifizierte
+Befunde; die vier echten Fehler sind behoben und einzeln nachgemessen:
+
+- **Art-9-Leck (schwer):** `motivation` und `ziele` trugen kein `istArt9` — glaubensoffenbarende
+  Angaben wären über den Entwurf-Speicherpfad **ohne Einwilligung** in der Datenbank gelandet. Jetzt
+  `istArt9=true`; beide Glaubens-Abschnitte sind vollständig bis zur Einwilligung verborgen.
+- **Akte-Zuordnung:** „PLZ und Ort" war ein Feld ohne Aktenbezug, der Kontoinhaber fehlte ganz. Jetzt
+  `plz`/`ort`/`kontoinhaber` getrennt mit `personFeld` — sonst blieben diese Stammdaten leer, und der
+  SEPA-Einzug hätte keinen Kontoinhaber.
+- **Leere Pflicht-IBAN:** Der Serverfehler wurde am Feld verschluckt. Behoben, per End-to-End-Test
+  bestätigt (roter Rahmen + „Pflichtfeld"-Meldung + `aria-invalid`).
+- **Barrierefreiheit:** `aria-describedby` zeigte ins Leere; jetzt auf die reale Statuszeile.
+
+Dazu zwei Härtungen: Der Klartextschutz der IBAN hängt jetzt am **Feldtyp** `IBAN` (nicht nur an der
+Akte-Zuordnung), und `IBAN_LAENGE` deckt die SEPA-Länder ab.
+
+**Der Formular-Builder kann Pflicht/Optional schon.** Jedes Feld hat unter `/verwaltung/formulare` ein
+Häkchen „Pflichtfeld" (und daneben „Art-9") — bearbeitbar aber nur an einer **Entwurfsfassung**, denn
+veröffentlichte Fassungen sind unveränderlich. Zum Ändern: neue Entwurfsfassung anlegen, Häkchen setzen,
+veröffentlichen.
+
+### Lokale Testinstanz (zum Durchklicken)
+
+Läuft als Docker-Container aus dem Produktions-Image gegen die Entwicklungsdatenbank — nicht als
+`npm run dev` (das hängt hier an den Sync-Diensten). **Wegwerf-Testwerte, nicht für Produktion:**
+
+```bash
+docker run -d --name gbs-laientest -p 3000:3000 \
+  -e DATABASE_URL="postgresql://gbs:gbs_dev_2026@host.docker.internal:5434/gbs_campus?schema=public" \
+  -e SESSION_SECRET="$(printf '2%.0s' {1..64})" -e ENCRYPTION_KEY="$(printf '1%.0s' {1..64})" \
+  -e APP_URL="http://127.0.0.1:3000" -e TZ=Europe/Berlin gbs-campus-test:local
+```
+
+`APP_URL` muss **`127.0.0.1`** sein, nicht `localhost`: Der Startprüfer verbietet `localhost` bei
+`NODE_ENV=production`, und `NODE_ENV` ist im Standalone-Build fest einkompiliert (ein Runtime-Override
+wirkt nicht). Folge: Magic-Links werden **nie** geloggt — in der Testinstanz meldet man sich per
+**Passwort** an. Ein Schulleitungskonto anlegen (Passwort-Hash direkt in die DB, weil `testperson-anlegen.ts`
+keins setzt) und mindestens ein Semester mit offenem Anmeldefenster (siehe `/verwaltung/semester`).
+
+---
+
 ## In fünf Minuten lauffähig
 
 ```bash
@@ -322,6 +380,12 @@ Wer daran weiterbaut, drei Sätze zum Merken:
 **Der Verifikationslauf ist am 28.07. grün durchgelaufen** — siehe ganz oben. Damit ist der Weg für
 alles Weitere frei.
 
+**Zwei offene Punkte aus dem Nachmittag des 28.07.:** (1) Das neue Bewerbungsformular in den **Seed**
+übertragen, damit ein frischer Aufsatz es mitbringt — danach den Durchstich gegen das größere Formular
+nachziehen. (2) Beim gewählten „0.1-Weg" für den Beitrag fehlen noch die **vier Beträge als
+Einstellungen** (20/120/30/180 €) und die **Ehepartner-50 %-Ermäßigung** bei der Aufnahme; die
+eigentliche Beitragsberechnung bleibt Release 0.3.
+
 **Ein Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) und **die Semesterüberleitung**
 mit Re-Enrollment gehören zu Release 0.2 — beide sind unten unter „Bekannte Einschränkungen"
 beschrieben.
@@ -330,6 +394,11 @@ beschrieben.
 befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. **Und:
 mindestens ein Semester anlegen** — ohne laufendes Semester bleibt die Teilnehmerliste leer und
 Anmeldungen bekommen keinen Semesterbezug.
+
+Für den Laientest liegt ein fertiges **Drehbuch mit Aufgaben, Rückmeldebogen und der vollständigen
+Go-Live-Checkliste** bereit: [`LAIENTEST.md`](LAIENTEST.md). Es führt den Betreuer durch die
+Vorbereitung (Umgebung, Semester, Testkonto) und die Testperson durch elf Aufgaben entlang des echten
+Wegs — von der öffentlichen Anmeldung über die Aufnahme durch die Schulleitung bis zur Selbstpflege.
 
 ### Drei Entscheidungen, die niemand außer dir treffen kann
 

@@ -15,9 +15,13 @@
 /** Die gemeinsame Form aller Prüfbefunde — Feldbezug optional, Meldung deutsch. */
 export type Pruefmeldung = { feld?: string; meldung: string };
 
+// Registerlängen nach ISO 13616. Deutschland und die Nachbarländer stehen oben, danach die übrigen
+// SEPA-Teilnehmer — für ein nicht gelistetes Land griffe nur die grobe Längenspanne der Regex.
 const IBAN_LAENGE: Record<string, number> = {
   DE: 22, AT: 20, CH: 21, LI: 21, LU: 20, NL: 18, BE: 16, FR: 27, IT: 27,
   ES: 24, PL: 28, CZ: 24, DK: 18, SE: 24, NO: 15, FI: 18, GB: 22, PT: 25,
+  IE: 22, GR: 27, HR: 21, SI: 19, SK: 24, EE: 20, LV: 21, LT: 20, HU: 28,
+  RO: 24, BG: 22, CY: 28, MT: 31, IS: 26, MC: 27, SM: 27, AD: 24,
 };
 
 /**

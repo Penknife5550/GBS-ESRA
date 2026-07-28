@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { istIbanGueltig } from "@/lib/pruefwerte";
 
 export type OeffentlichesFeld = {
   code: string;
@@ -331,6 +332,113 @@ function bewegungErlaubt(): boolean {
  * Frage — auf dem Pflichtfeld „Wie möchtest du teilnehmen?" also gar nichts
  * Verständliches. Und ein Klick auf die Beschriftung wählte nichts aus.
  */
+/** IBAN in Vierergruppen: "DE89370400440532013000" → "DE89 3704 0044 …". */
+function formatiereIban(roh: string): string {
+  const bereinigt = roh.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return bereinigt.replace(/(.{4})(?=.)/g, "$1 ");
+}
+
+/**
+ * Eigene Eingabe für die IBAN: gruppiert die Ziffern während des Tippens, prüft
+ * die Prüfziffer live (dieselbe Regel wie der Server) und meldet das Ergebnis
+ * ruhig zurück — grün, sobald sie stimmt, rot erst, wenn das Feld verlassen
+ * wurde. Ein Zahlendreher fällt so beim Ausfüllen auf, nicht erst, wenn die
+ * Lastschrift Wochen später zurückkommt.
+ *
+ * Der Cursor bleibt beim Umformatieren an der richtigen Stelle: gezählt wird
+ * über die echten Zeichen vor der Einfügemarke, die eingefügten Leerzeichen
+ * verschieben ihn nicht.
+ */
+function IbanEingabe({
+  id,
+  text,
+  pflicht,
+  fehler,
+  hilfeId,
+  onAendern,
+}: {
+  id: string;
+  text: string;
+  pflicht: boolean;
+  fehler?: string;
+  hilfeId?: string;
+  onAendern: (wert: unknown) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [beruehrt, setBeruehrt] = useState(false);
+
+  const bereinigt = text.replace(/\s+/g, "");
+  const gueltig = bereinigt.length >= 15 && istIbanGueltig(bereinigt);
+  const serverFehler = Boolean(fehler);
+  // Gültig hat Vorrang: sobald die Prüfziffer stimmt, ist der Zustand grün — auch wenn beim letzten
+  // Absenden noch ein Serverfehler kam. Umgekehrt zeigt ein Serverfehler auch bei LEEREM Pflichtfeld
+  // rot; sonst schluckt die Bedingung "length > 0" die Meldung, und der Nutzer sieht am IBAN-Feld
+  // gar nichts, obwohl der Server es als Pflichtfeld abgewiesen hat.
+  const liveFehler = !gueltig && (serverFehler || (beruehrt && bereinigt.length > 0));
+  const statusId = `${id}-status`;
+  const beschreibung = [hilfeId, liveFehler || gueltig ? statusId : undefined].filter(Boolean).join(" ") || undefined;
+
+  function beiEingabe(e: ChangeEvent<HTMLInputElement>) {
+    const el = e.target;
+    const echteVorCursor = el.value.slice(0, el.selectionStart ?? el.value.length).replace(/[^A-Za-z0-9]/g, "").length;
+    const formatiert = formatiereIban(el.value);
+    onAendern(formatiert);
+    requestAnimationFrame(() => {
+      const node = ref.current;
+      if (!node) return;
+      let pos = 0;
+      let echte = 0;
+      while (pos < formatiert.length && echte < echteVorCursor) {
+        if (/[A-Za-z0-9]/.test(formatiert[pos])) echte += 1;
+        pos += 1;
+      }
+      node.setSelectionRange(pos, pos);
+    });
+  }
+
+  const rahmen = liveFehler ? "border-credo-rot" : gueltig ? "border-credo-gruen" : "border-input";
+
+  return (
+    <div>
+      <div className="relative">
+        <input
+          ref={ref}
+          id={id}
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          value={text}
+          placeholder="DE00 0000 0000 0000 0000 00"
+          required={pflicht}
+          aria-required={pflicht}
+          aria-invalid={liveFehler}
+          aria-describedby={beschreibung}
+          onChange={beiEingabe}
+          onBlur={() => setBeruehrt(true)}
+          className={`w-full rounded-lg border bg-background px-4 py-2.5 pr-10 font-mono text-sm tracking-wider ${rahmen}`}
+        />
+        {gueltig && (
+          <span
+            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-base font-semibold text-credo-gruen"
+            aria-hidden
+          >
+            ✓
+          </span>
+        )}
+      </div>
+      {gueltig ? (
+        <p id={statusId} className="mt-1.5 text-xs text-credo-gruen">
+          IBAN geprüft — die Prüfziffer stimmt.
+        </p>
+      ) : liveFehler ? (
+        <p id={statusId} className="mt-1.5 text-xs text-credo-rot" role="alert">
+          {fehler ?? "Diese IBAN stimmt nicht. Bitte Länderkürzel und Ziffern prüfen."}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function Feld({
   feld,
   wert,
@@ -478,6 +586,15 @@ function Feld({
           onChange={(e) => onAendern(e.target.value)}
           className={stil}
         />
+      ) : feld.typ === "IBAN" ? (
+        <IbanEingabe
+          id={id}
+          text={text}
+          pflicht={feld.pflicht}
+          fehler={fehler}
+          hilfeId={hilfeId}
+          onAendern={onAendern}
+        />
       ) : (
         <input
           id={id}
@@ -497,7 +614,8 @@ function Feld({
         />
       )}
 
-      {fehlermeldung}
+      {/* Die IBAN-Eingabe meldet Fehler selbst (grün/rot), sonst doppelt es sich. */}
+      {feld.typ !== "IBAN" && fehlermeldung}
     </div>
   );
 }
