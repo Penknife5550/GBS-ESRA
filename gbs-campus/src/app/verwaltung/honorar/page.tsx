@@ -61,6 +61,7 @@ export default async function HonorarSeite({
           <Link
             key={s.id}
             href={`/verwaltung/honorar?semester=${s.id}`}
+            aria-current={s.id === semester.id ? "page" : undefined}
             className={`rounded-full px-3 py-1 text-sm ${
               s.id === semester.id
                 ? "bg-primary text-primary-foreground"

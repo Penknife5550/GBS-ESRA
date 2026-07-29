@@ -14,7 +14,14 @@ type Termin = {
 };
 type Gruppe = { semesterBezeichnung: string; teilnahmeId: string; termine: Termin[] };
 
-const selectKlasse = "min-h-10 rounded-lg border border-input bg-background px-3 py-1.5 text-sm";
+// Bewusst Knöpfe statt eines <select>: Ein Klick ist eine eindeutige, gewollte
+// Aktion. Ein Auswahlfeld dagegen speichert bei Tastaturbedienung schon beim
+// Durchtippen jeden übersprungenen Wert (WCAG 3.2.2) — hier soll nur gespeichert
+// werden, was der Teilnehmer wirklich anklickt.
+const OPTIONEN = [
+  { wert: "ANWESEND", label: "anwesend" },
+  { wert: "NACHGEARBEITET", label: "nachgearbeitet" },
+] as const;
 
 export function AnwesenheitAbschnitt({ gruppen }: { gruppen: Gruppe[] }) {
   const router = useRouter();
@@ -27,7 +34,7 @@ export function AnwesenheitAbschnitt({ gruppen }: { gruppen: Gruppe[] }) {
   const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
 
   async function bestaetigen(terminId: string, neu: string) {
-    if (!neu) return;
+    if (status[terminId] === neu || laeuft) return; // schon so gesetzt oder gerade am Speichern
     const vorher = status[terminId] ?? null;
     setLaeuft(terminId);
     setMeldung(null);
@@ -80,19 +87,31 @@ export function AnwesenheitAbschnitt({ gruppen }: { gruppen: Gruppe[] }) {
                 </div>
 
                 {termin.darfBestaetigen ? (
-                  <select
+                  <div
+                    role="group"
                     aria-label={`Meine Anwesenheit am ${termin.text}`}
-                    value={status[termin.id] ?? ""}
-                    disabled={laeuft === termin.id}
-                    onChange={(e) => bestaetigen(termin.id, e.target.value)}
-                    className={selectKlasse}
+                    className="flex flex-wrap gap-1.5"
                   >
-                    <option value="" disabled>
-                      — bitte wählen —
-                    </option>
-                    <option value="ANWESEND">anwesend</option>
-                    <option value="NACHGEARBEITET">nachgearbeitet</option>
-                  </select>
+                    {OPTIONEN.map((o) => {
+                      const aktiv = status[termin.id] === o.wert;
+                      return (
+                        <button
+                          key={o.wert}
+                          type="button"
+                          onClick={() => bestaetigen(termin.id, o.wert)}
+                          disabled={laeuft === termin.id}
+                          aria-pressed={aktiv}
+                          className={`min-h-10 rounded-lg px-3 py-1.5 text-sm disabled:opacity-60 ${
+                            aktiv
+                              ? "bg-primary font-medium text-primary-foreground"
+                              : "border border-border hover:border-primary"
+                          }`}
+                        >
+                          {o.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <span className="inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                     von der Schule erfasst: {anwesenheitName(termin.status)}

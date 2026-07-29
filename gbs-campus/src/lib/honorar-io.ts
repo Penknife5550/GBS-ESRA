@@ -51,13 +51,16 @@ export type HonorarUebersicht = { satz: number; zeilen: HonorarZeile[]; summe: n
  * erscheinen. Sie zählen erst mit, sobald sie stattgefunden haben.
  */
 export async function ladeHonorarUebersicht(semesterId: string): Promise<HonorarUebersicht> {
-  const satz = await zahl("HONORAR_SATZ_PRO_ABEND");
-
-  const gruppen = await prisma.unterrichtstermin.groupBy({
-    by: ["dozentId"],
-    where: { semesterId, dozentId: { not: null }, beginn: { lte: new Date() } },
-    _count: { _all: true },
-  });
+  // Der Satz geht nicht in die Where-Klausel ein — Einstellung und Aggregation
+  // laufen deshalb parallel statt nacheinander.
+  const [satz, gruppen] = await Promise.all([
+    zahl("HONORAR_SATZ_PRO_ABEND"),
+    prisma.unterrichtstermin.groupBy({
+      by: ["dozentId"],
+      where: { semesterId, dozentId: { not: null }, beginn: { lte: new Date() } },
+      _count: { _all: true },
+    }),
+  ]);
   if (gruppen.length === 0) return { satz, zeilen: [], summe: 0 };
 
   const ids = gruppen.map((g) => g.dozentId).filter((id): id is string => id !== null);

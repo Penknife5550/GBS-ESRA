@@ -3,14 +3,16 @@ import { z } from "zod";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
+import { SELBST_STATUS } from "@/lib/selbstbestaetigung";
 import { bestaetigeEigeneAnwesenheit } from "@/lib/stundenplan-io";
 
-// Nur die zwei positiven Zustände: „entschuldigt" entscheidet die Schule,
-// „gefehlt" bestätigt niemand über sich selbst. Ein anderer Wert wird schon hier
-// mit 400 abgewiesen und erreicht die Fachlogik gar nicht.
+// Nur die zwei positiven Zustände (Quelle: SELBST_STATUS): „entschuldigt"
+// entscheidet die Schule, „gefehlt" bestätigt niemand über sich selbst. Ein
+// anderer Wert wird schon hier mit 400 abgewiesen und erreicht die Fachlogik
+// gar nicht.
 const schema = z.object({
   terminId: z.string().uuid(),
-  status: z.enum(["ANWESEND", "NACHGEARBEITET"]),
+  status: z.enum(SELBST_STATUS),
 });
 
 /**

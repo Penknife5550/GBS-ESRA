@@ -44,7 +44,7 @@ siehe unten) — und ohne `prisma generate` prüft es ohnehin keine Prisma-Feldn
 docker run --rm gbs-campus-builder:local npm run pruefen
 ```
 
-Soll: **327 Prüfungen** über elf Fachlogik-Skripte (Formular, Semester, Selbstpflege, Passwort,
+Soll: **329 Prüfungen** über elf Fachlogik-Skripte (Formular, Semester, Selbstpflege, Passwort,
 Auskunft, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar, Anonymisierung). Jedes Skript
 meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft eine eigene Soll-Zahl.
 
@@ -475,7 +475,7 @@ Person und die Anmelde-Antworten werden überschrieben, transiente Token gelösc
 `ANONYMISIERT` gesetzt. Das Audit protokolliert das **ohne** die alten Werte. Logik in
 `src/lib/anonymisierung.ts` (DB-frei) und `src/lib/anonymisierung-io.ts`.
 
-Verifiziert: **327 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
+Verifiziert: **329 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
 Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **238 Durchstich-Prüfungen** gegen
 das gebaute Image (inkl. Worker-Einzellauf, Art.-17-Scrub, Selbstbestätigung und Dozentenhonorar) —
 alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
@@ -490,8 +490,16 @@ alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 - **Dozentenhonorar:** DOZENT-Rolle scharfgeschaltet; Dozent je Unterrichtstermin zuordenbar (neues
   Feld `dozentId` → Person, `SetNull`, additive Handmigration `20260729150000_dozent_honorar`);
   Honorarsatz je Abend als Einstellung (`HONORAR_SATZ_PRO_ABEND`, ganzzahlig, Bereich FINANZEN);
-  read-only Honorar-Übersicht `/verwaltung/honorar` (Recht `HONORAR_LESEN`, Anzahl Abende × Satz).
-  Abrechnung/Einzug bleibt Release 0.3.
+  read-only Honorar-Übersicht `/verwaltung/honorar` (Recht `HONORAR_LESEN`, nur **bereits gehaltene**
+  Abende × Satz). Abrechnung/Einzug bleibt Release 0.3.
+
+**Für die 0.3-Abrechnung vormerken (aus dem Code-Review):** Der Honorarsatz wirkt heute *aktuell* auf
+alle Semester. Die Übersicht zählt bewusst nur bereits gehaltene Abende, aber ein einmal geleistetes
+Honorar darf bei der echten Abrechnung nicht nachträglich umbepreisbar sein — vor 0.3 muss der Satz je
+Abrechnungsperiode (oder je Termin) **fixiert/gesnapshottet** werden (weder FK noch Einstellung erfassen
+das heute). Ebenso ist die Dozenten-Zuordnung (`dozentId`) nicht an die DOZENT-Rolle gekoppelt: verliert
+eine bereits zugeordnete Person die Rolle, zählt die Übersicht ihre Abende weiter — fachlich gewollt
+(„wer gehalten hat, hat gehalten"), für die Abrechnung aber explizit zu bestätigen.
 
 Damit ist Release 0.2 inhaltlich komplett. Was bleibt, ist Scharfschalten vor dem Livegang.
 

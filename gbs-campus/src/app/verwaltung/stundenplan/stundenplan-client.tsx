@@ -51,6 +51,11 @@ export function StundenplanClient({
   const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
   const [offen, setOffen] = useState<string | null>(null);
   const [entwuerfe, setEntwuerfe] = useState<Record<string, string>>({});
+  // Vorgemerkte Fach-/Dozentenwahl je Abend. Gespeichert wird erst per Knopf —
+  // ein <select>, das schon bei onChange schreibt, löst bei Tastaturbedienung für
+  // jeden durchgetippten Eintrag einen Speichervorgang aus (WCAG 3.2.2).
+  const [fachEntwurf, setFachEntwurf] = useState<Record<string, string>>({});
+  const [dozentEntwurf, setDozentEntwurf] = useState<Record<string, string>>({});
 
   function melde(art: "ok" | "fehler", text: string) {
     setMeldung({ art, text });
@@ -74,21 +79,22 @@ export function StundenplanClient({
     router.refresh();
   }
 
-  async function fachSetzen(terminId: string, kurseinheitId: string) {
-    const antwort = await sendeAnfrage(`/api/stundenplan/termine/${terminId}`, {
-      methode: "PUT",
-      rumpf: { kurseinheitId: kurseinheitId || null },
-    });
-    if (!antwort.ok) return melde("fehler", antwort.meldung);
-    router.refresh();
-  }
+  // Aktueller Wert eines Abends: die Vormerkung, sonst der gespeicherte Stand.
+  const fachWert = (t: Termin) => fachEntwurf[t.id] ?? t.kurseinheitId ?? "";
+  const dozentWert = (t: Termin) => dozentEntwurf[t.id] ?? t.dozentId ?? "";
+  const zuordnungGeaendert = (t: Termin) =>
+    fachWert(t) !== (t.kurseinheitId ?? "") || dozentWert(t) !== (t.dozentId ?? "");
 
-  async function dozentSetzen(terminId: string, dozentId: string) {
-    const antwort = await sendeAnfrage(`/api/stundenplan/termine/${terminId}`, {
+  async function zuordnungSpeichern(t: Termin) {
+    setLaeuft(true);
+    setMeldung(null);
+    const antwort = await sendeAnfrage(`/api/stundenplan/termine/${t.id}`, {
       methode: "PUT",
-      rumpf: { dozentId: dozentId || null },
+      rumpf: { kurseinheitId: fachWert(t) || null, dozentId: dozentWert(t) || null },
     });
+    setLaeuft(false);
     if (!antwort.ok) return melde("fehler", antwort.meldung);
+    melde("ok", "Zuordnung gespeichert.");
     router.refresh();
   }
 
@@ -179,9 +185,9 @@ export function StundenplanClient({
                 <span className="font-medium">{t.text}</span>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
-                    aria-label="Fach"
-                    value={t.kurseinheitId ?? ""}
-                    onChange={(e) => fachSetzen(t.id, e.target.value)}
+                    aria-label={`Fach für ${t.text}`}
+                    value={fachWert(t)}
+                    onChange={(e) => setFachEntwurf((v) => ({ ...v, [t.id]: e.target.value }))}
                     className={selectKlasse}
                   >
                     <option value="">— kein Fach —</option>
@@ -192,9 +198,9 @@ export function StundenplanClient({
                     ))}
                   </select>
                   <select
-                    aria-label="Dozent"
-                    value={t.dozentId ?? ""}
-                    onChange={(e) => dozentSetzen(t.id, e.target.value)}
+                    aria-label={`Dozent für ${t.text}`}
+                    value={dozentWert(t)}
+                    onChange={(e) => setDozentEntwurf((v) => ({ ...v, [t.id]: e.target.value }))}
                     className={selectKlasse}
                   >
                     <option value="">— kein Dozent —</option>
@@ -204,6 +210,11 @@ export function StundenplanClient({
                       </option>
                     ))}
                   </select>
+                  {zuordnungGeaendert(t) && (
+                    <button type="button" onClick={() => zuordnungSpeichern(t)} disabled={laeuft} className={knopfKlasse}>
+                      {laeuft ? "Moment …" : "Speichern"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => oeffneErfassen(t.id)}

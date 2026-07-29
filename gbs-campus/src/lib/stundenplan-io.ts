@@ -273,10 +273,30 @@ export async function bestaetigeEigeneAnwesenheit(
         data: { terminId, teilnahmeId: teilnahme.id, status, erfasstVonId: personId },
       });
     } catch (ausnahme) {
-      if (ausnahme instanceof Prisma.PrismaClientKnownRequestError && ausnahme.code === "P2002") {
-        return { fehler: "fremd_erfasst" };
+      if (!(ausnahme instanceof Prisma.PrismaClientKnownRequestError)) throw ausnahme;
+
+      // Termin oder Teilnahme wurde in der Lücke gelöscht (Fremdschlüssel greift
+      // ins Leere) — dann gibt es diesen Abend nicht mehr, sauberes 404 statt 500.
+      if (ausnahme.code === "P2003" || ausnahme.code === "P2025") return { fehler: "termin_fehlt" };
+
+      // Unique-Verletzung: in der Lücke ist doch eine Zeile entstanden. Stammt sie
+      // von der Verwaltung, bleibt sie gesperrt (fremd_erfasst). Ein paralleler
+      // Doppelklick des Teilnehmers selbst (zwei Tabs) darf dagegen durchgehen —
+      // sonst meldete er fälschlich „die Schule hat erfasst", obwohl es sein
+      // eigener Eintrag ist; sein Status wird dann noch gesetzt.
+      if (ausnahme.code === "P2002") {
+        const jetztVorhanden = await prisma.anwesenheit.findUnique({
+          where: { terminId_teilnahmeId: { terminId, teilnahmeId: teilnahme.id } },
+          select: { erfasstVonId: true },
+        });
+        if (!darfSelbstSetzen(jetztVorhanden, personId)) return { fehler: "fremd_erfasst" };
+        await prisma.anwesenheit.updateMany({
+          where: { terminId, teilnahmeId: teilnahme.id, erfasstVonId: personId },
+          data: { status },
+        });
+      } else {
+        throw ausnahme;
       }
-      throw ausnahme;
     }
   }
 

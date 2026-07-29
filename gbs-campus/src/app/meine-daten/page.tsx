@@ -40,18 +40,20 @@ export default async function MeineDatenSeite() {
   const hatVerwaltungsbereich = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
   const darfBearbeiten = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_EIGENE);
 
-  // Ein beantragter Adresswechsel ist sonst nach dem Neuladen unsichtbar: Die
-  // Seite zeigt wieder nur die alte Adresse, und der Antrag wirkt verloren.
-  const offenerEmailAntrag = await prisma.emailAenderung.findFirst({
-    where: { personId: person.id, benutztAm: null, laeuftAb: { gt: new Date() } },
-    orderBy: { erstelltAm: "desc" },
-    select: { neueEmail: true, laeuftAb: true },
-  });
-
-  // Vergangene Unterrichtsabende der eigenen Teilnahmen für die
-  // Selbstbestätigung. Nur laden/anzeigen, wenn der Teilnehmer überhaupt
-  // bearbeiten darf und es vergangene Abende gibt.
-  const anwesenheitGruppen = darfBearbeiten ? await ladeEigeneUnterrichtstermine(person.id, new Date()) : [];
+  // Beide Reads hängen nur an der Person, nicht aneinander — parallel laden.
+  // - Ein beantragter Adresswechsel ist sonst nach dem Neuladen unsichtbar: Die
+  //   Seite zeigt wieder nur die alte Adresse, und der Antrag wirkt verloren.
+  // - Die vergangenen Unterrichtsabende der eigenen Teilnahmen für die
+  //   Selbstbestätigung; nur laden/anzeigen, wenn der Teilnehmer überhaupt
+  //   bearbeiten darf und es vergangene Abende gibt.
+  const [offenerEmailAntrag, anwesenheitGruppen] = await Promise.all([
+    prisma.emailAenderung.findFirst({
+      where: { personId: person.id, benutztAm: null, laeuftAb: { gt: new Date() } },
+      orderBy: { erstelltAm: "desc" },
+      select: { neueEmail: true, laeuftAb: true },
+    }),
+    darfBearbeiten ? ladeEigeneUnterrichtstermine(person.id, new Date()) : Promise.resolve([]),
+  ]);
 
   const unveraenderlich = [
     { bezeichnung: "Name", wert: `${person.vorname} ${person.nachname}` },
