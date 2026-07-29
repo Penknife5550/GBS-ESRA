@@ -148,6 +148,9 @@ const RECHTE = [
   // Bewusst getrennt vom Beitragsstatus: die IBAN sieht nur, wer sie zum
   // Arbeiten braucht (Datenminimierung, DSGVO Art. 5 Abs. 1 lit. c).
   { code: "BANKVERBINDUNG_LESEN", bezeichnung: "Bankverbindung sehen", bereich: "FINANZEN" },
+  // Read-only ab Release 0.2: Anzahl gehaltener Abende je Dozent x Honorarsatz.
+  // Die eigentliche Abrechnung (Freigabe, Auszahlung) folgt in 0.3.
+  { code: "HONORAR_LESEN", bezeichnung: "Honorarübersicht der Dozenten sehen", bereich: "FINANZEN" },
   { code: "BENUTZER_VERWALTEN", bezeichnung: "Konten und Rollen verwalten", bereich: "SYSTEM" },
   { code: "SYSTEM_EINSTELLUNGEN", bezeichnung: "Systemeinstellungen aendern", bereich: "SYSTEM" },
   { code: "AUDIT_LESEN", bezeichnung: "Audit-Log lesen", bereich: "SYSTEM" },
@@ -197,6 +200,7 @@ const ROLLEN = [
       "MAIL_VERTEILER_SENDEN",
       "MAIL_VORLAGEN_BEARBEITEN",
       "FINANZ_DATEN_LESEN",
+      "HONORAR_LESEN",
       // Ohne dieses Recht sähe die Schulleitung die Protokollansicht nicht — und
       // genau die Vorgänge dort sind ihre: Meldungen aus dem Hilfeformular,
       // Adressänderungen an fremden Konten, fehlgeschlagene Anmeldeversuche.
@@ -220,6 +224,7 @@ const ROLLEN = [
       "ANMELDUNG_LESEN",
       "FINANZ_DATEN_LESEN",
       "BANKVERBINDUNG_LESEN",
+      "HONORAR_LESEN",
       "MAIL_VERTEILER_SENDEN",
       "PERSON_LESEN_EIGENE",
       "PERSON_BEARBEITEN_EIGENE",

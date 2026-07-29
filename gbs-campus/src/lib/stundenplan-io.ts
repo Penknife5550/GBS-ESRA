@@ -6,11 +6,12 @@
  * Quoten-Übersicht laden.
  */
 
-import { Anwesenheitsstatus } from "@prisma/client";
+import { Anwesenheitsstatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { protokolliere } from "@/lib/audit";
 import { zahl } from "@/lib/einstellungen";
-import { anwesenheitsquote, dienstagstermine } from "@/lib/stundenplan";
+import { anwesenheitsquote, dienstagstermine, terminText } from "@/lib/stundenplan";
+import { darfSelbstSetzen, istSelbstStatusErlaubt, terminVergangen, type SelbstStatus } from "@/lib/selbstbestaetigung";
 
 export type GenerierErgebnis = { fehler: "semester_fehlt" } | { angelegt: number; uebersprungen: number };
 
@@ -139,4 +140,154 @@ export async function ladeAnwesenheitsUebersicht(semesterId: string) {
       ),
     })),
   };
+}
+
+// =============================================================================
+// Selbstbestätigung — der Teilnehmer meldet sich selbst anwesend/nachgearbeitet
+// =============================================================================
+
+export type EigenerTermin = {
+  id: string;
+  text: string;
+  fach: string | null;
+  status: Anwesenheitsstatus | null;
+  /** Ob der Teilnehmer diesen Abend selbst (neu) bestätigen/ändern darf. Ist er
+   * false, hat die Verwaltung den Abend erfasst — für den Teilnehmer read-only. */
+  darfBestaetigen: boolean;
+};
+
+export type EigeneTerminGruppe = {
+  semesterBezeichnung: string;
+  teilnahmeId: string;
+  termine: EigenerTermin[];
+};
+
+/**
+ * Die vergangenen Unterrichtsabende der eigenen Teilnahmen mit dem jeweils
+ * erfassten Status — für die Selbstbestätigung in `/meine-daten`. Zukünftige
+ * Abende bleiben außen vor (man bestätigt keine Anwesenheit im Voraus).
+ * Gruppiert nach Semester (neuestes zuerst); Semester ohne vergangene Abende
+ * fallen weg.
+ */
+export async function ladeEigeneUnterrichtstermine(personId: string, jetzt: Date): Promise<EigeneTerminGruppe[]> {
+  const teilnahmen = await prisma.teilnahme.findMany({
+    where: { personId },
+    select: { id: true, semesterId: true, semester: { select: { bezeichnung: true, start: true } } },
+    orderBy: { semester: { start: "desc" } },
+  });
+  if (teilnahmen.length === 0) return [];
+
+  const semesterIds = teilnahmen.map((t) => t.semesterId);
+  const teilnahmeIds = teilnahmen.map((t) => t.id);
+
+  const termine = await prisma.unterrichtstermin.findMany({
+    where: { semesterId: { in: semesterIds }, beginn: { lte: jetzt } },
+    orderBy: { beginn: "asc" },
+    select: { id: true, semesterId: true, beginn: true, kurseinheit: { select: { titel: true } } },
+  });
+  if (termine.length === 0) return [];
+
+  // Anwesenheiten nur der eigenen Teilnahmen zu diesen Abenden. Da jeder Abend zu
+  // genau einem Semester gehört und die Person je Semester höchstens eine
+  // Teilnahme hat, ist die Zuordnung Termin → eigener Eintrag eindeutig.
+  const anwesenheiten = await prisma.anwesenheit.findMany({
+    where: { terminId: { in: termine.map((t) => t.id) }, teilnahmeId: { in: teilnahmeIds } },
+    select: { terminId: true, status: true, erfasstVonId: true },
+  });
+  const proTermin = new Map(anwesenheiten.map((a) => [a.terminId, a]));
+
+  const gruppen: EigeneTerminGruppe[] = teilnahmen.map((t) => ({
+    semesterBezeichnung: t.semester.bezeichnung,
+    teilnahmeId: t.id,
+    termine: termine
+      .filter((termin) => termin.semesterId === t.semesterId)
+      .map((termin) => {
+        const eintrag = proTermin.get(termin.id) ?? null;
+        return {
+          id: termin.id,
+          text: terminText(termin.beginn),
+          fach: termin.kurseinheit?.titel ?? null,
+          status: eintrag?.status ?? null,
+          darfBestaetigen: darfSelbstSetzen(eintrag, personId),
+        };
+      }),
+  }));
+
+  // Semester ohne vergangene Abende zeigen wir nicht.
+  return gruppen.filter((g) => g.termine.length > 0);
+}
+
+export type SelbstBestaetigErgebnis =
+  | { fehler: "status_ungueltig" | "termin_fehlt" | "nicht_eingeschrieben" | "zukunft" | "fremd_erfasst" }
+  | { ok: true; status: SelbstStatus };
+
+/**
+ * Selbstbestätigung eines einzelnen Abends durch den Teilnehmer. Prüft die drei
+ * Regeln aus `selbstbestaetigung.ts` (erlaubter Status, Abend liegt in der
+ * Vergangenheit, kein fremder Eintrag) und setzt die Anwesenheit per Upsert —
+ * mit `erfasstVonId = personId`, damit später erkennbar bleibt, dass der Eintrag
+ * vom Teilnehmer stammt.
+ */
+export async function bestaetigeEigeneAnwesenheit(
+  personId: string,
+  terminId: string,
+  status: string,
+  headers: Headers,
+): Promise<SelbstBestaetigErgebnis> {
+  if (!istSelbstStatusErlaubt(status)) return { fehler: "status_ungueltig" };
+
+  const termin = await prisma.unterrichtstermin.findUnique({
+    where: { id: terminId },
+    select: { id: true, semesterId: true, beginn: true },
+  });
+  if (!termin) return { fehler: "termin_fehlt" };
+  if (!terminVergangen(termin.beginn, new Date())) return { fehler: "zukunft" };
+
+  const teilnahme = await prisma.teilnahme.findUnique({
+    where: { personId_semesterId: { personId, semesterId: termin.semesterId } },
+    select: { id: true },
+  });
+  if (!teilnahme) return { fehler: "nicht_eingeschrieben" };
+
+  const vorhanden = await prisma.anwesenheit.findUnique({
+    where: { terminId_teilnahmeId: { terminId, teilnahmeId: teilnahme.id } },
+    select: { erfasstVonId: true },
+  });
+  if (!darfSelbstSetzen(vorhanden, personId)) return { fehler: "fremd_erfasst" };
+
+  // Bedingter Write statt eines Upserts: Der Update-Zweig darf NUR die eigene
+  // Zeile treffen (`erfasstVonId = personId`). Sonst gäbe es zwischen der Prüfung
+  // oben und dem Schreiben ein Zeitfenster, in dem die Verwaltung parallel einen
+  // Eintrag setzt — ein bedingungsloses Upsert würde ihn überschreiben und dem
+  // Teilnehmer zuschreiben und so die Schreibsperre (Regel 3) unterlaufen.
+  // Trifft der Update nichts, wird eingefügt; entstand in der Lücke doch ein
+  // fremder Eintrag, läuft der Insert in die Unique-Verletzung (P2002) und wird
+  // als fremd_erfasst gemeldet — der fremde Eintrag bleibt unangetastet.
+  const aktualisiert = await prisma.anwesenheit.updateMany({
+    where: { terminId, teilnahmeId: teilnahme.id, erfasstVonId: personId },
+    data: { status },
+  });
+  if (aktualisiert.count === 0) {
+    try {
+      await prisma.anwesenheit.create({
+        data: { terminId, teilnahmeId: teilnahme.id, status, erfasstVonId: personId },
+      });
+    } catch (ausnahme) {
+      if (ausnahme instanceof Prisma.PrismaClientKnownRequestError && ausnahme.code === "P2002") {
+        return { fehler: "fremd_erfasst" };
+      }
+      throw ausnahme;
+    }
+  }
+
+  await protokolliere({
+    aktion: "ANWESENHEIT_SELBST_BESTAETIGT",
+    objektTyp: "Unterrichtstermin",
+    objektId: terminId,
+    akteurId: personId,
+    nachher: { status },
+    headers,
+  });
+
+  return { ok: true, status };
 }

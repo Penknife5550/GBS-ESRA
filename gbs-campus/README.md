@@ -110,8 +110,8 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 227 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag), ohne Datenbank |
-| `bash scripts/durchstich.sh` | 162 Prüfungen gegen das gebaute Image und eine frische Datenbank |
+| `npm run pruefen` | 327 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar, Anonymisierung), ohne Datenbank |
+| `bash scripts/durchstich.sh` | 238 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
 > Die Typprüfung und der Build hängen auf diesem Rechner regelmäßig, weil Synology Drive und iCloud
@@ -425,6 +425,39 @@ Eintrag von `X-Forwarded-For`. Der linke Eintrag ist frei wählbar: Traefik hän
 Gegenstelle hinten an einen mitgeschickten Header an. Wer links liest, protokolliert im Consent-Log
 eine IP, die der Absender selbst bestimmt hat, und drosselt beim Rate-Limit den eigenen Proxy statt
 den Angreifer.
+
+### Selbstbestätigung der Anwesenheit (Release 0.2)
+
+In `/meine-daten` → „Meine Anwesenheit" bestätigt ein Teilnehmer für seine **vergangenen**
+Unterrichtsabende selbst, ob er **anwesend** war oder den Stoff **nachgearbeitet** hat — beides zählt
+laut Schulordnung als Teilnahme und fließt direkt in die 80-%-Quote. Kein neues Datenmodell: der
+Eintrag landet in derselben Tabelle `anwesenheiten` wie die Erfassung durch die Verwaltung.
+
+Drei Regeln stehen DB-frei in [`src/lib/selbstbestaetigung.ts`](src/lib/selbstbestaetigung.ts), damit
+[`scripts/pruefe-selbstbestaetigung.ts`](scripts/pruefe-selbstbestaetigung.ts) sie ohne Postgres
+gegenprüfen kann: (1) nur `ANWESEND`/`NACHGEARBEITET` — ob eine Abwesenheit entschuldigt ist,
+entscheidet die Schule, „gefehlt" meldet niemand über sich selbst; (2) nur Abende, die schon
+stattgefunden haben; (3) **der Teilnehmer überschreibt nur seinen eigenen Eintrag** — wird
+`erfasstVonId` auf die eigene Id gesetzt, und ein von der Verwaltung erfasster Abend (fremde
+`erfasstVonId`) bleibt für ihn schreibgeschützt. Das verhindert, dass jemand ein administratives
+„gefehlt" mit einem selbst gesetzten „anwesend" übertüncht. Der Durchstich weist genau diesen Fall
+nach (409 statt Überschreiben).
+
+### Dozentenhonorar (Release 0.2)
+
+Die Rolle **Dozent** ist scharfgeschaltet: Jeder Unterrichtsabend lässt sich im Stundenplan einem
+Dozenten zuordnen (neues Feld `Unterrichtstermin.dozentId → Person`, `onDelete: SetNull` — ein
+gelöschtes Dozentenkonto reißt den Abend nicht mit). Die Zuordnung läuft über die bestehende
+Termin-PUT und ist damit an `SEMESTER_VERWALTEN` gebunden; serverseitig wird geprüft, dass die Person
+die Rolle Dozent trägt (`istDozent`), sonst 400. Die read-only Übersicht `/verwaltung/honorar`
+(Recht `HONORAR_LESEN`, Bereich Finanzen) rechnet je Dozent **Anzahl gehaltener Abende × Honorarsatz**;
+der Satz ist eine Einstellung (`HONORAR_SATZ_PRO_ABEND`, ganzzahlig, Bereich Finanzen), kein Wert im
+Code. Die eigentliche **Abrechnung** — Freigabe und Auszahlung — ist bewusst auf Release 0.3
+verschoben; 0.2 liefert nur die Übersicht.
+
+Die Migration ist wie alle hier **von Hand** geschrieben und rein additiv (`ADD COLUMN` / `CREATE INDEX`
+/ `ADD CONSTRAINT`, keine `DROP`s) — `prisma migrate dev` würde sonst den partiellen Unique-Index des
+laufenden Semesters und die Append-only-Trigger als DROP mit aufnehmen.
 
 ---
 

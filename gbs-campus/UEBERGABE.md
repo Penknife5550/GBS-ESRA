@@ -44,16 +44,17 @@ siehe unten) — und ohne `prisma generate` prüft es ohnehin keine Prisma-Feldn
 docker run --rm gbs-campus-builder:local npm run pruefen
 ```
 
-Soll: **179 Prüfungen** (43 Formular + 54 Semester + 46 Selbstpflege + 36 Passwort). Jedes Skript
-meldet am Ende selbst, ob wirklich alle gelaufen sind.
+Soll: **327 Prüfungen** über elf Fachlogik-Skripte (Formular, Semester, Selbstpflege, Passwort,
+Auskunft, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar, Anonymisierung). Jedes Skript
+meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft eine eigene Soll-Zahl.
 
 ```bash
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1 && bash scripts/durchstich.sh
 ```
 
-Soll: **150 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
+Soll: **238 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
 gbs-campus-db-dev`) und legt sich darin eine eigene Datenbank `gbs_durchstich` an. Auch er zählt jetzt
-gegen eine Soll-Zahl (`SOLL=150` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
+gegen eine Soll-Zahl (`SOLL=238` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
 
 Drei Prüfungen sind maschinenabhängig und können auf einer belasteten Maschine ausschlagen: die
 Laufzeitgrenzen im Durchstich (650 ms / 300 ms Abstand), der Faktor 2 bei der Laufzeitangleichung und
@@ -474,20 +475,25 @@ Person und die Anmelde-Antworten werden überschrieben, transiente Token gelösc
 `ANONYMISIERT` gesetzt. Das Audit protokolliert das **ohne** die alten Werte. Logik in
 `src/lib/anonymisierung.ts` (DB-frei) und `src/lib/anonymisierung-io.ts`.
 
-Verifiziert: **296 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
-Kursraster, 14 Anonymisierung) und **209 Durchstich-Prüfungen** gegen das gebaute Image (inkl.
-Worker-Einzellauf und Art.-17-Scrub) — alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
+Verifiziert: **327 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
+Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **238 Durchstich-Prüfungen** gegen
+das gebaute Image (inkl. Worker-Einzellauf, Art.-17-Scrub, Selbstbestätigung und Dozentenhonorar) —
+alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
-**Als Nächstes — der letzte offene 0.2-Punkt (#4), beide Teile:**
+**#4 ist erledigt (29.07.) — beide Teile:**
 
-- **Selbstbestätigung:** Der Teilnehmer bestätigt in `/meine-daten` selbst die Anwesenheit bzw.
-  Nacharbeit je Unterrichtstermin (Status ANWESEND oder NACHGEARBEITET, nur die eigene Teilnahme,
-  nur vergangene Termine). Baut auf den Stundenplan-Modellen (`Unterrichtstermin`/`Anwesenheit`) auf
-  — keine Migration nötig.
-- **Dozentenhonorar:** DOZENT-Rolle scharfschalten (im Seed vorhanden, nur noch nicht nutzbar);
-  Dozent je Unterrichtstermin zuordnen (neues Feld `dozentId` → Person, `SetNull`, Handmigration im
-  Prisma-Stil); Honorarsatz je Abend als Einstellung (ganzzahlig, Bereich FINANZEN); read-only
-  Honorar-Übersicht je Dozent (Anzahl Abende × Satz). Abrechnung/Einzug bleibt Release 0.3.
+- **Selbstbestätigung:** Der Teilnehmer bestätigt in `/meine-daten` → „Meine Anwesenheit" selbst die
+  Anwesenheit bzw. Nacharbeit je Unterrichtstermin (nur ANWESEND/NACHGEARBEITET, nur die eigene
+  Teilnahme, nur vergangene Termine). Baut ohne Migration auf `Unterrichtstermin`/`Anwesenheit` auf;
+  ein von der Verwaltung erfasster Abend bleibt schreibgeschützt (Regel über `erfasstVonId`, DB-frei in
+  [`src/lib/selbstbestaetigung.ts`](src/lib/selbstbestaetigung.ts)).
+- **Dozentenhonorar:** DOZENT-Rolle scharfgeschaltet; Dozent je Unterrichtstermin zuordenbar (neues
+  Feld `dozentId` → Person, `SetNull`, additive Handmigration `20260729150000_dozent_honorar`);
+  Honorarsatz je Abend als Einstellung (`HONORAR_SATZ_PRO_ABEND`, ganzzahlig, Bereich FINANZEN);
+  read-only Honorar-Übersicht `/verwaltung/honorar` (Recht `HONORAR_LESEN`, Anzahl Abende × Satz).
+  Abrechnung/Einzug bleibt Release 0.3.
+
+Damit ist Release 0.2 inhaltlich komplett. Was bleibt, ist Scharfschalten vor dem Livegang.
 
 **Vor dem Livegang:** Laientest durch eine projektfremde Person, Restore-Drill, Break-Glass-Tresor
 befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. Das **erste

@@ -333,6 +333,24 @@ export const EINSTELLUNGEN = {
     einheit: "€",
     sortierung: 40,
   },
+  // Grundlage der Honorar-Uebersicht (Release 0.2): Ein Dozent erhaelt je
+  // gehaltenem Unterrichtsabend diesen Satz; die Uebersicht zeigt Anzahl Abende x
+  // Satz. Bewusst ein Regler und keine Konstante im Code — der Satz aendert sich,
+  // und die Schule soll ihn ohne Deploy anpassen koennen. Ganzzahlig in Euro; die
+  // eigentliche Abrechnung (Freigabe, Auszahlung) folgt in 0.3.
+  HONORAR_SATZ_PRO_ABEND: {
+    bezeichnung: "Dozentenhonorar je Abend",
+    beschreibung:
+      "Honorarsatz, den ein Dozent für einen gehaltenen Unterrichtsabend erhält. Grundlage der " +
+      "read-only Honorar-Übersicht (Anzahl gehaltener Abende × Satz). Auszahlung ab Release 0.3.",
+    bereich: "FINANZEN",
+    typ: EinstellungTyp.ZAHL,
+    standard: 60,
+    minimum: 0,
+    maximum: 100000,
+    einheit: "€",
+    sortierung: 10,
+  },
 } as const satisfies Record<string, ZahlDefinition>;
 
 export type EinstellungSchluessel = keyof typeof EINSTELLUNGEN;

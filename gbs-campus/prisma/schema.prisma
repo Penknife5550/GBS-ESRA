@@ -208,6 +208,9 @@ model Person {
   datenauskuenfte    Datenauskunft[]
   emails             EmailVersand[]
   auditEintraege     AuditLog[]      @relation("AuditAkteur")
+  /// Unterrichtsabende, die diese Person als Dozent haelt (Grundlage der
+  /// Honorar-Uebersicht, Release 0.2).
+  dozentTermine      Unterrichtstermin[] @relation("TerminDozent")
 
   @@index([statusCode])
   @@index([nachname, vorname])
@@ -402,6 +405,13 @@ model Unterrichtstermin {
   kurseinheitId String?
   kurseinheit   Kurseinheit? @relation(fields: [kurseinheitId], references: [id], onDelete: SetNull)
 
+  /// Wer den Abend haelt (optional — der Plan darf vor der Dozentenzuordnung
+  /// stehen). Grundlage der Honorar-Uebersicht (Anzahl Abende x Satz, Release
+  /// 0.2). SetNull: ein geloeschtes Dozentenkonto reisst den Termin nicht mit —
+  /// der Abend bleibt, nur die Zuordnung faellt weg.
+  dozentId String?
+  dozent   Person? @relation("TerminDozent", fields: [dozentId], references: [id], onDelete: SetNull)
+
   beginn      DateTime // Datum und Uhrzeit des Abends
   ende        DateTime?
   thema       String?
@@ -412,6 +422,7 @@ model Unterrichtstermin {
   anwesenheiten Anwesenheit[]
 
   @@index([semesterId, beginn])
+  @@index([dozentId])
   @@map("unterrichtstermine")
 }
 

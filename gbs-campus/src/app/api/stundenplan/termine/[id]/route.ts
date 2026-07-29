@@ -5,13 +5,15 @@ import { ladeMitRecht } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
 import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
+import { istDozent } from "@/lib/honorar-io";
 
 const putSchema = z.object({
   kurseinheitId: z.string().uuid().nullable().optional(),
+  dozentId: z.string().uuid().nullable().optional(),
   thema: z.string().max(200).nullable().optional(),
 });
 
-/** Ordnet einem Termin ein Fach (Kurseinheit) und/oder ein Thema zu. */
+/** Ordnet einem Termin ein Fach (Kurseinheit), einen Dozenten und/oder ein Thema zu. */
 export async function PUT(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
   const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
   if (!benutzer) return keineBerechtigung();
@@ -20,7 +22,7 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
   const geprueft = putSchema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
-  const daten: { kurseinheitId?: string | null; thema?: string | null } = {};
+  const daten: { kurseinheitId?: string | null; dozentId?: string | null; thema?: string | null } = {};
   if (geprueft.data.kurseinheitId !== undefined) {
     // Nicht-null muss existieren, sonst gäbe der Fremdschlüssel einen 500.
     if (geprueft.data.kurseinheitId !== null) {
@@ -31,6 +33,14 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
       if (!kurseinheit) return fehler("Diese Kurseinheit gibt es nicht.", 400);
     }
     daten.kurseinheitId = geprueft.data.kurseinheitId;
+  }
+  if (geprueft.data.dozentId !== undefined) {
+    // Nur eine Person mit der Rolle Dozent lässt sich zuordnen — sonst wäre die
+    // Honorar-Übersicht eine Zuordnung an beliebige Konten.
+    if (geprueft.data.dozentId !== null && !(await istDozent(geprueft.data.dozentId))) {
+      return fehler("Diese Person ist kein Dozent.", 400);
+    }
+    daten.dozentId = geprueft.data.dozentId;
   }
   if (geprueft.data.thema !== undefined) {
     daten.thema = geprueft.data.thema?.trim() || null;

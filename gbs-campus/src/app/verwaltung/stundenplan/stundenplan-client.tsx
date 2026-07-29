@@ -9,10 +9,12 @@ type Termin = {
   text: string;
   kurseinheitId: string | null;
   kurseinheitTitel: string | null;
+  dozentId: string | null;
   anwesenheitAnzahl: number;
 };
 type Teilnehmer = { teilnahmeId: string; name: string };
 type Kurseinheit = { id: string; label: string };
+type Dozent = { id: string; name: string };
 
 const STATUS_OPTIONEN = [
   { wert: "", label: "— nicht erfasst —" },
@@ -33,6 +35,7 @@ export function StundenplanClient({
   termine,
   teilnehmer,
   kurseinheiten,
+  dozenten,
   anwesenheit,
 }: {
   semesters: { id: string; bezeichnung: string }[];
@@ -40,6 +43,7 @@ export function StundenplanClient({
   termine: Termin[];
   teilnehmer: Teilnehmer[];
   kurseinheiten: Kurseinheit[];
+  dozenten: Dozent[];
   anwesenheit: Record<string, Record<string, string>>;
 }) {
   const router = useRouter();
@@ -74,6 +78,15 @@ export function StundenplanClient({
     const antwort = await sendeAnfrage(`/api/stundenplan/termine/${terminId}`, {
       methode: "PUT",
       rumpf: { kurseinheitId: kurseinheitId || null },
+    });
+    if (!antwort.ok) return melde("fehler", antwort.meldung);
+    router.refresh();
+  }
+
+  async function dozentSetzen(terminId: string, dozentId: string) {
+    const antwort = await sendeAnfrage(`/api/stundenplan/termine/${terminId}`, {
+      methode: "PUT",
+      rumpf: { dozentId: dozentId || null },
     });
     if (!antwort.ok) return melde("fehler", antwort.meldung);
     router.refresh();
@@ -175,6 +188,19 @@ export function StundenplanClient({
                     {kurseinheiten.map((k) => (
                       <option key={k.id} value={k.id}>
                         {k.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Dozent"
+                    value={t.dozentId ?? ""}
+                    onChange={(e) => dozentSetzen(t.id, e.target.value)}
+                    className={selectKlasse}
+                  >
+                    <option value="">— kein Dozent —</option>
+                    {dozenten.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
                       </option>
                     ))}
                   </select>

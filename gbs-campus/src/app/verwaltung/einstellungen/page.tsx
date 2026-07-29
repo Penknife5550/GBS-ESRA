@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const BEREICH_NAME: Record<string, string> = {
   AUTH: "Anmeldung am Portal",
   ANMELDUNG: "Anmeldeformular",
+  FINANZEN: "Finanzen",
 };
 
 export default async function EinstellungenSeite() {

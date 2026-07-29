@@ -63,9 +63,15 @@ export default async function VerwaltungSeite() {
     },
     {
       titel: "Stundenplan",
-      text: "Unterrichtsabende je Semester, Fachzuordnung und Anwesenheit mit Quote.",
+      text: "Unterrichtsabende je Semester, Fach- und Dozentenzuordnung, Anwesenheit mit Quote.",
       pfad: "/verwaltung/stundenplan",
       sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
+    },
+    {
+      titel: "Dozentenhonorar",
+      text: "Gehaltene Abende je Dozent × Honorarsatz — als Übersicht. Abrechnung folgt später.",
+      pfad: "/verwaltung/honorar",
+      sichtbar: hatRecht(benutzer, RECHT.HONORAR_LESEN),
     },
     {
       titel: "Formulare",

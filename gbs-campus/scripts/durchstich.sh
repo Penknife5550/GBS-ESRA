@@ -976,12 +976,125 @@ pruefe "das Audit-Log enthaelt KEINE alten personenbezogenen Daten" \
 ANON2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${KLAUS_ID}/anonymisieren" -H "Cookie: ${KEKS}")
 pruefe "eine bereits anonymisierte Person wird abgewiesen (409)" "$(gleich "$ANON2" "409")" "$ANON2"
 
+echo
+echo "=== 28. Selbstbestaetigung der eigenen Anwesenheit ==="
+# Petras urspruengliche Sitzung (KEKS2) wurde entwertet, als die Verwaltung in
+# Abschnitt 13 ihre E-Mail-Adresse aenderte: `/api/personen/[id]/email` setzt
+# `passwortGeaendertAm`, und `ladeAngemeldeten` verwirft jede aeltere Sitzung —
+# ein Adresswechsel ist ein Zugangswechsel. Fuer die Selbstbestaetigung meldet
+# sie sich deshalb frisch an (neuer Anmeldelink, wie im echten Ablauf).
+SBTOKEN=$(uuidgen | tr 'A-Z' 'a-z'); SBHASH=$(printf %s "$SBTOKEN" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "insert into magic_links (id,\"personId\",\"tokenHash\",\"laeuftAb\",\"erstelltAm\") values (gen_random_uuid(),'${TEILNEHMER_ID}','${SBHASH}',now()+interval '1 hour',now());" > /dev/null
+curl -s -D /tmp/gbs-kopf-sb.txt -o /dev/null -X POST "${BASIS}/api/auth/token" -H 'Content-Type: application/json' -d "{\"token\":\"${SBTOKEN}\"}"
+KEKS2=$(grep -i '^set-cookie:' /tmp/gbs-kopf-sb.txt | head -1 | sed 's/^[^:]*: //' | cut -d';' -f1)
+pruefe "Teilnehmer meldet sich nach dem Adresswechsel neu an" "$([ -n "$KEKS2" ] && echo 1 || echo 0)"
+# Die generierten 2099-H-Abende liegen am/nach dem 15.09.2026 und sind heute noch
+# Zukunft — fuer die Selbstbestaetigung braucht es einen Abend in der
+# Vergangenheit, deshalb hier per SQL angelegt.
+SB_PAST=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '2 days',90,now()) returning id;")
+# Der Teilnehmer (petra, KEKS2) bestaetigt sich selbst als anwesend.
+SB1=$(curl -s -X POST "${BASIS}/api/meine-daten/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_PAST}\",\"status\":\"ANWESEND\"}")
+pruefe "Teilnehmer bestaetigt sich selbst als anwesend" "$(echo "$SB1" | grep -qc '"status":"ANWESEND"' && echo 1 || echo 0)" "$SB1"
+pruefe "der eigene Eintrag traegt den Teilnehmer als Erfasser" \
+  "$(gleich "$($PSQL "select \"erfasstVonId\" from anwesenheiten where \"terminId\"='${SB_PAST}';")" "${TEILNEHMER_ID}")"
+# Den eigenen Eintrag darf er aendern (anwesend -> nachgearbeitet).
+curl -s -o /dev/null -X POST "${BASIS}/api/meine-daten/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_PAST}\",\"status\":\"NACHGEARBEITET\"}"
+pruefe "der eigene Eintrag laesst sich auf nachgearbeitet aendern" \
+  "$(gleich "$($PSQL "select status from anwesenheiten where \"terminId\"='${SB_PAST}';")" "NACHGEARBEITET")"
+# Entschuldigt/gefehlt sind fuer die Selbstbestaetigung nicht erlaubt (400).
+SB_ENT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/meine-daten/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_PAST}\",\"status\":\"ENTSCHULDIGT\"}")
+pruefe "entschuldigt/gefehlt wird als Selbstbestaetigung abgewiesen (400)" "$(gleich "$SB_ENT" "400")" "$SB_ENT"
+# Ein zukuenftiger Abend laesst sich nicht im Voraus bestaetigen (409).
+SB_FUT=$($PSQL "select id from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}' and beginn > now() order by beginn asc limit 1;")
+SB_FUTC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/meine-daten/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_FUT}\",\"status\":\"ANWESEND\"}")
+pruefe "ein zukuenftiger Abend wird abgewiesen (409)" "$(gleich "$SB_FUTC" "409")" "$SB_FUTC"
+# Was die Schule erfasst hat, darf der Teilnehmer nicht ueberschreiben.
+SB_ADMIN=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '3 days',91,now()) returning id;")
+curl -s -o /dev/null -X POST "${BASIS}/api/stundenplan/anwesenheit" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_ADMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"GEFEHLT\"}]}"
+SB_UEBER=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/meine-daten/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_ADMIN}\",\"status\":\"ANWESEND\"}")
+pruefe "ein von der Schule erfasster Abend ist fuer den Teilnehmer gesperrt (409)" "$(gleich "$SB_UEBER" "409")" "$SB_UEBER"
+pruefe "der von der Schule erfasste Status bleibt GEFEHLT" \
+  "$(gleich "$($PSQL "select status from anwesenheiten where \"terminId\"='${SB_ADMIN}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "GEFEHLT")"
+# Ein Abend eines Semesters, in dem der Teilnehmer nicht eingeschrieben ist (404).
+FREMD_SEM=$($PSQL "select id from semester where code='2027-H';")
+SB_FREMD_T=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"erstelltAm\") values (gen_random_uuid(),'${FREMD_SEM}',now()-interval '1 day',0,now()) returning id;")
+SB_FREMD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/meine-daten/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_FREMD_T}\",\"status\":\"ANWESEND\"}")
+pruefe "ein Abend aus einem fremden Semester wird abgewiesen (404)" "$(gleich "$SB_FREMD" "404")" "$SB_FREMD"
+# Ohne Anmeldung keine Selbstbestaetigung (403).
+SB_ANON=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/meine-daten/anwesenheit" -H 'Content-Type: application/json' -d "{\"terminId\":\"${SB_PAST}\",\"status\":\"ANWESEND\"}")
+pruefe "ohne Anmeldung keine Selbstbestaetigung (403)" "$(gleich "$SB_ANON" "403")" "$SB_ANON"
+# Die Selbstbestaetigung ist protokolliert.
+pruefe "die Selbstbestaetigung ist protokolliert (ANWESENHEIT_SELBST_BESTAETIGT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='ANWESENHEIT_SELBST_BESTAETIGT' and \"objektId\"='${SB_PAST}';")" "t")"
+# Die eigene Akte zeigt jetzt den Abschnitt „Meine Anwesenheit".
+SB_SEITE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")
+pruefe "die eigene Akte zeigt den Abschnitt Meine Anwesenheit" "$(enthaelt "$SB_SEITE" "Meine Anwesenheit")"
+
+echo
+echo "=== 29. Dozentenhonorar ==="
+pruefe "Recht HONORAR_LESEN existiert" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='HONORAR_LESEN';")" "1")"
+pruefe "Schulleitung und Verwaltung haben HONORAR_LESEN" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rechtCode\"='HONORAR_LESEN';")" "2")"
+pruefe "Teilnehmer hat HONORAR_LESEN NICHT" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rechtCode\"='HONORAR_LESEN' and \"rolleCode\"='TEILNEHMER';")" "0")"
+pruefe "die Rolle Dozent ist ab Release 0.2 scharfgeschaltet" \
+  "$(gleich "$($PSQL "select \"aktivAbRelease\" from rollen where code='DOZENT';")" "0.2")"
+pruefe "Einstellung HONORAR_SATZ_PRO_ABEND ist geseedet (60)" \
+  "$(gleich "$($PSQL "select wert from einstellungen where schluessel='HONORAR_SATZ_PRO_ABEND';")" "60")"
+pruefe "Einstellung HONORAR_SATZ_PRO_ABEND liegt im Bereich FINANZEN" \
+  "$(gleich "$($PSQL "select bereich from einstellungen where schluessel='HONORAR_SATZ_PRO_ABEND';")" "FINANZEN")"
+pruefe "Spalte unterrichtstermine.dozentId existiert" \
+  "$(gleich "$($PSQL "select data_type from information_schema.columns where table_name='unterrichtstermine' and column_name='dozentId';")" "text")"
+pruefe "der Dozent-Fremdschluessel loescht nicht mit (SET NULL)" \
+  "$(gleich "$($PSQL "select confdeltype from pg_constraint where conname='unterrichtstermine_dozentId_fkey';")" "n")"
+pruefe "die Dozent-Honorar-Migration ist als angewendet eingetragen" \
+  "$(gleich "$($PSQL "select count(*) from _prisma_migrations where migration_name='20260729150000_dozent_honorar' and finished_at is not null;")" "1")"
+
+# Einen Dozenten anlegen und ihm die Rolle geben.
+DOZENT_ID=$($PSQL "insert into personen (id,vorname,nachname,email,\"statusCode\",\"erstelltAm\",\"aktualisiertAm\") values (gen_random_uuid(),'Dora','Dozento','dozento@beispiel.de','AKTIV',now(),now()) returning id;")
+$PSQL "insert into person_rolle (\"personId\",\"rolleCode\") values ('${DOZENT_ID}','DOZENT');" > /dev/null
+# Honorarsatz auf 95 EUR setzen (direkt — die Einstellungs-API pruefen andere Tests).
+$PSQL "update einstellungen set wert='95' where schluessel='HONORAR_SATZ_PRO_ABEND';" > /dev/null
+
+# Dem Dozenten Abende zuordnen (ueber die Termin-PUT der Schulleitung): zwei
+# vergangene und einen zukuenftigen. Der zukuenftige darf im Honorar NICHT als
+# gehalten zaehlen (nur bereits stattgefundene Abende ergeben Honorar).
+DT1=$($PSQL "select id from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}' and beginn <= now() order by beginn asc limit 1;")
+DT2=$($PSQL "select id from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}' and beginn <= now() order by beginn asc limit 1 offset 1;")
+DT_FUT=$($PSQL "select id from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}' and beginn > now() order by beginn asc limit 1;")
+for T in "$DT1" "$DT2" "$DT_FUT"; do
+  curl -s -o /dev/null -X PUT "${BASIS}/api/stundenplan/termine/${T}" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"dozentId\":\"${DOZENT_ID}\"}"
+done
+pruefe "drei Abende sind dem Dozenten zugeordnet (zwei vergangen, einer kuenftig)" \
+  "$(gleich "$($PSQL "select count(*) from unterrichtstermine where \"dozentId\"='${DOZENT_ID}';")" "3")"
+
+# Eine Person ohne Dozentenrolle laesst sich nicht zuordnen (400).
+BAD_DOZ=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/stundenplan/termine/${DT1}" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"dozentId\":\"${TEILNEHMER_ID}\"}")
+pruefe "eine Person ohne Dozentenrolle wird abgewiesen (400)" "$(gleich "$BAD_DOZ" "400")" "$BAD_DOZ"
+# Ein Teilnehmer darf keinen Dozenten zuordnen (403).
+DOZ_VERBOTEN=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/stundenplan/termine/${DT1}" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"dozentId\":\"${DOZENT_ID}\"}")
+pruefe "ein Teilnehmer darf keinen Dozenten zuordnen (403)" "$(gleich "$DOZ_VERBOTEN" "403")" "$DOZ_VERBOTEN"
+
+# Die Honorar-Uebersicht: Schulleitung 200, Teilnehmer wird weggeleitet (307).
+HON_S=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar?semester=${SEMESTER_ID}" -H "Cookie: ${KEKS}")
+pruefe "die Schulleitung sieht die Honorar-Uebersicht (200)" "$(gleich "$HON_S" "200")" "$HON_S"
+HON_T=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar" -H "Cookie: ${KEKS2}")
+pruefe "ein Teilnehmer wird von der Honorar-Uebersicht weggeleitet (307)" "$(gleich "$HON_T" "307")" "$HON_T"
+
+# Inhalt: der Dozent und der Betrag der GEHALTENEN Abende (2 x 95 = 190 EUR)
+# stehen drin — der dritte, zukuenftige Abend zaehlt NICHT mit (sonst 3 x 95 = 285).
+HON=$(curl -s "${BASIS}/verwaltung/honorar?semester=${SEMESTER_ID}" -H "Cookie: ${KEKS}")
+pruefe "der Dozent steht in der Honorar-Uebersicht" "$(enthaelt "$HON" "Dozento")" "$HON"
+pruefe "nur die gehaltenen Abende zaehlen (2 x 95 = 190 €)" "$(enthaelt "$HON" "190 €")"
+pruefe "ein kuenftig zugeordneter Abend zaehlt NICHT als gehalten (kein 285 €)" "$(fehlt_in "$HON" "285 €")"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 208 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=209
+# 237 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=238
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

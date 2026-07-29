@@ -5,6 +5,7 @@ import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { terminText } from "@/lib/stundenplan";
 import { ladeAnwesenheitsUebersicht } from "@/lib/stundenplan-io";
+import { ladeDozenten } from "@/lib/honorar-io";
 import { StundenplanClient } from "./stundenplan-client";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export default async function StundenplanSeite({
   const gewaehltId = sp.semester ?? laufend?.id ?? semesters[0].id;
   const semester = semesters.find((s) => s.id === gewaehltId) ?? semesters[0];
 
-  const [termineRoh, teilnehmerRoh, kurseinheitenRoh, anwesenheitRoh, uebersicht] = await Promise.all([
+  const [termineRoh, teilnehmerRoh, kurseinheitenRoh, dozenten, anwesenheitRoh, uebersicht] = await Promise.all([
     prisma.unterrichtstermin.findMany({
       where: { semesterId: semester.id },
       orderBy: { beginn: "asc" },
@@ -47,6 +48,7 @@ export default async function StundenplanSeite({
         beginn: true,
         kurseinheitId: true,
         kurseinheit: { select: { titel: true } },
+        dozentId: true,
         _count: { select: { anwesenheiten: true } },
       },
     }),
@@ -65,6 +67,7 @@ export default async function StundenplanSeite({
       orderBy: { sortierung: "asc" },
       select: { id: true, titel: true, fach: { select: { bezeichnung: true } } },
     }),
+    ladeDozenten(),
     prisma.anwesenheit.findMany({
       where: { termin: { semesterId: semester.id } },
       select: { terminId: true, teilnahmeId: true, status: true },
@@ -77,6 +80,7 @@ export default async function StundenplanSeite({
     text: terminText(t.beginn),
     kurseinheitId: t.kurseinheitId,
     kurseinheitTitel: t.kurseinheit?.titel ?? null,
+    dozentId: t.dozentId,
     anwesenheitAnzahl: t._count.anwesenheiten,
   }));
   const teilnehmer = teilnehmerRoh.map((t) => ({
@@ -106,6 +110,7 @@ export default async function StundenplanSeite({
         termine={termine}
         teilnehmer={teilnehmer}
         kurseinheiten={kurseinheiten}
+        dozenten={dozenten}
         anwesenheit={anwesenheit}
       />
 
