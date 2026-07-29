@@ -52,9 +52,9 @@ meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft eine eigene So
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1 && bash scripts/durchstich.sh
 ```
 
-Soll: **238 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
+Soll: **241 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
 gbs-campus-db-dev`) und legt sich darin eine eigene Datenbank `gbs_durchstich` an. Auch er zählt jetzt
-gegen eine Soll-Zahl (`SOLL=238` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
+gegen eine Soll-Zahl (`SOLL=241` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
 
 Drei Prüfungen sind maschinenabhängig und können auf einer belasteten Maschine ausschlagen: die
 Laufzeitgrenzen im Durchstich (650 ms / 300 ms Abstand), der Faktor 2 bei der Laufzeitangleichung und
@@ -476,7 +476,7 @@ Person und die Anmelde-Antworten werden überschrieben, transiente Token gelösc
 `src/lib/anonymisierung.ts` (DB-frei) und `src/lib/anonymisierung-io.ts`.
 
 Verifiziert: **329 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
-Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **238 Durchstich-Prüfungen** gegen
+Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **241 Durchstich-Prüfungen** gegen
 das gebaute Image (inkl. Worker-Einzellauf, Art.-17-Scrub, Selbstbestätigung und Dozentenhonorar) —
 alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
@@ -524,7 +524,7 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 |---|---|
 | **Wer sieht die Betriebsansicht?** | Sie hängt an `SYSTEM_EINSTELLUNGEN` — nur der Administrator. Die neuen Warnungen (hängende Mails, Empfänger null, Aufräumlauf tot) sieht damit ein einziges Konto. Beim Protokoll ist die Schulleitung inzwischen dabei. |
 | **Token im Zugriffsprotokoll des Proxy** — ✅ erledigt (29.07.) | Anmelde-, Bestätigungs- und Auskunftslink tragen den Token jetzt im **Adressfragment** (`…#token=…`), das der Browser nicht an den Server schickt — Traefik protokolliert ihn damit nicht mehr. Die Bestätigungsseiten lesen ihn clientseitig aus `location.hash`. |
-| **Speichergrenze für den App-Container** | Ohne `mem_limit` holt sich der OOM-Killer im Zweifel die Datenbank statt der Anwendung. Empfehlung: 768 MB. |
+| **Speichergrenze für den App-Container** — ✅ erledigt (29.07.) | `mem_limit: 768m` für die App und `256m` für den Worker sind im `docker-compose.yml` gesetzt — ohne sie holt sich der OOM-Killer im Zweifel die Datenbank statt der Anwendung. |
 
 ---
 
@@ -543,8 +543,13 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 - **Die Anwendung verbindet sich als Postgres-Eigentümer.** Der Append-only-Schutz ist damit nur so
   stark wie die Trennung der Datenbankrechte. Ein getrennter, rechtebeschränkter Datenbanknutzer ist
   der nächste Härtungsschritt.
-- **Keine Content-Security-Policy.** Traefik setzt HSTS, `frameDeny`, `nosniff` und Referrer-Policy;
-  CSP fehlt und gehört nachgezogen, bevor irgendwo Formulartexte als Markdown gerendert werden.
+- **Content-Security-Policy gesetzt (29.07.).** `next.config.ts` liefert eine CSP direkt am
+  App-Container (`default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, keine fremden
+  Skript-Hosts) — im Durchstich gegen die laufende Instanz geprüft, die Seite hydratisiert ohne
+  CSP-Verstöße. Die übrigen Sicherheits-Header (HSTS, `frameDeny`, `nosniff`, Referrer-Policy) setzt
+  weiterhin Traefik. `'unsafe-inline'` für Skripte bleibt vorerst nötig (Next bettet den Bootstrap
+  inline ein); ein **nonce-basiertes Verschärfen** ist der nächste Schritt, bevor irgendwo
+  Formulartexte als Markdown gerendert werden.
 - **Eine Person wird nicht gelöscht, sondern anonymisiert** — echtes Löschen stößt bewusst auf den
   Append-only-Trigger (der Audit- und Einwilligungsnachweis muss bleiben). Das Löschkonzept nach
   Art. 17 DSGVO ist seit 0.2 gebaut: `/verwaltung/personen` → „Anonymisieren" überschreibt alle

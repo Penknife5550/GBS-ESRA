@@ -1089,12 +1089,21 @@ pruefe "der Dozent steht in der Honorar-Uebersicht" "$(enthaelt "$HON" "Dozento"
 pruefe "nur die gehaltenen Abende zaehlen (2 x 95 = 190 €)" "$(enthaelt "$HON" "190 €")"
 pruefe "ein kuenftig zugeordneter Abend zaehlt NICHT als gehalten (kein 285 €)" "$(fehlt_in "$HON" "285 €")"
 
+echo
+echo "=== 30. Sicherheits-Header: Content-Security-Policy am App-Container ==="
+# Die CSP steht in next.config.ts (nicht nur in Traefik) und liegt deshalb schon
+# direkt auf den Antworten des App-Containers — hier gegen die Login-Seite geprueft.
+CSPHDR=$(curl -s -D - -o /dev/null "${BASIS}/anmelden")
+pruefe "die App setzt eine Content-Security-Policy (default-src self)" "$(enthaelt "$CSPHDR" "default-src 'self'")" "$CSPHDR"
+pruefe "die CSP verbietet Framing (frame-ancestors none)" "$(enthaelt "$CSPHDR" "frame-ancestors 'none'")"
+pruefe "die CSP erlaubt keine fremden Skript-Hosts (object-src none)" "$(enthaelt "$CSPHDR" "object-src 'none'")"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 237 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=238
+# 240 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=241
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

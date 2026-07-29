@@ -63,6 +63,10 @@ services:
     image: gbs-campus:latest
     container_name: gbs-app
     restart: unless-stopped
+    # Speichergrenze: Ohne sie holt sich der OOM-Killer im Zweifel die Datenbank
+    # statt der Anwendung (siehe UEBERGABE.md). 768 MB reichen für den
+    # Next.js-Standalone-Server bei ~150 Konten mit Reserve.
+    mem_limit: 768m
     # Container laufen per Default in UTC. Die Semester- und Fristenlogik rechnet
     # mit Datumsgrenzen — siehe 1_Bauplan.html Kap. 08, Fallstrick 4.
     environment:
@@ -100,6 +104,8 @@ services:
     image: gbs-campus:latest
     container_name: gbs-worker
     restart: unless-stopped
+    # Der Worker macht nur stündlich kurze Läufe — deutlich weniger als die App.
+    mem_limit: 256m
     entrypoint: ["node", "worker.js"]
     environment:
       - TZ=Europe/Berlin
