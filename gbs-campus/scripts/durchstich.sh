@@ -50,8 +50,14 @@ docker exec -i gbs-campus-db-dev psql -U gbs -d postgres \
 
 echo "=== Container starten (Migration + Seed laufen im Entrypoint) ==="
 docker rm -f gbs-durchstich > /dev/null 2>&1
+# APP_DB_PASSWORD/APP_DATABASE_URL gesetzt: der Entrypoint richtet gbs_app ein und
+# der laufende Server verbindet sich als dieser rechtebeschraenkte Nutzer — der
+# ganze Durchstich laeuft also gegen die App als gbs_app, nicht als Eigentuemer.
+APP_PW=$(openssl rand -hex 24)
 docker run -d --name gbs-durchstich -p ${PORT}:3000 \
   -e DATABASE_URL="postgresql://gbs:gbs_dev_2026@host.docker.internal:5434/${DBNAME}?schema=public" \
+  -e APP_DB_PASSWORD="${APP_PW}" \
+  -e APP_DATABASE_URL="postgresql://gbs_app:${APP_PW}@host.docker.internal:5434/${DBNAME}?schema=public" \
   -e SESSION_SECRET="$(openssl rand -hex 32)" \
   -e ENCRYPTION_KEY="$(openssl rand -hex 32)" \
   -e APP_URL="https://durchstich.example.org" \
@@ -1098,12 +1104,32 @@ pruefe "die App setzt eine Content-Security-Policy (default-src self)" "$(enthae
 pruefe "die CSP verbietet Framing (frame-ancestors none)" "$(enthaelt "$CSPHDR" "frame-ancestors 'none'")"
 pruefe "die CSP erlaubt keine fremden Skript-Hosts (object-src none)" "$(enthaelt "$CSPHDR" "object-src 'none'")"
 
+echo
+echo "=== 31. Getrennter, rechtebeschraenkter Anwendungs-Datenbanknutzer (gbs_app) ==="
+pruefe "Rolle gbs_app existiert und darf sich anmelden" \
+  "$(gleich "$($PSQL "select rolcanlogin from pg_roles where rolname='gbs_app';")" "t")"
+# Der ganze Durchstich lief bereits gegen die App als gbs_app — hier zusaetzlich
+# der direkte Nachweis, dass gerade eine solche Verbindung offen ist.
+curl -s -o /dev/null "${BASIS}/api/health"
+pruefe "der laufende Server verbindet sich als gbs_app (nicht als Eigentuemer)" \
+  "$([ "$($PSQL "select count(*) from pg_stat_activity where datname='${DBNAME}' and usename='gbs_app';")" -gt 0 ] && echo 1 || echo 0)"
+pruefe "gbs_app darf Personen lesen und schreiben (SELECT/INSERT/UPDATE/DELETE)" \
+  "$(gleich "$($PSQL "select has_table_privilege('gbs_app','personen','SELECT') and has_table_privilege('gbs_app','personen','INSERT') and has_table_privilege('gbs_app','personen','UPDATE') and has_table_privilege('gbs_app','personen','DELETE');")" "t")"
+pruefe "gbs_app darf das Audit-Log ergaenzen (INSERT)" \
+  "$(gleich "$($PSQL "select has_table_privilege('gbs_app','audit_log','INSERT');")" "t")"
+pruefe "gbs_app darf das Audit-Log NICHT aendern (kein UPDATE-Recht)" \
+  "$(gleich "$($PSQL "select has_table_privilege('gbs_app','audit_log','UPDATE');")" "f")"
+pruefe "gbs_app darf das Audit-Log NICHT loeschen (kein DELETE-Recht)" \
+  "$(gleich "$($PSQL "select has_table_privilege('gbs_app','audit_log','DELETE');")" "f")"
+pruefe "gbs_app darf Einwilligungen NICHT aendern oder loeschen" \
+  "$(gleich "$($PSQL "select has_table_privilege('gbs_app','einwilligungen','UPDATE') or has_table_privilege('gbs_app','einwilligungen','DELETE');")" "f")"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 240 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=241
+# 247 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=248
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

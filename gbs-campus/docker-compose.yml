@@ -72,7 +72,13 @@ services:
     environment:
       - TZ=Europe/Berlin
       - NODE_ENV=production
+      # DATABASE_URL = Eigentuemer: fuer Migration, Setup des App-Nutzers und Seed
+      # im Entrypoint (brauchen DDL). Der laufende Server schaltet danach auf
+      # APP_DATABASE_URL um — den rechtebeschraenkten Nutzer gbs_app (nur DML,
+      # audit_log/einwilligungen append-only). Opt-in: ohne APP_DB_PASSWORD bleibt
+      # der Server am Eigentuemer-Zugang.
       - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
+      - APP_DATABASE_URL=postgresql://gbs_app:${APP_DB_PASSWORD}@db:5432/gbs_campus?schema=public
     env_file:
       - .env
     depends_on:

@@ -52,9 +52,9 @@ meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft eine eigene So
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1 && bash scripts/durchstich.sh
 ```
 
-Soll: **241 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
+Soll: **248 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
 gbs-campus-db-dev`) und legt sich darin eine eigene Datenbank `gbs_durchstich` an. Auch er zählt jetzt
-gegen eine Soll-Zahl (`SOLL=241` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
+gegen eine Soll-Zahl (`SOLL=248` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
 
 Drei Prüfungen sind maschinenabhängig und können auf einer belasteten Maschine ausschlagen: die
 Laufzeitgrenzen im Durchstich (650 ms / 300 ms Abstand), der Faktor 2 bei der Laufzeitangleichung und
@@ -476,7 +476,7 @@ Person und die Anmelde-Antworten werden überschrieben, transiente Token gelösc
 `src/lib/anonymisierung.ts` (DB-frei) und `src/lib/anonymisierung-io.ts`.
 
 Verifiziert: **329 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
-Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **241 Durchstich-Prüfungen** gegen
+Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **248 Durchstich-Prüfungen** gegen
 das gebaute Image (inkl. Worker-Einzellauf, Art.-17-Scrub, Selbstbestätigung und Dozentenhonorar) —
 alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
@@ -540,9 +540,16 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
   erzeugte Migration auf und die Invariante „genau ein laufendes Semester" fiele lautlos weg.
   **Jede von `migrate dev` erzeugte Migration vor dem Committen ansehen.** Dasselbe gilt für die fünf
   Append-only-Trigger. Der Hinweis steht auch am Semester-Modell in `schema.prisma`.
-- **Die Anwendung verbindet sich als Postgres-Eigentümer.** Der Append-only-Schutz ist damit nur so
-  stark wie die Trennung der Datenbankrechte. Ein getrennter, rechtebeschränkter Datenbanknutzer ist
-  der nächste Härtungsschritt.
+- **Getrennter Anwendungs-Datenbanknutzer (29.07., opt-in).** Sobald `APP_DB_PASSWORD` gesetzt ist,
+  verbindet sich der laufende Server als `gbs_app` — nur DML, kein DDL, und auf `audit_log`/
+  `einwilligungen` nur INSERT (kein UPDATE/DELETE, per Recht entzogen). Der Append-only-Schutz hängt
+  damit nicht mehr allein am Trigger, den ein Eigentümer entfernen könnte. Migration, Setup der Rolle
+  und Seed laufen weiter als Eigentümer (sie brauchen DDL); der Entrypoint schaltet erst danach auf
+  `gbs_app` um. Eingerichtet wird die Rolle idempotent von `prisma/setup-app-nutzer.ts`. Im Durchstich
+  lief die **ganze App als `gbs_app`** (248 Prüfungen grün, inkl. Nachweis, dass `gbs_app` das
+  Audit-Log nur ergänzen, nicht ändern darf); ohne die Variable bleibt es beim Eigentümer-Zugang
+  (nicht-brechend). Der `worker` läuft bewusst weiter als Eigentümer — er ist nicht web-exponiert und
+  seine Operationen sind eine Teilmenge der (als `gbs_app` geprüften) App-Schreibvorgänge.
 - **Content-Security-Policy gesetzt (29.07.).** `next.config.ts` liefert eine CSP direkt am
   App-Container (`default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, keine fremden
   Skript-Hosts) — im Durchstich gegen die laufende Instanz geprüft, die Seite hydratisiert ohne

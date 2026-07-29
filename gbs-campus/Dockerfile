@@ -38,6 +38,15 @@ RUN npx --yes esbuild@0.24 scripts/worker.ts \
       --outfile=prisma/compiled/worker.js \
  && test -f prisma/compiled/worker.js
 
+# Einrichtung des rechtebeschraenkten Anwendungs-Datenbanknutzers (gbs_app),
+# vom Entrypoint nach der Migration aufgerufen. Gleiches Bundle-Verfahren.
+RUN npx --yes esbuild@0.24 prisma/setup-app-nutzer.ts \
+      --bundle --platform=node --target=node24 --format=cjs \
+      --tsconfig=tsconfig.json \
+      --external:@prisma/client \
+      --outfile=prisma/compiled/setup-app-nutzer.js \
+ && test -f prisma/compiled/setup-app-nutzer.js
+
 # --- Stage 3: Laufzeit -------------------------------------------------------
 FROM node:24-alpine AS runner
 WORKDIR /app
@@ -57,6 +66,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma/compiled/seed.js ./prisma/seed.js
 COPY --from=builder --chown=nextjs:nodejs /app/prisma/compiled/worker.js ./worker.js
+COPY --from=builder --chown=nextjs:nodejs /app/prisma/compiled/setup-app-nutzer.js ./prisma/setup-app-nutzer.js
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
