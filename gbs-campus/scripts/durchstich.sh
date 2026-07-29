@@ -879,12 +879,63 @@ pruefe "ein unbekannter bin-dabei-Token wird abgewiesen (401)" "$(gleich "$DABEI
 CRON=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/cron/erinnerungen")
 pruefe "der Erinnerungs-Cron ohne CRON_SECRET antwortet 503" "$(gleich "$CRON" "503")" "$CRON"
 
+echo
+echo "=== 24. Stundenplan: Schema und Seed ==="
+pruefe "Tabelle unterrichtstermine existiert" \
+  "$(gleich "$($PSQL "select count(*) from information_schema.tables where table_name='unterrichtstermine';")" "1")"
+pruefe "Tabelle anwesenheiten existiert" \
+  "$(gleich "$($PSQL "select count(*) from information_schema.tables where table_name='anwesenheiten';")" "1")"
+pruefe "Enum Anwesenheitsstatus existiert" \
+  "$(gleich "$($PSQL "select count(*) from pg_type where typname='Anwesenheitsstatus';")" "1")"
+pruefe "Anwesenheit ist je Termin+Teilnahme eindeutig (Index)" \
+  "$(gleich "$($PSQL "select count(*) from pg_indexes where tablename='anwesenheiten' and indexname='anwesenheiten_terminId_teilnahmeId_key';")" "1")"
+pruefe "Einstellung ANWESENHEIT_MINDEST_PROZENT ist geseedet (80)" \
+  "$(gleich "$($PSQL "select wert from einstellungen where schluessel='ANWESENHEIT_MINDEST_PROZENT';")" "80")"
+pruefe "die Stundenplan-Migration ist als angewendet eingetragen" \
+  "$(gleich "$($PSQL "select count(*) from _prisma_migrations where migration_name='20260729140000_stundenplan' and finished_at is not null;")" "1")"
+
+echo
+echo "=== 25. Stundenplan: Termine, Fachzuordnung, Anwesenheit ==="
+# Die zehn Dienstagabende des laufenden Semesters (2099-H) anlegen.
+GEN=$(curl -s -X POST "${BASIS}/api/stundenplan/termine/generieren" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\"}")
+pruefe "Termine anlegen meldet die angelegten Abende" "$(echo "$GEN" | grep -qc '"angelegt"' && echo 1 || echo 0)" "$GEN"
+pruefe "es sind zehn Unterrichtsabende angelegt" \
+  "$(gleich "$($PSQL "select count(*) from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}';")" "10")"
+# Idempotenz: ein zweiter Aufruf legt nichts doppelt an.
+curl -s -o /dev/null -X POST "${BASIS}/api/stundenplan/termine/generieren" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\"}"
+pruefe "ein zweiter Anlege-Lauf legt keinen elften Abend an" \
+  "$(gleich "$($PSQL "select count(*) from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}';")" "10")"
+# Ein Teilnehmer darf keine Termine anlegen.
+GEN_VERBOTEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/stundenplan/termine/generieren" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\"}")
+pruefe "ein Teilnehmer darf keine Termine anlegen (403)" "$(gleich "$GEN_VERBOTEN" "403")" "$GEN_VERBOTEN"
+
+TERMIN_ID=$($PSQL "select id from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}' order by beginn asc limit 1;")
+KURSEINHEIT_ID=$($PSQL "select id from kurseinheiten limit 1;")
+# Einem Abend ein Fach zuordnen.
+curl -s -o /dev/null -X PUT "${BASIS}/api/stundenplan/termine/${TERMIN_ID}" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\"}"
+pruefe "einem Termin laesst sich ein Fach zuordnen" \
+  "$(gleich "$($PSQL "select \"kurseinheitId\" from unterrichtstermine where id='${TERMIN_ID}';")" "${KURSEINHEIT_ID}")"
+
+# Anwesenheit fuer eine Teilnahme erfassen (die in Abschnitt 23 angelegte).
+TEILNAHME_ID=$($PSQL "select id from teilnahmen where \"personId\"='${TEILNEHMER_ID}' and \"semesterId\"='${SEMESTER_ID}';")
+curl -s -o /dev/null -X POST "${BASIS}/api/stundenplan/anwesenheit" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${TERMIN_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}"
+pruefe "Anwesenheit wird als ANWESEND erfasst" \
+  "$(gleich "$($PSQL "select status from anwesenheiten where \"terminId\"='${TERMIN_ID}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "ANWESEND")"
+pruefe "die Erfassung ist protokolliert (ANWESENHEIT_ERFASST)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='ANWESENHEIT_ERFASST' and \"objektId\"='${TERMIN_ID}';")" "t")"
+
+# Einen Abend loeschen (der letzte) — Anwesenheiten haengen per Cascade daran.
+LETZTER_TERMIN=$($PSQL "select id from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}' order by beginn desc limit 1;")
+curl -s -o /dev/null -X DELETE "${BASIS}/api/stundenplan/termine/${LETZTER_TERMIN}" -H "Cookie: ${KEKS}"
+pruefe "ein geloeschter Abend verringert die Zahl auf neun" \
+  "$(gleich "$($PSQL "select count(*) from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}';")" "9")"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 179 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=180
+# 193 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=194
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

@@ -114,7 +114,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
   <div class="wrap">
     <div class="kicker">GBS Campus · Stand &amp; Ausblick</div>
     <h1>Wo wir stehen</h1>
-    <p class="lead"><strong>Release 0.1 ist funktional fertig und geprüft — und Release 0.2 hat begonnen.</strong> Vierzehn Bausteine stehen — von Anmeldung und Formular-Builder über Semester, Teilnehmerliste und Schülerakte bis zur DSGVO-Auskunft. Neu dazugekommen: die <strong>Semesterüberleitung</strong> (Re-Enrollment mit „bin dabei"-Link und Erinnerungen) und das <strong>Kursraster</strong> mit den sechs echten Semestern. Offen sind noch ein paar Handgriffe vor dem Livegang und Punkte, die außerhalb unserer Hand liegen (allen voran die Mail-Zustellung).</p>
+    <p class="lead"><strong>Release 0.1 ist funktional fertig und geprüft — und Release 0.2 hat begonnen.</strong> Vierzehn Bausteine stehen — von Anmeldung und Formular-Builder über Semester, Teilnehmerliste und Schülerakte bis zur DSGVO-Auskunft. Neu dazugekommen: die <strong>Semesterüberleitung</strong> (Re-Enrollment mit „bin dabei"-Link und Erinnerungen), das <strong>Kursraster</strong> mit den sechs echten Semestern und der <strong>Stundenplan</strong> mit Anwesenheit und 80-%-Quote. Offen sind noch ein paar Handgriffe vor dem Livegang und Punkte, die außerhalb unserer Hand liegen (allen voran die Mail-Zustellung).</p>
     <div class="meta">
       <div>Stand<b>29.07.2026</b></div>
       <div>Release 0.1<b>Codestand grün / verifiziert</b></div>
@@ -131,8 +131,8 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
   <p class="sub">Vier Zahlen, wenn man nur vier liest.</p>
 
   <div class="grid g4">
-    <div class="kpi"><div class="n" style="color:var(--gruen)">14</div><div class="l">Bausteine fertig und geprüft (Release 0.1 + Start 0.2)</div></div>
-    <div class="kpi"><div class="n" style="color:var(--gruen)">472</div><div class="l">automatische Prüfungen grün: 262 Fachlogik + 180 Durchstich + 30 DB, dazu Mutationstests</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">15</div><div class="l">Bausteine fertig und geprüft (Release 0.1 + Start 0.2)</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">506</div><div class="l">automatische Prüfungen grün: 282 Fachlogik + 194 Durchstich + 30 DB, dazu Mutationstests</div></div>
     <div class="kpi"><div class="n">3</div><div class="l">offene Punkte vor dem Livegang (bei uns)</div></div>
     <div class="kpi"><div class="n" style="color:var(--rot)">1</div><div class="l">Show-Stopper außerhalb unserer Hand: SPF/DKIM/DMARC für gbs-minden.de (Absenderadresse steht)</div></div>
   </div>
@@ -165,13 +165,14 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
         <tr><td><strong>DSGVO-Auskunft</strong> <span style="color:var(--tx2)">Art. 15</span></td><td>Verwaltung → Personen → „DSGVO-Auskunft senden": die Person lädt ihre vollständige Datenkopie (Art.-9-Angaben, IBAN) über einen persönlichen, 3 Tage gültigen Link selbst als PDF herunter — sensible Daten verlassen nie den Mailkanal. Token im URL-Fragment (kein Log-Leak)</td><td><span class="tag t-ok">fertig</span></td></tr>
         <tr><td><strong>Semesterüberleitung</strong> <span style="color:var(--tx2)">M1 · 0.2</span></td><td><code>/verwaltung/semesterueberleitung</code>: den Jahrgang des laufenden Semesters ins Folgesemester einladen. Jeder aktive Teilnehmer bekommt einen persönlichen „Ich bin dabei"-Link (<code>/dabei</code>, Token im Fragment, ohne Login — setzt nur die Bestätigung). Wer nicht zusagt, wird <strong>T−14/−7/−3</strong> vor Semesterstart automatisch erinnert (konfigurierbar). Idempotent, race-sicher, kein Doppelversand</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
         <tr><td><strong>Fächer &amp; Kursraster</strong> <span style="color:var(--tx2)">M3-Grundstein · 0.2</span></td><td>Die 7 Fächer und das feste 3-Jahres-Raster (13 Kurseinheiten) aus der Kursübersicht von gbs-minden.de als Seed; <code>/verwaltung/faecher</code> zeigt es. Die <strong>sechs echten Semester</strong> (2026-H … 2029-F) legt jetzt ein frischer Seed an, über Lehrjahr/Halbjahr ans Raster gekoppelt — die „bin dabei"-Seite zeigt die Fächer des Zielsemesters</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
+        <tr><td><strong>Stundenplan &amp; Anwesenheit</strong> <span style="color:var(--tx2)">M3 · 0.2</span></td><td><code>/verwaltung/stundenplan</code>: die Unterrichtsabende eines Semesters (die zehn Dienstagabende ab Semesterbeginn per Knopf), jeder Abend einer Kurseinheit zuordenbar. <strong>Anwesenheit</strong> je Teilnahme × Termin (anwesend/entschuldigt/gefehlt/nachgearbeitet) und die <strong>Quote</strong> — anwesend und nachgearbeitet zählen als Teilnahme, unter 80&nbsp;% wird markiert</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="box blau">
     <h4>Geprüft — nicht nur behauptet</h4>
-    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>262</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>180</strong> Durchstich-Prüfungen gegen das gebaute Image. Die Semesterüberleitung wurde am 29.07. end-to-end mit nachgezogen (einladen → bestätigen → Fächer-Anzeige → Idempotenz → Rechte). Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
+    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>282</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>194</strong> Durchstich-Prüfungen gegen das gebaute Image. Semesterüberleitung und Stundenplan wurden am 29.07. end-to-end mit nachgezogen (einladen → bestätigen → Fächer-Anzeige; Termine → Fachzuordnung → Anwesenheit → Quote → Rechte). Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
   </div>
 </section>
 
@@ -227,7 +228,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
       <div class="tld">Mitte Oktober 2026</div>
       <div>
         <div class="tlt">Release 0.2 <span class="tag t-ok" style="margin-left:6px">begonnen</span></div>
-        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment und das Kursraster als Grundstein für den Stundenplan. <strong>Noch offen:</strong> der volle Stundenplan, Selbstbestätigung, Dozentenhonorar, das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen) und der Worker-Container, der die Erinnerungen intern auslöst (statt per externem Cron).</div>
+        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment, das Kursraster und der Stundenplan mit Anwesenheit und 80-%-Quote. <strong>Noch offen (in dieser Reihenfolge):</strong> der Worker-Container, der die Erinnerungen intern statt per externem Cron auslöst; das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen); Selbstbestätigung und Dozentenhonorar.</div>
       </div>
     </div>
     <div class="tlrow">

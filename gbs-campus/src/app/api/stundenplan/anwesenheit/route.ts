@@ -1,0 +1,38 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { ladeMitRecht } from "@/lib/berechtigung";
+import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { RECHT } from "@/lib/constants";
+import { erfasseAnwesenheit } from "@/lib/stundenplan-io";
+
+const status = z.enum(["ANWESEND", "ENTSCHULDIGT", "GEFEHLT", "NACHGEARBEITET"]);
+
+const schema = z.object({
+  terminId: z.string().uuid(),
+  eintraege: z
+    .array(z.object({ teilnahmeId: z.string().uuid(), status }))
+    .min(1)
+    .max(500),
+});
+
+/**
+ * Erfasst die Anwesenheit eines Termins für mehrere Teilnehmer auf einmal.
+ * Upsert je (Termin, Teilnahme) — idempotent, kein Doppeleintrag.
+ */
+export async function POST(request: NextRequest) {
+  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
+  if (!benutzer) return keineBerechtigung();
+
+  const geprueft = schema.safeParse(await request.json().catch(() => null));
+  if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
+
+  const ergebnis = await erfasseAnwesenheit(
+    geprueft.data.terminId,
+    geprueft.data.eintraege,
+    benutzer.id,
+    request.headers,
+  );
+  if ("fehler" in ergebnis) return fehler("Diesen Termin gibt es nicht.", 404);
+
+  return erfolg(ergebnis);
+}

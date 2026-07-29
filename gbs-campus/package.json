@@ -17,7 +17,7 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:build": "docker compose up -d --build",
-    "pruefen": "tsx scripts/pruefe-formularlogik.ts && tsx scripts/pruefe-semesterlogik.ts && tsx scripts/pruefe-eigene-daten.ts && tsx scripts/pruefe-passwort.ts && tsx scripts/pruefe-auskunft.ts && tsx scripts/pruefe-beitrag.ts && tsx scripts/pruefe-faecher.ts",
+    "pruefen": "tsx scripts/pruefe-formularlogik.ts && tsx scripts/pruefe-semesterlogik.ts && tsx scripts/pruefe-eigene-daten.ts && tsx scripts/pruefe-passwort.ts && tsx scripts/pruefe-auskunft.ts && tsx scripts/pruefe-beitrag.ts && tsx scripts/pruefe-faecher.ts && tsx scripts/pruefe-stundenplan.ts",
     "pruefen:db": "tsx scripts/pruefe-einstellungen.ts && tsx scripts/pruefe-auskunft-db.ts"
   },
   "prisma": {

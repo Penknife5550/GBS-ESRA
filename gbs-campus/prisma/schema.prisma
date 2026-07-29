@@ -279,6 +279,7 @@ model Semester {
 
   teilnahmen  Teilnahme[]
   anmeldungen Anmeldung[]
+  termine     Unterrichtstermin[]
 
   @@map("semester")
 }
@@ -314,6 +315,8 @@ model Teilnahme {
   erinnertStufe3Am DateTime?
 
   erstelltAm DateTime @default(now())
+
+  anwesenheiten Anwesenheit[]
 
   @@unique([personId, semesterId])
   @@index([semesterId])
@@ -370,9 +373,75 @@ model Kurseinheit {
 
   erstelltAm DateTime @default(now())
 
+  termine Unterrichtstermin[]
+
   @@unique([fachCode, jahrgangsjahr, halbjahr])
   @@index([jahrgangsjahr, halbjahr])
   @@map("kurseinheiten")
+}
+
+// =============================================================================
+// Stundenplan & Anwesenheit — M3
+//
+// Ein Semester hat feste Unterrichtstermine (die GBS: zehn Dienstagabende,
+// 19:00–21:30). Jeder Termin kann einer Kurseinheit zugeordnet sein — welches
+// Fach an diesem Abend laeuft. Die Anwesenheit wird je Teilnahme und Termin
+// erfasst; fuer die 80-%-Quote zaehlen ANWESEND und NACHGEARBEITET als
+// teilgenommen (nachgearbeiteter Unterricht gilt laut Schulordnung als
+// teilgenommen). Die Schwelle liegt als Einstellung (ANWESENHEIT_MINDEST_PROZENT).
+// =============================================================================
+
+model Unterrichtstermin {
+  id         String   @id @default(uuid())
+  semesterId String
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  /// Welches Fach an diesem Abend unterrichtet wird (optional — der Plan darf vor
+  /// der Fachzuordnung stehen). SetNull: eine geloeschte Kurseinheit reisst den
+  /// Termin nicht mit.
+  kurseinheitId String?
+  kurseinheit   Kurseinheit? @relation(fields: [kurseinheitId], references: [id], onDelete: SetNull)
+
+  beginn      DateTime // Datum und Uhrzeit des Abends
+  ende        DateTime?
+  thema       String?
+  reihenfolge Int      @default(0)
+
+  erstelltAm DateTime @default(now())
+
+  anwesenheiten Anwesenheit[]
+
+  @@index([semesterId, beginn])
+  @@map("unterrichtstermine")
+}
+
+enum Anwesenheitsstatus {
+  ANWESEND
+  ENTSCHULDIGT
+  GEFEHLT
+  NACHGEARBEITET // verpasst, aber nachgeholt — zaehlt als teilgenommen
+}
+
+/// Anwesenheit einer Teilnahme an einem Termin. Genau eine Zeile je
+/// (Termin, Teilnahme) — das @@unique haelt die Erfassung per upsert idempotent.
+model Anwesenheit {
+  id          String            @id @default(uuid())
+  terminId    String
+  termin      Unterrichtstermin @relation(fields: [terminId], references: [id], onDelete: Cascade)
+  teilnahmeId String
+  teilnahme   Teilnahme         @relation(fields: [teilnahmeId], references: [id], onDelete: Cascade)
+
+  status Anwesenheitsstatus
+  notiz  String?
+
+  /// Wer die Anwesenheit gesetzt hat (Akteur-Id, keine Relation — wie bei
+  /// Datenauskunft.erstelltVonId).
+  erfasstVonId String?
+  erfasstAm    DateTime @default(now()) @updatedAt
+
+  @@unique([terminId, teilnahmeId])
+  @@index([teilnahmeId])
+  @@map("anwesenheiten")
 }
 
 // =============================================================================

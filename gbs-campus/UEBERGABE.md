@@ -453,9 +453,18 @@ Stundenplan (M3)**: sieben Fächer, dreizehn Kurseinheiten und die **sechs reale
 (2026-H … 2029-F, Termine von gbs-minden.de) legt jetzt ein frischer `db:seed` an — die konkreten
 Semester sind über `lehrjahr`/`halbjahr` ans Raster gekoppelt, sodass die „bin dabei"-Seite die Fächer
 des Zielsemesters zeigt. Logik: `src/lib/ueberleitung.ts` (IO) und `src/lib/semester.ts` /
-`src/lib/faecher.ts` (DB-frei). Verifiziert: **262 DB-freie Fachlogik-Prüfungen** (neu: 18 zur
-Überleitung in `pruefe-semesterlogik.ts`, 17 in `pruefe-faecher.ts`) und **180 Durchstich-Prüfungen**
-gegen das gebaute Image — alles grün, Produktionsbuild ohne einen Typfehler.
+`src/lib/faecher.ts` (DB-frei).
+
+Und der **Stundenplan (M3)**: `/verwaltung/stundenplan` legt die Unterrichtsabende eines Semesters an
+(die zehn Dienstagabende ab Semesterbeginn per Knopf), ordnet jedem Abend eine Kurseinheit zu und
+erfasst die **Anwesenheit** je Teilnahme × Termin (anwesend / entschuldigt / gefehlt / nachgearbeitet).
+Die **Quote** zählt anwesend und nachgearbeitet als Teilnahme; unter der Schwelle
+(`ANWESENHEIT_MINDEST_PROZENT`, Standard 80 %) wird sie markiert. DB-freie Kernlogik in
+`src/lib/stundenplan.ts` (Quote + Dienstags-Generator), IO in `src/lib/stundenplan-io.ts`.
+
+Verifiziert: **282 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 zum Stundenplan, 18 zur Überleitung,
+17 zum Kursraster) und **194 Durchstich-Prüfungen** gegen das gebaute Image — alles grün,
+Produktionsbuild (`next build`) ohne einen Typfehler.
 
 **Das Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) bleibt Release 0.2 —
 beschrieben unten unter „Bekannte Einschränkungen".

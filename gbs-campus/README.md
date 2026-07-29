@@ -45,6 +45,12 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
   (`prisma/kursraster-definition.ts`), sichtbar unter `/verwaltung/faecher`. Konkrete Semester sind
   über `lehrjahr`/`halbjahr` ans Raster gekoppelt — die „bin dabei"-Seite zeigt so die Fächer des
   Zielsemesters. Die **sechs realen Semester** (2026-H … 2029-F) legt jetzt ein frischer `db:seed` an.
+- **Stundenplan & Anwesenheit (Release 0.2, M3)** — `/verwaltung/stundenplan`: die Unterrichtsabende
+  eines Semesters (die zehn Dienstagabende ab Semesterbeginn per Knopf), jeder optional einer
+  Kurseinheit zugeordnet. **Anwesenheit** je Teilnahme × Termin (anwesend / entschuldigt / gefehlt /
+  nachgearbeitet) und die **Quote**: anwesend und nachgearbeitet zählen als teilgenommen, unter der
+  Schwelle (`ANWESENHEIT_MINDEST_PROZENT`, Standard 80 %) wird sie markiert. DB-freie Kernlogik in
+  `src/lib/stundenplan.ts` (Quote + Dienstags-Generator), IO in `src/lib/stundenplan-io.ts`.
 
 > ### ✅ Der Stand vom 27.07. ist verifiziert (28.07.2026)
 >

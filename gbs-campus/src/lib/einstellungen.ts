@@ -267,6 +267,20 @@ export const EINSTELLUNGEN = {
     einheit: "Tage",
     sortierung: 30,
   },
+  ANWESENHEIT_MINDEST_PROZENT: {
+    bezeichnung: "Mindest-Anwesenheit",
+    beschreibung:
+      "Wie viel Prozent der Unterrichtstermine ein Teilnehmer besuchen muss. Nachgearbeiteter " +
+      "Unterricht zählt wie eine Teilnahme. Unter dieser Schwelle wird die Quote im Stundenplan " +
+      "markiert.",
+    bereich: "SEMESTER",
+    typ: EinstellungTyp.ZAHL,
+    standard: 80,
+    minimum: 0,
+    maximum: 100,
+    einheit: "%",
+    sortierung: 40,
+  },
   // Die vier Beträge stehen bewusst als Regler und nicht als Konstante im Code:
   // Preise ändern sich, und der eigentliche Beitragslauf (Release 0.3) soll sie
   // hier finden statt in einer Codezeile. In 0.1 wird noch nichts eingezogen —
