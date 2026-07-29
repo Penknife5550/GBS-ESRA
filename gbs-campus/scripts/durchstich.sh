@@ -1124,12 +1124,52 @@ pruefe "gbs_app darf das Audit-Log NICHT loeschen (kein DELETE-Recht)" \
 pruefe "gbs_app darf Einwilligungen NICHT aendern oder loeschen" \
   "$(gleich "$($PSQL "select has_table_privilege('gbs_app','einwilligungen','UPDATE') or has_table_privilege('gbs_app','einwilligungen','DELETE');")" "f")"
 
+echo
+echo "=== 32. Rollenverwaltung (Recht BENUTZER_VERWALTEN, nur Administrator) ==="
+# BENUTZER_VERWALTEN hat nur die Rolle ADMIN. Der einzige Administrator ist Anna
+# (admin@beispiel.de, in Abschnitt 13 angelegt) — bewusst wiederverwendet: So gibt
+# es genau EINEN Administrator, was der Letzter-Admin-Test unten braucht. Die Id
+# wird frisch aus der DB geholt (unabhaengig davon, ob die Variable noch gesetzt ist).
+ADMIN_ID=$($PSQL "select id from personen where email='admin@beispiel.de';")
+AD_TOK=$(uuidgen | tr 'A-Z' 'a-z'); AD_HASH=$(printf %s "$AD_TOK" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "insert into magic_links (id,\"personId\",\"tokenHash\",\"laeuftAb\",\"erstelltAm\") values (gen_random_uuid(),'${ADMIN_ID}','${AD_HASH}',now()+interval '1 hour',now());" > /dev/null
+curl -s -D /tmp/gbs-kopf-admin.txt -o /dev/null -X POST "${BASIS}/api/auth/token" -H 'Content-Type: application/json' -d "{\"token\":\"${AD_TOK}\"}"
+KEKS_ADMIN=$(grep -i '^set-cookie:' /tmp/gbs-kopf-admin.txt | head -1 | sed 's/^[^:]*: //' | cut -d';' -f1)
+pruefe "Administrator-Konto meldet sich an" "$([ -n "$KEKS_ADMIN" ] && echo 1 || echo 0)"
+
+# Der Administrator gibt einer Person die Rolle Dozent.
+curl -s -o /dev/null -X PUT "${BASIS}/api/personen/${TEILNEHMER_ID}/rollen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"rollen":["TEILNEHMER","DOZENT"]}'
+pruefe "der Administrator fuegt die Rolle Dozent hinzu" \
+  "$(gleich "$($PSQL "select count(*) from person_rolle where \"personId\"='${TEILNEHMER_ID}' and \"rolleCode\"='DOZENT';")" "1")"
+# und entzieht sie wieder.
+curl -s -o /dev/null -X PUT "${BASIS}/api/personen/${TEILNEHMER_ID}/rollen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"rollen":["TEILNEHMER"]}'
+pruefe "der Administrator entzieht die Rolle wieder" \
+  "$(gleich "$($PSQL "select count(*) from person_rolle where \"personId\"='${TEILNEHMER_ID}' and \"rolleCode\"='DOZENT';")" "0")"
+
+# Ein Teilnehmer darf keine Rollen verwalten (403).
+RV_TEILN=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/personen/${TEILNEHMER_ID}/rollen" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d '{"rollen":["TEILNEHMER","DOZENT"]}')
+pruefe "ein Teilnehmer darf keine Rollen verwalten (403)" "$(gleich "$RV_TEILN" "403")" "$RV_TEILN"
+# Die Schulleitung ebenfalls nicht (kein BENUTZER_VERWALTEN) — bewusst nur der Administrator.
+RV_SCHUL=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/personen/${TEILNEHMER_ID}/rollen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"rollen":["TEILNEHMER"]}')
+pruefe "die Schulleitung darf keine Rollen verwalten (403)" "$(gleich "$RV_SCHUL" "403")" "$RV_SCHUL"
+# Eine unbekannte Rolle wird abgewiesen (400).
+RV_UNBEK=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/personen/${TEILNEHMER_ID}/rollen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"rollen":["HACKER"]}')
+pruefe "eine unbekannte Rolle wird abgewiesen (400)" "$(gleich "$RV_UNBEK" "400")" "$RV_UNBEK"
+
+# Der letzte Administrator laesst sich nicht entziehen (409) — sonst kaeme niemand mehr an die Rollen.
+RV_LETZT=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/personen/${ADMIN_ID}/rollen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"rollen":[]}')
+pruefe "der letzte Administrator laesst sich nicht entziehen (409)" "$(gleich "$RV_LETZT" "409")" "$RV_LETZT"
+pruefe "der Administrator hat seine Rolle behalten" \
+  "$(gleich "$($PSQL "select count(*) from person_rolle where \"personId\"='${ADMIN_ID}' and \"rolleCode\"='ADMIN';")" "1")"
+pruefe "die Rollenaenderung ist protokolliert (ROLLEN_GEAENDERT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='ROLLEN_GEAENDERT' and \"objektId\"='${TEILNEHMER_ID}';")" "t")"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 247 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=248
+# 256 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=257
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

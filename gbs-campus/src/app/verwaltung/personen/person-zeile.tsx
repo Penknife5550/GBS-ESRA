@@ -12,24 +12,36 @@ export type PersonAnzeige = {
   istTerminal: boolean;
   istAnonym: boolean;
   rollen: string;
+  rollenCodes: string[];
 };
+
+type Rolle = { code: string; bezeichnung: string };
 
 export function PersonZeile({
   person,
   darfAendern,
   darfAuskunft,
   darfAnonymisieren,
+  darfRollenVerwalten,
+  alleRollen,
 }: {
   person: PersonAnzeige;
   darfAendern: boolean;
   darfAuskunft: boolean;
   darfAnonymisieren: boolean;
+  darfRollenVerwalten: boolean;
+  alleRollen: Rolle[];
 }) {
   const router = useRouter();
-  const [modus, setModus] = useState<"ruhe" | "email">("ruhe");
+  const [modus, setModus] = useState<"ruhe" | "email" | "rollen">("ruhe");
   const [neueEmail, setNeueEmail] = useState("");
+  const [gewaehlt, setGewaehlt] = useState<string[]>(person.rollenCodes);
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+
+  const rollenGeaendert =
+    gewaehlt.length !== person.rollenCodes.length ||
+    [...gewaehlt].sort().join(",") !== [...person.rollenCodes].sort().join(",");
 
   async function adresseAendern() {
     if (
@@ -150,6 +162,28 @@ export function PersonZeile({
     router.refresh();
   }
 
+  function rolleUmschalten(code: string) {
+    setMeldung(null);
+    setGewaehlt((r) => (r.includes(code) ? r.filter((c) => c !== code) : [...r, code]));
+  }
+
+  async function rollenSpeichern() {
+    setLaeuft(true);
+    setMeldung(null);
+    const antwort = await sendeAnfrage<{ geaendert: boolean }>(`/api/personen/${person.id}/rollen`, {
+      methode: "PUT",
+      rumpf: { rollen: gewaehlt },
+    });
+    setLaeuft(false);
+    if (!antwort.ok) {
+      setMeldung({ art: "fehler", text: antwort.meldung });
+      return;
+    }
+    setModus("ruhe");
+    setMeldung({ art: "ok", text: "Rollen gespeichert." });
+    router.refresh();
+  }
+
   return (
     <li className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -235,6 +269,57 @@ export function PersonZeile({
         <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
           Diese Person ist anonymisiert (Art. 17 DSGVO). Die personenbezogenen Daten sind gelöscht.
         </p>
+      )}
+
+      {darfRollenVerwalten && !person.istAnonym && (
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={() => {
+              setGewaehlt(person.rollenCodes);
+              setModus(modus === "rollen" ? "ruhe" : "rollen");
+              setMeldung(null);
+            }}
+            aria-expanded={modus === "rollen"}
+            aria-controls={`rollen-${person.id}`}
+            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium"
+          >
+            {modus === "rollen" ? "Abbrechen" : "Rollen verwalten"}
+          </button>
+
+          {modus === "rollen" && (
+            <div id={`rollen-${person.id}`} className="mt-3 rounded-lg border border-border bg-muted p-4">
+              <fieldset>
+                <legend className="mb-2 text-sm font-medium">Rollen von {person.name}</legend>
+                <div className="space-y-2">
+                  {alleRollen.map((rolle) => (
+                    <label key={rolle.code} className="flex items-center gap-2.5 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={gewaehlt.includes(rolle.code)}
+                        onChange={() => rolleUmschalten(rolle.code)}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      {rolle.bezeichnung}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Steuert, was das Konto darf. Der letzte Administrator lässt sich nicht entziehen — sonst
+                käme niemand mehr an die Rollenverwaltung.
+              </p>
+              <button
+                type="button"
+                onClick={rollenSpeichern}
+                disabled={laeuft || !rollenGeaendert}
+                className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+              >
+                {laeuft ? "Wird gespeichert …" : "Rollen speichern"}
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {modus === "email" && (

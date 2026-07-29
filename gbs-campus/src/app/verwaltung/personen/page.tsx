@@ -21,30 +21,37 @@ export default async function PersonenSeite({
   const darfAendern = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_ALLE);
   const darfAuskunft = hatRecht(benutzer, RECHT.PERSON_EXPORTIEREN);
   const darfAnonymisieren = hatRecht(benutzer, RECHT.PERSON_ANONYMISIEREN);
+  const darfRollenVerwalten = hatRecht(benutzer, RECHT.BENUTZER_VERWALTEN);
   const { suche } = await searchParams;
   const begriff = suche?.trim() ?? "";
 
-  const personen = await prisma.person.findMany({
-    where: begriff
-      ? {
-          OR: [
-            { vorname: { contains: begriff, mode: "insensitive" } },
-            { nachname: { contains: begriff, mode: "insensitive" } },
-            { email: { contains: begriff, mode: "insensitive" } },
-          ],
-        }
-      : undefined,
-    select: {
-      id: true,
-      vorname: true,
-      nachname: true,
-      email: true,
-      status: { select: { code: true, bezeichnung: true, istTerminal: true } },
-      rollen: { select: { rolle: { select: { bezeichnung: true } } } },
-    },
-    orderBy: [{ nachname: "asc" }, { vorname: "asc" }],
-    take: HOECHSTZAHL,
-  });
+  const [personen, alleRollen] = await Promise.all([
+    prisma.person.findMany({
+      where: begriff
+        ? {
+            OR: [
+              { vorname: { contains: begriff, mode: "insensitive" } },
+              { nachname: { contains: begriff, mode: "insensitive" } },
+              { email: { contains: begriff, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      select: {
+        id: true,
+        vorname: true,
+        nachname: true,
+        email: true,
+        status: { select: { code: true, bezeichnung: true, istTerminal: true } },
+        rollen: { select: { rolle: { select: { code: true, bezeichnung: true } } } },
+      },
+      orderBy: [{ nachname: "asc" }, { vorname: "asc" }],
+      take: HOECHSTZAHL,
+    }),
+    // Alle Rollen als Auswahl fürs Rollen-Verwalten — nur laden, wenn erlaubt.
+    darfRollenVerwalten
+      ? prisma.rolle.findMany({ select: { code: true, bezeichnung: true }, orderBy: { sortierung: "asc" } })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -101,6 +108,8 @@ export default async function PersonenSeite({
                 darfAendern={darfAendern}
                 darfAuskunft={darfAuskunft}
                 darfAnonymisieren={darfAnonymisieren}
+                darfRollenVerwalten={darfRollenVerwalten}
+                alleRollen={alleRollen}
                 person={{
                   id: person.id,
                   name: `${person.vorname} ${person.nachname}`,
@@ -109,6 +118,7 @@ export default async function PersonenSeite({
                   istTerminal: person.status.istTerminal,
                   istAnonym: person.status.code === STATUS.ANONYMISIERT,
                   rollen: person.rollen.map((r) => r.rolle.bezeichnung).join(", "),
+                  rollenCodes: person.rollen.map((r) => r.rolle.code),
                 }}
               />
             ))}

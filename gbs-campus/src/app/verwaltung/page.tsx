@@ -39,7 +39,7 @@ export default async function VerwaltungSeite() {
     },
     {
       titel: "Personen",
-      text: "Jemanden wieder hereinlassen: Anmeldeadresse ändern, Anmeldelink schicken.",
+      text: "Jemanden wieder hereinlassen (Adresse, Anmeldelink) und — als Administrator — Rollen verwalten.",
       pfad: "/verwaltung/personen",
       sichtbar: hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE),
     },
