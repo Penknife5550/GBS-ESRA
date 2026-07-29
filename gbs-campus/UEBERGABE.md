@@ -478,6 +478,17 @@ Verifiziert: **296 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18
 Kursraster, 14 Anonymisierung) und **209 Durchstich-Prüfungen** gegen das gebaute Image (inkl.
 Worker-Einzellauf und Art.-17-Scrub) — alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
+**Als Nächstes — der letzte offene 0.2-Punkt (#4), beide Teile:**
+
+- **Selbstbestätigung:** Der Teilnehmer bestätigt in `/meine-daten` selbst die Anwesenheit bzw.
+  Nacharbeit je Unterrichtstermin (Status ANWESEND oder NACHGEARBEITET, nur die eigene Teilnahme,
+  nur vergangene Termine). Baut auf den Stundenplan-Modellen (`Unterrichtstermin`/`Anwesenheit`) auf
+  — keine Migration nötig.
+- **Dozentenhonorar:** DOZENT-Rolle scharfschalten (im Seed vorhanden, nur noch nicht nutzbar);
+  Dozent je Unterrichtstermin zuordnen (neues Feld `dozentId` → Person, `SetNull`, Handmigration im
+  Prisma-Stil); Honorarsatz je Abend als Einstellung (ganzzahlig, Bereich FINANZEN); read-only
+  Honorar-Übersicht je Dozent (Anzahl Abende × Satz). Abrechnung/Einzug bleibt Release 0.3.
+
 **Vor dem Livegang:** Laientest durch eine projektfremde Person, Restore-Drill, Break-Glass-Tresor
 befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. Das **erste
 Semester ist durch den Seed gesetzt** (2026-H als laufend) — die Schulleitung muss nur bestätigen, dass
