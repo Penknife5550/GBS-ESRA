@@ -11,6 +11,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { EINSTELLUNGEN } from "../src/lib/einstellungen";
+import { ABSCHNITTE, EINLEITUNG } from "./anmeldeformular-definition";
 
 const prisma = new PrismaClient();
 
@@ -433,6 +434,21 @@ const MAIL_VORLAGEN = [
     beschreibung:
       "Die Notbremse beim Passwort: Wer diesen Hinweis bekommt, ohne etwas geändert zu haben, weiß, dass jemand an seinem Konto war.",
   },
+  {
+    code: "AUSKUNFT_BEREIT",
+    bezeichnung: "Datenauskunft nach Art. 15 DSGVO steht bereit",
+    betreff: "Deine Datenauskunft der Gemeindebibelschule steht bereit",
+    textMd:
+      "Hallo {{vorname}},\n\n" +
+      "auf Anforderung wurde eine Auskunft über die zu dir gespeicherten Daten nach Art. 15 DSGVO " +
+      "erstellt. Über den folgenden persönlichen Link kannst du sie als PDF herunterladen:\n\n" +
+      "{{link}}\n\n" +
+      "Der Link gilt {{gueltigkeit}} und führt zu deinen persönlichen Daten. Bitte gib ihn nicht weiter.\n\n" +
+      "Hast du keine Auskunft angefordert, kannst du diese Nachricht ignorieren — ohne den Link wird nichts angezeigt.\n\n" +
+      "Gemeindebibelschule Minden",
+    beschreibung:
+      "Trägt nur den Abruf-Link, nie die Daten selbst — Glaubensangaben und IBAN dürfen den Mailkanal nicht verlassen.",
+  },
 ];
 
 // -----------------------------------------------------------------------------
@@ -455,188 +471,20 @@ const ERMAESSIGUNGEN = [
 ];
 
 // -----------------------------------------------------------------------------
-// Anmeldeformular — Startfassung
+// Anmeldeformular — Startfassung (Bewerbungsformular)
 //
-// Nachbau des ueberarbeiteten Microsoft-Forms-Fragebogens als Version 1. Der
-// Schulleiter aendert ihn ab hier selbst im Cockpit; jede Aenderung erzeugt eine
-// neue Version. Diese Fassung ist also ein Ausgangspunkt, keine Festlegung.
-//
-// Der Abschnitt „Glaube und Gemeinde" ist durchgaengig als Art. 9 markiert:
-// Angaben zu religioeser Ueberzeugung sind eine besondere Kategorie
-// personenbezogener Daten und brauchen eine getrennte Einwilligung.
+// Die Felddefinition liegt in `./anmeldeformular-definition.ts` — EINE Quelle,
+// die auch das manuelle Nachtrag-Skript `scripts/anmeldeformular-bewerbung.ts`
+// nutzt. Der Seed legt daraus Version 1 an; der Schulleiter aendert das Formular
+// ab hier selbst im Cockpit, jede Aenderung erzeugt eine neue Version. Die
+// Glaubens- und Gemeindefelder sind dort durchgaengig als Art. 9 markiert.
 // -----------------------------------------------------------------------------
 const ANMELDEFORMULAR = {
   code: "ANMELDUNG",
   bezeichnung: "Anmeldung zur Gemeindebibelschule",
-  beschreibung: "Aufnahmeformular für neue Teilnehmer.",
-  einleitung:
-    "Schön, dass du dich für die Gemeindebibelschule Minden interessierst. " +
-    "Das Ausfuellen dauert etwa zehn Minuten. Du kannst zwischendurch speichern und später weitermachen.",
-  abschnitte: [
-    {
-      titel: "Wer bist du?",
-      beschreibung: null,
-      felder: [
-        { code: "vorname", typ: "TEXT", label: "Vorname", pflicht: true, personFeld: "VORNAME" },
-        { code: "nachname", typ: "TEXT", label: "Nachname", pflicht: true, personFeld: "NACHNAME" },
-        { code: "geburtsdatum", typ: "DATUM", label: "Geburtsdatum", pflicht: true, personFeld: "GEBURTSDATUM" },
-        { code: "strasse", typ: "TEXT", label: "Straße und Hausnummer", pflicht: true, personFeld: "STRASSE" },
-        { code: "plz", typ: "TEXT", label: "Postleitzahl", pflicht: true, personFeld: "PLZ" },
-        { code: "ort", typ: "TEXT", label: "Ort", pflicht: true, personFeld: "ORT" },
-        {
-          code: "email",
-          typ: "EMAIL",
-          label: "E-Mail-Adresse",
-          hilfetext: "Über diese Adresse läuft dein Zugang zum Portal. Bitte sorgfältig prüfen.",
-          pflicht: true,
-          personFeld: "EMAIL",
-        },
-        { code: "telefon", typ: "TELEFON", label: "Telefonnummer", pflicht: false, personFeld: "TELEFON" },
-      ],
-    },
-    {
-      titel: "Glaube und Gemeinde",
-      beschreibung:
-        "Diese Angaben brauchen wir für die Aufnahme an einer Bibelschule. Bitte stimme ihnen weiter unten gesondert zu.",
-      felder: [
-        {
-          code: "gemeinde",
-          typ: "TEXT",
-          label: "In welcher Gemeinde bist du zu Hause?",
-          pflicht: true,
-          personFeld: "GEMEINDE",
-          istArt9: true,
-        },
-        {
-          code: "gemeinde_seit",
-          typ: "TEXT",
-          label: "Seit wann gehörst du dieser Gemeinde an?",
-          pflicht: false,
-          istArt9: true,
-        },
-        {
-          code: "glaube_seit",
-          typ: "MEHRZEILIG",
-          label: "Erzähl kurz, wie du zum Glauben gekommen bist.",
-          pflicht: false,
-          istArt9: true,
-        },
-        {
-          code: "getauft",
-          typ: "JA_NEIN",
-          label: "Bist du getauft?",
-          pflicht: false,
-          istArt9: true,
-        },
-        {
-          code: "mitarbeit",
-          typ: "MEHRZEILIG",
-          label: "Wo arbeitest du in deiner Gemeinde mit?",
-          pflicht: false,
-          istArt9: true,
-        },
-        {
-          code: "motivation",
-          typ: "MEHRZEILIG",
-          label: "Warum möchtest du die Bibelschule besuchen?",
-          pflicht: true,
-          istArt9: true,
-        },
-      ],
-    },
-    {
-      titel: "Deine Teilnahme",
-      beschreibung: null,
-      felder: [
-        {
-          code: "teilnahmeform",
-          typ: "AUSWAHL_EINFACH",
-          label: "Wie möchtest du teilnehmen?",
-          hilfetext:
-            "Schüler schreiben Prüfungen und erhalten am Ende ein Zeugnis. Hörer nehmen ohne Prüfung teil und bekommen eine Teilnahmebescheinigung.",
-          pflicht: true,
-          personFeld: "TEILNAHMEFORM",
-          optionen: ["Als Schüler — mit Prüfungen", "Als Hörer — ohne Prüfungen"],
-          // Ausdrueckliche Zuordnung statt Raten am Text: Frueher suchte ein
-          // regulaerer Ausdruck nach "hoerer"/"gast", und "Gast-Schueler mit
-          // Pruefung" ergab dabei Hoerer. Daran haengen Pruefungspflicht,
-          // Zeugnis und ab Release 0.3 der Beitrag.
-          teilnahmeformZuordnung: {
-            "Als Schüler — mit Prüfungen": "SCHUELER",
-            "Als Hörer — ohne Prüfungen": "HOERER",
-          },
-        },
-        {
-          code: "vorkenntnisse",
-          typ: "MEHRZEILIG",
-          label: "Hast du schon eine theologische Ausbildung oder Kurse besucht?",
-          pflicht: false,
-        },
-        {
-          code: "erwartungen",
-          typ: "MEHRZEILIG",
-          label: "Was erhoffst du dir von den drei Jahren?",
-          pflicht: false,
-        },
-        {
-          code: "aufmerksam_geworden",
-          typ: "AUSWAHL_EINFACH",
-          label: "Wie hast du von der Bibelschule erfahren?",
-          pflicht: false,
-          optionen: ["Durch meine Gemeinde", "Durch Bekannte", "Im Internet", "Auf anderem Weg"],
-        },
-      ],
-    },
-    {
-      titel: "Semesterbeitrag",
-      beschreibung: null,
-      felder: [
-        {
-          code: "beitrag_hinweis",
-          typ: "HINWEIS",
-          label:
-            "Der Semesterbeitrag wird per Lastschrift eingezogen. Die Rechnung kommt vom Christlichen Werk Esra e.V. " +
-            "Melden sich beide Ehepartner an, zahlt der zweite die Hälfte.",
-          pflicht: false,
-        },
-        {
-          code: "ehepartner_meldet_sich_an",
-          typ: "JA_NEIN",
-          label: "Meldet sich dein Ehepartner ebenfalls an?",
-          hilfetext: "Dann setzen wir die Ermäßigung. Beide Anmeldungen müssen einzeln ausgefüllt werden.",
-          pflicht: false,
-        },
-        {
-          code: "ehepartner_name",
-          typ: "TEXT",
-          label: "Name des Ehepartners",
-          hilfetext: "Nur ausfüllen, wenn die vorige Frage mit Ja beantwortet ist.",
-          pflicht: false,
-        },
-        { code: "kontoinhaber", typ: "TEXT", label: "Kontoinhaber", pflicht: true, personFeld: "KONTOINHABER" },
-        {
-          code: "iban",
-          typ: "IBAN",
-          label: "IBAN",
-          hilfetext: "Wird verschlüsselt gespeichert und ist nur für die Verwaltung einsehbar.",
-          pflicht: true,
-          personFeld: "IBAN",
-        },
-      ],
-    },
-    {
-      titel: "Zum Schluss",
-      beschreibung: null,
-      felder: [
-        {
-          code: "anmerkungen",
-          typ: "MEHRZEILIG",
-          label: "Möchtest du uns noch etwas mitteilen?",
-          pflicht: false,
-        },
-      ],
-    },
-  ],
+  beschreibung: "Bewerbungsformular für neue Teilnehmer.",
+  einleitung: EINLEITUNG,
+  abschnitte: ABSCHNITTE,
 };
 
 async function seedFormular() {

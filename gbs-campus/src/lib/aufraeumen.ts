@@ -28,6 +28,7 @@ export type AufraeumErgebnis = {
   magicLinks: number;
   entwuerfe: number;
   emailAenderungen: number;
+  datenauskuenfte: number;
 };
 
 export async function raeumeAuf(): Promise<AufraeumErgebnis> {
@@ -48,7 +49,7 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
   // Nachvollziehbarkeit dienen.
   const tokenGrenze = new Date(jetzt - tokenTage * TAG_MS);
 
-  const [drossel, links, entwuerfe, emailAenderungen] = await Promise.all([
+  const [drossel, links, entwuerfe, emailAenderungen, datenauskuenfte] = await Promise.all([
     prisma.rateLimit.deleteMany({ where: { zeitpunkt: { lt: drosselGrenze } } }),
     prisma.magicLink.deleteMany({ where: { laeuftAb: { lt: tokenGrenze } } }),
     // Abgelaufene Entwürfe sind nicht mehr aufrufbar — sie liegen sonst für
@@ -59,6 +60,11 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
     // Eine nicht bestätigte Adressänderung enthält eine E-Mail-Adresse und
     // gehört nicht dauerhaft in die Datenbank.
     prisma.emailAenderung.deleteMany({ where: { laeuftAb: { lt: tokenGrenze } } }),
+    // Abgelaufene Auskunfts-Token: dieselbe Frist wie die übrigen Einmal-Token.
+    // Sie verweisen auf eine Person und dienen nach Ablauf nur noch der
+    // Nachvollziehbarkeit — der Nachweis, DASS eine Auskunft erteilt wurde,
+    // steht ohnehin unabhängig im append-only Audit-Log.
+    prisma.datenauskunft.deleteMany({ where: { laeuftAb: { lt: tokenGrenze } } }),
   ]);
 
   const ergebnis: AufraeumErgebnis = {
@@ -66,6 +72,7 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
     magicLinks: links.count,
     entwuerfe: entwuerfe.count,
     emailAenderungen: emailAenderungen.count,
+    datenauskuenfte: datenauskuenfte.count,
   };
 
   // Auch der Lauf, der nichts gefunden hat, wird festgehalten. Genau das ist
@@ -103,7 +110,7 @@ export function raeumeGelegentlichAuf(): void {
 
   void raeumeAuf()
     .then((e) => {
-      if (e.drosselzeilen + e.magicLinks + e.entwuerfe + e.emailAenderungen > 0) {
+      if (e.drosselzeilen + e.magicLinks + e.entwuerfe + e.emailAenderungen + e.datenauskuenfte > 0) {
         console.log("[AUFRAEUMEN]", e);
       }
     })

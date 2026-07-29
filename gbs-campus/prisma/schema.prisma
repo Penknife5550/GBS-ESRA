@@ -205,6 +205,7 @@ model Person {
   teilnahmen         Teilnahme[]
   magicLinks         MagicLink[]
   emailAenderungen   EmailAenderung[]
+  datenauskuenfte    Datenauskunft[]
   emails             EmailVersand[]
   auditEintraege     AuditLog[]      @relation("AuditAkteur")
 
@@ -775,4 +776,40 @@ model AuditLog {
   @@index([objektTyp, objektId])
   @@index([erstelltAm])
   @@map("audit_log")
+}
+
+/// Auskunftsverlangen nach DSGVO Art. 15.
+///
+/// Die Verwaltung stoesst die Auskunft an; der Datensatz ist NUR die
+/// Zugangsberechtigung, nicht die Auskunft selbst — die PDF wird beim Abruf
+/// frisch aus dem aktuellen Datenbestand erzeugt und nirgends gespeichert.
+///
+/// Gehaertet wie der Magic-Link, aus demselben Grund: Der per Mail verschickte
+/// Link fuehrt zur vollstaendigen Datenkopie inkl. Glaubensangaben (Art. 9) und
+/// IBAN. Deshalb liegt nur der SHA-256-Hash des Tokens in der Datenbank (ein
+/// Datenbankleck gibt den Link nicht her), der Token ist kurzlebig und der
+/// Abruf laeuft per POST von einer Bestaetigungsseite (Link-Scanner in
+/// Mail-Sicherheitsloesungen sollen die Auskunft nicht vorab abrufen).
+model Datenauskunft {
+  id       String @id @default(uuid())
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  /// Nur der SHA-256-Hash des Tokens — nie der Token selbst.
+  tokenHash String    @unique
+  laeuftAb  DateTime
+  /// Zeitpunkt des ersten Abrufs. Bleibt null, solange die Auskunft nicht
+  /// heruntergeladen wurde — sichtbar fuer den Betrieb, ob ein Verlangen offen ist.
+  abgerufenAm DateTime?
+
+  /// Wer die Auskunft angestossen hat (Akteur-Id, wie entschiedenVonId — bewusst
+  /// keine Relation, damit das Loeschen eines Kontos den Nachweis nicht mitzieht).
+  erstelltVonId String?
+  erstelltAm    DateTime @default(now())
+
+  @@index([personId])
+  // Wie bei magic_links und email_aenderungen: Der Aufraeumlauf loescht ueber
+  // `laeuftAb < Grenze`, dafuer der Index.
+  @@index([laeuftAb])
+  @@map("datenauskuenfte")
 }

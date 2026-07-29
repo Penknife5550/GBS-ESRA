@@ -67,11 +67,11 @@ wirklich etwas kaputt ist, bevor die Grenzen aufgeweicht werden.
 **Das Anmeldeformular bildet jetzt die Bewerbungs-Vorlage der Schule ab.** Aus der bisherigen schlanken
 Fassung wurde ein vollständiges Bewerbungsformular: 6 Abschnitte, 30 Felder — persönliche Daten, Bildung
 und Beruf, geistlicher Werdegang, Bewerbungshintergrund, Teilnahmeform, Bankverbindung. Die Definition
-liegt versioniert in [`scripts/anmeldeformular-bewerbung.ts`](scripts/anmeldeformular-bewerbung.ts) und
-wurde als neue Formular-Fassung veröffentlicht (die alte automatisch archiviert). **Wichtig:** Das ist
-**noch nicht der Seed-Standard** — ein frischer `db:seed` legt weiter die ältere Fassung an. Für die
-Dauerhaftigkeit gehört die Definition in den Seed übertragen; dann den Durchstich (150 Prüfungen) gegen
-das größere Formular nachziehen.
+liegt seit dem 29.07. als gemeinsame Quelle in
+[`prisma/anmeldeformular-definition.ts`](prisma/anmeldeformular-definition.ts) und ist der
+**Seed-Standard** — ein frischer `db:seed` legt sie an. Das manuelle Nachtrag-Skript
+[`scripts/anmeldeformular-bewerbung.ts`](scripts/anmeldeformular-bewerbung.ts) nutzt dieselbe Quelle und
+spielt sie als neue Fassung gegen eine bereits laufende Instanz ein.
 
 **Neuer IBAN-Prüfer** im öffentlichen Formular ([`oeffentliches-formular.tsx`](src/app/anmeldung/oeffentliches-formular.tsx),
 Komponente `IbanEingabe`): Live-Formatierung in Vierergruppen, Prüfziffer-Check nach ISO 13616 über die
@@ -117,6 +117,52 @@ docker run -d --name gbs-laientest -p 3000:3000 \
 wirkt nicht). Folge: Magic-Links werden **nie** geloggt — in der Testinstanz meldet man sich per
 **Passwort** an. Ein Schulleitungskonto anlegen (Passwort-Hash direkt in die DB, weil `testperson-anlegen.ts`
 keins setzt) und mindestens ein Semester mit offenem Anmeldefenster (siehe `/verwaltung/semester`).
+
+---
+
+## Am 29.07. dazugekommen
+
+**Absenderadresse für den Mailversand steht fest:** `no-reply@gbs-minden.de` (in `.env.example`).
+**SPF/DKIM/DMARC gelten damit für `gbs-minden.de`**, nicht für `gbs.fes-credo.de`. `no-reply@` nimmt
+keine Antworten an — sobald ein betreutes Postfach feststeht, in `MAIL_ANTWORT_AN` eintragen.
+
+**Datenauskunft nach Art. 15 DSGVO — neu.** Verwaltung → Personen → „DSGVO-Auskunft senden" (Recht
+`PERSON_EXPORTIEREN`) schickt der Person einen **persönlichen, 3 Tage gültigen Abruf-Link**; sie lädt
+ihre vollständige Datenkopie (inkl. Glaubensangaben nach Art. 9 und IBAN im Klartext) selbst als **PDF**
+herunter. Die sensiblen Daten verlassen bewusst **nicht** den Mailkanal — dieselbe Linie wie bei der
+IBAN im Excel-Export. Der PDF-Erzeuger (`src/lib/pdf.ts`) ist **reiner Node-Code ohne neue
+Abhängigkeit** (wegen `npm ci --ignore-scripts`, wie scrypt statt bcrypt). Kernstücke:
+`src/lib/auskunft.ts` (Token/DB/PDF), `src/lib/auskunft-inhalt.ts` (reine, testbare Inhaltslogik),
+Routen `api/personen/[id]/auskunft` (anstoßen) und `api/auskunft/abrufen` (POST-Einlösung), Abrufseite
+`/auskunft/token`, Mail-Vorlage `AUSKUNFT_BEREIT`. Token nur als SHA-256-Hash gespeichert, Abruf
+mehrfach bis Ablauf, abgelaufene Token werden im Aufräumlauf gelöscht.
+
+**Token im Adressfragment (beide Links).** Anmelde- und Auskunftslink tragen den Token jetzt im
+Fragment (`…#token=…`) statt im Query-String — er landet damit in keinem Proxy-Zugriffslog (siehe den
+erledigten Punkt oben). Die Bestätigungsseiten lesen ihn clientseitig aus `location.hash`.
+
+**Verifiziert (29.07.):** Produktionsbuild grün (Typprüfung des ganzen Standes), **227**
+Fachlogik-Prüfungen (inkl. 32 für Auskunft/PDF und 16 für Beitrag), **30** DB-Prüfungen (inkl.
+Token-Roundtrip, Verstorbenen-Sperre und IBAN-Fehlerpfad), **Durchstich 162/162** (Login-, Aufnahme-,
+Ehepartner-Ermäßigungs- und Auskunft-Routen-Regression gegen das große Bewerbungsformular), Migration +
+Tabellenstruktur
+gegen `information_schema`/`pg_constraint`. Der Fragment-Login wurde zusätzlich **live im Browser**
+gegen das Produktions-Image geprüft (Token im `#` → angemeldet → Portal; Auskunft-Abruf → 200 PDF).
+Ein adversariales Mehr-Agenten-Review (11 Agenten) fand 5 Befunde für die Auskunft — alle behoben und
+nachgemessen. Neue Prüfskripte: `scripts/pruefe-auskunft.ts`, `scripts/pruefe-beitrag.ts`
+(`npm run pruefen`) und `scripts/pruefe-auskunft-db.ts` (`npm run pruefen:db`).
+
+**GoLive-Review (7 Agenten, 29.07.):** Security, UI/UX, Performance, Architektur, Testing,
+Error-Handling und Code-Qualität haben den ganzen Session-Stand geprüft — **0 CRITICAL, 3 MAJOR, 18
+MINOR**. Die drei MAJOR sind behoben und nachgemessen: (1) die Ehepartner-Ermäßigung wird bei der
+Aufnahme jetzt sichtbar gemeldet (vorher stumm gesetzt), (2) die Verstorbenen-Sperre beim Abruf liegt
+jetzt in der testbaren Lib-Funktion `ruftAuskunftAb` und ist mutationssicher geprüft, (3) die
+Auskunft-Routen sind im Durchstich abgedeckt (Sektion 21). Dazu vier günstige MINOR (freundliches
+PDF-Statuslabel, lautes Logging bei IBAN-Decrypt-Fehler, try/catch+Audit beim Abruf, zentrale
+`hashToken`). Der Report liegt in [`../4_Code-Review-3.html`](../4_Code-Review-3.html). Offen (optional,
+kein Blocker): `PERSON_EXPORTIEREN` semantisch entkoppeln, 72-h-Frist als Einstellung, offene
+Auskunftsverlangen in der Betriebsansicht sichtbar machen, Fragment-Leser-Hook, Rate-Limit auf den
+Fehler-Audit-Pfad.
 
 ---
 
@@ -380,11 +426,23 @@ Wer daran weiterbaut, drei Sätze zum Merken:
 **Der Verifikationslauf ist am 28.07. grün durchgelaufen** — siehe ganz oben. Damit ist der Weg für
 alles Weitere frei.
 
-**Zwei offene Punkte aus dem Nachmittag des 28.07.:** (1) Das neue Bewerbungsformular in den **Seed**
-übertragen, damit ein frischer Aufsatz es mitbringt — danach den Durchstich gegen das größere Formular
-nachziehen. (2) Beim gewählten „0.1-Weg" für den Beitrag fehlen noch die **vier Beträge als
-Einstellungen** (20/120/30/180 €) und die **Ehepartner-50 %-Ermäßigung** bei der Aufnahme; die
-eigentliche Beitragsberechnung bleibt Release 0.3.
+**Punkt (2) ist am 29.07. erledigt:** Die **vier Beträge liegen als Einstellungen** (Bereich BEITRAG,
+20/120/30/180 €, konfigurierbar unter `/verwaltung/einstellungen`), und die **Ehepartner-50 %-Ermäßigung**
+wird bei der Aufnahme am Konto gesetzt, wenn die Anmeldung die gemeinsame Anmeldung mit dem Ehepartner
+bejaht (`ehepartner_gemeinsam`) — Logik in `src/lib/beitrag.ts`, geprüft in `scripts/pruefe-beitrag.ts`
+(16 Prüfungen). Die eigentliche Beitragsberechnung/-einzug bleibt Release 0.3.
+
+**Punkt (1) ist am 29.07. erledigt:** Das Bewerbungsformular (6 Abschnitte, 30 Felder) ist jetzt der
+**Seed-Standard** — ein frischer `db:seed` legt es an. Die Definition liegt als **eine gemeinsame
+Quelle** in `prisma/anmeldeformular-definition.ts`, die sowohl der Seed als auch das manuelle
+Nachtrag-Skript `scripts/anmeldeformular-bewerbung.ts` nutzen (keine Doppelpflege mehr). Der Durchstich
+ist gegen das größere Formular nachgezogen (Anmeldung mit allen neuen Pflichtfeldern, Feldcode
+`gemeinde` → `gemeinde_mitglied`) und um eine End-to-End-Prüfung der Ehepartner-Ermäßigung erweitert —
+jetzt **152 Prüfungen, 0 fehlgeschlagen**.
+
+Damit sind beide Roadmap-Punkte des Nachmittags erledigt. Als Nächstes bleiben nur noch die Punkte
+außerhalb der Entwicklerhand (Mail-Zustellung, Off-Site-Backup, Laientest, erstes Semester) und die
+Release-0.2/0.3-Themen unten.
 
 **Ein Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) und **die Semesterüberleitung**
 mit Re-Enrollment gehören zu Release 0.2 — beide sind unten unter „Bekannte Einschränkungen"
@@ -400,14 +458,15 @@ Go-Live-Checkliste** bereit: [`LAIENTEST.md`](LAIENTEST.md). Es führt den Betre
 Vorbereitung (Umgebung, Semester, Testkonto) und die Testperson durch elf Aufgaben entlang des echten
 Wegs — von der öffentlichen Anmeldung über die Aufnahme durch die Schulleitung bis zur Selbstpflege.
 
-### Drei Entscheidungen, die niemand außer dir treffen kann
+### Entscheidungen, die niemand außer dir treffen kann
 
-Sie stehen ausführlich im [zweiten Review-Bericht](../3_Code-Review-2.html), Abschnitt 07:
+Sie stehen ausführlich im [zweiten Review-Bericht](../3_Code-Review-2.html), Abschnitt 07 (der
+Token-im-Log-Punkt ist am 29.07. erledigt):
 
 | Frage | Worum es geht |
 |---|---|
 | **Wer sieht die Betriebsansicht?** | Sie hängt an `SYSTEM_EINSTELLUNGEN` — nur der Administrator. Die neuen Warnungen (hängende Mails, Empfänger null, Aufräumlauf tot) sieht damit ein einziges Konto. Beim Protokoll ist die Schulleitung inzwischen dabei. |
-| **Token im Zugriffsprotokoll des Proxy** | Anmelde- und Bestätigungslinks tragen den Token im Abfrageteil, Traefik protokolliert den vollen Pfad. Zwei Wege: Token ins Adressfragment verlegen oder das Protokollformat ändern. |
+| **Token im Zugriffsprotokoll des Proxy** — ✅ erledigt (29.07.) | Anmelde-, Bestätigungs- und Auskunftslink tragen den Token jetzt im **Adressfragment** (`…#token=…`), das der Browser nicht an den Server schickt — Traefik protokolliert ihn damit nicht mehr. Die Bestätigungsseiten lesen ihn clientseitig aus `location.hash`. |
 | **Speichergrenze für den App-Container** | Ohne `mem_limit` holt sich der OOM-Killer im Zweifel die Datenbank statt der Anwendung. Empfehlung: 768 MB. |
 
 ---

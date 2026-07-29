@@ -19,6 +19,7 @@ export default async function PersonenSeite({
   if (!benutzer || !hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE)) redirect("/anmelden");
 
   const darfAendern = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_ALLE);
+  const darfAuskunft = hatRecht(benutzer, RECHT.PERSON_EXPORTIEREN);
   const { suche } = await searchParams;
   const begriff = suche?.trim() ?? "";
 
@@ -97,6 +98,7 @@ export default async function PersonenSeite({
               <PersonZeile
                 key={person.id}
                 darfAendern={darfAendern}
+                darfAuskunft={darfAuskunft}
                 person={{
                   id: person.id,
                   name: `${person.vorname} ${person.nachname}`,

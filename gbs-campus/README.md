@@ -28,6 +28,11 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
   jeder einzelne Verlust selbst ab (Passwort vergessen → Anmeldelink; Postfach verloren → Passwort)
 - **Betriebssichtbarkeit** — `/verwaltung/protokoll` (Audit-Log), Betriebsansicht mit hängenden Mails,
   Empfängerzahl für Verwaltungsmeldungen und letztem Aufräumlauf
+- **DSGVO-Auskunft (Art. 15)** — `/verwaltung/personen` → „DSGVO-Auskunft senden" (Recht
+  `PERSON_EXPORTIEREN`): die Person erhält einen persönlichen, 3 Tage gültigen Abruf-Link und lädt ihre
+  vollständige Datenkopie (Glaubensangaben nach Art. 9, IBAN im Klartext) selbst als PDF herunter —
+  sensible Daten verlassen nie den Mailkanal. PDF-Erzeuger ohne externe Abhängigkeit (`src/lib/pdf.ts`).
+  Anmelde- und Auskunftslink tragen den Token jetzt im URL-Fragment (nicht im Query-String, kein Log-Leak)
 
 > ### ✅ Der Stand vom 27.07. ist verifiziert (28.07.2026)
 >
@@ -74,9 +79,9 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 179 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort), ohne Datenbank |
-| `bash scripts/durchstich.sh` | 150 Prüfungen gegen das gebaute Image und eine frische Datenbank |
-| `npm run pruefen:db` | 15 Prüfungen der Einstellungen, **braucht** eine Datenbank |
+| `npm run pruefen` | 227 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag), ohne Datenbank |
+| `bash scripts/durchstich.sh` | 162 Prüfungen gegen das gebaute Image und eine frische Datenbank |
+| `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
 > Die Typprüfung und der Build hängen auf diesem Rechner regelmäßig, weil Synology Drive und iCloud
 > den Projektordner samt `node_modules` synchronisieren. Im Zweifel über den Docker-Build verifizieren.

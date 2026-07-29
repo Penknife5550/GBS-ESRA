@@ -153,7 +153,12 @@ export async function fordereMagicLinkAn(
   });
 
   const basis = process.env.APP_URL ?? "http://localhost:3000";
-  const link = `${basis}/anmelden/token?token=${token}`;
+  // Token im URL-FRAGMENT (#), nicht im Query-String: Das Fragment schickt der
+  // Browser nicht an den Server, es landet also in keinem Zugriffslog des
+  // Reverse Proxy und in keiner Browser-History-Weitergabe an Dritte. Die
+  // Bestaetigungsseite liest ihn clientseitig aus location.hash. Ein Link-Scanner,
+  // der die URL vorab abruft, bekommt den Token damit gar nicht erst zu sehen.
+  const link = `${basis}/anmelden/token#token=${token}`;
 
   const vorlage = await prisma.emailVorlage.findUnique({ where: { code: "MAGIC_LINK" } });
   const werte = {

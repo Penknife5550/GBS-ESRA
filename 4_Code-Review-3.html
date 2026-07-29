@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBS Campus — Drittes Review (7 Agenten) und Fixes</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grau:#575756; --grau-hell:#DADADA;
+  --gelb:#FBC900; --gruen:#6BAA24; --rot:#E2001A; --blau:#009AC6;
+  --bg:#ffffff; --bg2:#f6f6f5; --bg3:#efefee;
+  --tx:#2b2b2b; --tx2:#6b6b6a; --li:#e2e2e0;
+  --code:#f3f3f1;
+}
+html[data-t="dark"]{
+  --bg:#1a1a19; --bg2:#232322; --bg3:#2c2c2a;
+  --tx:#ececeb; --tx2:#a3a3a0; --li:#3a3a38; --code:#232322;
+  --grau:#c9c9c7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:Montserrat,Arial,Helvetica,sans-serif;font-weight:400;
+  font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+a{color:var(--grau);text-decoration:underline;text-underline-offset:3px}
+.credo{display:flex;height:9px;width:100%}
+.credo .g{flex:1 1 50%;background:var(--grau)}
+.credo .s{flex:1 1 12.5%}
+.credo .s1{background:var(--gelb)}.credo .s2{background:var(--gruen)}
+.credo .s3{background:var(--rot)}.credo .s4{background:var(--blau)}
+header{background:var(--bg2);border-bottom:1px solid var(--li);padding:46px 0 34px}
+.kicker{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx2);font-weight:600;margin-bottom:14px}
+h1{font-size:38px;line-height:1.16;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
+.lead{font-size:17.5px;line-height:1.6;color:var(--tx);max-width:82ch;font-weight:400}
+.meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:26px;font-size:13px;color:var(--tx2)}
+.meta b{display:block;color:var(--tx);font-weight:600;font-size:14px;margin-top:2px}
+section{padding:50px 0 8px;border-top:1px solid var(--li)}
+section:first-of-type{border-top:none}
+h2{font-size:25px;font-weight:700;letter-spacing:-.015em;margin:0 0 6px;display:flex;align-items:baseline;gap:14px}
+h2 .no{font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:.08em}
+h3{font-size:18px;font-weight:600;margin:30px 0 8px;letter-spacing:-.01em}
+.sub{color:var(--tx2);font-size:15px;margin:0 0 24px;max-width:80ch}
+p{margin:0 0 14px;max-width:82ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:82ch}
+li{margin-bottom:7px}
+strong{font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--code);padding:2px 6px;border-radius:3px}
+.box{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:20px 22px;margin:20px 0}
+.box.acc{border-left:5px solid var(--grau)}
+.box.rot{border-left:5px solid var(--rot)}
+.box.gelb{border-left:5px solid var(--gelb)}
+.box.gruen{border-left:5px solid var(--gruen)}
+.box.blau{border-left:5px solid var(--blau)}
+.box h4{margin-top:0;font-size:15px;font-weight:600;margin-bottom:8px}
+.box p:last-child,.box ul:last-child{margin-bottom:0}
+.grid{display:grid;gap:16px;margin:22px 0}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.g2,.g4{grid-template-columns:1fr}}
+.kpi{background:var(--bg2);border:1px solid var(--li);border-radius:8px;padding:18px 20px}
+.kpi .n{font-size:29px;font-weight:700;line-height:1.12;letter-spacing:-.02em}
+.kpi .l{font-size:12.5px;color:var(--tx2);margin-top:6px;line-height:1.45}
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--li);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:640px}
+th{background:var(--bg3);text-align:left;padding:11px 14px;font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx2);border-bottom:1px solid var(--li);vertical-align:bottom}
+td{padding:12px 14px;border-bottom:1px solid var(--li);vertical-align:top;line-height:1.5}
+tr:last-child td{border-bottom:none}
+td.c{text-align:center}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:3px;white-space:nowrap;color:#fff;line-height:1.5}
+.t-ok{background:var(--gruen)}
+.t-warn{background:var(--gelb);color:#3a2f00}
+.t-err{background:var(--rot)}
+.t-info{background:var(--blau)}
+.t-neu{background:var(--grau);color:#fff}
+html[data-t="dark"] .t-neu{color:#1a1a19}
+footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);padding:30px 0;font-size:12.5px;color:var(--tx2)}
+.hint{position:fixed;right:16px;bottom:14px;font-size:11px;color:var(--tx2);background:var(--bg2);border:1px solid var(--li);padding:5px 10px;border-radius:4px;opacity:.75}
+@media print{.hint{display:none}section{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="credo"><div class="g"></div><div class="s s1"></div><div class="s s2"></div><div class="s s3"></div><div class="s s4"></div></div>
+
+<header>
+  <div class="wrap">
+    <div class="kicker">GBS Campus · Drittes Code-Review (7 Agenten) und Komplettfix</div>
+    <h1>Kein Blocker — und die drei <span style="color:var(--gelb)">MAJOR</span> sind behoben</h1>
+    <p class="lead">Sieben spezialisierte Review-Agenten (Security, UI/UX, Performance, Architektur, Testing, Error-Handling, Code-Qualität) haben die Session-Änderungen geprüft: DSGVO-Auskunft nach Art. 15, den Token-im-Fragment-Fix, die Beiträge samt Ehepartner-Ermäßigung und das Bewerbungsformular als Seed-Standard. Ergebnis: <strong>0 CRITICAL, 3 MAJOR, 18 MINOR</strong>. Die drei MAJOR und die konvergenten „günstigen" MINOR sind behoben und mit Build + 227 + 30 + 162 Prüfungen nachgemessen.</p>
+    <div class="meta">
+      <div>Datum<b>29.07.2026</b></div>
+      <div>Review-Ampel<b style="color:var(--gelb)">🟡 bedingt bereit</b></div>
+      <div>Nach den Fixes<b style="color:var(--gruen)">🟢 bereit</b></div>
+      <div>Befunde<b>0 CRIT · 3 MAJOR · 18 MINOR</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2><span class="no">00</span>Kernaussage</h2>
+  <p class="sub">Vier Zahlen, wenn man nur vier liest.</p>
+  <div class="grid g4">
+    <div class="kpi"><div class="n" style="color:var(--gruen)">0</div><div class="l">CRITICAL — kein GoLive-Blocker in keinem der sieben Bereiche</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gelb)">3</div><div class="l">MAJOR — alle behoben und nachgemessen</div></div>
+    <div class="kpi"><div class="n">7</div><div class="l">Prüfrichtungen parallel · unabhängig · adversarial</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">419</div><div class="l">automatische Prüfungen nach den Fixes grün: 227 Fachlogik + 162 Durchstich + 30 DB</div></div>
+  </div>
+  <div class="box gruen">
+    <h4>Was gut ist</h4>
+    <p>Die Basis ist sicherheits- und architekturseitig sehr sauber: <strong>kein IDOR</strong>, Token nur als SHA-256-Hash, Verstorbenen-Sperre bei Anstoß und Abruf, der handgeschriebene PDF-Erzeuger escaped byte-sicher, keine N+1, Indexe vorhanden, append-only Audit respektiert. Der Architektur-Agent nennt es „einen <strong>starken, planentreuen Stand — keine Widersprüche zum Plan</strong>". Die Trennung reine Logik / IO / PDF und die gemeinsame Formulardefinition sind der wertvollste Struktur-Gewinn.</p>
+  </div>
+  <div class="box gelb">
+    <h4>Was der Grund für die anfängliche gelbe Ampel war</h4>
+    <p>Drei MAJOR-Punkte: eine <strong>UX-Lücke</strong> (die Ehepartner-Ermäßigung wurde unsichtbar gesetzt) und zwei <strong>Testabdeckungs-Lücken</strong> (die Verstorbenen-Sperre beim Abruf war nicht mutationssicher testbar, und die Auskunft-Routen fehlten im End-to-End-Durchstich). Alle drei sind behoben — Details unten.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">01</span>Findings-Übersicht</h2>
+  <p class="sub">Sieben Agenten, jeder tief in seinem Bereich. Kein einziger CRITICAL.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Bereich</th><th class="c">CRIT</th><th class="c">MAJOR</th><th class="c">MINOR</th><th class="c">INFO</th><th>Kern-Fazit</th></tr></thead>
+      <tbody>
+        <tr><td>🔐 Security</td><td class="c">0</td><td class="c">0</td><td class="c">1</td><td class="c">3</td><td>Sehr sauber; kein IDOR, Token gehärtet. Minor: ungedrosseltes Fehler-Audit (Storage-DoS).</td></tr>
+        <tr><td>🎨 UI/UX</td><td class="c">0</td><td class="c" style="color:var(--gelb);font-weight:700">1</td><td class="c">3</td><td class="c">3</td><td>Einfach &amp; praktikabel. Major: Ermäßigung ohne Rückmeldung.</td></tr>
+        <tr><td>⚡ Performance</td><td class="c">0</td><td class="c">0</td><td class="c">1</td><td class="c">3</td><td>Für ~150 Konten produktionsreif; keine N+1, keine PDF-Speicherfallen.</td></tr>
+        <tr><td>🏗️ Architektur</td><td class="c">0</td><td class="c">0</td><td class="c">5</td><td class="c">6</td><td>Planentreu; IO/rein-Trennung und gemeinsame Definition vorbildlich.</td></tr>
+        <tr><td>✅ Testing</td><td class="c">0</td><td class="c" style="color:var(--gelb);font-weight:700">2</td><td class="c">4</td><td class="c">3</td><td>Prüfungen mutationssicher; Major: Routen &amp; Verstorbenen-Sperre ungetestet.</td></tr>
+        <tr><td>🛡️ Error-Handling</td><td class="c">0</td><td class="c">0</td><td class="c">2</td><td class="c">3</td><td>Robust; Minor: IBAN-Decrypt-Fehler still, Abruf-500 ohne Audit.</td></tr>
+        <tr><td>💎 Code-Qualität</td><td class="c">0</td><td class="c">0</td><td class="c">2</td><td class="c">3</td><td>Überdurchschnittlich sauber; Minor: zwei DRY-Punkte.</td></tr>
+        <tr style="font-weight:700"><td>TOTAL</td><td class="c">0</td><td class="c">3</td><td class="c">18</td><td class="c">24</td><td>0 Blocker · 3 MAJOR behoben</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">02</span>Die drei MAJOR — behoben</h2>
+  <p class="sub">Jeder mit Fundstelle, Grund und Fix. Alle nachgemessen.</p>
+
+  <div class="box gruen">
+    <h4>1 · 🎨 Ehepartner-Ermäßigung ohne Rückmeldung <span class="tag t-ok" style="margin-left:6px">behoben</span></h4>
+    <p><strong>Befund:</strong> Die Aufnahme-Route setzte die 50-%-Ermäßigung am Konto und schrieb sie ins Audit, gab sie aber <strong>nicht in der Antwort zurück</strong>. Die Karte verschwand nach Erfolg — der Bediener erfuhr nie, dass ein halber Semesterbeitrag gesetzt wurde. Eine finanzielle Änderung passierte unsichtbar (genau die Nutzerfrage: „bekommt der Bediener genug Rückmeldung?" → damals nein).</p>
+    <p><strong>Fix:</strong> <code>ermaessigungGesetzt</code> wird jetzt in der API-Antwort geliefert, und die Aufnahme-Komponente zeigt einen dauerhaften Hinweis: „<em>… wurde aufgenommen. Weil die Anmeldung eine gemeinsame Anmeldung mit dem Ehepartner angibt, wurde die Ehepartner-Ermäßigung (50 % Semesterbeitrag) am Konto vermerkt.</em>" — im bereits vorhandenen Hinweis-Block, der bis zum bewussten „Gelesen"-Klick stehen bleibt.</p>
+  </div>
+
+  <div class="box gruen">
+    <h4>2 · ✅ Verstorbenen-Sperre beim Abruf nicht mutationssicher testbar <span class="tag t-ok" style="margin-left:6px">behoben</span></h4>
+    <p><strong>Befund:</strong> Der 410-Wächter für Verstorbene lag in der Route, nicht in den geprüften Lib-Funktionen. Entfernte man die rechtliche Sperre, wurde <strong>keine</strong> Prüfung rot — genau der Fall, den Projektregel 2 ausschließt.</p>
+    <p><strong>Fix:</strong> Die gesamte Abruf-Entscheidung liegt jetzt in der testbaren Lib-Funktion <code>ruftAuskunftAb(token)</code> (Token gültig? Person verstorben/gelöscht? PDF). Die Route bildet das Ergebnis nur noch auf Statuscode + Audit ab. Neu abgesichert: zwei DB-Prüfungen (Verstorbener → Status „verstorben", kein <code>abgerufenAm</code>) und eine Durchstich-Prüfung (410). Nebenbei behoben: <code>abgerufenAm</code> wird erst <strong>nach</strong> erfolgreicher Erzeugung gesetzt.</p>
+  </div>
+
+  <div class="box gruen">
+    <h4>3 · ✅ Auskunft-Routen fehlten im End-to-End-Durchstich <span class="tag t-ok" style="margin-left:6px">behoben</span></h4>
+    <p><strong>Befund:</strong> Anstoßen und Abrufen waren auf Routen-Ebene ungetestet — Rechte-Check, „Auslösender bekommt die Daten nicht", Statuscodes, die Header <code>Content-Type: application/pdf</code> + <code>Cache-Control: no-store</code> und das Audit-Logging. Ausgerechnet die Routen mit Art-9-Daten und Klartext-IBAN.</p>
+    <p><strong>Fix:</strong> Neue Durchstich-Sektion 21 mit 10 Prüfungen: Anstoß erlaubt (200), Token als Hash, <code>AUSKUNFT_ERSTELLT</code>-Audit, Teilnehmer darf nicht anstoßen (403), Abruf liefert PDF mit korrekten Headern, <code>AUSKUNFT_ABGERUFEN</code>-Audit, unbekannter Token (401), Verstorbener (410). Alle grün.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">03</span>Günstig gleich mitgenommen</h2>
+  <p class="sub">Konvergente MINOR, die mehrere Agenten unabhängig fanden — je ein Einzeiler entlang bestehender Muster.</p>
+  <ul>
+    <li><strong>Roher Enum in der PDF</strong> → freundliches Label (<code>anmeldungsstatusText</code>): „Eingereicht, wartet auf Entscheidung" statt <code>EINGEREICHT</code>. 🎨</li>
+    <li><strong>IBAN-Entschlüsselungsfehler</strong> wird jetzt <strong>laut geloggt</strong> statt still verschluckt — deutet auf falschen <code>ENCRYPTION_KEY</code> nach Restore hin (gleiche Linie wie die Bankverbindungs-Route). 🛡️</li>
+    <li><strong>Server-Fehler beim Abruf</strong> läuft jetzt durch try/catch mit Fehler-Audit statt in einen stummen 500. 🛡️</li>
+    <li><strong>Zentrale <code>hashToken</code></strong> aus <code>magic-link.ts</code> statt lokaler Kopie — eine Quelle für die sicherheitsrelevante Hash-Funktion. 💎</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="no">04</span>UX-Urteil: einfach UND praktikabel?</h2>
+  <p class="sub">Die Kernfrage des Auftrags.</p>
+  <div class="box blau">
+    <h4>Ja — mit dem geschlossenen Major nun durchgängig.</h4>
+    <p>Die Nutzerführung ist selbsterklärend, alle Meldungen sind deutsch und konkret, Lade-/Leer-/Fehlerzustände sind abgedeckt, Barrierefreiheit auf gutem WCAG-2.1-AA-Niveau (echte Buttons/Labels, <code>role=status/alert</code>, ≥44 px Trefferflächen, Feedback als Text nicht nur Farbe, kein hartkodiertes Hex). Der Auskunft-Bestätigungsdialog ist vorbildlich eindeutig (nennt Zieladresse, 3-Tage-Gültigkeit, „Daten gehen NICHT per Mail"), die PDF ist laientauglich in nummerierte Abschnitte gegliedert. Die einzige echte Lücke — die unsichtbare Ehepartner-Ermäßigung — ist behoben; der Bediener bekommt jetzt eine dauerhafte, lesbare Rückmeldung.</p>
+  </div>
+  <p>Verbleibende Feinschliff-Punkte (kein Blocker): geteilter „Läuft…"-Zustand über die Aktionsknöpfe der Personen-Zeile; die Download-Erfolgsmeldung wird auch angezeigt, wenn der Browser den Blob-Download still blockt. Beides ist notiert und optional.</p>
+</section>
+
+<section>
+  <h2><span class="no">05</span>Plan-Abgleich — was ist gut</h2>
+  <p class="sub">Gegen <a href="0_LIESMICH.md">0_LIESMICH.md</a>, <a href="gbs-campus/UEBERGABE.md">UEBERGABE.md</a>, <a href="1_Bauplan.html">1_Bauplan.html</a>.</p>
+  <ul>
+    <li><strong>Trennung reine Logik / IO / PDF</strong> — vorbildlich und durch zwei getrennte Prüfskripte (mit/ohne DB) belegt. Genau die Testbarkeit, die Projektregel 2 verlangt.</li>
+    <li><strong>Keine Doppelpflege</strong> — die gemeinsame <code>anmeldeformular-definition.ts</code> beendet die doppelte Felddefinition (Seed + Skript teilen eine Quelle). Der wertvollste Struktur-Gewinn.</li>
+    <li><strong>Datenminimierung durchgehend</strong> — Token nur als Hash, Fragment statt Query (schließt den Proxy-Log-Punkt), <code>no-store</code>, interner Vermerk nur als Flag mit Drittschutz-Hinweis.</li>
+    <li><strong>Konfigurierbarkeit</strong> — die vier Beiträge als Einstellungen, Ehepartner-Feldcode zentral.</li>
+    <li><strong>Append-only Audit respektiert</strong>, Nebenläufigkeit im Aufnahme-Route unangetastet.</li>
+  </ul>
+  <div class="box acc">
+    <h4>Noch offen (optional, kein Blocker)</h4>
+    <p>Drei MINOR entlang der eigenen Prinzipien, für eine ruhige Minute: <code>PERSON_EXPORTIEREN</code> ist semantisch überladen (Einzel-Auskunft vs. Listenexport) — eigenes Recht oder Bezeichnung; die 72-Stunden-Frist des Abruf-Links ist Codekonstante statt Einstellung; offene Auskunftsverlangen sind noch nicht in der Betriebsansicht sichtbar (der Schema-Kommentar verspricht mehr als der Code liefert). Dazu der Fragment-Leser-Hook (DRY) und ein Rate-Limit auf den Fehler-Audit-Pfad (Storage-DoS-Härtung).</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="no">06</span>Verifikation nach den Fixes</h2>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Prüfung</th><th>Ergebnis</th></tr></thead>
+      <tbody>
+        <tr><td>Produktionsbuild (Typprüfung des gesamten Standes)</td><td><span class="tag t-ok">grün</span> 0 Typfehler</td></tr>
+        <tr><td><code>npm run pruefen</code> (Fachlogik, ohne DB)</td><td><span class="tag t-ok">227 / 227</span></td></tr>
+        <tr><td><code>npm run pruefen:db</code> (mit DB, inkl. Verstorbenen-Sperre + IBAN-Fehlerpfad)</td><td><span class="tag t-ok">30 / 30</span></td></tr>
+        <tr><td><code>durchstich.sh</code> (End-to-End, inkl. neuer Auskunft-Routen-Sektion)</td><td><span class="tag t-ok">162 / 162</span></td></tr>
+        <tr><td>Auskunft-Routen live: Anstoß · Rechte-403 · PDF-Header · Audit · 401 · 410</td><td><span class="tag t-ok">alle grün</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>GoLive-Status nach den Fixes: 🟢 bereit</strong> — 0 CRITICAL, keine offenen MAJOR. Die verbleibenden MINOR sind Feinschliff und blockieren den Livegang nicht.</p>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    GBS Campus · Gemeindebibelschule Minden · Christliches Werk Esra e.V. — Drittes Code-Review (7 Agenten) und Komplettfix, 29.07.2026.
+    Stand &amp; Ausblick: <a href="4_Stand-und-Ausblick.html">4_Stand-und-Ausblick.html</a> · Vorige Reviews: <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> · Betrieb: <a href="gbs-campus/UEBERGABE.md">UEBERGABE.md</a>
+  </div>
+</footer>
+
+<div class="hint">Taste <b>t</b> — hell/dunkel</div>
+<script>
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey) return;
+  const el = document.documentElement;
+  el.dataset.t = el.dataset.t === "dark" ? "light" : "dark";
+});
+</script>
+</body>
+</html>

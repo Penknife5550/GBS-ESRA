@@ -128,12 +128,18 @@ EINREICHEN=$(curl -s -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: applicat
   \"versionId\": \"${VERSION_ID}\",
   \"einwilligungen\": [\"DATENSCHUTZ\", \"GLAUBENSANGABEN\"],
   \"antworten\": {
+    \"anrede\": \"Frau\",
     \"vorname\": \"Petra\", \"nachname\": \"Beispiel\", \"geburtsdatum\": \"1990-05-04\",
     \"strasse\": \"Hauptstr. 1\", \"plz\": \"32423\", \"ort\": \"Minden\",
     \"email\": \"petra@beispiel.de\", \"telefon\": \"0571 123456\",
-    \"gemeinde\": \"FeG Minden\", \"motivation\": \"Ich moechte die Bibel besser verstehen.\",
+    \"schulabschluss\": \"Abitur\", \"erlernter_beruf\": \"Erzieherin\", \"derzeitiger_beruf\": \"Erzieherin\",
+    \"glaube_bekenntnis\": \"Ja, aus Ueberzeugung.\", \"glaube_werdegang\": \"Als Jugendliche zum Glauben gekommen.\",
+    \"gemeinde_mitglied\": \"FeG Minden\", \"gemeinde_beteiligung\": \"Woechentlich, Kindergottesdienst.\",
+    \"dienst_erfahrung\": \"Kindergottesdienst seit 2015.\",
+    \"motivation\": \"Ich moechte die Bibel besser verstehen.\", \"ziele\": \"Die Bibel im Zusammenhang verstehen.\",
     \"teilnahmeform\": \"Als Schüler — mit Prüfungen\",
-    \"kontoinhaber\": \"Petra Beispiel\", \"iban\": \"DE89 3704 0044 0532 0130 00\"
+    \"kontoinhaber\": \"Petra Beispiel\", \"iban\": \"DE89 3704 0044 0532 0130 00\",
+    \"bank_name\": \"Sparkasse Minden-Luebbecke\", \"einzug_einverstanden\": true, \"zahlweise\": \"Halbjährlich\"
   }
 }")
 pruefe "Anmeldung wird angenommen" "$(echo "$EINREICHEN" | grep -qc 'eingereicht' 2>/dev/null && echo 1 || echo 0)" "$EINREICHEN"
@@ -615,11 +621,15 @@ OHNE_PFLICHT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/anme
   -H 'X-Real-Ip: 203.0.113.30' -d "{
   \"aktion\": \"absenden\", \"versionId\": \"${VERSION_ID}\", \"einwilligungen\": [\"DATENSCHUTZ\"],
   \"antworten\": {
+    \"anrede\": \"Herr\",
     \"vorname\": \"Gerd\", \"nachname\": \"Gemeindefrei\", \"geburtsdatum\": \"1985-03-03\",
     \"strasse\": \"Nebenweg 2\", \"plz\": \"32423\", \"ort\": \"Minden\",
-    \"email\": \"ohne.einwilligung@beispiel.de\", \"gemeinde\": \"FeG Herford\",
+    \"email\": \"ohne.einwilligung@beispiel.de\", \"telefon\": \"0571 000111\",
+    \"schulabschluss\": \"Realschulabschluss\", \"erlernter_beruf\": \"Maler\", \"derzeitiger_beruf\": \"Maler\",
+    \"gemeinde_mitglied\": \"FeG Herford\", \"motivation\": \"Interesse.\",
     \"teilnahmeform\": \"Als Hörer — ohne Prüfungen\",
-    \"kontoinhaber\": \"Gerd Gemeindefrei\", \"iban\": \"DE89 3704 0044 0532 0130 00\"
+    \"kontoinhaber\": \"Gerd Gemeindefrei\", \"iban\": \"DE89 3704 0044 0532 0130 00\",
+    \"bank_name\": \"Volksbank\", \"einzug_einverstanden\": true, \"zahlweise\": \"Monatlich\"
   }
 }")
 pruefe "ohne Pflichteinwilligung wird die Anmeldung abgewiesen (400)" "$(gleich "$OHNE_PFLICHT" "400")" "$OHNE_PFLICHT"
@@ -632,12 +642,15 @@ OHNE_ART9=$(curl -s -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: applicati
   -H 'X-Real-Ip: 203.0.113.31' -d "{
   \"aktion\": \"absenden\", \"versionId\": \"${VERSION_ID}\", \"einwilligungen\": [\"DATENSCHUTZ\"],
   \"antworten\": {
+    \"anrede\": \"Herr\",
     \"vorname\": \"Gerd\", \"nachname\": \"Gemeindefrei\", \"geburtsdatum\": \"1985-03-03\",
     \"strasse\": \"Nebenweg 2\", \"plz\": \"32423\", \"ort\": \"Minden\",
-    \"email\": \"ohne.einwilligung@beispiel.de\", \"gemeinde\": \"FeG Herford\",
-    \"motivation\": \"Das geht nur mich etwas an.\",
+    \"email\": \"ohne.einwilligung@beispiel.de\", \"telefon\": \"0571 000111\",
+    \"schulabschluss\": \"Realschulabschluss\", \"erlernter_beruf\": \"Maler\", \"derzeitiger_beruf\": \"Maler\",
+    \"gemeinde_mitglied\": \"FeG Herford\", \"motivation\": \"Das geht nur mich etwas an.\",
     \"teilnahmeform\": \"Als Hörer — ohne Prüfungen\",
-    \"kontoinhaber\": \"Gerd Gemeindefrei\", \"iban\": \"DE89 3704 0044 0532 0130 00\"
+    \"kontoinhaber\": \"Gerd Gemeindefrei\", \"iban\": \"DE89 3704 0044 0532 0130 00\",
+    \"bank_name\": \"Volksbank\", \"einzug_einverstanden\": true, \"zahlweise\": \"Monatlich\"
   }
 }")
 $PSQL "update einwilligungs_texte set pflicht = true where code = 'GLAUBENSANGABEN';" > /dev/null
@@ -734,12 +747,78 @@ pruefe "kein Passwort im Versandprotokoll" \
 pruefe "im Versandprotokoll stehen ueberhaupt Zeilen" \
   "$(gleich "$($PSQL "select count(*) > 0 from email_versand;")" "t")"
 
+echo
+echo "=== 20. Ehepartner-Ermaessigung bei der Aufnahme ==="
+# Eine gemeinsame Anmeldung (ehepartner_gemeinsam=true) muss bei der Aufnahme die
+# 50%-Ermaessigung am Konto setzen. Prueft den Weg Formularfeld -> antworten ->
+# Aufnahme-Route -> person.ermaessigungCode gegen das grosse Bewerbungsformular.
+EHE_EINREICHEN=$(curl -s -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.20' -d "{
+  \"aktion\": \"absenden\",
+  \"versionId\": \"${VERSION_ID}\",
+  \"einwilligungen\": [\"DATENSCHUTZ\", \"GLAUBENSANGABEN\"],
+  \"antworten\": {
+    \"anrede\": \"Herr\",
+    \"vorname\": \"Klaus\", \"nachname\": \"Ehemann\", \"geburtsdatum\": \"1985-02-02\",
+    \"strasse\": \"Ringstr. 3\", \"plz\": \"32423\", \"ort\": \"Minden\",
+    \"email\": \"klaus@beispiel.de\", \"telefon\": \"0571 222333\",
+    \"schulabschluss\": \"Abitur\", \"erlernter_beruf\": \"Tischler\", \"derzeitiger_beruf\": \"Tischler\",
+    \"glaube_bekenntnis\": \"Ja.\", \"glaube_werdegang\": \"Seit der Jugend.\",
+    \"gemeinde_mitglied\": \"FeG Minden\", \"gemeinde_beteiligung\": \"Woechentlich.\",
+    \"dienst_erfahrung\": \"Hauskreis.\",
+    \"motivation\": \"Vertiefung.\", \"ziele\": \"Bibelkenntnis.\",
+    \"teilnahmeform\": \"Als Schüler — mit Prüfungen\",
+    \"kontoinhaber\": \"Klaus Ehemann\", \"iban\": \"DE02 1203 0000 0000 2020 51\",
+    \"bank_name\": \"Sparkasse\", \"einzug_einverstanden\": true, \"zahlweise\": \"Monatlich\",
+    \"ehepartner_gemeinsam\": true
+  }
+}")
+pruefe "Ehepartner-Anmeldung wird angenommen" "$(echo "$EHE_EINREICHEN" | grep -qc 'eingereicht' 2>/dev/null && echo 1 || echo 0)" "$EHE_EINREICHEN"
+EHE_ANMELDUNG_ID=$($PSQL "select a.id from anmeldungen a join personen p on p.id=a.\"personId\" where p.email='klaus@beispiel.de' and a.status='EINGEREICHT' limit 1;")
+curl -s -o /dev/null -X POST "${BASIS}/api/anmeldungen/${EHE_ANMELDUNG_ID}/entscheiden" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"entscheidung":"ANNEHMEN"}'
+pruefe "Aufnahme setzt die Ehepartner-Ermaessigung am Konto" \
+  "$(gleich "$($PSQL "select \"ermaessigungCode\" from personen where email='klaus@beispiel.de';")" "EHEPARTNER")"
+
+echo
+echo "=== 21. DSGVO-Auskunft: anstossen und abrufen ==="
+# Anstoss durch die Schulleitung (Recht PERSON_EXPORTIEREN).
+AUSK_ANSTOSS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${TEILNEHMER_ID}/auskunft" -H "Cookie: ${KEKS}")
+pruefe "Auskunft anstossen ist erlaubt (200)" "$(gleich "$AUSK_ANSTOSS" "200")" "$AUSK_ANSTOSS"
+pruefe "ein Auskunfts-Token wurde als 64-stelliger Hash angelegt" \
+  "$(gleich "$($PSQL "select count(*) from datenauskuenfte where \"personId\"='${TEILNEHMER_ID}' and \"tokenHash\" ~ '^[0-9a-f]{64}\$';")" "1")"
+pruefe "der Anstoss ist protokolliert (AUSKUNFT_ERSTELLT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='AUSKUNFT_ERSTELLT' and \"objektId\"='${TEILNEHMER_ID}';")" "t")"
+# Ein Teilnehmer darf NICHT anstossen (kein PERSON_EXPORTIEREN).
+AUSK_VERBOTEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${TEILNEHMER_ID}/auskunft" -H "Cookie: ${KEKS2}")
+pruefe "ein Teilnehmer darf keine Auskunft anstossen (403)" "$(gleich "$AUSK_VERBOTEN" "403")" "$AUSK_VERBOTEN"
+
+# Bekannten Hash auf den angelegten Token setzen (wie bei der E-Mail-Bestaetigung).
+AUSK_TOKEN=$(uuidgen | tr 'A-Z' 'a-z')
+AUSK_HASH=$(printf %s "$AUSK_TOKEN" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "update datenauskuenfte set \"tokenHash\"='${AUSK_HASH}' where \"personId\"='${TEILNEHMER_ID}';" > /dev/null
+# Abruf per POST -> PDF; Header und Datei pruefen.
+AUSK_KOPF=$(curl -s -D - -o /tmp/gbs-auskunft.pdf -X POST "${BASIS}/api/auskunft/abrufen" -H 'Content-Type: application/json' -d "{\"token\":\"${AUSK_TOKEN}\"}")
+pruefe "der Abruf liefert Content-Type application/pdf" "$(echo "$AUSK_KOPF" | grep -qi 'content-type: application/pdf' && echo 1 || echo 0)"
+pruefe "der Abruf setzt Cache-Control: no-store" "$(echo "$AUSK_KOPF" | grep -qi 'cache-control: no-store' && echo 1 || echo 0)"
+pruefe "die heruntergeladene Datei ist eine PDF" "$(head -c 5 /tmp/gbs-auskunft.pdf | grep -qa '%PDF-' && echo 1 || echo 0)"
+pruefe "der Abruf ist protokolliert (AUSKUNFT_ABGERUFEN)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='AUSKUNFT_ABGERUFEN';")" "t")"
+# Unbekannter Token -> 401.
+AUSK_UNGUELTIG=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/auskunft/abrufen" -H 'Content-Type: application/json' -d "{\"token\":\"$(uuidgen | tr 'A-Z' 'a-z')\"}")
+pruefe "unbekannter Token wird abgewiesen (401)" "$(gleich "$AUSK_UNGUELTIG" "401")" "$AUSK_UNGUELTIG"
+# Verstorbene Person -> 410, auch fuer einen gueltigen Token.
+$PSQL "update personen set \"statusCode\"='VERSTORBEN' where id='${TEILNEHMER_ID}';" > /dev/null
+VAUSK_TOKEN=$(uuidgen | tr 'A-Z' 'a-z'); VAUSK_HASH=$(printf %s "$VAUSK_TOKEN" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "insert into datenauskuenfte (id,\"personId\",\"tokenHash\",\"laeuftAb\",\"erstelltAm\") values (gen_random_uuid(),'${TEILNEHMER_ID}','${VAUSK_HASH}', now()+interval '1 hour', now());" > /dev/null
+AUSK_VERSTORBEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/auskunft/abrufen" -H 'Content-Type: application/json' -d "{\"token\":\"${VAUSK_TOKEN}\"}")
+pruefe "fuer eine verstorbene Person wird der Abruf gesperrt (410)" "$(gleich "$AUSK_VERSTORBEN" "410")" "$AUSK_VERSTORBEN"
+$PSQL "update personen set \"statusCode\"='ANGENOMMEN' where id='${TEILNEHMER_ID}';" > /dev/null
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 149 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=150
+# 161 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=162
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

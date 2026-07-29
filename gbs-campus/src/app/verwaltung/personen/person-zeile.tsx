@@ -13,7 +13,15 @@ export type PersonAnzeige = {
   rollen: string;
 };
 
-export function PersonZeile({ person, darfAendern }: { person: PersonAnzeige; darfAendern: boolean }) {
+export function PersonZeile({
+  person,
+  darfAendern,
+  darfAuskunft,
+}: {
+  person: PersonAnzeige;
+  darfAendern: boolean;
+  darfAuskunft: boolean;
+}) {
   const router = useRouter();
   const [modus, setModus] = useState<"ruhe" | "email">("ruhe");
   const [neueEmail, setNeueEmail] = useState("");
@@ -75,6 +83,40 @@ export function PersonZeile({ person, darfAendern }: { person: PersonAnzeige; da
     );
   }
 
+  async function auskunftSenden() {
+    if (
+      !confirm(
+        `Eine Datenauskunft nach Art. 15 DSGVO für ${person.name} anstoßen?\n\n` +
+          `An die hinterlegte Adresse ${person.email} geht ein persönlicher, 3 Tage gültiger Link, über den die Person ` +
+          "ihre vollständigen Daten selbst als PDF herunterladen kann. Die Daten selbst werden NICHT per " +
+          "E-Mail verschickt.",
+      )
+    ) {
+      return;
+    }
+
+    setLaeuft(true);
+    setMeldung(null);
+
+    const antwort = await sendeAnfrage<{ empfaenger: string; gesendet: boolean }>(
+      `/api/personen/${person.id}/auskunft`,
+      { methode: "POST" },
+    );
+    setLaeuft(false);
+
+    if (!antwort.ok) {
+      setMeldung({ art: "fehler", text: antwort.meldung });
+      return;
+    }
+
+    setMeldung({
+      art: "ok",
+      text: antwort.daten.gesendet
+        ? `Auskunft-Link an ${antwort.daten.empfaenger} verschickt. Der Link gilt 3 Tage.`
+        : "Der Auskunft-Link konnte nicht zugestellt werden — siehe Verwaltung → Betrieb.",
+    });
+  }
+
   return (
     <li className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -120,6 +162,23 @@ export function PersonZeile({ person, darfAendern }: { person: PersonAnzeige; da
             </p>
           )}
         </>
+      )}
+
+      {darfAuskunft && (
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={auskunftSenden}
+            disabled={laeuft}
+            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium disabled:opacity-60"
+          >
+            {laeuft ? "Läuft …" : "DSGVO-Auskunft senden"}
+          </button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Schickt der Person einen persönlichen Link, über den sie ihre gespeicherten Daten nach Art. 15
+            DSGVO als PDF abrufen kann.
+          </p>
+        </div>
       )}
 
       {modus === "email" && (

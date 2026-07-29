@@ -6,6 +6,7 @@ import { ladeMitRecht } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
 import { fuelleVorlage, sendeMail } from "@/lib/mailer";
 import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { willEhepartnerErmaessigung, ERMAESSIGUNG_EHEPARTNER } from "@/lib/beitrag";
 
 const schema = z.discriminatedUnion("entscheidung", [
   z.object({ entscheidung: z.literal("ANNEHMEN") }),
@@ -63,9 +64,23 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
     });
     if (geaendert.count !== 1) return null;
 
-    if (!annehmen) return { semesterId: null, teilnahmeAngelegt: false };
+    if (!annehmen) return { semesterId: null, teilnahmeAngelegt: false, ermaessigungGesetzt: false };
 
-    await tx.person.update({ where: { id: person.id }, data: { statusCode: "ANGENOMMEN" } });
+    // Ehepartner-Ermäßigung: Wer sich laut Anmeldung gemeinsam mit dem
+    // Ehepartner beworben hat, bekommt bei der Aufnahme die 50 %-Ermäßigung am
+    // Konto vermerkt — die Grundlage für den Beitragslauf ab Release 0.3. Nur,
+    // wenn noch keine andere Ermäßigung hinterlegt ist (eine per Hand gesetzte
+    // Härtefall-Ermäßigung darf die Automatik nicht überschreiben).
+    const setzeErmaessigung =
+      !person.ermaessigungCode && willEhepartnerErmaessigung((anmeldung.antworten ?? {}) as Record<string, unknown>);
+
+    await tx.person.update({
+      where: { id: person.id },
+      data: {
+        statusCode: "ANGENOMMEN",
+        ...(setzeErmaessigung ? { ermaessigungCode: ERMAESSIGUNG_EHEPARTNER } : {}),
+      },
+    });
     await tx.statusWechsel.create({
       data: {
         personId: person.id,
@@ -106,7 +121,7 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
       });
     }
 
-    return { semesterId, teilnahmeAngelegt: Boolean(semesterId && teilnahmeform) };
+    return { semesterId, teilnahmeAngelegt: Boolean(semesterId && teilnahmeform), ermaessigungGesetzt: setzeErmaessigung };
   });
 
   if (!ergebnis) {
@@ -133,7 +148,13 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
       nachher: {
         status: annehmen ? "ANGENOMMEN" : "ABGELEHNT",
         personStatus: annehmen ? "ANGENOMMEN" : person.statusCode,
-        ...(annehmen ? { semesterId: ergebnis.semesterId, teilnahmeAngelegt: ergebnis.teilnahmeAngelegt } : {}),
+        ...(annehmen
+          ? {
+              semesterId: ergebnis.semesterId,
+              teilnahmeAngelegt: ergebnis.teilnahmeAngelegt,
+              ermaessigung: ergebnis.ermaessigungGesetzt ? ERMAESSIGUNG_EHEPARTNER : (person.ermaessigungCode ?? null),
+            }
+          : {}),
       },
       headers: request.headers,
     });
@@ -173,5 +194,8 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
     // null bei einer Ablehnung — dort ist die Frage nach der Teilnahme nicht
     // gestellt worden.
     semesterZugeordnet: annehmen ? ergebnis.teilnahmeAngelegt : null,
+    // Sichtbar für den Bediener: Eine gesetzte Ehepartner-Ermäßigung ist eine
+    // finanzielle Änderung (halber Beitrag) und darf nicht unbemerkt passieren.
+    ermaessigungGesetzt: annehmen ? ergebnis.ermaessigungGesetzt : null,
   });
 }

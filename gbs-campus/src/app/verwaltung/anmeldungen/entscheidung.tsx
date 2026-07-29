@@ -26,6 +26,7 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
       entschieden: boolean;
       mailGesendet: boolean | null;
       semesterZugeordnet: boolean | null;
+      ermaessigungGesetzt: boolean | null;
     }>(
       `/api/anmeldungen/${anmeldungId}/entscheiden`,
       { methode: "POST", rumpf: entscheidung === "ANNEHMEN" ? { entscheidung } : { entscheidung, grund } },
@@ -45,6 +46,17 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
       hinweise.push(
         `${name} wurde aufgenommen. Die Bestätigungsmail konnte aber nicht zugestellt werden — ` +
           "bitte persönlich Bescheid geben. Einzelheiten unter Verwaltung → Betrieb.",
+      );
+    }
+
+    // Eine gesetzte Ehepartner-Ermäßigung ist eine finanzielle Änderung (halber
+    // Beitrag) — der Bediener soll sie schwarz auf weiß sehen und einen falsch
+    // angehakten Ehepartner-Haken bemerken können, statt dass sie unsichtbar
+    // gesetzt wird.
+    if (antwort.daten.ermaessigungGesetzt === true) {
+      hinweise.push(
+        `${name} wurde aufgenommen. Weil die Anmeldung eine gemeinsame Anmeldung mit dem Ehepartner ` +
+          "angibt, wurde die Ehepartner-Ermäßigung (50 % Semesterbeitrag) am Konto vermerkt.",
       );
     }
 

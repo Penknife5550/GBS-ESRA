@@ -228,6 +228,58 @@ export const EINSTELLUNGEN = {
     einheit: "Tage",
     sortierung: 10,
   },
+  // Die vier Beträge stehen bewusst als Regler und nicht als Konstante im Code:
+  // Preise ändern sich, und der eigentliche Beitragslauf (Release 0.3) soll sie
+  // hier finden statt in einer Codezeile. In 0.1 wird noch nichts eingezogen —
+  // die Werte spiegeln den Hinweistext des Bewerbungsformulars.
+  BEITRAG_REGULAER_MONATLICH: {
+    bezeichnung: "Beitrag monatlich (regulär)",
+    beschreibung: "Monatlicher Semesterbeitrag ohne Ermäßigung. Einzug ab Release 0.3.",
+    bereich: "BEITRAG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 20,
+    minimum: 0,
+    maximum: 100000,
+    einheit: "€",
+    sortierung: 10,
+  },
+  BEITRAG_REGULAER_HALBJAEHRLICH: {
+    bezeichnung: "Beitrag halbjährlich (regulär)",
+    beschreibung: "Halbjährlicher Semesterbeitrag ohne Ermäßigung. Einzug ab Release 0.3.",
+    bereich: "BEITRAG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 120,
+    minimum: 0,
+    maximum: 100000,
+    einheit: "€",
+    sortierung: 20,
+  },
+  BEITRAG_EHEPARTNER_MONATLICH: {
+    bezeichnung: "Beitrag monatlich (mit Ehepartner)",
+    beschreibung:
+      "Monatlicher Beitrag bei gemeinsamer Anmeldung mit dem Ehepartner (zweiter Partner 50 %). " +
+      "Einzug ab Release 0.3.",
+    bereich: "BEITRAG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 30,
+    minimum: 0,
+    maximum: 100000,
+    einheit: "€",
+    sortierung: 30,
+  },
+  BEITRAG_EHEPARTNER_HALBJAEHRLICH: {
+    bezeichnung: "Beitrag halbjährlich (mit Ehepartner)",
+    beschreibung:
+      "Halbjährlicher Beitrag bei gemeinsamer Anmeldung mit dem Ehepartner (zweiter Partner 50 %). " +
+      "Einzug ab Release 0.3.",
+    bereich: "BEITRAG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 180,
+    minimum: 0,
+    maximum: 100000,
+    einheit: "€",
+    sortierung: 40,
+  },
 } as const satisfies Record<string, ZahlDefinition>;
 
 export type EinstellungSchluessel = keyof typeof EINSTELLUNGEN;

@@ -238,7 +238,7 @@ Zusammengetragen aus [`UEBERGABE.md`](UEBERGABE.md). Der Laientest ist nur der e
 
 ### Zwei Betriebsentscheidungen (siehe zweiter Review-Bericht, Abschnitt 07)
 - [ ] Wer sieht die Betriebsansicht mit den Störungswarnungen? (hängt aktuell allein am Administrator)
-- [ ] Token im Zugriffsprotokoll des Proxy: ins Adressfragment verlegen oder Protokollformat ändern
+- [x] Token im Zugriffsprotokoll des Proxy: ins Adressfragment verlegt — Anmelde- und Auskunftslink tragen den Token jetzt im `#`-Fragment, das der Browser nicht an den Server schickt (29.07.)
 
 ### Datenschutz (kein Softwarethema, aber vor dem Livegang zu klären)
 - [ ] Art.-9-Einwilligung als Pflichtfeld gegen das Kopplungsverbot (Art. 7 Abs. 4 DSGVO) — Frage an den
