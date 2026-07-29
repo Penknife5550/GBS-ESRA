@@ -29,6 +29,7 @@ export type AufraeumErgebnis = {
   entwuerfe: number;
   emailAenderungen: number;
   datenauskuenfte: number;
+  bestaetigungsLinks: number;
 };
 
 export async function raeumeAuf(): Promise<AufraeumErgebnis> {
@@ -49,7 +50,7 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
   // Nachvollziehbarkeit dienen.
   const tokenGrenze = new Date(jetzt - tokenTage * TAG_MS);
 
-  const [drossel, links, entwuerfe, emailAenderungen, datenauskuenfte] = await Promise.all([
+  const [drossel, links, entwuerfe, emailAenderungen, datenauskuenfte, bestaetigungsLinks] = await Promise.all([
     prisma.rateLimit.deleteMany({ where: { zeitpunkt: { lt: drosselGrenze } } }),
     prisma.magicLink.deleteMany({ where: { laeuftAb: { lt: tokenGrenze } } }),
     // Abgelaufene Entwürfe sind nicht mehr aufrufbar — sie liegen sonst für
@@ -65,6 +66,14 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
     // Nachvollziehbarkeit — der Nachweis, DASS eine Auskunft erteilt wurde,
     // steht ohnehin unabhängig im append-only Audit-Log.
     prisma.datenauskunft.deleteMany({ where: { laeuftAb: { lt: tokenGrenze } } }),
+    // Abgelaufene „bin dabei"-Bestätigungslinks der Semesterüberleitung: NUR den
+    // Token entwerten, die Teilnahme selbst bleibt. `bestaetigtAm` ist der
+    // Re-Enrollment-Nachweis und fließt in die DSGVO-Auskunft — der wird nie
+    // gelöscht. Der Token gilt bis Semesterstart, danach ist er wertlos.
+    prisma.teilnahme.updateMany({
+      where: { bestaetigungLaeuftAb: { lt: tokenGrenze } },
+      data: { bestaetigungTokenHash: null, bestaetigungLaeuftAb: null },
+    }),
   ]);
 
   const ergebnis: AufraeumErgebnis = {
@@ -73,6 +82,7 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
     entwuerfe: entwuerfe.count,
     emailAenderungen: emailAenderungen.count,
     datenauskuenfte: datenauskuenfte.count,
+    bestaetigungsLinks: bestaetigungsLinks.count,
   };
 
   // Auch der Lauf, der nichts gefunden hat, wird festgehalten. Genau das ist
@@ -110,7 +120,7 @@ export function raeumeGelegentlichAuf(): void {
 
   void raeumeAuf()
     .then((e) => {
-      if (e.drosselzeilen + e.magicLinks + e.entwuerfe + e.emailAenderungen + e.datenauskuenfte > 0) {
+      if (e.drosselzeilen + e.magicLinks + e.entwuerfe + e.emailAenderungen + e.datenauskuenfte + e.bestaetigungsLinks > 0) {
         console.log("[AUFRAEUMEN]", e);
       }
     })

@@ -50,6 +50,18 @@ export default async function VerwaltungSeite() {
       sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
     },
     {
+      titel: "Semesterüberleitung",
+      text: "Den Jahrgang ins Folgesemester einladen und Rückmeldungen verfolgen.",
+      pfad: "/verwaltung/semesterueberleitung",
+      sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
+    },
+    {
+      titel: "Fächer & Kursraster",
+      text: "Das 3-Jahres-Kursraster der Schule — Grundstein für den Stundenplan.",
+      pfad: "/verwaltung/faecher",
+      sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
+    },
+    {
       titel: "Formulare",
       text: "Das Anmeldeformular gestalten und veröffentlichen.",
       pfad: "/verwaltung/formulare",

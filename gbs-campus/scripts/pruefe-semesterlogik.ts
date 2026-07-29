@@ -20,14 +20,19 @@ import {
   alsHeutigerTag,
   alsTagesdatum,
   deutscherTag,
+  erinnerungsFeld,
   EXPORT_SPALTEN,
   ExportZeile,
+  faelligeErinnerungsstufe,
   pruefeSemester,
   SemesterDaten,
   semesterDaten,
   SemesterKandidat,
   semesterFuerAnmeldung,
+  semesterZeitraum,
   teilnahmeformName,
+  UeberleitungKandidat,
+  waehleUeberzuleitende,
 } from "../src/lib/semester";
 
 let geprueft = 0;
@@ -324,10 +329,55 @@ pruefe("fehlendes Datum bleibt leer", deutscherTag(null) === "");
 pruefe("HOERER wird zu Hörer", teilnahmeformName("HOERER") === "Hörer");
 pruefe("fehlende Teilnahmeform bleibt leer", teilnahmeformName(null) === "");
 
+console.log("\n7. Semesterüberleitung — Erinnerungsstichtage (T-14/-7/-3)");
+// Semesterbeginn 15.09.2026 (UTC-Kalendertag), Offsets 14/7/3 Tage davor.
+const start = alsTagesdatum("2026-09-15")!;
+// „Heute" kommt aus der ÖRTLICHEN Zeit — Testdaten deshalb mit dem lokalen
+// Konstruktor, nie als ISO-String (sonst prüft man UTC statt Ortszeit).
+pruefe("T-14 (01.09.) feuert Stufe 1", faelligeErinnerungsstufe(start, new Date(2026, 8, 1, 12, 0), [14, 7, 3]) === 1);
+pruefe("T-7 (08.09.) feuert Stufe 2", faelligeErinnerungsstufe(start, new Date(2026, 8, 8, 12, 0), [14, 7, 3]) === 2);
+pruefe("T-3 (12.09.) feuert Stufe 3", faelligeErinnerungsstufe(start, new Date(2026, 8, 12, 12, 0), [14, 7, 3]) === 3);
+pruefe("der Tag vor T-14 feuert nicht", faelligeErinnerungsstufe(start, new Date(2026, 7, 31, 12, 0), [14, 7, 3]) === null);
+pruefe("ein Tag zwischen den Stufen feuert nicht", faelligeErinnerungsstufe(start, new Date(2026, 8, 2, 12, 0), [14, 7, 3]) === null);
+pruefe("der Semesterstart selbst feuert nicht", faelligeErinnerungsstufe(start, new Date(2026, 8, 15, 12, 0), [14, 7, 3]) === null);
+// Der Stichtag ist ein Kalendertag: um 23:30 Ortszeit am 12.09. ist Stufe 3 noch fällig.
+pruefe("T-3 feuert auch um 23:30 Ortszeit", faelligeErinnerungsstufe(start, new Date(2026, 8, 12, 23, 30), [14, 7, 3]) === 3);
+pruefe("bei gleichen Offsets gewinnt die frühere Stufe", faelligeErinnerungsstufe(start, new Date(2026, 8, 1, 12, 0), [14, 14, 3]) === 1);
+pruefe("Stufe 1 zeigt auf erinnertStufe1Am", erinnerungsFeld(1) === "erinnertStufe1Am");
+pruefe("Stufe 2 zeigt auf erinnertStufe2Am", erinnerungsFeld(2) === "erinnertStufe2Am");
+pruefe("Stufe 3 zeigt auf erinnertStufe3Am", erinnerungsFeld(3) === "erinnertStufe3Am");
+
+console.log("\n8. Semesterüberleitung — Auswahl der zu Übernehmenden");
+const kandidaten: UeberleitungKandidat[] = [
+  { personId: "a", teilnahmeform: "SCHUELER", istAktiv: true },
+  { personId: "b", teilnahmeform: "HOERER", istAktiv: true },
+  { personId: "c", teilnahmeform: "SCHUELER", istAktiv: false },
+];
+const mitZielB = waehleUeberzuleitende(kandidaten, new Set(["b"]));
+const alle = waehleUeberzuleitende(kandidaten, new Set<string>());
+pruefe(
+  "aktive Teilnehmer ohne Ziel-Teilnahme werden übernommen",
+  mitZielB.length === 1 && mitZielB[0].personId === "a",
+  mitZielB,
+);
+pruefe("die Teilnahmeform wird übernommen, nicht geraten", mitZielB[0]?.teilnahmeform === "SCHUELER");
+pruefe(
+  "wer im Zielsemester schon eine Teilnahme hat, wird übersprungen",
+  alle.some((k) => k.personId === "b") && !mitZielB.some((k) => k.personId === "b"),
+);
+pruefe("inaktive Teilnehmer werden nicht übergeleitet", !alle.some((k) => k.personId === "c"));
+pruefe("Hörer bleibt Hörer", alle.find((k) => k.personId === "b")?.teilnahmeform === "HOERER");
+pruefe(
+  "der Semesterzeitraum wird als Text gebildet",
+  semesterZeitraum(alsTagesdatum("2026-09-15"), alsTagesdatum("2026-12-01")) === "15.09.2026 – 01.12.2026",
+  semesterZeitraum(alsTagesdatum("2026-09-15"), alsTagesdatum("2026-12-01")),
+);
+pruefe("ohne Datumsangaben bleibt der Zeitraum leer", semesterZeitraum(null, null) === "");
+
 // Soll-Anzahl: Nur so fällt auf, wenn eine Prüfung beim Umbauen herausfällt.
 // Ein nicht gelaufener Test schlägt nicht fehl — er fehlt einfach, und die
 // Schlusszeile meldet trotzdem „0 fehlgeschlagen". Beim Ergänzen mit anheben.
-const ERWARTET = 54;
+const ERWARTET = 72;
 // `geprueft` steht beim Auswerten der Bedingung noch auf dem Stand VOR dieser
 // Zeile — `pruefe` zählt erst im Rumpf hoch. Deshalb hier um eins vorgegriffen,
 // damit sich die Prüfung selbst mitzählt.

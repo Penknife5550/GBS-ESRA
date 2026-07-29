@@ -228,6 +228,45 @@ export const EINSTELLUNGEN = {
     einheit: "Tage",
     sortierung: 10,
   },
+  // Semesterüberleitung (Re-Enrollment): Wann vor Semesterstart die drei
+  // Erinnerungen an noch nicht bestätigte Teilnehmer rausgehen. Als Regler, weil
+  // der Betrieb den Rhythmus ohne Deploy anpassen können muss. Der
+  // Bestätigungslink selbst gilt bis zum Semesterstart und braucht keinen
+  // eigenen Regler.
+  SEMESTER_ERINNERUNG_1_TAGE: {
+    bezeichnung: "1. Erinnerung vor Semesterstart",
+    beschreibung:
+      "Tage vor Semesterstart, an denen die erste Erinnerung an noch nicht bestätigte Teilnehmer geht.",
+    bereich: "SEMESTER",
+    typ: EinstellungTyp.ZAHL,
+    standard: 14,
+    minimum: 1,
+    maximum: 90,
+    einheit: "Tage",
+    sortierung: 10,
+  },
+  SEMESTER_ERINNERUNG_2_TAGE: {
+    bezeichnung: "2. Erinnerung vor Semesterstart",
+    beschreibung: "Tage vor Semesterstart für die zweite Erinnerung.",
+    bereich: "SEMESTER",
+    typ: EinstellungTyp.ZAHL,
+    standard: 7,
+    minimum: 1,
+    maximum: 90,
+    einheit: "Tage",
+    sortierung: 20,
+  },
+  SEMESTER_ERINNERUNG_3_TAGE: {
+    bezeichnung: "3. Erinnerung vor Semesterstart",
+    beschreibung: "Tage vor Semesterstart für die letzte Erinnerung.",
+    bereich: "SEMESTER",
+    typ: EinstellungTyp.ZAHL,
+    standard: 3,
+    minimum: 1,
+    maximum: 90,
+    einheit: "Tage",
+    sortierung: 30,
+  },
   // Die vier Beträge stehen bewusst als Regler und nicht als Konstante im Code:
   // Preise ändern sich, und der eigentliche Beitragslauf (Release 0.3) soll sie
   // hier finden statt in einer Codezeile. In 0.1 wird noch nichts eingezogen —

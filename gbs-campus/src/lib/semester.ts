@@ -260,3 +260,69 @@ export function deutscherTag(datum: Date | null | undefined): string {
   if (!datum) return "";
   return `${String(datum.getUTCDate()).padStart(2, "0")}.${String(datum.getUTCMonth() + 1).padStart(2, "0")}.${datum.getUTCFullYear()}`;
 }
+
+/** Ein Semester-Zeitraum als Text „15.09.2026 – 01.12.2026" für Mails und Listen. */
+export function semesterZeitraum(start: Date | null | undefined, ende: Date | null | undefined): string {
+  const a = deutscherTag(start);
+  const b = deutscherTag(ende);
+  if (a && b) return `${a} – ${b}`;
+  return a || b;
+}
+
+// -----------------------------------------------------------------------------
+// Semesterüberleitung (Re-Enrollment) — DB-freie Kernlogik
+// -----------------------------------------------------------------------------
+
+export type Erinnerungsstufe = 1 | 2 | 3;
+
+/**
+ * Welche Erinnerungsstufe ist heute fällig — gegeben Semesterbeginn und die drei
+ * Offsets (Tage vor Beginn, z. B. [14, 7, 3])? Verglichen wird Tag gegen Tag in
+ * UTC: eine Stufe ist fällig, wenn `heute === start − offset`. Liefert 1, 2, 3
+ * oder null (heute ist kein Stichtag).
+ *
+ * `heute` kommt aus der örtlichen Wanduhr (Container auf Europe/Berlin), `start`
+ * ist ein Kalendertag (@db.Date, UTC-Mitternacht) — dieselbe Tag-gegen-Tag-Logik
+ * wie `istFensterOffen`. Bei mehreren passenden Offsets gewinnt die frühere
+ * Stufe; der Aufrufer verschickt ohnehin nur an noch nicht angeschriebene
+ * Teilnahmen, also entsteht kein Doppelversand.
+ */
+export function faelligeErinnerungsstufe(
+  start: Date,
+  jetzt: Date,
+  offsetsTage: [number, number, number],
+): Erinnerungsstufe | null {
+  const heute = alsHeutigerTag(jetzt).getTime();
+  const startTag = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  for (let i = 0; i < offsetsTage.length; i++) {
+    const stichtag = startTag - offsetsTage[i] * TAG_MS;
+    if (stichtag === heute) return (i + 1) as Erinnerungsstufe;
+  }
+  return null;
+}
+
+export type UeberleitungKandidat = {
+  personId: string;
+  teilnahmeform: "SCHUELER" | "HOERER";
+  istAktiv: boolean;
+};
+
+/**
+ * Wer wird ins Folgesemester übernommen? Nur aktive Teilnehmer (`istAktiv`), die
+ * im Zielsemester noch keine Teilnahme haben. Die Teilnahmeform wird aus dem
+ * Vorsemester übernommen, nie geraten — sie bestimmt Prüfungspflicht und Zeugnis.
+ * Genau dieselbe „führende Quelle" (Status.istAktiv) wie die Teilnehmerliste.
+ */
+export function waehleUeberzuleitende(
+  quelle: UeberleitungKandidat[],
+  bereitsImZiel: ReadonlySet<string>,
+): { personId: string; teilnahmeform: "SCHUELER" | "HOERER" }[] {
+  return quelle
+    .filter((k) => k.istAktiv && !bereitsImZiel.has(k.personId))
+    .map((k) => ({ personId: k.personId, teilnahmeform: k.teilnahmeform }));
+}
+
+/** Feldname der Erinnerungs-Zeitspalte auf `Teilnahme` zu einer Stufe. */
+export function erinnerungsFeld(stufe: Erinnerungsstufe): "erinnertStufe1Am" | "erinnertStufe2Am" | "erinnertStufe3Am" {
+  return (["erinnertStufe1Am", "erinnertStufe2Am", "erinnertStufe3Am"] as const)[stufe - 1];
+}

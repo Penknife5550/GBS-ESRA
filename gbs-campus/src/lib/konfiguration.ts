@@ -68,3 +68,16 @@ export function pruefeKonfiguration(): Konfigurationsbefund[] {
 export function smtpKonfiguriert(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.MAIL_ABSENDER_ADRESSE);
 }
+
+/**
+ * Der Cron-Endpunkt der Semesterüberleitung (`/api/cron/erinnerungen`) wird von
+ * einem externen Zeitgeber (systemd-Timer, Cron, Uptime-Ping) mit dem Header
+ * `x-cron-secret` aufgerufen. Ohne gesetztes `CRON_SECRET` weist der Endpunkt
+ * jeden Aufruf mit 503 ab — sonst liefe er entweder ungeschützt oder still ins
+ * Leere. Wie bei SMTP kein Fail-fast beim Start: Die Erinnerungen sind ein
+ * Zusatz, kein Anmeldeweg. Mindestlänge 16, damit das Geheimnis nicht zu raten
+ * ist.
+ */
+export function cronKonfiguriert(): boolean {
+  return Boolean(process.env.CRON_SECRET && process.env.CRON_SECRET.length >= 16);
+}

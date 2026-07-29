@@ -440,18 +440,32 @@ ist gegen das größere Formular nachgezogen (Anmeldung mit allen neuen Pflichtf
 `gemeinde` → `gemeinde_mitglied`) und um eine End-to-End-Prüfung der Ehepartner-Ermäßigung erweitert —
 jetzt **152 Prüfungen, 0 fehlgeschlagen**.
 
-Damit sind beide Roadmap-Punkte des Nachmittags erledigt. Als Nächstes bleiben nur noch die Punkte
-außerhalb der Entwicklerhand (Mail-Zustellung, Off-Site-Backup, Laientest, erstes Semester) und die
-Release-0.2/0.3-Themen unten.
+Damit sind beide Roadmap-Punkte des Nachmittags erledigt.
 
-**Ein Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) und **die Semesterüberleitung**
-mit Re-Enrollment gehören zu Release 0.2 — beide sind unten unter „Bekannte Einschränkungen"
-beschrieben.
+**Release 0.2 begonnen (29.07.): Semesterüberleitung & Kursraster.** Das Re-Enrollment ist gebaut:
+`/verwaltung/semesterueberleitung` lädt den Jahrgang des laufenden Semesters ins Folgesemester ein;
+jeder aktive Teilnehmer bekommt einen persönlichen „Ich bin dabei"-Link (`/dabei/token`, Token im
+Fragment, ohne Login — er setzt nur `Teilnahme.bestaetigtAm`, meldet niemanden an). Erinnerungen
+T−14/−7/−3 Tage vor Semesterstart laufen über `POST /api/cron/erinnerungen` (per `CRON_SECRET`
+geschützt, idempotent, kein Doppelversand) — der externe Zeitgeber ist der einzige offene
+Betriebspunkt (siehe „Bekannte Einschränkungen"). Dazu ein **Kursraster als Grundstein für den
+Stundenplan (M3)**: sieben Fächer, dreizehn Kurseinheiten und die **sechs realen Semester**
+(2026-H … 2029-F, Termine von gbs-minden.de) legt jetzt ein frischer `db:seed` an — die konkreten
+Semester sind über `lehrjahr`/`halbjahr` ans Raster gekoppelt, sodass die „bin dabei"-Seite die Fächer
+des Zielsemesters zeigt. Logik: `src/lib/ueberleitung.ts` (IO) und `src/lib/semester.ts` /
+`src/lib/faecher.ts` (DB-frei). Verifiziert: **262 DB-freie Fachlogik-Prüfungen** (neu: 18 zur
+Überleitung in `pruefe-semesterlogik.ts`, 17 in `pruefe-faecher.ts`) und **180 Durchstich-Prüfungen**
+gegen das gebaute Image — alles grün, Produktionsbuild ohne einen Typfehler.
+
+**Das Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) bleibt Release 0.2 —
+beschrieben unten unter „Bekannte Einschränkungen".
 
 **Vor dem Livegang:** Laientest durch eine projektfremde Person, Restore-Drill, Break-Glass-Tresor
-befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. **Und:
-mindestens ein Semester anlegen** — ohne laufendes Semester bleibt die Teilnehmerliste leer und
-Anmeldungen bekommen keinen Semesterbezug.
+befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. Das **erste
+Semester ist durch den Seed gesetzt** (2026-H als laufend) — die Schulleitung muss nur bestätigen, dass
+das die richtige Wahl ist, bzw. es unter `/verwaltung/semester` umstellen. **Neu für den Betrieb:**
+`CRON_SECRET` setzen und einen täglichen Aufruf von `/api/cron/erinnerungen` einrichten, sonst gehen
+die Überleitungs-Erinnerungen nicht raus.
 
 Für den Laientest liegt ein fertiges **Drehbuch mit Aufgaben, Rückmeldebogen und der vollständigen
 Go-Live-Checkliste** bereit: [`LAIENTEST.md`](LAIENTEST.md). Es führt den Betreuer durch die
@@ -491,9 +505,12 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 - **Eine Person lässt sich nicht mehr löschen** — der Verweis aus dem Audit-Log stößt auf den
   Append-only-Trigger. Für Release 0.1 richtig so. Wer ein Löschkonzept nach Art. 17 DSGVO baut, muss
   anonymisieren statt löschen; die Fehlermeldung der Datenbank weist darauf hin.
-- **Keine Semesterüberleitung.** Ein neues Semester beginnt leer; die Teilnehmer kommen über die
-  Sammelübernahme hinein. Das Re-Enrollment mit Ein-Klick-Bestätigung („bin dabei", `Teilnahme.
-  bestaetigtAm`) und die Trigger T−14/−7/−3 gehören zu Release 0.2.
+- **Semesterüberleitung: keine automatische Zeitsteuerung im Container.** Das Re-Enrollment
+  („bin dabei", Einladung + Bestätigung) ist gebaut (0.2, siehe unten). Die Erinnerungen T−14/−7/−3
+  laufen über den Endpunkt `POST /api/cron/erinnerungen`, der einen **externen Zeitgeber** braucht
+  (systemd-Timer, Cron oder Uptime-Ping, einmal täglich, Header `x-cron-secret`). Ohne gesetztes
+  `CRON_SECRET` (siehe `.env.example`) antwortet er mit 503 und es gehen keine Erinnerungen raus. Ein
+  eigener Worker-Container, der das intern übernimmt, bleibt Release-0.2-Ausbaustufe.
 - **Semester lassen sich nicht löschen** — bewusst kein Endpunkt dafür. Ein gelöschtes Semester
   risse alle Teilnahmen mit (`onDelete: Cascade`); die Anmeldungen blieben erhalten, verlören aber
   ihren Bezug.

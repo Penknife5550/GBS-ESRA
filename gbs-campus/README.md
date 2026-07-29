@@ -33,6 +33,18 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
   vollständige Datenkopie (Glaubensangaben nach Art. 9, IBAN im Klartext) selbst als PDF herunter —
   sensible Daten verlassen nie den Mailkanal. PDF-Erzeuger ohne externe Abhängigkeit (`src/lib/pdf.ts`).
   Anmelde- und Auskunftslink tragen den Token jetzt im URL-Fragment (nicht im Query-String, kein Log-Leak)
+- **Semesterüberleitung / Re-Enrollment (Release 0.2)** — `/verwaltung/semesterueberleitung`: den
+  Jahrgang des laufenden Semesters ins Folgesemester einladen. Jeder aktive Teilnehmer bekommt einen
+  persönlichen „Ich bin dabei"-Link (`/dabei/token`, Token im Fragment, ohne Login — er setzt nur
+  `Teilnahme.bestaetigtAm`, meldet niemanden an). Wer nicht zusagt, wird T−14/−7/−3 Tage vor
+  Semesterstart automatisch erinnert (konfigurierbar, Bereich SEMESTER). Der Erinnerungslauf ist ein
+  per `CRON_SECRET` geschützter Endpunkt `POST /api/cron/erinnerungen`, idempotent (kein Doppelversand).
+  Logik in `src/lib/ueberleitung.ts`, DB-freie Kernlogik in `src/lib/semester.ts`.
+- **Fächer & Kursraster (Release 0.2, Grundstein Stundenplan M3)** — die sieben Fächer und das feste
+  3-Jahres-Raster (13 Kurseinheiten) aus der Kursübersicht von gbs-minden.de als Seed
+  (`prisma/kursraster-definition.ts`), sichtbar unter `/verwaltung/faecher`. Konkrete Semester sind
+  über `lehrjahr`/`halbjahr` ans Raster gekoppelt — die „bin dabei"-Seite zeigt so die Fächer des
+  Zielsemesters. Die **sechs realen Semester** (2026-H … 2029-F) legt jetzt ein frischer `db:seed` an.
 
 > ### ✅ Der Stand vom 27.07. ist verifiziert (28.07.2026)
 >

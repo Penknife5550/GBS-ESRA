@@ -105,8 +105,11 @@ pruefe "Anmeldelink wird gegen eine Sitzung eingeloest" "$([ -n "$KEKS" ] && ech
 
 echo
 echo "=== 4. Semester anlegen ==="
+# Test-Code 2099-H, damit er NICHT mit den sechs echten Semestern kollidiert, die
+# der Seed jetzt anlegt (2026-H … 2029-F). Das Anmeldefenster (heute innerhalb)
+# macht dieses Semester zum Ziel der eingehenden Anmeldung in Abschnitt 5.
 ANTWORT=$(curl -s -X POST "${BASIS}/api/semester" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' \
-  -d '{"code":"2026-H","bezeichnung":"Herbstsemester 2026","start":"2026-09-15","ende":"2027-02-28","anmeldungVon":"2026-06-01","anmeldungBis":"2026-09-14","istAktuell":true}')
+  -d '{"code":"2099-H","bezeichnung":"Testsemester 2099","start":"2026-09-15","ende":"2027-02-28","anmeldungVon":"2026-06-01","anmeldungBis":"2026-09-14","istAktuell":true}')
 SEMESTER_ID=$(echo "$ANTWORT" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 pruefe "Semester wird angelegt" "$([ -n "$SEMESTER_ID" ] && echo 1 || echo 0)" "$ANTWORT"
 pruefe "Semester ist das laufende" \
@@ -117,7 +120,7 @@ MANGEL=$(curl -s -X POST "${BASIS}/api/semester" -H "Cookie: ${KEKS}" -H 'Conten
 pruefe "Ende vor Beginn wird abgewiesen" "$(echo "$MANGEL" | grep -qc 'nach seinem Beginn' 2>/dev/null && echo 1 || echo 0)" "$MANGEL"
 
 DOPPELT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/semester" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' \
-  -d '{"code":"2026-H","bezeichnung":"Noch einmal","start":"2026-09-15","ende":"2027-02-28"}')
+  -d '{"code":"2099-H","bezeichnung":"Noch einmal","start":"2026-09-15","ende":"2027-02-28"}')
 pruefe "doppeltes Kuerzel wird mit 409 abgewiesen" "$(gleich "$DOPPELT" "409")" "$DOPPELT"
 
 echo
@@ -813,12 +816,75 @@ AUSK_VERSTORBEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/a
 pruefe "fuer eine verstorbene Person wird der Abruf gesperrt (410)" "$(gleich "$AUSK_VERSTORBEN" "410")" "$AUSK_VERSTORBEN"
 $PSQL "update personen set \"statusCode\"='ANGENOMMEN' where id='${TEILNEHMER_ID}';" > /dev/null
 
+echo
+echo "=== 22. Kursraster: Seed und Schema ==="
+pruefe "sieben Faecher wurden geseedet" \
+  "$(gleich "$($PSQL "select count(*) from faecher;")" "7")"
+pruefe "dreizehn Kurseinheiten wurden geseedet" \
+  "$(gleich "$($PSQL "select count(*) from kurseinheiten;")" "13")"
+pruefe "die sechs echten Semester wurden geseedet" \
+  "$(gleich "$($PSQL "select count(*) from semester where code in ('2026-H','2027-F','2027-H','2028-F','2028-H','2029-F');")" "6")"
+pruefe "Semester traegt lehrjahr/halbjahr (Kopplung ans Kursraster)" \
+  "$(gleich "$($PSQL "select count(*) from information_schema.columns where table_name='semester' and column_name in ('lehrjahr','halbjahr');")" "2")"
+pruefe "Teilnahme hat den Aufraeum-Index auf dem Bestaetigungslink" \
+  "$(gleich "$($PSQL "select count(*) from pg_indexes where tablename='teilnahmen' and indexname='teilnahmen_bestaetigungLaeuftAb_idx';")" "1")"
+pruefe "Kurseinheit-Fremdschluessel auf Fach ist RESTRICT" \
+  "$(gleich "$($PSQL "select confdeltype from pg_constraint where conname='kurseinheiten_fachCode_fkey';")" "r")"
+pruefe "die Ueberleitungs-Migration ist als angewendet eingetragen" \
+  "$(gleich "$($PSQL "select count(*) from _prisma_migrations where migration_name='20260729130000_semesterueberleitung_und_faecher' and finished_at is not null;")" "1")"
+
+echo
+echo "=== 23. Semesterueberleitung: einladen, bestaetigen, erinnern ==="
+# Quelle: eine aktive Teilnahme im laufenden Semester (2099-H). Ziel: das echte
+# Folgesemester 2027-F (1. Lehrjahr, Fruehling).
+$PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${TEILNEHMER_ID}','${SEMESTER_ID}','SCHUELER',now()) on conflict (\"personId\",\"semesterId\") do nothing;" > /dev/null
+TARGET_ID=$($PSQL "select id from semester where code='2027-F';")
+
+UEBER=$(curl -s -X POST "${BASIS}/api/semesterueberleitung/start" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${TARGET_ID}\"}")
+pruefe "Ueberleitung starten ist erlaubt und meldet Eingeladene" "$(echo "$UEBER" | grep -qc '"eingeladen"' && echo 1 || echo 0)" "$UEBER"
+pruefe "neue Teilnahme im Zielsemester mit Bestaetigungslink, noch unbestaetigt" \
+  "$(gleich "$($PSQL "select count(*) from teilnahmen where \"personId\"='${TEILNEHMER_ID}' and \"semesterId\"='${TARGET_ID}' and \"bestaetigungTokenHash\" is not null and \"bestaetigtAm\" is null;")" "1")"
+pruefe "die Ueberleitung ist protokolliert (SEMESTER_UEBERLEITUNG_GESTARTET)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='SEMESTER_UEBERLEITUNG_GESTARTET' and \"objektId\"='${TARGET_ID}';")" "t")"
+
+# Idempotenz: ein zweiter Start laedt niemanden doppelt ein.
+curl -s -o /dev/null -X POST "${BASIS}/api/semesterueberleitung/start" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${TARGET_ID}\"}"
+pruefe "ein zweiter Start legt keine zweite Teilnahme an" \
+  "$(gleich "$($PSQL "select count(*) from teilnahmen where \"personId\"='${TEILNEHMER_ID}' and \"semesterId\"='${TARGET_ID}';")" "1")"
+
+# Ein Teilnehmer darf die Ueberleitung nicht anstossen (kein SEMESTER_VERWALTEN).
+UEBER_VERBOTEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/semesterueberleitung/start" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${TARGET_ID}\"}")
+pruefe "ein Teilnehmer darf keine Ueberleitung starten (403)" "$(gleich "$UEBER_VERBOTEN" "403")" "$UEBER_VERBOTEN"
+
+# „Ich bin dabei": bekannten Hash auf den Token der Ziel-Teilnahme setzen und einloesen.
+DABEI_TOKEN=$(uuidgen | tr 'A-Z' 'a-z'); DABEI_HASH=$(printf %s "$DABEI_TOKEN" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "update teilnahmen set \"bestaetigungTokenHash\"='${DABEI_HASH}', \"bestaetigungLaeuftAb\"=now()+interval '30 days' where \"personId\"='${TEILNEHMER_ID}' and \"semesterId\"='${TARGET_ID}';" > /dev/null
+DABEI=$(curl -s -X POST "${BASIS}/api/ueberleitung/bestaetigen" -H 'Content-Type: application/json' -d "{\"token\":\"${DABEI_TOKEN}\"}")
+pruefe "bin-dabei setzt bestaetigtAm" \
+  "$(gleich "$($PSQL "select count(*) from teilnahmen where \"personId\"='${TEILNEHMER_ID}' and \"semesterId\"='${TARGET_ID}' and \"bestaetigtAm\" is not null;")" "1")"
+pruefe "bin-dabei zeigt die Faecher des Zielsemesters (2027-F: 1. Lehrjahr, Fruehling)" \
+  "$(enthaelt "$DABEI" "Weisheitsliteratur")" "$DABEI"
+pruefe "die Bestaetigung ist protokolliert (TEILNAHME_BESTAETIGT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='TEILNAHME_BESTAETIGT';")" "t")"
+
+# Idempotent: ein zweiter Klick meldet freundlich „schon bestaetigt", kein Fehler.
+DABEI2=$(curl -s -X POST "${BASIS}/api/ueberleitung/bestaetigen" -H 'Content-Type: application/json' -d "{\"token\":\"${DABEI_TOKEN}\"}")
+pruefe "ein zweiter Klick meldet schon_bestaetigt" "$(enthaelt "$DABEI2" "schon_bestaetigt")" "$DABEI2"
+
+# Unbekannter Token -> 401.
+DABEI_UNG=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/ueberleitung/bestaetigen" -H 'Content-Type: application/json' -d "{\"token\":\"$(uuidgen | tr 'A-Z' 'a-z')\"}")
+pruefe "ein unbekannter bin-dabei-Token wird abgewiesen (401)" "$(gleich "$DABEI_UNG" "401")" "$DABEI_UNG"
+
+# Der Erinnerungs-Cron ist ohne CRON_SECRET (im Durchstich nicht gesetzt) gesperrt.
+CRON=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/cron/erinnerungen")
+pruefe "der Erinnerungs-Cron ohne CRON_SECRET antwortet 503" "$(gleich "$CRON" "503")" "$CRON"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 161 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=162
+# 179 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=180
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

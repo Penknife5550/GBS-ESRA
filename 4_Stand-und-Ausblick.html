@@ -114,7 +114,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
   <div class="wrap">
     <div class="kicker">GBS Campus · Stand &amp; Ausblick</div>
     <h1>Wo wir stehen</h1>
-    <p class="lead"><strong>Release 0.1 ist funktional fertig und geprüft.</strong> Zwölf Bausteine stehen — von Anmeldung und Formular-Builder über Semester und Teilnehmerliste und Schülerakte bis zur DSGVO-Auskunft nach Art. 15. Offen sind noch ein paar Handgriffe vor dem Livegang und Punkte, die außerhalb unserer Hand liegen (allen voran die Mail-Zustellung).</p>
+    <p class="lead"><strong>Release 0.1 ist funktional fertig und geprüft — und Release 0.2 hat begonnen.</strong> Vierzehn Bausteine stehen — von Anmeldung und Formular-Builder über Semester, Teilnehmerliste und Schülerakte bis zur DSGVO-Auskunft. Neu dazugekommen: die <strong>Semesterüberleitung</strong> (Re-Enrollment mit „bin dabei"-Link und Erinnerungen) und das <strong>Kursraster</strong> mit den sechs echten Semestern. Offen sind noch ein paar Handgriffe vor dem Livegang und Punkte, die außerhalb unserer Hand liegen (allen voran die Mail-Zustellung).</p>
     <div class="meta">
       <div>Stand<b>29.07.2026</b></div>
       <div>Release 0.1<b>Codestand grün / verifiziert</b></div>
@@ -131,9 +131,9 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
   <p class="sub">Vier Zahlen, wenn man nur vier liest.</p>
 
   <div class="grid g4">
-    <div class="kpi"><div class="n" style="color:var(--gruen)">12</div><div class="l">Bausteine fertig und geprüft (Release 0.1)</div></div>
-    <div class="kpi"><div class="n" style="color:var(--gruen)">419</div><div class="l">automatische Prüfungen grün: 227 Fachlogik + 162 Durchstich + 30 DB, dazu Mutationstests</div></div>
-    <div class="kpi"><div class="n">4</div><div class="l">offene Punkte vor dem Livegang (bei uns)</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">14</div><div class="l">Bausteine fertig und geprüft (Release 0.1 + Start 0.2)</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">472</div><div class="l">automatische Prüfungen grün: 262 Fachlogik + 180 Durchstich + 30 DB, dazu Mutationstests</div></div>
+    <div class="kpi"><div class="n">3</div><div class="l">offene Punkte vor dem Livegang (bei uns)</div></div>
     <div class="kpi"><div class="n" style="color:var(--rot)">1</div><div class="l">Show-Stopper außerhalb unserer Hand: SPF/DKIM/DMARC für gbs-minden.de (Absenderadresse steht)</div></div>
   </div>
 
@@ -163,28 +163,29 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
         <tr><td><strong>Zugang wiederherstellen</strong></td><td><code>/anmelden/hilfe</code> (verrät und ändert nichts) und <code>/verwaltung/personen</code> zum Adresse-Ändern und Anmeldelink-Schicken — erst nach menschlicher Erkennung</td><td><span class="tag t-ok">fertig</span></td></tr>
         <tr><td><strong>Betriebssichtbarkeit</strong></td><td><code>/verwaltung/protokoll</code> (Audit-Log lesbar), <code>/verwaltung/betrieb</code> (hängende Mails, Empfängerzahl, letzter Aufräumlauf)</td><td><span class="tag t-ok">fertig</span></td></tr>
         <tr><td><strong>DSGVO-Auskunft</strong> <span style="color:var(--tx2)">Art. 15</span></td><td>Verwaltung → Personen → „DSGVO-Auskunft senden": die Person lädt ihre vollständige Datenkopie (Art.-9-Angaben, IBAN) über einen persönlichen, 3 Tage gültigen Link selbst als PDF herunter — sensible Daten verlassen nie den Mailkanal. Token im URL-Fragment (kein Log-Leak)</td><td><span class="tag t-ok">fertig</span></td></tr>
+        <tr><td><strong>Semesterüberleitung</strong> <span style="color:var(--tx2)">M1 · 0.2</span></td><td><code>/verwaltung/semesterueberleitung</code>: den Jahrgang des laufenden Semesters ins Folgesemester einladen. Jeder aktive Teilnehmer bekommt einen persönlichen „Ich bin dabei"-Link (<code>/dabei</code>, Token im Fragment, ohne Login — setzt nur die Bestätigung). Wer nicht zusagt, wird <strong>T−14/−7/−3</strong> vor Semesterstart automatisch erinnert (konfigurierbar). Idempotent, race-sicher, kein Doppelversand</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
+        <tr><td><strong>Fächer &amp; Kursraster</strong> <span style="color:var(--tx2)">M3-Grundstein · 0.2</span></td><td>Die 7 Fächer und das feste 3-Jahres-Raster (13 Kurseinheiten) aus der Kursübersicht von gbs-minden.de als Seed; <code>/verwaltung/faecher</code> zeigt es. Die <strong>sechs echten Semester</strong> (2026-H … 2029-F) legt jetzt ein frischer Seed an, über Lehrjahr/Halbjahr ans Raster gekoppelt — die „bin dabei"-Seite zeigt die Fächer des Zielsemesters</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="box blau">
     <h4>Geprüft — nicht nur behauptet</h4>
-    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und am Nachmittag des 28.07. ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der Verifikationslauf vom 28.07. ist grün: Produktionsbuild ohne einen einzigen Typfehler, <strong>179</strong> Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik, <strong>150</strong> Durchstich-Prüfungen gegen das gebaute Image. Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
+    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>262</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>180</strong> Durchstich-Prüfungen gegen das gebaute Image. Die Semesterüberleitung wurde am 29.07. end-to-end mit nachgezogen (einladen → bestätigen → Fächer-Anzeige → Idempotenz → Rechte). Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
   </div>
 </section>
 
 <section>
   <h2><span class="no">02</span>Was als Nächstes ansteht — bei uns</h2>
-  <p class="sub">Die beiden Bau-Punkte — Bewerbungsformular als Seed-Standard und Beiträge als Einstellungen inkl. Ehepartner-Ermäßigung bei der Aufnahme — sind am 29.07. erledigt und geprüft. Was bleibt, ist Scharfschalten vor dem Livegang.</p>
+  <p class="sub">Am 29.07. sind Semesterüberleitung und Kursraster dazugekommen (Abschnitt 01). Und: das <strong>erste Semester ist jetzt durch den Seed gesetzt</strong> (2026-H als laufend, dazu alle sechs echten Semester) — die Schulleitung bestätigt nur noch die Wahl. Was bleibt, ist Scharfschalten vor dem Livegang.</p>
 
   <div class="tw">
     <table>
       <thead><tr><th class="nowrap">#</th><th>Aufgabe</th><th class="nowrap">Art</th></tr></thead>
       <tbody>
         <tr><td class="nowrap">1</td><td><strong>Laientest</strong> — eine projektfremde Person klickt die Anmeldung durch; Drehbuch inkl. Rückmeldebogen und Go-Live-Checkliste liegt bereit (<code>LAIENTEST.md</code>)</td><td><span class="tag t-warn">Test</span></td></tr>
-        <tr><td class="nowrap">2</td><td><strong>Erstes Semester anlegen</strong> — ohne laufendes Semester bleibt die Teilnehmerliste leer und Anmeldungen bekommen keinen Semesterbezug</td><td><span class="tag t-warn">Betrieb</span></td></tr>
-        <tr><td class="nowrap">3</td><td><strong>Restore-Drill &amp; Break-Glass-Tresor befüllen</strong> — einmal einen echten Wiederherstellungslauf durchspielen, den Notzugriffs-Tresor bestücken</td><td><span class="tag t-warn">Betrieb</span></td></tr>
-        <tr><td class="nowrap">4</td><td><strong>Zustellbarkeit der Magic-Link-Mail prüfen</strong> — gegen GMX, web.de, Gmail und Outlook testen, dass der Link im Posteingang landet und nicht im Spam</td><td><span class="tag t-warn">Test</span></td></tr>
+        <tr><td class="nowrap">2</td><td><strong>Restore-Drill &amp; Break-Glass-Tresor befüllen</strong> — einmal einen echten Wiederherstellungslauf durchspielen, den Notzugriffs-Tresor bestücken</td><td><span class="tag t-warn">Betrieb</span></td></tr>
+        <tr><td class="nowrap">3</td><td><strong>Zustellbarkeit der Magic-Link-Mail prüfen</strong> — gegen GMX, web.de, Gmail und Outlook testen, dass der Link im Posteingang landet und nicht im Spam</td><td><span class="tag t-warn">Test</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -201,6 +202,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
         <tr><td><strong>SPF/DKIM/DMARC für gbs-minden.de</strong> — Absenderadresse steht (<code>no-reply@gbs-minden.de</code>); der Magic-Link ist der einzige Zugang, ohne zugestellte Mail kommt niemand ins Portal</td><td>IT-Dienstleister</td><td><span class="tag t-err">Show-Stopper</span></td></tr>
         <tr><td><strong>Off-Site-Backup</strong> — Ziel festlegen; der Dump liegt bisher auf demselben Host wie die Datenbank</td><td>Projektverantwortlicher</td><td><span class="tag t-warn">hoch</span></td></tr>
         <tr><td><strong>Externer Uptime-Ping</strong> auf <code>/api/health</code> — der Healthcheck meldet nur „unhealthy", alarmiert aber niemanden</td><td>Projektverantwortlicher</td><td><span class="tag t-warn">hoch</span></td></tr>
+        <tr><td><strong>Cron für die Überleitungs-Erinnerungen</strong> — <code>CRON_SECRET</code> setzen und <code>/api/cron/erinnerungen</code> täglich aufrufen (systemd-Timer, Cron oder Uptime-Ping). Ohne das gehen die T−14/−7/−3-Erinnerungen nicht raus</td><td>IT-Dienstleister</td><td><span class="tag t-info">für 0.2</span></td></tr>
         <tr><td><strong>Art.-9-Einwilligung als Pflichtfeld?</strong> — berührt das Kopplungsverbot (Art. 7 Abs. 4 DSGVO)</td><td>Datenschutzbeauftragter</td><td><span class="tag t-info">Klärung</span></td></tr>
         <tr><td><strong>E-12 zweite Vertrauensperson</strong> für den Break-Glass-Tresor — sonst bleibt der Bus-Faktor bei 1</td><td>Schulleiter</td><td><span class="tag t-info">Klärung</span></td></tr>
         <tr><td><strong>E-13 Beurlaubungsregeln · E-02 Bestätigung Trägerkreis · E-17 Altzugänge M365</strong> — organisatorisch, null Zeilen Code</td><td>Schulleiter / Trägerkreis / IT</td><td><span class="tag t-info">Klärung</span></td></tr>
@@ -224,8 +226,8 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
     <div class="tlrow">
       <div class="tld">Mitte Oktober 2026</div>
       <div>
-        <div class="tlt">Release 0.2 <span class="tag t-neu" style="margin-left:6px">geplant</span></div>
-        <div class="tlx">Stundenplan, Selbstbestätigung, Dozentenhonorar. Dazu Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen), Semesterüberleitung mit Re-Enrollment und der Worker-Container.</div>
+        <div class="tlt">Release 0.2 <span class="tag t-ok" style="margin-left:6px">begonnen</span></div>
+        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment und das Kursraster als Grundstein für den Stundenplan. <strong>Noch offen:</strong> der volle Stundenplan, Selbstbestätigung, Dozentenhonorar, das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen) und der Worker-Container, der die Erinnerungen intern auslöst (statt per externem Cron).</div>
       </div>
     </div>
     <div class="tlrow">

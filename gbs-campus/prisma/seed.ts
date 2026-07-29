@@ -12,6 +12,7 @@
 import { PrismaClient } from "@prisma/client";
 import { EINSTELLUNGEN } from "../src/lib/einstellungen";
 import { ABSCHNITTE, EINLEITUNG } from "./anmeldeformular-definition";
+import { FAECHER, KURSEINHEITEN } from "./kursraster-definition";
 
 const prisma = new PrismaClient();
 
@@ -449,6 +450,32 @@ const MAIL_VORLAGEN = [
     beschreibung:
       "Trägt nur den Abruf-Link, nie die Daten selbst — Glaubensangaben und IBAN dürfen den Mailkanal nicht verlassen.",
   },
+  {
+    code: "UEBERLEITUNG_EINLADUNG",
+    bezeichnung: "Einladung ins Folgesemester (Re-Enrollment)",
+    betreff: "Bist du im {{semester}} dabei?",
+    textMd:
+      "Hallo {{vorname}},\n\n" +
+      "das nächste Semester an der Gemeindebibelschule Minden steht an: {{semester}} " +
+      "({{zeitraum}}).\n\n" +
+      "Bist du wieder dabei? Ein Klick genügt:\n\n{{link}}\n\n" +
+      "Möchtest du pausieren oder aussteigen, melde dich einfach bei der Schulleitung.\n\n" +
+      "Gemeindebibelschule Minden",
+    beschreibung:
+      "Startet die Semesterüberleitung: geht an alle aktiven Teilnehmer des laufenden Semesters mit dem persönlichen „bin dabei\"-Link.",
+  },
+  {
+    code: "UEBERLEITUNG_ERINNERUNG",
+    bezeichnung: "Erinnerung an die Rückmeldung fürs Folgesemester",
+    betreff: "Erinnerung: Bist du im {{semester}} dabei?",
+    textMd:
+      "Hallo {{vorname}},\n\n" +
+      "kurze Erinnerung: Für {{semester}} ({{zeitraum}}) fehlt uns noch deine " +
+      "Rückmeldung. Bist du dabei?\n\n{{link}}\n\n" +
+      "Gemeindebibelschule Minden",
+    beschreibung:
+      "Automatische Erinnerung (T-14/-7/-3 vor Semesterstart) an alle, die noch nicht bestätigt haben. Denselben Link wie in der Einladung.",
+  },
 ];
 
 // -----------------------------------------------------------------------------
@@ -469,6 +496,28 @@ const ERMAESSIGUNGEN = [
     sortierung: 10,
   },
 ];
+
+// -----------------------------------------------------------------------------
+// Semester — die sechs realen Semester des Jahrgangs 2026–2029
+//
+// Termine aus der Kursübersicht von gbs-minden.de. Genau EIN Semester ist das
+// laufende (2026-H, Kursstart 15.09.2026) — abgesichert durch den partiellen
+// Unique-Index `semester_genau_ein_aktuelles`. `istAktuell` wird deshalb nur
+// beim Anlegen gesetzt, nie in einem Re-Seed aktualisiert (siehe main()).
+// lehrjahr/halbjahr verorten das Semester im Kursraster (halbjahr 1 = Herbst,
+// 2 = Frühling). Datumsangaben als UTC-Mitternacht (Felder sind @db.Date).
+// -----------------------------------------------------------------------------
+const SEMESTER = [
+  { code: "2026-H", bezeichnung: "Herbstsemester 2026", start: new Date("2026-09-15"), ende: new Date("2026-12-01"), lehrjahr: 1, halbjahr: 1, istAktuell: true },
+  { code: "2027-F", bezeichnung: "Frühlingssemester 2027", start: new Date("2027-02-16"), ende: new Date("2027-05-04"), lehrjahr: 1, halbjahr: 2, istAktuell: false },
+  { code: "2027-H", bezeichnung: "Herbstsemester 2027", start: new Date("2027-09-21"), ende: new Date("2027-12-07"), lehrjahr: 2, halbjahr: 1, istAktuell: false },
+  { code: "2028-F", bezeichnung: "Frühlingssemester 2028", start: new Date("2028-02-15"), ende: new Date("2028-05-02"), lehrjahr: 2, halbjahr: 2, istAktuell: false },
+  { code: "2028-H", bezeichnung: "Herbstsemester 2028", start: new Date("2028-09-12"), ende: new Date("2028-12-05"), lehrjahr: 3, halbjahr: 1, istAktuell: false },
+  { code: "2029-F", bezeichnung: "Frühlingssemester 2029", start: new Date("2029-02-13"), ende: new Date("2029-05-08"), lehrjahr: 3, halbjahr: 2, istAktuell: false },
+];
+
+// Fächer & Kurseinheiten liegen als EINE Quelle in `./kursraster-definition.ts`
+// (auch vom Prüfskript genutzt) — siehe Import oben.
 
 // -----------------------------------------------------------------------------
 // Anmeldeformular — Startfassung (Bewerbungsformular)
@@ -632,6 +681,45 @@ async function main() {
     });
   }
 
+  console.log("[Seed] Semester...");
+  for (const s of SEMESTER) {
+    // `istAktuell` bewusst NICHT im update: Was der Betrieb als laufendes
+    // Semester gesetzt hat, darf ein Seed-Lauf nach dem naechsten Deploy nicht
+    // zuruecksetzen — und der partielle Unique-Index liesse zwei true-Zeilen
+    // ohnehin nicht zu. Nur beim Erstanlegen wird 2026-H als laufend markiert.
+    await prisma.semester.upsert({
+      where: { code: s.code },
+      update: {
+        bezeichnung: s.bezeichnung,
+        start: s.start,
+        ende: s.ende,
+        lehrjahr: s.lehrjahr,
+        halbjahr: s.halbjahr,
+      },
+      create: s,
+    });
+  }
+
+  console.log("[Seed] Faecher...");
+  for (const fach of FAECHER) {
+    await prisma.fach.upsert({ where: { code: fach.code }, update: fach, create: fach });
+  }
+
+  console.log("[Seed] Kurseinheiten...");
+  for (const k of KURSEINHEITEN) {
+    await prisma.kurseinheit.upsert({
+      where: {
+        fachCode_jahrgangsjahr_halbjahr: {
+          fachCode: k.fachCode,
+          jahrgangsjahr: k.jahrgangsjahr,
+          halbjahr: k.halbjahr,
+        },
+      },
+      update: k,
+      create: k,
+    });
+  }
+
   console.log("[Seed] Anmeldeformular...");
   await seedFormular();
 
@@ -645,6 +733,9 @@ async function main() {
     formularFelder: await prisma.formularFeld.count(),
     ermaessigungen: await prisma.ermaessigung.count(),
     einstellungen: await prisma.einstellung.count(),
+    semester: await prisma.semester.count(),
+    faecher: await prisma.fach.count(),
+    kurseinheiten: await prisma.kurseinheit.count(),
   };
   console.log("[Seed] Fertig:", zahlen);
 }
