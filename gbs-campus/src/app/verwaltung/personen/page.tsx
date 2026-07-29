@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
 import { RECHT, STATUS } from "@/lib/constants";
 import { PersonZeile } from "./person-zeile";
+import { PersonAnlegen } from "./person-anlegen";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,10 @@ export default async function PersonenSeite({
         vorname: true,
         nachname: true,
         email: true,
+        telefon: true,
+        strasse: true,
+        plz: true,
+        ort: true,
         status: { select: { code: true, bezeichnung: true, istTerminal: true } },
         rollen: { select: { rolle: { select: { code: true, bezeichnung: true } } } },
       },
@@ -89,6 +94,8 @@ export default async function PersonenSeite({
         </button>
       </form>
 
+      {darfRollenVerwalten && <PersonAnlegen />}
+
       {personen.length === 0 ? (
         <p className="mt-8 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
           {begriff ? `Zu „${begriff}" wurde niemand gefunden.` : "Es ist noch niemand angelegt."}
@@ -113,6 +120,12 @@ export default async function PersonenSeite({
                 person={{
                   id: person.id,
                   name: `${person.vorname} ${person.nachname}`,
+                  vorname: person.vorname,
+                  nachname: person.nachname,
+                  telefon: person.telefon ?? "",
+                  strasse: person.strasse ?? "",
+                  plz: person.plz ?? "",
+                  ort: person.ort ?? "",
                   email: person.email,
                   status: person.status.bezeichnung,
                   istTerminal: person.status.istTerminal,

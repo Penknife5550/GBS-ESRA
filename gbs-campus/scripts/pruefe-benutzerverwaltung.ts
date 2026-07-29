@@ -7,7 +7,14 @@
  * wird, sobald man die geprüfte Regel entfernt. Auf den konkreten Wert prüfen.
  */
 
-import { ADMIN_ROLLE, entziehtAdmin, rollenDiff, sindRollenBekannt } from "../src/lib/benutzerverwaltung";
+import {
+  ADMIN_ROLLE,
+  entziehtAdmin,
+  istNameGueltig,
+  pruefeNeuePerson,
+  rollenDiff,
+  sindRollenBekannt,
+} from "../src/lib/benutzerverwaltung";
 
 let geprueft = 0;
 let fehlgeschlagen = 0;
@@ -57,8 +64,25 @@ pruefe("Entzug von ADMIN wird erkannt", entziehtAdmin(rollenDiff(["TEILNEHMER"],
 pruefe("ohne ADMIN-Entzug meldet es false", entziehtAdmin(rollenDiff(["ADMIN"], ["ADMIN", "DOZENT"])) === false);
 pruefe("das Hinzufügen von ADMIN ist kein Entzug", entziehtAdmin(rollenDiff(["ADMIN"], [])) === false);
 
+console.log("\n4. Person anlegen: Eingabeprüfung");
+pruefe("ein normaler Name ist gültig", istNameGueltig("Petra") === true);
+pruefe("ein leerer Name ist ungültig", istNameGueltig("   ") === false);
+pruefe("ein zu langer Name (81 Zeichen) ist ungültig", istNameGueltig("x".repeat(81)) === false);
+{
+  const e = pruefeNeuePerson({ vorname: "Dora", nachname: "Dozento", email: "Dora@Beispiel.DE", telefon: "0571 123" });
+  pruefe("gültige Eingabe wird angenommen", e.ok === true, e);
+  pruefe("die E-Mail wird kleingeschrieben normalisiert", e.ok && e.werte.email === "dora@beispiel.de", e);
+}
+pruefe("fehlender Vorname wird abgewiesen", pruefeNeuePerson({ nachname: "X", email: "a@b.de" }).ok === false);
+pruefe("eine ungültige E-Mail wird abgewiesen", pruefeNeuePerson({ vorname: "A", nachname: "B", email: "keine-mail" }).ok === false);
+pruefe("eine unsinnige Telefonnummer wird abgewiesen", pruefeNeuePerson({ vorname: "A", nachname: "B", email: "a@b.de", telefon: "ruf an" }).ok === false);
+{
+  const e = pruefeNeuePerson({ vorname: "A", nachname: "B", email: "a@b.de" });
+  pruefe("ohne Telefon ist die Eingabe gültig und telefon null", e.ok === true && e.werte.telefon === null, e);
+}
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 13;
+const ERWARTET = 22;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

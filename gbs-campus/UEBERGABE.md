@@ -44,7 +44,7 @@ siehe unten) — und ohne `prisma generate` prüft es ohnehin keine Prisma-Feldn
 docker run --rm gbs-campus-builder:local npm run pruefen
 ```
 
-Soll: **342 Prüfungen** über zwölf Fachlogik-Skripte (Formular, Semester, Selbstpflege, Passwort,
+Soll: **351 Prüfungen** über zwölf Fachlogik-Skripte (Formular, Semester, Selbstpflege, Passwort,
 Auskunft, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar, Benutzerverwaltung, Anonymisierung).
 Jedes Skript meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft eine eigene Soll-Zahl.
 
@@ -52,9 +52,9 @@ Jedes Skript meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft e
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1 && bash scripts/durchstich.sh
 ```
 
-Soll: **257 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
+Soll: **269 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
 gbs-campus-db-dev`) und legt sich darin eine eigene Datenbank `gbs_durchstich` an. Auch er zählt jetzt
-gegen eine Soll-Zahl (`SOLL=257` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
+gegen eine Soll-Zahl (`SOLL=269` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
 
 Drei Prüfungen sind maschinenabhängig und können auf einer belasteten Maschine ausschlagen: die
 Laufzeitgrenzen im Durchstich (650 ms / 300 ms Abstand), der Faktor 2 bei der Laufzeitangleichung und
@@ -475,8 +475,8 @@ Person und die Anmelde-Antworten werden überschrieben, transiente Token gelösc
 `ANONYMISIERT` gesetzt. Das Audit protokolliert das **ohne** die alten Werte. Logik in
 `src/lib/anonymisierung.ts` (DB-frei) und `src/lib/anonymisierung-io.ts`.
 
-Verifiziert: **342 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
-Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **257 Durchstich-Prüfungen** gegen
+Verifiziert: **351 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
+Kursraster, 15 Selbstbestätigung, 16 Honorar, 14 Anonymisierung) und **269 Durchstich-Prüfungen** gegen
 das gebaute Image (inkl. Worker-Einzellauf, Art.-17-Scrub, Selbstbestätigung und Dozentenhonorar) —
 alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
@@ -531,13 +531,15 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 ## Bekannte Einschränkungen
 
 - **Kein Off-Site-Backup.** Der Dump liegt auf demselben Host wie die Datenbank.
-- **Benutzerverwaltung: Rollen jetzt in der Oberfläche (29.07.).** Unter `/verwaltung/personen` →
-  „Rollen verwalten" (Recht `BENUTZER_VERWALTEN`, nur Administrator) lassen sich die Rollen einer Person
-  setzen — inkl. `DOZENT` (so wird die #4-Zuordnung im Stundenplan nutzbar). Der letzte Administrator
-  lässt sich nicht entziehen. Weiterhin **nur über die Datenbank/Anmeldung**: Konten neu anlegen und
-  Stammdaten fremder Personen (Name, Adresse …) über eine Oberfläche ändern — das sind die zwei
-  verbleibenden Benutzerverwaltungs-Bausteine. `scripts/testperson-anlegen.ts` liegt nicht im
-  Produktions-Image.
+- **Benutzerverwaltung jetzt vollständig in der Oberfläche (29.07.).** Unter `/verwaltung/personen`:
+  **Rollen verwalten** (Recht `BENUTZER_VERWALTEN`, Administrator) — inkl. `DOZENT`, so wird die
+  #4-Zuordnung im Stundenplan nutzbar; der letzte Administrator lässt sich nicht entziehen. **Person
+  anlegen** (ebenfalls `BENUTZER_VERWALTEN`) — für Konten, die nicht über die Anmeldung entstehen
+  (Dozenten, Mitarbeiter): startet als aktives Konto mit Rolle Teilnehmer, Anmeldelink schickt man
+  danach von Hand. **Stammdaten fremder Personen ändern** (Recht `PERSON_BEARBEITEN_ALLE`,
+  Verwaltung/Schulleitung) — Name und Kontaktdaten; E-Mail und Bankverbindung laufen weiter über ihre
+  eigenen, abgesicherten Wege. Damit ist die Benutzerverwaltung als Oberfläche komplett.
+  `scripts/testperson-anlegen.ts` (Skript) liegt weiterhin nicht im Produktions-Image.
 - **Der partielle Index `semester_genau_ein_aktuelles` ist Prisma unbekannt.** Partielle Indexe lassen
   sich im Schema nicht ausdrücken; `prisma migrate dev` nimmt deshalb ein `DROP INDEX` in die nächste
   erzeugte Migration auf und die Invariante „genau ein laufendes Semester" fiele lautlos weg.

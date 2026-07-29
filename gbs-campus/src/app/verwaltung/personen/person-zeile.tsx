@@ -7,6 +7,12 @@ import { sendeAnfrage } from "@/lib/api-client";
 export type PersonAnzeige = {
   id: string;
   name: string;
+  vorname: string;
+  nachname: string;
+  telefon: string;
+  strasse: string;
+  plz: string;
+  ort: string;
   email: string;
   status: string;
   istTerminal: boolean;
@@ -33,9 +39,17 @@ export function PersonZeile({
   alleRollen: Rolle[];
 }) {
   const router = useRouter();
-  const [modus, setModus] = useState<"ruhe" | "email" | "rollen">("ruhe");
+  const [modus, setModus] = useState<"ruhe" | "email" | "rollen" | "stammdaten">("ruhe");
   const [neueEmail, setNeueEmail] = useState("");
   const [gewaehlt, setGewaehlt] = useState<string[]>(person.rollenCodes);
+  const [stamm, setStamm] = useState({
+    vorname: person.vorname,
+    nachname: person.nachname,
+    telefon: person.telefon,
+    strasse: person.strasse,
+    plz: person.plz,
+    ort: person.ort,
+  });
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
 
@@ -184,6 +198,23 @@ export function PersonZeile({
     router.refresh();
   }
 
+  async function stammdatenSpeichern() {
+    setLaeuft(true);
+    setMeldung(null);
+    const antwort = await sendeAnfrage<{ gespeichert: boolean }>(`/api/personen/${person.id}/stammdaten`, {
+      methode: "PUT",
+      rumpf: stamm,
+    });
+    setLaeuft(false);
+    if (!antwort.ok) {
+      setMeldung({ art: "fehler", text: antwort.meldung });
+      return;
+    }
+    setModus("ruhe");
+    setMeldung({ art: "ok", text: "Stammdaten gespeichert." });
+    router.refresh();
+  }
+
   return (
     <li className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -209,6 +240,28 @@ export function PersonZeile({
             >
               {modus === "email" ? "Abbrechen" : "Anmeldeadresse ändern"}
             </button>
+            {!person.istAnonym && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStamm({
+                    vorname: person.vorname,
+                    nachname: person.nachname,
+                    telefon: person.telefon,
+                    strasse: person.strasse,
+                    plz: person.plz,
+                    ort: person.ort,
+                  });
+                  setModus(modus === "stammdaten" ? "ruhe" : "stammdaten");
+                  setMeldung(null);
+                }}
+                aria-expanded={modus === "stammdaten"}
+                aria-controls={`stammdaten-${person.id}`}
+                className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium"
+              >
+                {modus === "stammdaten" ? "Abbrechen" : "Stammdaten bearbeiten"}
+              </button>
+            )}
             {/* Bei einem Endstatus wird kein Link mehr verschickt. Ein dauerhaft
                 grauer Knopf sagt das niemandem — der Satz sagt es. */}
             {!person.istTerminal && (
@@ -319,6 +372,51 @@ export function PersonZeile({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {modus === "stammdaten" && (
+        <div id={`stammdaten-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
+          <p className="mb-3 text-sm font-medium">Stammdaten von {person.name}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                ["vorname", "Vorname"],
+                ["nachname", "Nachname"],
+                ["telefon", "Telefon"],
+                ["strasse", "Straße"],
+                ["plz", "PLZ"],
+                ["ort", "Ort"],
+              ] as const
+            ).map(([feld, label]) => (
+              <div key={feld}>
+                <label htmlFor={`${feld}-${person.id}`} className="mb-1.5 block text-sm font-medium">
+                  {label}
+                </label>
+                <input
+                  id={`${feld}-${person.id}`}
+                  value={stamm[feld]}
+                  onChange={(e) => {
+                    setStamm((s) => ({ ...s, [feld]: e.target.value }));
+                    setMeldung(null);
+                  }}
+                  className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            E-Mail-Adresse und Bankverbindung laufen über eigene Wege; Geburtsdatum, Gemeinde und Status
+            ändert die Schulleitung an anderer Stelle.
+          </p>
+          <button
+            type="button"
+            onClick={stammdatenSpeichern}
+            disabled={laeuft || stamm.vorname.trim() === "" || stamm.nachname.trim() === ""}
+            className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          >
+            {laeuft ? "Wird gespeichert …" : "Stammdaten speichern"}
+          </button>
         </div>
       )}
 

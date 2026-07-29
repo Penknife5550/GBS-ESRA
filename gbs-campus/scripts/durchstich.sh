@@ -1164,12 +1164,50 @@ pruefe "der Administrator hat seine Rolle behalten" \
 pruefe "die Rollenaenderung ist protokolliert (ROLLEN_GEAENDERT)" \
   "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='ROLLEN_GEAENDERT' and \"objektId\"='${TEILNEHMER_ID}';")" "t")"
 
+echo
+echo "=== 33. Personen anlegen und fremde Stammdaten aendern ==="
+# Anlegen (Recht BENUTZER_VERWALTEN, Administrator) — KEKS_ADMIN aus Abschnitt 32.
+NEU=$(curl -s -X POST "${BASIS}/api/personen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"vorname":"Neu","nachname":"Konto","email":"neu@beispiel.de","telefon":"0571 111"}')
+NEU_ID=$(echo "$NEU" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+pruefe "der Administrator legt eine Person an" "$([ -n "$NEU_ID" ] && echo 1 || echo 0)" "$NEU"
+pruefe "die neue Person ist aktiv" \
+  "$(gleich "$($PSQL "select \"statusCode\" from personen where id='${NEU_ID}';")" "AKTIV")"
+pruefe "die neue Person hat die Rolle Teilnehmer" \
+  "$(gleich "$($PSQL "select count(*) from person_rolle where \"personId\"='${NEU_ID}' and \"rolleCode\"='TEILNEHMER';")" "1")"
+pruefe "der erste Status ist protokolliert (StatusWechsel)" \
+  "$(gleich "$($PSQL "select count(*) from status_wechsel where \"personId\"='${NEU_ID}' and \"nachCode\"='AKTIV';")" "1")"
+# Doppelte E-Mail wird abgewiesen (409).
+NEU_DOPP=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"vorname":"Noch","nachname":"Einer","email":"neu@beispiel.de"}')
+pruefe "eine doppelte E-Mail-Adresse wird abgewiesen (409)" "$(gleich "$NEU_DOPP" "409")" "$NEU_DOPP"
+# Die Schulleitung darf keine Person anlegen (kein BENUTZER_VERWALTEN) — 403.
+NEU_SCHUL=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"vorname":"X","nachname":"Y","email":"xy@beispiel.de"}')
+pruefe "die Schulleitung darf keine Person anlegen (403)" "$(gleich "$NEU_SCHUL" "403")" "$NEU_SCHUL"
+# Unsinnige Eingabe (kaputte E-Mail) -> 400.
+NEU_BAD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"vorname":"A","nachname":"B","email":"keine-mail"}')
+pruefe "eine kaputte E-Mail beim Anlegen wird abgewiesen (400)" "$(gleich "$NEU_BAD" "400")" "$NEU_BAD"
+
+# Fremde Stammdaten aendern (Recht PERSON_BEARBEITEN_ALLE, Schulleitung/Verwaltung).
+curl -s -o /dev/null -X PUT "${BASIS}/api/personen/${NEU_ID}/stammdaten" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"vorname":"Neu","nachname":"Konto","telefon":"0571 555","strasse":"Musterweg 3","plz":"32423","ort":"Minden"}'
+pruefe "die Schulleitung aendert fremde Stammdaten (Strasse)" \
+  "$(gleich "$($PSQL "select strasse from personen where id='${NEU_ID}';")" "Musterweg 3")"
+# Ein Teilnehmer darf keine fremden Stammdaten aendern (403).
+ST_TEILN=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/personen/${NEU_ID}/stammdaten" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d '{"vorname":"Hack","nachname":"Er"}')
+pruefe "ein Teilnehmer darf keine fremden Stammdaten aendern (403)" "$(gleich "$ST_TEILN" "403")" "$ST_TEILN"
+# Der Administrator ebenfalls nicht (kein PERSON_BEARBEITEN_ALLE — bewusste Trennung).
+ST_ADMIN=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${BASIS}/api/personen/${NEU_ID}/stammdaten" -H "Cookie: ${KEKS_ADMIN}" -H 'Content-Type: application/json' -d '{"vorname":"Neu","nachname":"Konto"}')
+pruefe "der Administrator darf keine fremden Stammdaten aendern (403)" "$(gleich "$ST_ADMIN" "403")" "$ST_ADMIN"
+# Beides ist protokolliert.
+pruefe "das Anlegen ist protokolliert (PERSON_ANGELEGT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='PERSON_ANGELEGT' and \"objektId\"='${NEU_ID}';")" "t")"
+pruefe "die Stammdatenaenderung ist protokolliert (PERSON_STAMMDATEN_GEAENDERT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='PERSON_STAMMDATEN_GEAENDERT' and \"objektId\"='${NEU_ID}';")" "t")"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 256 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=257
+# 268 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=269
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo
