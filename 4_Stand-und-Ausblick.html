@@ -132,7 +132,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
 
   <div class="grid g4">
     <div class="kpi"><div class="n" style="color:var(--gruen)">15</div><div class="l">Bausteine fertig und geprüft (Release 0.1 + Start 0.2)</div></div>
-    <div class="kpi"><div class="n" style="color:var(--gruen)">506</div><div class="l">automatische Prüfungen grün: 282 Fachlogik + 194 Durchstich + 30 DB, dazu Mutationstests</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">509</div><div class="l">automatische Prüfungen grün: 282 Fachlogik + 197 Durchstich + 30 DB, dazu Mutationstests</div></div>
     <div class="kpi"><div class="n">3</div><div class="l">offene Punkte vor dem Livegang (bei uns)</div></div>
     <div class="kpi"><div class="n" style="color:var(--rot)">1</div><div class="l">Show-Stopper außerhalb unserer Hand: SPF/DKIM/DMARC für gbs-minden.de (Absenderadresse steht)</div></div>
   </div>
@@ -172,7 +172,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
 
   <div class="box blau">
     <h4>Geprüft — nicht nur behauptet</h4>
-    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>282</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>194</strong> Durchstich-Prüfungen gegen das gebaute Image. Semesterüberleitung und Stundenplan wurden am 29.07. end-to-end mit nachgezogen (einladen → bestätigen → Fächer-Anzeige; Termine → Fachzuordnung → Anwesenheit → Quote → Rechte). Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
+    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>282</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>197</strong> Durchstich-Prüfungen gegen das gebaute Image. Semesterüberleitung, Stundenplan und Worker wurden am 29.07. end-to-end mit nachgezogen (einladen → bestätigen → Fächer-Anzeige; Termine → Fachzuordnung → Anwesenheit → Quote → Rechte; Worker-Einzellauf im Image). Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
   </div>
 </section>
 
@@ -203,7 +203,6 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
         <tr><td><strong>SPF/DKIM/DMARC für gbs-minden.de</strong> — Absenderadresse steht (<code>no-reply@gbs-minden.de</code>); der Magic-Link ist der einzige Zugang, ohne zugestellte Mail kommt niemand ins Portal</td><td>IT-Dienstleister</td><td><span class="tag t-err">Show-Stopper</span></td></tr>
         <tr><td><strong>Off-Site-Backup</strong> — Ziel festlegen; der Dump liegt bisher auf demselben Host wie die Datenbank</td><td>Projektverantwortlicher</td><td><span class="tag t-warn">hoch</span></td></tr>
         <tr><td><strong>Externer Uptime-Ping</strong> auf <code>/api/health</code> — der Healthcheck meldet nur „unhealthy", alarmiert aber niemanden</td><td>Projektverantwortlicher</td><td><span class="tag t-warn">hoch</span></td></tr>
-        <tr><td><strong>Cron für die Überleitungs-Erinnerungen</strong> — <code>CRON_SECRET</code> setzen und <code>/api/cron/erinnerungen</code> täglich aufrufen (systemd-Timer, Cron oder Uptime-Ping). Ohne das gehen die T−14/−7/−3-Erinnerungen nicht raus</td><td>IT-Dienstleister</td><td><span class="tag t-info">für 0.2</span></td></tr>
         <tr><td><strong>Art.-9-Einwilligung als Pflichtfeld?</strong> — berührt das Kopplungsverbot (Art. 7 Abs. 4 DSGVO)</td><td>Datenschutzbeauftragter</td><td><span class="tag t-info">Klärung</span></td></tr>
         <tr><td><strong>E-12 zweite Vertrauensperson</strong> für den Break-Glass-Tresor — sonst bleibt der Bus-Faktor bei 1</td><td>Schulleiter</td><td><span class="tag t-info">Klärung</span></td></tr>
         <tr><td><strong>E-13 Beurlaubungsregeln · E-02 Bestätigung Trägerkreis · E-17 Altzugänge M365</strong> — organisatorisch, null Zeilen Code</td><td>Schulleiter / Trägerkreis / IT</td><td><span class="tag t-info">Klärung</span></td></tr>
@@ -228,7 +227,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
       <div class="tld">Mitte Oktober 2026</div>
       <div>
         <div class="tlt">Release 0.2 <span class="tag t-ok" style="margin-left:6px">begonnen</span></div>
-        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment, das Kursraster und der Stundenplan mit Anwesenheit und 80-%-Quote. <strong>Noch offen (in dieser Reihenfolge):</strong> der Worker-Container, der die Erinnerungen intern statt per externem Cron auslöst; das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen); Selbstbestätigung und Dozentenhonorar.</div>
+        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment, das Kursraster, der Stundenplan mit Anwesenheit und 80-%-Quote sowie der Worker-Container, der die Erinnerungen und den Aufräumlauf stündlich selbst auslöst (kein externer Zeitgeber mehr nötig). <strong>Noch offen (in dieser Reihenfolge):</strong> das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen); Selbstbestätigung und Dozentenhonorar.</div>
       </div>
     </div>
     <div class="tlrow">

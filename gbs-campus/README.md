@@ -37,9 +37,14 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
   Jahrgang des laufenden Semesters ins Folgesemester einladen. Jeder aktive Teilnehmer bekommt einen
   persönlichen „Ich bin dabei"-Link (`/dabei/token`, Token im Fragment, ohne Login — er setzt nur
   `Teilnahme.bestaetigtAm`, meldet niemanden an). Wer nicht zusagt, wird T−14/−7/−3 Tage vor
-  Semesterstart automatisch erinnert (konfigurierbar, Bereich SEMESTER). Der Erinnerungslauf ist ein
-  per `CRON_SECRET` geschützter Endpunkt `POST /api/cron/erinnerungen`, idempotent (kein Doppelversand).
+  Semesterstart automatisch erinnert (konfigurierbar, Bereich SEMESTER). Der Erinnerungslauf ist
+  idempotent (kein Doppelversand) und läuft im `worker`-Container (siehe unten); der HTTP-Endpunkt
+  `POST /api/cron/erinnerungen` (per `CRON_SECRET`) bleibt zusätzlich fürs manuelle Auslösen.
   Logik in `src/lib/ueberleitung.ts`, DB-freie Kernlogik in `src/lib/semester.ts`.
+- **Worker-Container (Release 0.2)** — eigener docker-compose-Dienst `worker` (gleiches Image, Einstieg
+  `node worker.js`), der die Überleitungs-Erinnerungen und den DSGVO-Aufräumlauf **stündlich und
+  idempotent** ausführt (`scripts/worker.ts`). Damit braucht es keinen externen Zeitgeber mehr. Der
+  Worker wartet beim Start auf die Migrationen und fährt bei `SIGTERM` sauber herunter.
 - **Fächer & Kursraster (Release 0.2, Grundstein Stundenplan M3)** — die sieben Fächer und das feste
   3-Jahres-Raster (13 Kurseinheiten) aus der Kursübersicht von gbs-minden.de als Seed
   (`prisma/kursraster-definition.ts`), sichtbar unter `/verwaltung/faecher`. Konkrete Semester sind

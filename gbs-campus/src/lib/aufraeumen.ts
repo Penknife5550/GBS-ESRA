@@ -7,8 +7,10 @@
  * Angaben, und Art. 5 Abs. 1 lit. e DSGVO verlangt, sie nicht länger als nötig
  * aufzubewahren.
  *
- * Läuft ohne Worker: Der Aufruf hängt an der Anmeldeanforderung, die ohnehin
- * selten genug ist. Mit Release 0.2 wandert er in den Cron des Workers.
+ * Läuft seit Release 0.2 im `worker`-Container (stündlich, siehe
+ * `scripts/worker.ts`). Der opportunistische Aufruf an der Anmeldeanforderung
+ * (`raeumeGelegentlichAuf`) bleibt als Rückfall bestehen, falls der Worker
+ * einmal steht — höchstens stündlich und nicht blockierend.
  *
  * Jeder Lauf hinterlässt einen Audit-Eintrag `AUFRAEUMEN_GELAUFEN`, den die
  * Betriebsansicht als „zuletzt aufgeräumt" liest. Vorher war der einzige

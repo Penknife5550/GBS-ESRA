@@ -462,9 +462,14 @@ Die **Quote** zählt anwesend und nachgearbeitet als Teilnahme; unter der Schwel
 (`ANWESENHEIT_MINDEST_PROZENT`, Standard 80 %) wird sie markiert. DB-freie Kernlogik in
 `src/lib/stundenplan.ts` (Quote + Dienstags-Generator), IO in `src/lib/stundenplan-io.ts`.
 
+Dazu der **Worker-Container** (docker-compose-Dienst `worker`, gleiches Image, Einstieg
+`node worker.js`): er führt die Erinnerungen und den Aufräumlauf **stündlich und idempotent** aus
+(`scripts/worker.ts`) — damit entfällt der externe Zeitgeber. Der HTTP-Endpunkt bleibt fürs manuelle
+Auslösen.
+
 Verifiziert: **282 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 zum Stundenplan, 18 zur Überleitung,
-17 zum Kursraster) und **194 Durchstich-Prüfungen** gegen das gebaute Image — alles grün,
-Produktionsbuild (`next build`) ohne einen Typfehler.
+17 zum Kursraster) und **197 Durchstich-Prüfungen** gegen das gebaute Image (inkl. Worker-Einzellauf)
+— alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
 **Das Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) bleibt Release 0.2 —
 beschrieben unten unter „Bekannte Einschränkungen".
@@ -472,9 +477,9 @@ beschrieben unten unter „Bekannte Einschränkungen".
 **Vor dem Livegang:** Laientest durch eine projektfremde Person, Restore-Drill, Break-Glass-Tresor
 befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. Das **erste
 Semester ist durch den Seed gesetzt** (2026-H als laufend) — die Schulleitung muss nur bestätigen, dass
-das die richtige Wahl ist, bzw. es unter `/verwaltung/semester` umstellen. **Neu für den Betrieb:**
-`CRON_SECRET` setzen und einen täglichen Aufruf von `/api/cron/erinnerungen` einrichten, sonst gehen
-die Überleitungs-Erinnerungen nicht raus.
+das die richtige Wahl ist, bzw. es unter `/verwaltung/semester` umstellen. Die
+Überleitungs-Erinnerungen laufen jetzt **automatisch im `worker`-Container** — kein externer Zeitgeber
+mehr nötig (`CRON_SECRET` ist nur noch für das optionale manuelle Auslösen über den HTTP-Endpunkt da).
 
 Für den Laientest liegt ein fertiges **Drehbuch mit Aufgaben, Rückmeldebogen und der vollständigen
 Go-Live-Checkliste** bereit: [`LAIENTEST.md`](LAIENTEST.md). Es führt den Betreuer durch die
@@ -514,12 +519,6 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 - **Eine Person lässt sich nicht mehr löschen** — der Verweis aus dem Audit-Log stößt auf den
   Append-only-Trigger. Für Release 0.1 richtig so. Wer ein Löschkonzept nach Art. 17 DSGVO baut, muss
   anonymisieren statt löschen; die Fehlermeldung der Datenbank weist darauf hin.
-- **Semesterüberleitung: keine automatische Zeitsteuerung im Container.** Das Re-Enrollment
-  („bin dabei", Einladung + Bestätigung) ist gebaut (0.2, siehe unten). Die Erinnerungen T−14/−7/−3
-  laufen über den Endpunkt `POST /api/cron/erinnerungen`, der einen **externen Zeitgeber** braucht
-  (systemd-Timer, Cron oder Uptime-Ping, einmal täglich, Header `x-cron-secret`). Ohne gesetztes
-  `CRON_SECRET` (siehe `.env.example`) antwortet er mit 503 und es gehen keine Erinnerungen raus. Ein
-  eigener Worker-Container, der das intern übernimmt, bleibt Release-0.2-Ausbaustufe.
 - **Semester lassen sich nicht löschen** — bewusst kein Endpunkt dafür. Ein gelöschtes Semester
   risse alle Teilnahmen mit (`onDelete: Cascade`); die Anmeldungen blieben erhalten, verlören aber
   ihren Bezug.

@@ -930,12 +930,25 @@ curl -s -o /dev/null -X DELETE "${BASIS}/api/stundenplan/termine/${LETZTER_TERMI
 pruefe "ein geloeschter Abend verringert die Zahl auf neun" \
   "$(gleich "$($PSQL "select count(*) from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}';")" "9")"
 
+echo
+echo "=== 26. Worker: Einzellauf im gebauten Image ==="
+# Der Worker liegt als eigenes Bundle im Image und laesst sich mit WORKER_EINMAL=1
+# einmal ausfuehren — genau das, was der worker-Container stuendlich tut.
+pruefe "worker.js liegt im Image" "$(docker exec gbs-durchstich test -f worker.js && echo 1 || echo 0)"
+VORHER=$($PSQL "select count(*) from audit_log where aktion='AUFRAEUMEN_GELAUFEN' and quelle='SYSTEM';")
+docker exec -e WORKER_EINMAL=1 gbs-durchstich node worker.js > /tmp/gbs-worker.log 2>&1
+WEXIT=$?
+pruefe "der Worker-Einzellauf laeuft ohne Fehler durch (exit 0)" "$(gleich "$WEXIT" "0")" "$(tail -3 /tmp/gbs-worker.log)"
+NACHHER=$($PSQL "select count(*) from audit_log where aktion='AUFRAEUMEN_GELAUFEN' and quelle='SYSTEM';")
+pruefe "der Worker hat einen Aufraeumlauf ausgefuehrt (ein Audit-Eintrag mehr)" \
+  "$([ -n "$NACHHER" ] && [ -n "$VORHER" ] && [ "$NACHHER" -gt "$VORHER" ] && echo 1 || echo 0)" "${VORHER} -> ${NACHHER}"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 193 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=194
+# 196 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=197
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

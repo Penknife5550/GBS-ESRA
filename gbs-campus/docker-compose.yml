@@ -10,12 +10,13 @@
 # Die Datenbank haengt ausschliesslich im data-Netz und kommt damit weder ins
 # Internet noch ist sie von aussen erreichbar.
 #
-# Abweichung von der Planungsskizze, bewusst: kein redis und kein worker in 0.1.
-#   - Magic-Links sind ueber die Spalte benutztAm in Postgres single-use, dafuer
-#     braucht es keinen zweiten Datenspeicher.
-#   - Rate-Limiting laeuft ueber die Tabelle rate_limit (Postgres) — bei 150 Konten
-#     voellig ausreichend und ein Container weniger im Notfall-Runbook.
-#   - Der worker kommt mit Release 0.2, wenn die Re-Enrollment-Trigger entstehen.
+# Bewusst kein redis: Magic-Links sind ueber die Spalte benutztAm in Postgres
+# single-use, und das Rate-Limiting laeuft ueber die Tabelle rate_limit — bei
+# 150 Konten voellig ausreichend und ein Container weniger im Notfall-Runbook.
+#
+# Der `worker` ist mit Release 0.2 dazugekommen (Re-Enrollment-Trigger): er
+# fuehrt die Erinnerungen T-14/-7/-3 und den Aufraeumlauf stuendlich und
+# idempotent aus — damit braucht es keinen externen Zeitgeber mehr.
 # =============================================================================
 
 services:
@@ -59,6 +60,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: gbs-campus:latest
     container_name: gbs-app
     restart: unless-stopped
     # Container laufen per Default in UTC. Die Semester- und Fristenlogik rechnet
@@ -88,6 +90,29 @@ services:
       - "traefik.http.routers.gbs.tls.certresolver=le"
       - "traefik.http.services.gbs.loadbalancer.server.port=3000"
     # Kein Port-Mapping — die App ist ausschliesslich ueber traefik erreichbar.
+
+  # Worker: fuehrt die zeitgesteuerten Aufgaben aus (Ueberleitungs-Erinnerungen
+  # T-14/-7/-3 und den DSGVO-Aufraeumlauf), stuendlich und idempotent. Ersetzt
+  # den externen Zeitgeber — der HTTP-Endpunkt /api/cron/erinnerungen bleibt
+  # zusaetzlich fuer manuelles Ausloesen. Gleiches Image wie die App, nur ein
+  # anderer Einstiegspunkt; kein Port, keine traefik-Route.
+  worker:
+    image: gbs-campus:latest
+    container_name: gbs-worker
+    restart: unless-stopped
+    entrypoint: ["node", "worker.js"]
+    environment:
+      - TZ=Europe/Berlin
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - edge
+      - data
 
   db:
     image: postgres:16-alpine
