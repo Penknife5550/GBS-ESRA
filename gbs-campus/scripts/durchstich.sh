@@ -943,12 +943,45 @@ NACHHER=$($PSQL "select count(*) from audit_log where aktion='AUFRAEUMEN_GELAUFE
 pruefe "der Worker hat einen Aufraeumlauf ausgefuehrt (ein Audit-Eintrag mehr)" \
   "$([ -n "$NACHHER" ] && [ -n "$VORHER" ] && [ "$NACHHER" -gt "$VORHER" ] && echo 1 || echo 0)" "${VORHER} -> ${NACHHER}"
 
+echo
+echo "=== 27. Anonymisierung nach Art. 17 DSGVO ==="
+# Klaus Ehemann (Abschnitt 20) wird anonymisiert — er hat eine Anmeldung mit
+# echten Antworten und eine Ehepartner-Ermaessigung, also PII in mehreren Tabellen.
+KLAUS_ID=$($PSQL "select id from personen where email='klaus@beispiel.de';")
+pruefe "Klaus hat vor der Anonymisierung echte Anmelde-Antworten" \
+  "$(enthaelt "$($PSQL "select antworten::text from anmeldungen where \"personId\"='${KLAUS_ID}';")" "Klaus")"
+# Ein Teilnehmer darf nicht anonymisieren.
+ANON_VERBOTEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${KLAUS_ID}/anonymisieren" -H "Cookie: ${KEKS2}")
+pruefe "ein Teilnehmer darf niemanden anonymisieren (403)" "$(gleich "$ANON_VERBOTEN" "403")" "$ANON_VERBOTEN"
+# Anonymisierung durch die Schulleitung.
+ANON=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${KLAUS_ID}/anonymisieren" -H "Cookie: ${KEKS}")
+pruefe "Anonymisieren ist der Schulleitung erlaubt (200)" "$(gleich "$ANON" "200")" "$ANON"
+pruefe "der Status ist ANONYMISIERT" \
+  "$(gleich "$($PSQL "select \"statusCode\" from personen where id='${KLAUS_ID}';")" "ANONYMISIERT")"
+pruefe "der Name ist ueberschrieben" \
+  "$(gleich "$($PSQL "select vorname from personen where id='${KLAUS_ID}';")" "Anonymisiert")"
+pruefe "die E-Mail ist eine Platzhalter-Adresse" \
+  "$(enthaelt "$($PSQL "select email from personen where id='${KLAUS_ID}';")" "@anonymisiert.invalid")"
+pruefe "die IBAN ist geleert" \
+  "$(gleich "$($PSQL "select case when \"ibanVerschluesselt\" is null then 'null' else 'gesetzt' end from personen where id='${KLAUS_ID}';")" "null")"
+pruefe "die Anmelde-Antworten sind gescrubbt (kein Name mehr)" \
+  "$(fehlt_in "$($PSQL "select antworten::text from anmeldungen where \"personId\"='${KLAUS_ID}';")" "Klaus")"
+pruefe "die Einwilligungen bleiben als Nachweis erhalten" \
+  "$([ "$($PSQL "select count(*) from einwilligungen where \"personId\"='${KLAUS_ID}';")" -gt 0 ] && echo 1 || echo 0)"
+pruefe "die Anonymisierung ist protokolliert (PERSON_ANONYMISIERT)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='PERSON_ANONYMISIERT' and \"objektId\"='${KLAUS_ID}';")" "t")"
+pruefe "das Audit-Log enthaelt KEINE alten personenbezogenen Daten" \
+  "$(fehlt_in "$($PSQL "select coalesce(nachher::text,'') from audit_log where aktion='PERSON_ANONYMISIERT' and \"objektId\"='${KLAUS_ID}';")" "Klaus")"
+# Idempotenz: ein zweiter Aufruf wird abgewiesen.
+ANON2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${KLAUS_ID}/anonymisieren" -H "Cookie: ${KEKS}")
+pruefe "eine bereits anonymisierte Person wird abgewiesen (409)" "$(gleich "$ANON2" "409")" "$ANON2"
+
 # Soll-Anzahl, wie in den vier Fachlogik-Skripten. Ohne sie meldet ein Lauf, der
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 196 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=197
+# 208 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=209
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

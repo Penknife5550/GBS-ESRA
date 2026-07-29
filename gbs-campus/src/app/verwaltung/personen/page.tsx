@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
-import { RECHT } from "@/lib/constants";
+import { RECHT, STATUS } from "@/lib/constants";
 import { PersonZeile } from "./person-zeile";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export default async function PersonenSeite({
 
   const darfAendern = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_ALLE);
   const darfAuskunft = hatRecht(benutzer, RECHT.PERSON_EXPORTIEREN);
+  const darfAnonymisieren = hatRecht(benutzer, RECHT.PERSON_ANONYMISIEREN);
   const { suche } = await searchParams;
   const begriff = suche?.trim() ?? "";
 
@@ -38,7 +39,7 @@ export default async function PersonenSeite({
       vorname: true,
       nachname: true,
       email: true,
-      status: { select: { bezeichnung: true, istTerminal: true } },
+      status: { select: { code: true, bezeichnung: true, istTerminal: true } },
       rollen: { select: { rolle: { select: { bezeichnung: true } } } },
     },
     orderBy: [{ nachname: "asc" }, { vorname: "asc" }],
@@ -99,12 +100,14 @@ export default async function PersonenSeite({
                 key={person.id}
                 darfAendern={darfAendern}
                 darfAuskunft={darfAuskunft}
+                darfAnonymisieren={darfAnonymisieren}
                 person={{
                   id: person.id,
                   name: `${person.vorname} ${person.nachname}`,
                   email: person.email,
                   status: person.status.bezeichnung,
                   istTerminal: person.status.istTerminal,
+                  istAnonym: person.status.code === STATUS.ANONYMISIERT,
                   rollen: person.rollen.map((r) => r.rolle.bezeichnung).join(", "),
                 }}
               />

@@ -45,6 +45,14 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
   `node worker.js`), der die Überleitungs-Erinnerungen und den DSGVO-Aufräumlauf **stündlich und
   idempotent** ausführt (`scripts/worker.ts`). Damit braucht es keinen externen Zeitgeber mehr. Der
   Worker wartet beim Start auf die Migrationen und fährt bei `SIGTERM` sauber herunter.
+- **Löschkonzept nach Art. 17 DSGVO (Release 0.2)** — `/verwaltung/personen` → „Anonymisieren" (Recht
+  `PERSON_ANONYMISIEREN`, nur Schulleitung). Weil Audit-Log und Einwilligungen append-only sind und als
+  Nachweis (Art. 7 Abs. 1) erhalten bleiben müssen, wird **nicht gelöscht, sondern anonymisiert**: alle
+  personenbezogenen Felder der Person UND die Anmelde-Antworten (`antworten`-JSON, inkl. Name/Adresse/
+  IBAN/Art.-9-Angaben) werden überschrieben, transiente Token-Datensätze gelöscht, der Status auf den
+  Endzustand `ANONYMISIERT` gesetzt. Teilnahmen/Anwesenheiten/Einwilligungen bleiben ohne Personenbezug.
+  Das Audit protokolliert die Anonymisierung **ohne** die alten Werte. Logik in `src/lib/anonymisierung.ts`
+  (DB-frei) und `src/lib/anonymisierung-io.ts` (Transaktion).
 - **Fächer & Kursraster (Release 0.2, Grundstein Stundenplan M3)** — die sieben Fächer und das feste
   3-Jahres-Raster (13 Kurseinheiten) aus der Kursübersicht von gbs-minden.de als Seed
   (`prisma/kursraster-definition.ts`), sichtbar unter `/verwaltung/faecher`. Konkrete Semester sind

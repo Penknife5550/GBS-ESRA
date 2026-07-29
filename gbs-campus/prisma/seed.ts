@@ -110,6 +110,20 @@ const STATUS = [
     automatikMails: false,
     sortierung: 80,
   },
+  {
+    code: "ANONYMISIERT",
+    bezeichnung: "Anonymisiert",
+    // DSGVO Art. 17: Der Datensatz bleibt (Audit- und Einwilligungsnachweis sind
+    // append-only und muessen erhalten bleiben), aber alle personenbezogenen
+    // Felder sind ueberschrieben. Endzustand, jede Automatik aus.
+    beschreibung: "Personenbezogene Daten geloescht (anonymisiert nach Art. 17 DSGVO). Endzustand.",
+    istAktiv: false,
+    istTerminal: true,
+    beitragLaeuft: false,
+    anwesenheitZaehlt: false,
+    automatikMails: false,
+    sortierung: 90,
+  },
 ];
 
 // -----------------------------------------------------------------------------
@@ -122,6 +136,7 @@ const RECHTE = [
   { code: "PERSON_BEARBEITEN_ALLE", bezeichnung: "Stammdaten aller Personen aendern", bereich: "PERSON" },
   { code: "PERSON_STATUS_WECHSELN", bezeichnung: "Teilnehmerstatus aendern", bereich: "PERSON" },
   { code: "PERSON_EXPORTIEREN", bezeichnung: "Teilnehmerliste exportieren", bereich: "PERSON" },
+  { code: "PERSON_ANONYMISIEREN", bezeichnung: "Person anonymisieren (Löschung nach Art. 17 DSGVO)", bereich: "PERSON" },
   { code: "SEMESTER_VERWALTEN", bezeichnung: "Semester anlegen und das laufende festlegen", bereich: "PERSON" },
   { code: "ANMELDUNG_LESEN", bezeichnung: "Anmeldungen einsehen", bereich: "ANMELDUNG" },
   { code: "ANMELDUNG_ENTSCHEIDEN", bezeichnung: "Anmeldungen annehmen oder ablehnen", bereich: "ANMELDUNG" },
@@ -171,6 +186,9 @@ const ROLLEN = [
       "PERSON_BEARBEITEN_ALLE",
       "PERSON_STATUS_WECHSELN",
       "PERSON_EXPORTIEREN",
+      // Die Anonymisierung (Art. 17 DSGVO) ist eine schwerwiegende, endgueltige
+      // Entscheidung — sie liegt bei der Schulleitung, nicht bei der Verwaltung.
+      "PERSON_ANONYMISIEREN",
       "SEMESTER_VERWALTEN",
       "ANMELDUNG_LESEN",
       "ANMELDUNG_ENTSCHEIDEN",

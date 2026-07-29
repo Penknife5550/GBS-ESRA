@@ -10,6 +10,7 @@ export type PersonAnzeige = {
   email: string;
   status: string;
   istTerminal: boolean;
+  istAnonym: boolean;
   rollen: string;
 };
 
@@ -17,10 +18,12 @@ export function PersonZeile({
   person,
   darfAendern,
   darfAuskunft,
+  darfAnonymisieren,
 }: {
   person: PersonAnzeige;
   darfAendern: boolean;
   darfAuskunft: boolean;
+  darfAnonymisieren: boolean;
 }) {
   const router = useRouter();
   const [modus, setModus] = useState<"ruhe" | "email">("ruhe");
@@ -117,6 +120,36 @@ export function PersonZeile({
     });
   }
 
+  async function anonymisieren() {
+    if (
+      !confirm(
+        `${person.name} wirklich unwiderruflich anonymisieren (Löschung nach Art. 17 DSGVO)?\n\n` +
+          "Alle personenbezogenen Daten werden überschrieben: Name, E-Mail, Telefon, Adresse, " +
+          "Geburtsdatum, Gemeinde, IBAN und die Anmelde-Antworten. Der Zugang erlischt.\n\n" +
+          "Als Nachweis erhalten bleiben — ohne Personenbezug — das Protokoll und die Einwilligungen.\n\n" +
+          "Das lässt sich NICHT rückgängig machen.",
+      )
+    ) {
+      return;
+    }
+
+    setLaeuft(true);
+    setMeldung(null);
+
+    const antwort = await sendeAnfrage<{ anmeldungen: number }>(`/api/personen/${person.id}/anonymisieren`, {
+      methode: "POST",
+    });
+    setLaeuft(false);
+
+    if (!antwort.ok) {
+      setMeldung({ art: "fehler", text: antwort.meldung });
+      return;
+    }
+
+    setMeldung({ art: "ok", text: "Die Person wurde anonymisiert. Die personenbezogenen Daten sind gelöscht." });
+    router.refresh();
+  }
+
   return (
     <li className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -179,6 +212,29 @@ export function PersonZeile({
             DSGVO als PDF abrufen kann.
           </p>
         </div>
+      )}
+
+      {darfAnonymisieren && !person.istAnonym && (
+        <div className="mt-3 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={anonymisieren}
+            disabled={laeuft}
+            className="min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
+          >
+            {laeuft ? "Läuft …" : "Anonymisieren (Art. 17 DSGVO)"}
+          </button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Löscht alle personenbezogenen Daten unwiderruflich. Protokoll und Einwilligungen bleiben ohne
+            Personenbezug als Nachweis erhalten.
+          </p>
+        </div>
+      )}
+
+      {darfAnonymisieren && person.istAnonym && (
+        <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+          Diese Person ist anonymisiert (Art. 17 DSGVO). Die personenbezogenen Daten sind gelöscht.
+        </p>
       )}
 
       {modus === "email" && (

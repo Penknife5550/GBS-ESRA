@@ -131,8 +131,8 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
   <p class="sub">Vier Zahlen, wenn man nur vier liest.</p>
 
   <div class="grid g4">
-    <div class="kpi"><div class="n" style="color:var(--gruen)">15</div><div class="l">Bausteine fertig und geprüft (Release 0.1 + Start 0.2)</div></div>
-    <div class="kpi"><div class="n" style="color:var(--gruen)">509</div><div class="l">automatische Prüfungen grün: 282 Fachlogik + 197 Durchstich + 30 DB, dazu Mutationstests</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">17</div><div class="l">Bausteine fertig und geprüft (Release 0.1 + Start 0.2)</div></div>
+    <div class="kpi"><div class="n" style="color:var(--gruen)">535</div><div class="l">automatische Prüfungen grün: 296 Fachlogik + 209 Durchstich + 30 DB, dazu Mutationstests</div></div>
     <div class="kpi"><div class="n">3</div><div class="l">offene Punkte vor dem Livegang (bei uns)</div></div>
     <div class="kpi"><div class="n" style="color:var(--rot)">1</div><div class="l">Show-Stopper außerhalb unserer Hand: SPF/DKIM/DMARC für gbs-minden.de (Absenderadresse steht)</div></div>
   </div>
@@ -166,13 +166,15 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
         <tr><td><strong>Semesterüberleitung</strong> <span style="color:var(--tx2)">M1 · 0.2</span></td><td><code>/verwaltung/semesterueberleitung</code>: den Jahrgang des laufenden Semesters ins Folgesemester einladen. Jeder aktive Teilnehmer bekommt einen persönlichen „Ich bin dabei"-Link (<code>/dabei</code>, Token im Fragment, ohne Login — setzt nur die Bestätigung). Wer nicht zusagt, wird <strong>T−14/−7/−3</strong> vor Semesterstart automatisch erinnert (konfigurierbar). Idempotent, race-sicher, kein Doppelversand</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
         <tr><td><strong>Fächer &amp; Kursraster</strong> <span style="color:var(--tx2)">M3-Grundstein · 0.2</span></td><td>Die 7 Fächer und das feste 3-Jahres-Raster (13 Kurseinheiten) aus der Kursübersicht von gbs-minden.de als Seed; <code>/verwaltung/faecher</code> zeigt es. Die <strong>sechs echten Semester</strong> (2026-H … 2029-F) legt jetzt ein frischer Seed an, über Lehrjahr/Halbjahr ans Raster gekoppelt — die „bin dabei"-Seite zeigt die Fächer des Zielsemesters</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
         <tr><td><strong>Stundenplan &amp; Anwesenheit</strong> <span style="color:var(--tx2)">M3 · 0.2</span></td><td><code>/verwaltung/stundenplan</code>: die Unterrichtsabende eines Semesters (die zehn Dienstagabende ab Semesterbeginn per Knopf), jeder Abend einer Kurseinheit zuordenbar. <strong>Anwesenheit</strong> je Teilnahme × Termin (anwesend/entschuldigt/gefehlt/nachgearbeitet) und die <strong>Quote</strong> — anwesend und nachgearbeitet zählen als Teilnahme, unter 80&nbsp;% wird markiert</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
+        <tr><td><strong>Worker-Container</strong> <span style="color:var(--tx2)">Betrieb · 0.2</span></td><td>Eigener Dienst, der die Überleitungs-Erinnerungen und den Aufräumlauf stündlich und idempotent selbst auslöst — kein externer Zeitgeber mehr nötig. Der HTTP-Endpunkt bleibt fürs manuelle Auslösen</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
+        <tr><td><strong>Löschkonzept (Art. 17)</strong> <span style="color:var(--tx2)">DSGVO · 0.2</span></td><td>Verwaltung → Personen → „Anonymisieren" (nur Schulleitung): Weil Audit und Einwilligungen als Nachweis bleiben müssen, wird nicht gelöscht, sondern <strong>anonymisiert</strong> — alle personenbezogenen Felder und die Anmelde-Antworten (Name, Adresse, IBAN, Art.-9-Angaben) werden überschrieben, Status <code>ANONYMISIERT</code>. Das Protokoll hält das ohne die alten Werte fest</td><td><span class="tag t-ok">neu 29.07.</span></td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="box blau">
     <h4>Geprüft — nicht nur behauptet</h4>
-    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>282</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>197</strong> Durchstich-Prüfungen gegen das gebaute Image. Semesterüberleitung, Stundenplan und Worker wurden am 29.07. end-to-end mit nachgezogen (einladen → bestätigen → Fächer-Anzeige; Termine → Fachzuordnung → Anwesenheit → Quote → Rechte; Worker-Einzellauf im Image). Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
+    <p>Zwei Code-Reviews (<strong>211</strong> + <strong>160</strong> Befunde, alle Blocker behoben) und ein Mehr-Agenten-Review (15 Agenten, 4 echte Fehler behoben, u.&nbsp;a. ein Art.-9-Leck im Entwurfspfad). Der aktuelle Stand ist grün nachgemessen: Produktionsbuild (<code>next build</code>) ohne einen einzigen Typfehler, <strong>296</strong> DB-freie Fachlogik-Prüfungen, <strong>14</strong> Mutationstests der Passwortlogik und <strong>209</strong> Durchstich-Prüfungen gegen das gebaute Image. Semesterüberleitung, Stundenplan, Worker und die Anonymisierung nach Art. 17 wurden am 29.07. end-to-end mit nachgezogen — bis hin zum Nachweis, dass nach dem Anonymisieren keine personenbezogenen Daten mehr in Person, Anmelde-Antworten oder Audit-Log stehen. Details in <a href="2_Code-Review.html">2_Code-Review.html</a>, <a href="3_Code-Review-2.html">3_Code-Review-2.html</a> und <a href="gbs-campus/README.md">README</a>.</p>
   </div>
 </section>
 
@@ -227,7 +229,7 @@ footer{margin-top:56px;background:var(--bg2);border-top:1px solid var(--li);
       <div class="tld">Mitte Oktober 2026</div>
       <div>
         <div class="tlt">Release 0.2 <span class="tag t-ok" style="margin-left:6px">begonnen</span></div>
-        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment, das Kursraster, der Stundenplan mit Anwesenheit und 80-%-Quote sowie der Worker-Container, der die Erinnerungen und den Aufräumlauf stündlich selbst auslöst (kein externer Zeitgeber mehr nötig). <strong>Noch offen (in dieser Reihenfolge):</strong> das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen); Selbstbestätigung und Dozentenhonorar.</div>
+        <div class="tlx"><strong>Schon erledigt (29.07.):</strong> Semesterüberleitung mit Re-Enrollment, das Kursraster, der Stundenplan mit Anwesenheit und 80-%-Quote, der Worker-Container (Erinnerungen + Aufräumlauf stündlich, kein externer Zeitgeber mehr) und das Löschkonzept nach Art. 17 DSGVO (anonymisieren statt löschen). <strong>Noch offen:</strong> Selbstbestätigung und Dozentenhonorar.</div>
       </div>
     </div>
     <div class="tlrow">

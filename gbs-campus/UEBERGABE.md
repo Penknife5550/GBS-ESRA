@@ -467,12 +467,16 @@ Dazu der **Worker-Container** (docker-compose-Dienst `worker`, gleiches Image, E
 (`scripts/worker.ts`) — damit entfällt der externe Zeitgeber. Der HTTP-Endpunkt bleibt fürs manuelle
 Auslösen.
 
-Verifiziert: **282 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 zum Stundenplan, 18 zur Überleitung,
-17 zum Kursraster) und **197 Durchstich-Prüfungen** gegen das gebaute Image (inkl. Worker-Einzellauf)
-— alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
+Dazu das **Löschkonzept nach Art. 17 DSGVO**: `/verwaltung/personen` → „Anonymisieren" (Recht
+`PERSON_ANONYMISIEREN`, nur Schulleitung). Weil Audit-Log und Einwilligungen als Nachweis erhalten
+bleiben müssen, wird nicht gelöscht, sondern **anonymisiert** — alle personenbezogenen Felder der
+Person und die Anmelde-Antworten werden überschrieben, transiente Token gelöscht, der Status auf
+`ANONYMISIERT` gesetzt. Das Audit protokolliert das **ohne** die alten Werte. Logik in
+`src/lib/anonymisierung.ts` (DB-frei) und `src/lib/anonymisierung-io.ts`.
 
-**Das Löschkonzept nach Art. 17 DSGVO** (anonymisieren statt löschen) bleibt Release 0.2 —
-beschrieben unten unter „Bekannte Einschränkungen".
+Verifiziert: **296 DB-freie Fachlogik-Prüfungen** (neu u. a. 20 Stundenplan, 18 Überleitung, 17
+Kursraster, 14 Anonymisierung) und **209 Durchstich-Prüfungen** gegen das gebaute Image (inkl.
+Worker-Einzellauf und Art.-17-Scrub) — alles grün, Produktionsbuild (`next build`) ohne einen Typfehler.
 
 **Vor dem Livegang:** Laientest durch eine projektfremde Person, Restore-Drill, Break-Glass-Tresor
 befüllen, Zustellbarkeit der Magic-Link-Mail gegen GMX, web.de, Gmail und Outlook prüfen. Das **erste
@@ -516,9 +520,10 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
   der nächste Härtungsschritt.
 - **Keine Content-Security-Policy.** Traefik setzt HSTS, `frameDeny`, `nosniff` und Referrer-Policy;
   CSP fehlt und gehört nachgezogen, bevor irgendwo Formulartexte als Markdown gerendert werden.
-- **Eine Person lässt sich nicht mehr löschen** — der Verweis aus dem Audit-Log stößt auf den
-  Append-only-Trigger. Für Release 0.1 richtig so. Wer ein Löschkonzept nach Art. 17 DSGVO baut, muss
-  anonymisieren statt löschen; die Fehlermeldung der Datenbank weist darauf hin.
+- **Eine Person wird nicht gelöscht, sondern anonymisiert** — echtes Löschen stößt bewusst auf den
+  Append-only-Trigger (der Audit- und Einwilligungsnachweis muss bleiben). Das Löschkonzept nach
+  Art. 17 DSGVO ist seit 0.2 gebaut: `/verwaltung/personen` → „Anonymisieren" überschreibt alle
+  personenbezogenen Felder (siehe unten). Ein hartes Löschen auf DB-Ebene bleibt geblockt.
 - **Semester lassen sich nicht löschen** — bewusst kein Endpunkt dafür. Ein gelöschtes Semester
   risse alle Teilnahmen mit (`onDelete: Cascade`); die Anmeldungen blieben erhalten, verlören aber
   ihren Bezug.
