@@ -30,10 +30,16 @@ export type MailAuftrag = {
   vorlageCode?: string | null;
   /**
    * Optionale Dateianhaenge. Bewusst sparsam einzusetzen: personenbezogene oder
-   * sensible Daten (IBAN, Art. 9) gehoeren NICHT als Anhang in den
-   * unverschluesselten Mailkanal — die DSGVO-Auskunft verschickt aus genau
-   * diesem Grund nur einen Abruf-Link. Der Honorar-Beleg an das DMS enthaelt
-   * keine solchen Daten (Saetze, Faecher, Tage; keine Dozentennamen).
+   * sensible Daten (IBAN, Art. 9) gehoeren im Regelfall NICHT als Anhang in den
+   * unverschluesselten Mailkanal — die DSGVO-Auskunft verschickt aus genau diesem
+   * Grund nur einen Abruf-Link, und der Honorarsatz-Beleg (0.2) enthaelt keine
+   * Personendaten (nur Saetze, Faecher, Tage).
+   *
+   * AUSNAHME: Der Honorar-ABRECHNUNGS-Beleg (0.3) traegt bewusst Dozentenname,
+   * Kontoinhaber und IBAN im Klartext an das DMS — eine informierte Entscheidung
+   * des Betriebs, weil die Finanzbuchhaltung ohne IBAN nicht ueberweisen kann.
+   * Abgesichert ueber ein festes DMS-Postfach, das Zusatzrecht BANKVERBINDUNG_LESEN
+   * auf der Freigabe und einen Audit-Eintrag (siehe honorar-abrechnung-io.ts).
    */
   anhaenge?: MailAnhang[];
 };

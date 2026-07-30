@@ -211,6 +211,8 @@ model Person {
   /// Unterrichtsabende, die diese Person als Dozent haelt (Grundlage der
   /// Honorar-Uebersicht, Release 0.2).
   dozentTermine      Unterrichtstermin[] @relation("TerminDozent")
+  /// Honorar-Abrechnungen dieser Person als Dozent (Release 0.3).
+  honorarAbrechnungen HonorarAbrechnung[] @relation("AbrechnungDozent")
 
   @@index([statusCode])
   @@index([nachname, vorname])
@@ -283,6 +285,7 @@ model Semester {
   teilnahmen  Teilnahme[]
   anmeldungen Anmeldung[]
   termine     Unterrichtstermin[]
+  honorarAbrechnungen HonorarAbrechnung[]
 
   @@map("semester")
 }
@@ -420,6 +423,9 @@ model Unterrichtstermin {
   erstelltAm DateTime @default(now())
 
   anwesenheiten Anwesenheit[]
+  /// Der Abrechnungsposten, falls dieser Abend bereits abgerechnet ist (0.3).
+  /// Optional 1:1 — ein Abend fliesst in hoechstens eine Abrechnung.
+  abrechnungPosten HonorarAbrechnungPosten?
 
   @@index([semesterId, beginn])
   @@index([dozentId])
@@ -490,6 +496,81 @@ model HonorarSatz {
 
   @@index([gueltigAb])
   @@map("honorar_saetze")
+}
+
+// =============================================================================
+// Honorar-Abrechnung / Auszahlung (M7, Release 0.3)
+//
+// Eine Abrechnung fasst die gehaltenen Unterrichtsabende EINES Dozenten in EINEM
+// Semester zusammen. Beim Erstellen wird der Betrag je Abend EINGEFROREN (Posten
+// mit dem Satz, der zu diesem Zeitpunkt galt) — eine spaetere Satzaenderung
+// veraendert eine bestehende Abrechnung nicht mehr. Jeder Abend fliesst in
+// hoechstens EINE Abrechnung (Posten.terminId ist @unique) — kein Doppel-Honorar.
+//
+// Zwei Schritte: OFFEN (erstellt, eingefroren) -> FREIGEGEBEN (zur Auszahlung
+// freigegeben; dabei geht der Zahlungsbeleg mit IBAN an das DMS) -> AUSGEZAHLT
+// (als bezahlt markiert). Die IBAN wird erst bei der Belegerzeugung aus der
+// Person entschluesselt und NICHT in der Abrechnung gespeichert.
+// =============================================================================
+
+enum HonorarAbrechnungStatus {
+  OFFEN // erstellt, Betraege eingefroren
+  FREIGEGEBEN // zur Auszahlung freigegeben, DMS-Beleg versandt
+  AUSGEZAHLT // als bezahlt markiert
+}
+
+model HonorarAbrechnung {
+  id String @id @default(uuid())
+
+  dozentId String
+  // Restrict: eine Abrechnung darf ihren Dozenten nicht verlieren. Der Betrieb
+  // loescht Personen ohnehin nicht (Art. 17 -> anonymisieren), der Datensatz
+  // bleibt also erhalten.
+  dozent Person @relation("AbrechnungDozent", fields: [dozentId], references: [id], onDelete: Restrict)
+
+  semesterId String
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+
+  status HonorarAbrechnungStatus @default(OFFEN)
+  summe  Int // eingefrorene Gesamtsumme (Summe der Posten), Euro ganzzahlig
+
+  belegNr       String? // DMS-Beleg-Nr, vergeben bei der Freigabe
+  dmsGesendetAm DateTime?
+
+  erstelltVonId    String? // Akteur-Ids (keine Relation, wie erfasstVonId)
+  erstelltAm       DateTime  @default(now())
+  freigegebenVonId String?
+  freigegebenAm    DateTime?
+  ausgezahltVonId  String?
+  ausgezahltAm     DateTime? @db.Date // Datum der Auszahlung (Tagesgenauigkeit)
+
+  notiz String?
+
+  posten HonorarAbrechnungPosten[]
+
+  @@index([dozentId])
+  @@index([semesterId, status])
+  @@map("honorar_abrechnungen")
+}
+
+/// Ein abgerechneter Unterrichtsabend mit eingefrorenem Datum, Fach und Betrag.
+/// terminId ist @unique: ein Abend kann in hoechstens EINE Abrechnung fliessen.
+model HonorarAbrechnungPosten {
+  id String @id @default(uuid())
+
+  abrechnungId String
+  abrechnung   HonorarAbrechnung @relation(fields: [abrechnungId], references: [id], onDelete: Cascade)
+
+  terminId String            @unique
+  // Restrict: ein bereits abgerechneter Abend darf nicht geloescht werden.
+  termin   Unterrichtstermin @relation(fields: [terminId], references: [id], onDelete: Restrict)
+
+  datum  DateTime // eingefroren: termin.beginn
+  fach   String? // eingefroren: Fach-Bezeichnung (null, wenn kein Fach zugeordnet)
+  betrag Int // eingefroren: satzFuer(beginn) zum Zeitpunkt des Erstellens
+
+  @@index([abrechnungId])
+  @@map("honorar_abrechnung_posten")
 }
 
 // =============================================================================

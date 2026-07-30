@@ -68,6 +68,19 @@ export async function DELETE(request: NextRequest, kontext: { params: Promise<{ 
   if (!benutzer) return keineBerechtigung();
 
   const { id } = await kontext.params;
+
+  // Ein bereits abgerechneter Abend darf nicht gelöscht werden: die FK zum
+  // Abrechnungsposten ist Restrict, ein DELETE liefe sonst in einen FK-Fehler
+  // (500). Vorher sauber prüfen und mit 409 abweisen (kein Doppel-Honorar durch
+  // Löschen und Neu-Anlegen).
+  const abgerechnet = await prisma.honorarAbrechnungPosten.findUnique({
+    where: { terminId: id },
+    select: { id: true },
+  });
+  if (abgerechnet) {
+    return fehler("Dieser Abend ist bereits abgerechnet und kann nicht gelöscht werden.", 409);
+  }
+
   const geloescht = await prisma.unterrichtstermin.deleteMany({ where: { id } });
   if (geloescht.count === 0) return fehler("Diesen Termin gibt es nicht.", 404);
 

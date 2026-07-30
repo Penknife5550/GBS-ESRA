@@ -110,7 +110,7 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 363 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar inkl. Satz-Historie + DMS-Beleg, Anonymisierung), ohne Datenbank |
+| `npm run pruefen` | 380 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
 | `bash scripts/durchstich.sh` | 269 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
@@ -481,7 +481,30 @@ Die Genehmigung ist die fachliche Tatsache und wird **nicht zurückgerollt**, we
 (oder mangels `DMS_EMAIL` die Zustellung) ausbleibt — der offene Versand bleibt sichtbar. Der Beleg
 enthält bewusst **keine** Dozentennamen (Datenminimierung); der PDF-Erzeuger bleibt abhängigkeitsfrei,
 die DMS-Referenz ist deshalb eine Beleg-Nummer und kein QR-Bild. Ein Muster erzeugt
-`tsx scripts/muster-honorar-dms.ts`. Die eigentliche **Auszahlung** folgt im weiteren Verlauf von 0.3.
+`tsx scripts/muster-honorar-dms.ts`.
+
+### Honorar-Auszahlung (Release 0.3)
+
+Eine **Abrechnung** fasst die gehaltenen Abende **eines Dozenten in einem Semester** zusammen (Modell
+`HonorarAbrechnung` + `HonorarAbrechnungPosten`). Beim Erstellen wird der Betrag **je Abend eingefroren**
+(ein Posten mit Datum, Fach und dem zu diesem Zeitpunkt geltenden Satz) — eine spätere Satzänderung
+verändert eine bestehende Abrechnung nicht mehr. Jeder Abend fließt in **höchstens eine** Abrechnung
+(`Posten.terminId` ist `@unique`, DB-seitig gegen Doppel-Honorar auch bei parallelen Aufrufen). Die
+Übersicht `/verwaltung/honorar/abrechnungen` zeigt je Dozent, was **offen** (gehalten, noch nicht
+abgerechnet) und was bereits abgerechnet/ausgezahlt ist.
+
+**Zwei Schritte** (Recht `HONORAR_ABRECHNEN`, Schulleitung + Verwaltung): erstellen (`OFFEN`) → **freigeben**
+(`FREIGEGEBEN`) → **als ausgezahlt markieren** (`AUSGEZAHLT`, mit Datum). Die eigentliche Überweisung
+passiert **nicht** in der Software (Optigem, später) — der Zahllauf ist Erfassung, Beleg und Statusführung.
+
+Bei der **Freigabe** geht ein **Zahlungsbeleg** an das DMS (`DMS_EMAIL`) — professionell und vollständig:
+Dozent, Zahlungsempfänger **inkl. IBAN** (aus der Person entschlüsselt), jede Position (Datum · Fach ·
+eingefrorener Betrag) und die Summe, damit die Finanzbuchhaltung ohne Rückfrage überweisen und ein Dritter
+alles nachvollziehen kann. Weil der Beleg die IBAN im Klartext enthält, verlangt die Freigabe **zusätzlich**
+das IBAN-Recht `BANKVERBINDUNG_LESEN` (in der Praxis die Verwaltung/FiBu), und jede Freigabe wird
+protokolliert. Fehlerverhalten wie beim Mailer: die Freigabe ist die fachliche Tatsache und wird bei einem
+Belegfehler nicht zurückgerollt (`dmsGesendetAm` bleibt leer, Versand sichtbar offen). Ein Muster erzeugt
+`tsx scripts/muster-honorar-abrechnung.ts` (mit Beispiel-IBAN).
 
 ---
 

@@ -1126,6 +1126,108 @@ pruefe "nur die gehaltenen Abende zaehlen (2 x 95 = 190 €)" "$(enthaelt "$HON"
 pruefe "ein kuenftig zugeordneter Abend zaehlt NICHT als gehalten (kein 285 €)" "$(fehlt_in "$HON" "285 €")"
 
 echo
+echo "=== 29b. Honorar-Abrechnung / Auszahlung ==="
+pruefe "Recht HONORAR_ABRECHNEN existiert" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='HONORAR_ABRECHNEN';")" "1")"
+pruefe "Schulleitung und Verwaltung duerfen abrechnen" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rechtCode\"='HONORAR_ABRECHNEN';")" "2")"
+pruefe "die Honorar-Abrechnung-Migration ist als angewendet eingetragen" \
+  "$(gleich "$($PSQL "select count(*) from _prisma_migrations where migration_name='20260730130000_honorar_abrechnung' and finished_at is not null;")" "1")"
+pruefe "Tabelle honorar_abrechnungen existiert" \
+  "$(gleich "$($PSQL "select count(*) from information_schema.tables where table_name='honorar_abrechnungen';")" "1")"
+pruefe "Posten.terminId ist UNIQUE (kein Doppel-Honorar)" \
+  "$(gleich "$($PSQL "select count(*) from pg_indexes where indexname='honorar_abrechnung_posten_terminId_key';")" "1")"
+
+# Abrechnung erstellen: der Dozent hat aus Abschnitt 29 zwei gehaltene Abende (je 95 EUR).
+ABR=$(curl -s -X POST "${BASIS}/api/honorar/abrechnungen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"dozentId\":\"${DOZENT_ID}\",\"semesterId\":\"${SEMESTER_ID}\"}")
+ABR_ID=$($PSQL "select id from honorar_abrechnungen where \"dozentId\"='${DOZENT_ID}' order by \"erstelltAm\" desc limit 1;")
+pruefe "die Schulleitung erstellt eine Abrechnung" "$(enthaelt "$ABR" "$ABR_ID")" "$ABR"
+pruefe "die Abrechnung hat 2 Posten (die gehaltenen Abende)" \
+  "$(gleich "$($PSQL "select count(*) from honorar_abrechnung_posten where \"abrechnungId\"='${ABR_ID}';")" "2")"
+pruefe "die eingefrorene Summe ist 190 (2 x 95)" \
+  "$(gleich "$($PSQL "select summe from honorar_abrechnungen where id='${ABR_ID}';")" "190")"
+pruefe "die Abrechnung ist OFFEN" \
+  "$(gleich "$($PSQL "select status from honorar_abrechnungen where id='${ABR_ID}';")" "OFFEN")"
+pruefe "der eingefrorene Posten-Betrag ist 95" \
+  "$(gleich "$($PSQL "select distinct betrag from honorar_abrechnung_posten where \"abrechnungId\"='${ABR_ID}';")" "95")"
+pruefe "das Erstellen steht im Audit-Log" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='HONORAR_ABRECHNUNG_ERSTELLT';")" "t")"
+
+# Kein Doppel-Honorar: erneutes Abrechnen findet keine offenen Abende mehr (400).
+ABR2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"dozentId\":\"${DOZENT_ID}\",\"semesterId\":\"${SEMESTER_ID}\"}")
+pruefe "kein zweites Abrechnen derselben Abende (400)" "$(gleich "$ABR2" "400")" "$ABR2"
+pruefe "es bleiben genau 2 Posten fuer den Dozenten (kein Doppel)" \
+  "$(gleich "$($PSQL "select count(*) from honorar_abrechnung_posten p join honorar_abrechnungen a on a.id=p.\"abrechnungId\" where a.\"dozentId\"='${DOZENT_ID}';")" "2")"
+
+# Ein Teilnehmer darf nicht abrechnen (403).
+ABR_T=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"dozentId\":\"${DOZENT_ID}\",\"semesterId\":\"${SEMESTER_ID}\"}")
+pruefe "ein Teilnehmer darf nicht abrechnen (403)" "$(gleich "$ABR_T" "403")" "$ABR_T"
+
+# IBAN-Schutz: die reine Schulleitung hat HONORAR_ABRECHNEN, aber NICHT
+# BANKVERBINDUNG_LESEN -> die Freigabe (Beleg mit IBAN ans DMS) ist verboten (403).
+FREI_S=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen/${ABR_ID}/freigeben" -H "Cookie: ${KEKS}")
+pruefe "Freigabe ohne IBAN-Recht ist verboten (403)" "$(gleich "$FREI_S" "403")" "$FREI_S"
+pruefe "die Abrechnung ist dadurch weiterhin OFFEN" \
+  "$(gleich "$($PSQL "select status from honorar_abrechnungen where id='${ABR_ID}';")" "OFFEN")"
+
+# Statusmaschine: eine OFFENE Abrechnung laesst sich nicht auszahlen (400).
+AUS_OFFEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen/${ABR_ID}/auszahlen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"ausgezahltAm":"2026-11-01"}')
+pruefe "Auszahlen einer OFFENEN Abrechnung ist verboten (400)" "$(gleich "$AUS_OFFEN" "400")" "$AUS_OFFEN"
+
+# --- Echte Freigabe ueber die API mit einer Verwaltungs-Session (hat
+# HONORAR_ABRECHNEN UND BANKVERBINDUNG_LESEN) und einer verschluesselten IBAN. ---
+VERWALTUNG_ID=$($PSQL "insert into personen (id, vorname, nachname, email, \"statusCode\", \"erstelltAm\", \"aktualisiertAm\") values (gen_random_uuid(), 'Vera', 'Verwalta', 'verwalta@beispiel.de', 'AKTIV', now(), now()) returning id;")
+$PSQL "insert into person_rolle (\"personId\", \"rolleCode\") values ('${VERWALTUNG_ID}', 'VERWALTUNG');" > /dev/null
+TOKEN_V=$(uuidgen | tr 'A-Z' 'a-z')
+HASH_V=$(printf %s "$TOKEN_V" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "insert into magic_links (id, \"personId\", \"tokenHash\", \"laeuftAb\", \"erstelltAm\") values (gen_random_uuid(), '${VERWALTUNG_ID}', '${HASH_V}', now() + interval '1 hour', now());" > /dev/null
+curl -s -D /tmp/gbs-kopf-v.txt -o /dev/null -X POST "${BASIS}/api/auth/token" -H 'Content-Type: application/json' -d "{\"token\":\"${TOKEN_V}\"}"
+KEKS_V=$(grep -i '^set-cookie:' /tmp/gbs-kopf-v.txt | head -1 | sed 's/^[^:]*: //' | cut -d';' -f1)
+pruefe "Verwaltungs-Session eingeloest" "$([ -n "$KEKS_V" ] && echo 1 || echo 0)"
+
+# Dem Dozenten eine gueltige (verschluesselte) IBAN geben — die eines beliebigen
+# vorhandenen Kontos uebernehmen (die Anmeldung hat welche verschluesselt angelegt).
+$PSQL "update personen set \"ibanVerschluesselt\" = (select \"ibanVerschluesselt\" from personen where \"ibanVerschluesselt\" is not null limit 1), kontoinhaber='Dora Dozento' where id='${DOZENT_ID}';" > /dev/null
+pruefe "der Dozent hat jetzt eine Bankverbindung" \
+  "$(gleich "$($PSQL "select \"ibanVerschluesselt\" is not null from personen where id='${DOZENT_ID}';")" "t")"
+
+# Freigabe durch die Verwaltung (200): Beleg-Nr gesetzt, Status FREIGEGEBEN, Audit.
+FREI_V=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen/${ABR_ID}/freigeben" -H "Cookie: ${KEKS_V}")
+pruefe "die Verwaltung gibt die Abrechnung frei (200)" "$(gleich "$FREI_V" "200")" "$FREI_V"
+pruefe "die Abrechnung ist danach FREIGEGEBEN" \
+  "$(gleich "$($PSQL "select status from honorar_abrechnungen where id='${ABR_ID}';")" "FREIGEGEBEN")"
+pruefe "eine DMS-Beleg-Nr ist vergeben (HONA-...)" \
+  "$(enthaelt "$($PSQL "select \"belegNr\" from honorar_abrechnungen where id='${ABR_ID}';")" "HONA-")"
+pruefe "die Freigabe steht im Audit-Log" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='HONORAR_ABRECHNUNG_FREIGEGEBEN';")" "t")"
+
+# Doppelfreigabe ist ausgeschlossen (atomarer Statuswechsel -> 400).
+FREI_2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen/${ABR_ID}/freigeben" -H "Cookie: ${KEKS_V}")
+pruefe "eine zweite Freigabe wird abgewiesen (400)" "$(gleich "$FREI_2" "400")" "$FREI_2"
+
+# Auszahlen (200) durch die Verwaltung.
+AUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen/${ABR_ID}/auszahlen" -H "Cookie: ${KEKS_V}" -H 'Content-Type: application/json' -d '{"ausgezahltAm":"2026-11-01"}')
+pruefe "eine freigegebene Abrechnung laesst sich auszahlen (200)" "$(gleich "$AUS" "200")" "$AUS"
+pruefe "die Abrechnung ist danach AUSGEZAHLT" \
+  "$(gleich "$($PSQL "select status from honorar_abrechnungen where id='${ABR_ID}';")" "AUSGEZAHLT")"
+pruefe "das Auszahlungsdatum ist gesetzt (01.11.2026)" \
+  "$(gleich "$($PSQL "select \"ausgezahltAm\"::date from honorar_abrechnungen where id='${ABR_ID}';")" "2026-11-01")"
+pruefe "das Auszahlen steht im Audit-Log" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='HONORAR_ABRECHNUNG_AUSGEZAHLT';")" "t")"
+
+# Ungueltiges Auszahlungsdatum wird abgewiesen (400).
+AUS_BAD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/abrechnungen/${ABR_ID}/auszahlen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"ausgezahltAm":"2026-02-30"}')
+pruefe "ein ungueltiges Auszahlungsdatum wird abgewiesen (400)" "$(gleich "$AUS_BAD" "400")" "$AUS_BAD"
+
+# Seiten: Uebersicht + Detail (Schulleitung 200, Teilnehmer weggeleitet 307).
+UEB_S=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar/abrechnungen?semester=${SEMESTER_ID}" -H "Cookie: ${KEKS}")
+pruefe "die Schulleitung sieht die Abrechnungs-Uebersicht (200)" "$(gleich "$UEB_S" "200")" "$UEB_S"
+UEB_T=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar/abrechnungen" -H "Cookie: ${KEKS2}")
+pruefe "ein Teilnehmer wird von der Abrechnungs-Uebersicht weggeleitet (307)" "$(gleich "$UEB_T" "307")" "$UEB_T"
+DET_S=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar/abrechnungen/${ABR_ID}" -H "Cookie: ${KEKS}")
+pruefe "die Schulleitung sieht die Abrechnungs-Detailseite (200)" "$(gleich "$DET_S" "200")" "$DET_S"
+
+echo
 echo "=== 30. Sicherheits-Header: Content-Security-Policy am App-Container ==="
 # Die CSP steht in next.config.ts (nicht nur in Traefik) und liegt deshalb schon
 # direkt auf den Antworten des App-Containers — hier gegen die Login-Seite geprueft.

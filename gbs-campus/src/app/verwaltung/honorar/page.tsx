@@ -51,14 +51,24 @@ export default async function HonorarSeite({
       </Link>
       <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
-        {hatRecht(benutzer, RECHT.HONORAR_SATZ_GENEHMIGEN) && (
-          <Link
-            href="/verwaltung/honorar/saetze"
-            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
-          >
-            Sätze verwalten
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {hatRecht(benutzer, RECHT.HONORAR_ABRECHNEN) && (
+            <Link
+              href="/verwaltung/honorar/abrechnungen"
+              className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
+            >
+              Abrechnungen
+            </Link>
+          )}
+          {hatRecht(benutzer, RECHT.HONORAR_SATZ_GENEHMIGEN) && (
+            <Link
+              href="/verwaltung/honorar/saetze"
+              className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
+            >
+              Sätze verwalten
+            </Link>
+          )}
+        </div>
       </div>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Gehaltene Unterrichtsabende je Dozent, jeder Abend zu dem Satz, der zu seinem Datum galt (aktuell

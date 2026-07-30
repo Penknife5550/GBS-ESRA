@@ -154,6 +154,10 @@ const RECHTE = [
   // Release 0.3: einen Honorarsatz mit Gueltig-ab-Datum genehmigen. Das Eintragen
   // ist die Genehmigung; danach geht ein Beleg an das DMS.
   { code: "HONORAR_SATZ_GENEHMIGEN", bezeichnung: "Honorarsatz genehmigen", bereich: "FINANZEN" },
+  // Release 0.3: Honorar-Abrechnungen erstellen, freigeben und als ausgezahlt
+  // markieren. Die Freigabe (Beleg mit IBAN ans DMS) verlangt zusaetzlich
+  // BANKVERBINDUNG_LESEN — geprueft in der Route.
+  { code: "HONORAR_ABRECHNEN", bezeichnung: "Honorar abrechnen und auszahlen", bereich: "FINANZEN" },
   { code: "BENUTZER_VERWALTEN", bezeichnung: "Konten und Rollen verwalten", bereich: "SYSTEM" },
   { code: "SYSTEM_EINSTELLUNGEN", bezeichnung: "Systemeinstellungen aendern", bereich: "SYSTEM" },
   { code: "AUDIT_LESEN", bezeichnung: "Audit-Log lesen", bereich: "SYSTEM" },
@@ -205,6 +209,7 @@ const ROLLEN = [
       "FINANZ_DATEN_LESEN",
       "HONORAR_LESEN",
       "HONORAR_SATZ_GENEHMIGEN",
+      "HONORAR_ABRECHNEN",
       // Ohne dieses Recht sähe die Schulleitung die Protokollansicht nicht — und
       // genau die Vorgänge dort sind ihre: Meldungen aus dem Hilfeformular,
       // Adressänderungen an fremden Konten, fehlgeschlagene Anmeldeversuche.
@@ -230,6 +235,7 @@ const ROLLEN = [
       "BANKVERBINDUNG_LESEN",
       "HONORAR_LESEN",
       "HONORAR_SATZ_GENEHMIGEN",
+      "HONORAR_ABRECHNEN",
       "MAIL_VERTEILER_SENDEN",
       "PERSON_LESEN_EIGENE",
       "PERSON_BEARBEITEN_EIGENE",

@@ -55,7 +55,7 @@ export type HonorarZeile = { dozentId: string; name: string; abende: number; bet
 export type HonorarUebersicht = { aktuellerSatz: number; zeilen: HonorarZeile[]; summe: number };
 
 /** Laedt die Satz-Historie in der von `satzFuer` erwarteten schlanken Form. */
-async function ladeSatzZeilen(): Promise<SatzZeile[]> {
+export async function ladeSatzZeilen(): Promise<SatzZeile[]> {
   const rows = await prisma.honorarSatz.findMany({
     select: { betrag: true, gueltigAb: true, genehmigtAm: true },
   });
@@ -121,8 +121,8 @@ export type HonorarSatzAnzeige = {
   dmsGesendetAm: Date | null;
 };
 
-/** Ordnet Akteur-Ids (genehmigtVonId) lesbare Namen zu. */
-async function ladeAkteurNamen(ids: string[]): Promise<Map<string, string>> {
+/** Ordnet Akteur-/Personen-Ids lesbare Namen („Nachname, Vorname") zu. */
+export async function ladeAkteurNamen(ids: string[]): Promise<Map<string, string>> {
   const eindeutige = [...new Set(ids.filter(Boolean))];
   if (eindeutige.length === 0) return new Map();
   const personen = await prisma.person.findMany({
