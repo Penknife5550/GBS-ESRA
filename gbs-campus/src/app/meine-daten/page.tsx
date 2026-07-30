@@ -43,16 +43,17 @@ export default async function MeineDatenSeite() {
   // Beide Reads hängen nur an der Person, nicht aneinander — parallel laden.
   // - Ein beantragter Adresswechsel ist sonst nach dem Neuladen unsichtbar: Die
   //   Seite zeigt wieder nur die alte Adresse, und der Antrag wirkt verloren.
-  // - Die vergangenen Unterrichtsabende der eigenen Teilnahmen für die
-  //   Selbstbestätigung; nur laden/anzeigen, wenn der Teilnehmer überhaupt
-  //   bearbeiten darf und es vergangene Abende gibt.
+  // - Die vergangenen Unterrichtsabende der eigenen Teilnahmen mit der eigenen
+  //   Quote. Bewusst schon bei reinem Leserecht laden: Die Anwesenheitsquote ist
+  //   eine reine Ansicht (PERSON_LESEN_EIGENE) — nur die Selbstbestätigungs-Knöpfe
+  //   hängen zusätzlich an PERSON_BEARBEITEN_EIGENE.
   const [offenerEmailAntrag, anwesenheitGruppen] = await Promise.all([
     prisma.emailAenderung.findFirst({
       where: { personId: person.id, benutztAm: null, laeuftAb: { gt: new Date() } },
       orderBy: { erstelltAm: "desc" },
       select: { neueEmail: true, laeuftAb: true },
     }),
-    darfBearbeiten ? ladeEigeneUnterrichtstermine(person.id, new Date()) : Promise.resolve([]),
+    ladeEigeneUnterrichtstermine(person.id, new Date()),
   ]);
 
   const unveraenderlich = [
@@ -109,17 +110,17 @@ export default async function MeineDatenSeite() {
         )}
       </section>
 
+      {anwesenheitGruppen.length > 0 && (
+        <section className="mt-12">
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Meine Anwesenheit
+          </h2>
+          <AnwesenheitAbschnitt gruppen={anwesenheitGruppen} darfBearbeiten={darfBearbeiten} />
+        </section>
+      )}
+
       {darfBearbeiten ? (
         <>
-          {anwesenheitGruppen.length > 0 && (
-            <section className="mt-12">
-              <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Meine Anwesenheit
-              </h2>
-              <AnwesenheitAbschnitt gruppen={anwesenheitGruppen} />
-            </section>
-          )}
-
           <section className="mt-12">
             <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Kontakt und Bankverbindung

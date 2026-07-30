@@ -110,8 +110,8 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 380 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
-| `bash scripts/durchstich.sh` | 269 Prüfungen gegen das gebaute Image und eine frische Datenbank |
+| `npm run pruefen` | 417 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Schüler-Quote, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
+| `bash scripts/durchstich.sh` | 317 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
 > Die Typprüfung und der Build hängen auf diesem Rechner regelmäßig, weil Synology Drive und iCloud
@@ -442,6 +442,24 @@ stattgefunden haben; (3) **der Teilnehmer überschreibt nur seinen eigenen Eintr
 `erfasstVonId`) bleibt für ihn schreibgeschützt. Das verhindert, dass jemand ein administratives
 „gefehlt" mit einem selbst gesetzten „anwesend" übertüncht. Der Durchstich weist genau diesen Fall
 nach (409 statt Überschreiben).
+
+### Eigene Anwesenheitsquote für den Schüler (Release 0.3)
+
+In `/meine-daten` → „Meine Anwesenheit" sieht jeder Teilnehmer je Semester **seine eigene Quote** — die
+Prüfungsberechtigung hängt an der 80-%-Schwelle, bisher sah nur die Verwaltung die Zahl. Gemessen wird
+über **alle Abende des Semesters** (Modell A), nicht nur die schon erfassten, mit drei Zuständen:
+**Erfüllt** (schon genug Teilnahmen — nicht mehr verlierbar), **Noch offen** (mit Klartext „du darfst noch
+N Abende fehlen") und **Nicht mehr erreichbar**. Ein noch **nicht erfasster** vergangener Abend zählt
+bewusst als *offen*, nicht als Fehltag: Die Erfassung passiert im Betrieb oft verspätet, ein Abend ohne
+Eintrag soll die Quote nicht fälschlich drücken — eine Selbstbestätigung schiebt ihn dann in
+„teilgenommen".
+
+Kein neues Recht, keine Migration. Die Kernrechnung steht DB-frei in
+[`src/lib/stundenplan.ts`](src/lib/stundenplan.ts) (`quoteModellA`, gegengeprüft in
+[`scripts/pruefe-quote-schueler.ts`](scripts/pruefe-quote-schueler.ts)); die Schwelle kommt wie in der
+Verwaltungssicht aus der Einstellung `ANWESENHEIT_MINDEST_PROZENT`. Weil die Quote eine reine Ansicht
+ist, erscheint sie schon mit `PERSON_LESEN_EIGENE` — nur die Selbstbestätigungs-Knöpfe hängen weiter an
+`PERSON_BEARBEITEN_EIGENE`. Der Durchstich weist die gerenderte Quote für einen angemeldeten Schüler nach.
 
 ### Dozentenhonorar (Release 0.2)
 

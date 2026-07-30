@@ -1021,6 +1021,18 @@ SB_UEBER=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/meine-da
 pruefe "ein von der Schule erfasster Abend ist fuer den Teilnehmer gesperrt (409)" "$(gleich "$SB_UEBER" "409")" "$SB_UEBER"
 pruefe "der von der Schule erfasste Status bleibt GEFEHLT" \
   "$(gleich "$($PSQL "select status from anwesenheiten where \"terminId\"='${SB_ADMIN}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "GEFEHLT")"
+
+# Die eigene Quote (Modell A: alle Abende des Semesters) erscheint jetzt in der
+# Akte. Petra hat in diesem Semester elf Abende: einen nachgearbeiteten (SB_PAST),
+# einen von der Schule als GEFEHLT erfassten (SB_ADMIN) und neun noch offene —
+# ihre Quote steht damit auf "noch offen" (nicht erfuellt, nicht verloren). Nur
+# statische Textstuecke pruefen: React-SSR trennt dynamische Werte mit Kommentar-
+# Markern, "1 von 11" waere deshalb kein verlaesslicher Treffer.
+AKTE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")
+pruefe "die eigene Akte zeigt den Anwesenheits-Abschnitt" "$(enthaelt "$AKTE" "Meine Anwesenheit")"
+pruefe "die eigene Quote nennt teilgenommen/gesamt" "$(enthaelt "$AKTE" "Teilgenommen:")"
+pruefe "die eigene Quote steht auf 'Noch offen'" "$(enthaelt "$AKTE" "Noch offen")"
+pruefe "die Quote nennt das verbleibende Fehl-Budget" "$(enthaelt "$AKTE" "Du darfst noch")"
 # Ein Abend eines Semesters, in dem der Teilnehmer nicht eingeschrieben ist (404).
 FREMD_SEM=$($PSQL "select id from semester where code='2027-H';")
 SB_FREMD_T=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"erstelltAm\") values (gen_random_uuid(),'${FREMD_SEM}',now()-interval '1 day',0,now()) returning id;")
@@ -1338,8 +1350,9 @@ pruefe "die Stammdatenaenderung ist protokolliert (PERSON_STAMMDATEN_GEAENDERT)"
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 268 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=269
+# 316 Pruefungen plus diese eine, die sich selbst mitzaehlt. (Der Zaehler war seit
+# den Honorar-Abschnitten 29/29b veraltet — die liefen mangels Docker nie mit.)
+SOLL=317
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

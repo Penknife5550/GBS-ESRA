@@ -10,7 +10,13 @@ import { Anwesenheitsstatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { protokolliere } from "@/lib/audit";
 import { zahl } from "@/lib/einstellungen";
-import { anwesenheitsquote, dienstagstermine, terminText } from "@/lib/stundenplan";
+import {
+  anwesenheitsquote,
+  dienstagstermine,
+  quoteAusVergangenen,
+  terminText,
+  type QuoteModellA,
+} from "@/lib/stundenplan";
 import { darfSelbstSetzen, istSelbstStatusErlaubt, terminVergangen, type SelbstStatus } from "@/lib/selbstbestaetigung";
 
 export type GenerierErgebnis = { fehler: "semester_fehlt" } | { angelegt: number; uebersprungen: number };
@@ -159,6 +165,8 @@ export type EigenerTermin = {
 export type EigeneTerminGruppe = {
   semesterBezeichnung: string;
   teilnahmeId: string;
+  /** Die eigene Anwesenheitsquote über ALLE Abende des Semesters (Modell A). */
+  quote: QuoteModellA;
   termine: EigenerTermin[];
 };
 
@@ -187,19 +195,29 @@ export async function ladeEigeneUnterrichtstermine(personId: string, jetzt: Date
   });
   if (termine.length === 0) return [];
 
-  // Anwesenheiten nur der eigenen Teilnahmen zu diesen Abenden. Da jeder Abend zu
-  // genau einem Semester gehört und die Person je Semester höchstens eine
-  // Teilnahme hat, ist die Zuordnung Termin → eigener Eintrag eindeutig.
-  const anwesenheiten = await prisma.anwesenheit.findMany({
-    where: { terminId: { in: termine.map((t) => t.id) }, teilnahmeId: { in: teilnahmeIds } },
-    select: { terminId: true, status: true, erfasstVonId: true },
-  });
+  // Drei nur an den Semestern hängende Reads — nebenläufig:
+  // - Anwesenheiten nur der eigenen Teilnahmen zu diesen (vergangenen) Abenden.
+  //   Da jeder Abend zu genau einem Semester gehört und die Person je Semester
+  //   höchstens eine Teilnahme hat, ist die Zuordnung Termin → eigener Eintrag eindeutig.
+  // - Die Schwelle für die Quote (dieselbe Einstellung wie die Verwaltungssicht).
+  // - Die GESAMTZAHL der Abende je Semester (auch künftige) — der Nenner für Modell A.
+  const [anwesenheiten, schwelle, gesamtRoh] = await Promise.all([
+    prisma.anwesenheit.findMany({
+      where: { terminId: { in: termine.map((t) => t.id) }, teilnahmeId: { in: teilnahmeIds } },
+      select: { terminId: true, status: true, erfasstVonId: true },
+    }),
+    zahl("ANWESENHEIT_MINDEST_PROZENT"),
+    prisma.unterrichtstermin.groupBy({
+      by: ["semesterId"],
+      where: { semesterId: { in: semesterIds } },
+      _count: { _all: true },
+    }),
+  ]);
   const proTermin = new Map(anwesenheiten.map((a) => [a.terminId, a]));
+  const gesamtProSemester = new Map(gesamtRoh.map((g) => [g.semesterId, g._count._all]));
 
-  const gruppen: EigeneTerminGruppe[] = teilnahmen.map((t) => ({
-    semesterBezeichnung: t.semester.bezeichnung,
-    teilnahmeId: t.id,
-    termine: termine
+  const gruppen: EigeneTerminGruppe[] = teilnahmen.map((t) => {
+    const eigeneTermine = termine
       .filter((termin) => termin.semesterId === t.semesterId)
       .map((termin) => {
         const eintrag = proTermin.get(termin.id) ?? null;
@@ -210,8 +228,26 @@ export async function ladeEigeneUnterrichtstermine(personId: string, jetzt: Date
           status: eintrag?.status ?? null,
           darfBestaetigen: darfSelbstSetzen(eintrag, personId),
         };
-      }),
-  }));
+      });
+
+    // gesamt = alle Abende des Semesters (Modell A). Gegen die schmale Lücke
+    // zwischen dem Termin-Read oben und dem groupBy-Count klemmen: gesamt darf nie
+    // kleiner als die schon vergangenen Abende sein, sonst zeigte die Quote „5 von 3".
+    // Die Klassifikation Status → teilgenommen/versäumt (unerfasst bleibt offen)
+    // steckt DB-frei in quoteAusVergangenen.
+    const gesamt = Math.max(gesamtProSemester.get(t.semesterId) ?? 0, eigeneTermine.length);
+
+    return {
+      semesterBezeichnung: t.semester.bezeichnung,
+      teilnahmeId: t.id,
+      quote: quoteAusVergangenen(
+        eigeneTermine.map((e) => e.status),
+        gesamt,
+        schwelle,
+      ),
+      termine: eigeneTermine,
+    };
+  });
 
   // Semester ohne vergangene Abende zeigen wir nicht.
   return gruppen.filter((g) => g.termine.length > 0);

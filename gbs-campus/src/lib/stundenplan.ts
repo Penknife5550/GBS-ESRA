@@ -37,6 +37,17 @@ export function zaehltAlsTeilgenommen(status: string | null | undefined): boolea
   return status === "ANWESEND" || status === "NACHGEARBEITET";
 }
 
+/**
+ * Zählt als versäumt (drückt die Quote): gefehlt oder entschuldigt — für die
+ * 80-%-Schwelle ist auch eine entschuldigte Abwesenheit keine Teilnahme. Ein
+ * Abend ohne Eintrag (`null`) ist weder teilgenommen noch versäumt, sondern offen.
+ * Gegenstück zu `zaehltAlsTeilgenommen`, damit die Klassifikationsregel an einem
+ * Ort im Kern liegt (nicht inline im IO-Layer).
+ */
+export function zaehltAlsVersaeumt(status: string | null | undefined): boolean {
+  return status === "GEFEHLT" || status === "ENTSCHULDIGT";
+}
+
 export type QuoteErgebnis = {
   gesamt: number;
   teilgenommen: number;
@@ -63,6 +74,96 @@ export function anwesenheitsquote(status: string[], schwelleProzent: number): Qu
     prozent: Math.round((teilgenommen / gesamt) * 100),
     erfuellt: teilgenommen * 100 >= schwelleProzent * gesamt,
   };
+}
+
+/** Der Ampel-Zustand der eigenen Quote in der Schüler-Sicht. */
+export type QuoteZustand = "ERFUELLT" | "OFFEN" | "NICHT_ERREICHBAR";
+
+export type QuoteModellA = {
+  /** Alle Abende des Semesters (vergangene + künftige). */
+  gesamt: number;
+  /** Vergangene Abende mit ANWESEND/NACHGEARBEITET. */
+  teilgenommen: number;
+  /** Vergangene Abende mit GEFEHLT/ENTSCHULDIGT. */
+  versaeumt: number;
+  /** Rest: künftige Abende und noch nicht erfasste vergangene — zählen nicht gegen den Schüler. */
+  offen: number;
+  /** Wie viele Teilnahmen die Schwelle über alle Abende verlangt. */
+  benoetigt: number;
+  /** Wie viele der offenen Abende noch versäumt werden dürfen (kann negativ sein, wenn schon zu viele fehlen). */
+  darfNochFehlen: number;
+  /** teilgenommen / gesamt, gerundet (Teil des Kennzahl-Objekts; die Schüler-Zeile
+   * zeigt „X von Y" statt eines Prozentwerts). */
+  prozent: number;
+  /** Die zugrunde gelegte Schwelle in Prozent — nur zur Anzeige. */
+  schwelleProzent: number;
+  zustand: QuoteZustand;
+};
+
+/**
+ * Anwesenheitsquote aus Sicht des Schülers, gemessen über ALLE Abende des
+ * Semesters (Modell A) — anders als `anwesenheitsquote`, die nur über die
+ * übergebenen (erfassten) Stati rechnet.
+ *
+ * Die drei Zustände tragen die eigentliche Aussage „bin ich auf Kurs für die
+ * Prüfungsberechtigung":
+ *  - **ERFUELLT**: schon jetzt genug Teilnahmen — vergangene Teilnahme ist nicht
+ *    mehr verlierbar, die Schwelle steht sicher (`teilgenommen >= benoetigt`).
+ *  - **NICHT_ERREICHBAR**: schon so viele Abende versäumt, dass selbst mit allen
+ *    verbleibenden Abenden die Schwelle nicht mehr zu schaffen ist.
+ *  - **OFFEN**: noch erreichbar, aber noch nicht gesichert — mit dem Klartext
+ *    „du darfst noch `darfNochFehlen` Abende fehlen".
+ *
+ * Unerfasste vergangene Abende bleiben bewusst `offen` (weder teilgenommen noch
+ * versäumt): Die Erfassung passiert real oft verspätet, ein noch nicht
+ * eingetragener Abend soll die Quote nicht fälschlich senken.
+ *
+ * Der Schwellenvergleich läuft ganzzahlig, konsistent mit `anwesenheitsquote`:
+ * `benoetigt` ist die kleinste Zahl n mit `n*100 >= schwelle*gesamt`.
+ */
+export function quoteModellA(
+  gesamt: number,
+  teilgenommen: number,
+  versaeumt: number,
+  schwelleProzent: number,
+): QuoteModellA {
+  // Ohne Abende gibt es noch nichts zu erfüllen — wie bei `anwesenheitsquote`.
+  if (gesamt <= 0) {
+    return { gesamt: 0, teilgenommen: 0, versaeumt: 0, offen: 0, benoetigt: 0, darfNochFehlen: 0, prozent: 100, schwelleProzent, zustand: "ERFUELLT" };
+  }
+  const offen = Math.max(0, gesamt - teilgenommen - versaeumt);
+  const benoetigt = Math.ceil((schwelleProzent * gesamt) / 100);
+  const erlaubteFehl = gesamt - benoetigt;
+  const darfNochFehlen = erlaubteFehl - versaeumt;
+  const prozent = Math.round((teilgenommen / gesamt) * 100);
+
+  // Reihenfolge ist bewusst: „schon gesichert" schlägt „nicht mehr erreichbar"
+  // (beides zugleich ist rechnerisch unmöglich, da teilgenommen >= benoetigt
+  // bereits versaeumt <= erlaubteFehl erzwingt).
+  let zustand: QuoteZustand;
+  if (teilgenommen >= benoetigt) zustand = "ERFUELLT";
+  else if (versaeumt > erlaubteFehl) zustand = "NICHT_ERREICHBAR";
+  else zustand = "OFFEN";
+
+  return { gesamt, teilgenommen, versaeumt, offen, benoetigt, darfNochFehlen, prozent, schwelleProzent, zustand };
+}
+
+/**
+ * Einstieg für die Schüler-Sicht: klassifiziert die Stati der bereits vergangenen
+ * Abende in teilgenommen/versäumt (`null`/unerfasst bleibt beides nicht → landet
+ * über den Nenner in `offen`) und rechnet daraus die Quote über ALLE `gesamt`
+ * Abende des Semesters. Bewusst als reine Funktion, damit die Ableitung
+ * Status → Zahl DB-frei prüfbar bleibt — der IO-Layer reicht nur die Stati-Liste
+ * und die Gesamtzahl herein.
+ */
+export function quoteAusVergangenen(
+  vergangeneStati: (string | null)[],
+  gesamt: number,
+  schwelleProzent: number,
+): QuoteModellA {
+  const teilgenommen = vergangeneStati.filter(zaehltAlsTeilgenommen).length;
+  const versaeumt = vergangeneStati.filter(zaehltAlsVersaeumt).length;
+  return quoteModellA(gesamt, teilgenommen, versaeumt, schwelleProzent);
 }
 
 /**
