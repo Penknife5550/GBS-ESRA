@@ -1,4 +1,4 @@
-# Übergabe — Stand 28.07.2026
+# Übergabe — Stand 29.07.2026
 
 Diese Datei ist der Einstieg in eine neue Arbeitssitzung. Sie enthält, was man wissen muss, ohne den
 bisherigen Gesprächsverlauf zu kennen: was zuerst zu tun ist, wie man das Projekt zum Laufen bringt,
@@ -7,6 +7,33 @@ welche Entscheidungen feststehen, welche Fallen es gibt und was als Nächstes an
 Fachliche Fragen beantwortet [`../1_Bauplan.html`](../1_Bauplan.html), technische das
 [README](README.md). Die beiden Review-Berichte: [erstes Review](../2_Code-Review.html) (vormittags,
 211 Befunde) und [zweites Review samt Komplettfix](../3_Code-Review-2.html) (abends, 160 Befunde).
+
+---
+
+## Neuester Stand (29.07.2026, abends)
+
+Release **0.2 ist inhaltlich komplett** — alle vier Bausteine (Semesterüberleitung, Kursraster,
+Stundenplan/Anwesenheit, Worker, Löschkonzept nach Art. 17 und zuletzt **#4 Selbstbestätigung der
+Anwesenheit + Dozentenhonorar**). Danach am selben Tag zusätzlich:
+
+- **7-Agenten-Code-Review** von #4 (1 MAJOR + Härtungen behoben, u. a. WCAG-3.2.2-Auswahlfelder auf
+  Knöpfe/expliziten Speichern-Knopf, TOCTOU beim Anwesenheits-Write, Honorar zählt keine künftigen Abende).
+- **GoLive-Härtungen** (aus „Bekannte Einschränkungen"): **CSP** (`next.config.ts`), **Speichergrenzen**
+  (`mem_limit` 768/256 MB), **getrennter, rechtebeschränkter DB-Nutzer `gbs_app`** (nur DML, audit_log/
+  einwilligungen append-only per Recht; opt-in über `APP_DB_PASSWORD`, nicht-brechend).
+- **Benutzerverwaltung vollständig in der Oberfläche**: Rollen verwalten, Person anlegen (beide Recht
+  `BENUTZER_VERWALTEN`), fremde Stammdaten ändern (Recht `PERSON_BEARBEITEN_ALLE`).
+
+Alles grün und auf `origin/main`: Produktionsbuild ohne Typfehler, **351** DB-freie Fachlogik-Prüfungen,
+**269** Durchstich-Prüfungen gegen das gebaute Image, dazu die Browser-/Markup-Gegenproben.
+
+**Morgen als Nächstes:** die **0.3-Grundlage** planen und beginnen (Optigem-Anbindung,
+Leistungserfassung, Beitragslauf, Honorar-Abrechnung). Ein konkreter, gut abgegrenzter erster Baustein
+liegt schon fest: den **Honorarsatz je Abrechnungsperiode/Termin fixieren** (Snapshot), damit ein
+geleistetes Honorar nicht nachträglich umbepreisbar ist (siehe „Was als Nächstes gebaut wird").
+Unabhängig davon bleiben vor dem Livegang am **20.08.** die menschlichen/externen Punkte: Laientest
+([`LAIENTEST.md`](LAIENTEST.md)), SPF/DKIM/DMARC für `gbs-minden.de` (Show-Stopper, extern),
+Restore-Drill und Mail-Zustellbarkeit.
 
 ---
 
