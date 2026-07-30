@@ -110,7 +110,7 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 366 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar inkl. Satz-Historie + DMS-Beleg, Anonymisierung), ohne Datenbank |
+| `npm run pruefen` | 363 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar inkl. Satz-Historie + DMS-Beleg, Anonymisierung), ohne Datenbank |
 | `bash scripts/durchstich.sh` | 269 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
@@ -461,8 +461,10 @@ laufenden Semesters und die Append-only-Trigger als DROP mit aufnehmen.
 
 Der Honorarsatz ist kein einzelner Regler mehr, sondern eine **Historie mit Gültig-ab-Datum** (Modell
 `HonorarSatz`, Tabelle `honorar_saetze`): Jeder Abend nimmt den Satz, der zu seinem Datum galt. Damit
-verändert eine spätere Satzänderung **vergangene (und später abgerechnete) Beträge nicht mehr** — die
-Grundlage der Abrechnung ist stabil. Die Auflösung „welcher Satz gilt an Tag X" steht DB-frei in
+verändert ein **künftig datierter** Satz vergangene Beträge nicht mehr. Eine rückwirkende Korrektur
+(eine Zeile mit vergangenem Gültig-ab) ist bewusst möglich — sie bewertet noch nicht ausgezahlte Abende
+neu; **spätestens beim Auszahlungslauf (weiterer 0.3-Schritt) wird der Betrag je Abend eingefroren**,
+sodass bereits Ausgezahltes stabil bleibt. Die Auflösung „welcher Satz gilt an Tag X" steht DB-frei in
 `satzFuer(datum, saetze)` (`src/lib/honorar.ts`, mutationssicher geprüft): das größte `gueltigAb ≤ X`,
 bei gleichem Datum die zuletzt genehmigte Zeile; liegt ein Abend vor dem ersten Satz oder ist die
 Historie leer, greift die Konstante `HONORAR_SATZ_FALLBACK` (= 60). Der bisherige Einzel-Regler

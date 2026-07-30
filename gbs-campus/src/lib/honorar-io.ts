@@ -18,7 +18,8 @@ import { protokolliere } from "@/lib/audit";
 import { erzeugePdf } from "@/lib/pdf";
 import { sendeMail } from "@/lib/mailer";
 import { dmsAdresse } from "@/lib/konfiguration";
-import { euro, satzFuer, type SatzZeile } from "@/lib/honorar";
+import { datum } from "@/lib/datum";
+import { euro, satzFuer, HONORAR_SATZ_MIN, HONORAR_SATZ_MAX, type SatzZeile } from "@/lib/honorar";
 import { baueHonorarBelegBloecke, type BelegSatz, type BelegTag } from "@/lib/honorar-beleg";
 
 export type DozentAuswahl = { id: string; name: string };
@@ -95,12 +96,7 @@ export async function ladeHonorarUebersicht(semesterId: string): Promise<Honorar
     proDozent.set(t.dozentId, eintrag);
   }
 
-  const ids = [...proDozent.keys()];
-  const personen = await prisma.person.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, vorname: true, nachname: true },
-  });
-  const nameById = new Map(personen.map((p) => [p.id, `${p.nachname}, ${p.vorname}`]));
+  const nameById = await ladeAkteurNamen([...proDozent.keys()]);
 
   const zeilen: HonorarZeile[] = [...proDozent.entries()]
     .map(([dozentId, e]) => ({ dozentId, name: nameById.get(dozentId) ?? "—", abende: e.abende, betrag: e.betrag }))
@@ -113,10 +109,6 @@ export async function ladeHonorarUebersicht(semesterId: string): Promise<Honorar
 // -----------------------------------------------------------------------------
 // Satz-Historie und Genehmigung
 // -----------------------------------------------------------------------------
-
-/** Grenzen des Honorarsatzes — im Code, nicht nur im Formular (wie bei Einstellungen). */
-export const HONORAR_SATZ_MIN = 0;
-export const HONORAR_SATZ_MAX = 100000;
 
 export type HonorarSatzAnzeige = {
   id: string;
@@ -278,7 +270,7 @@ export async function genehmigeHonorarSatz(eingabe: GenehmigenEingabe): Promise<
   let dmsGesendet = false;
   try {
     const genehmiger = eingabe.akteurId ? (await ladeAkteurNamen([eingabe.akteurId])).get(eingabe.akteurId) ?? null : null;
-    const anlass = `${euro(satz.betrag)} je Unterrichtsabend, gültig ab ${satz.gueltigAb.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`;
+    const anlass = `${euro(satz.betrag)} je Unterrichtsabend, gültig ab ${datum(satz.gueltigAb)}`;
     const daten = await ladeBelegDaten(belegNr, anlass, genehmiger, satz.genehmigtAm);
     const pdf = erzeugePdf(baueHonorarBelegBloecke(daten));
 

@@ -59,21 +59,11 @@ export function mappeAntworten(antworten: Record<string, unknown>, felder: FeldI
   return zeilen;
 }
 
-const DATUM = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
-const DATUM_ZEIT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: "Europe/Berlin",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-export function datum(d: Date | null | undefined): string {
-  return d ? DATUM.format(d) : "—";
-}
-export function datumZeit(d: Date | null | undefined): string {
-  return d ? DATUM_ZEIT.format(d) : "—";
-}
+// Die Datums-Formatierer liegen neutral in `@/lib/datum` (kein Fachmodul soll an
+// einem anderen hängen). Hier re-exportiert, damit bestehende Importeure dieses
+// Moduls (auskunft.ts) unverändert bleiben.
+export { datum, datumZeit } from "@/lib/datum";
+import { datum, datumZeit } from "@/lib/datum";
 
 export function teilnahmeformText(f: string | null | undefined): string {
   if (f === "SCHUELER") return "Schüler (mit Prüfung und Zeugnis)";

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { HONORAR_SATZ_MIN, HONORAR_SATZ_MAX } from "@/lib/honorar";
 
 type Antwort = { belegNr: string; dmsGesendet: boolean };
 
@@ -57,68 +58,84 @@ export function SatzForm() {
         erzeugt einen Beleg mit der kompletten Historie und übergibt ihn an das Dokumentenmanagement.
       </p>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="betrag" className="block text-sm font-medium">
-            Satz je Unterrichtsabend
-          </label>
-          <div className="mt-1 flex items-center gap-2">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (bereit && !laeuft) genehmigen();
+        }}
+      >
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="betrag" className="block text-sm font-medium">
+              Satz je Unterrichtsabend
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                id="betrag"
+                type="number"
+                inputMode="numeric"
+                required
+                min={HONORAR_SATZ_MIN}
+                max={HONORAR_SATZ_MAX}
+                step={1}
+                value={betrag}
+                onChange={(e) => {
+                  setBetrag(e.target.value);
+                  setMeldung(null);
+                }}
+                aria-describedby="betrag-grenzen"
+                className="w-32 rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+              />
+              <span className="text-sm text-muted-foreground">€</span>
+            </div>
+            <span id="betrag-grenzen" className="mt-1 block text-xs text-muted-foreground">
+              erlaubt: {HONORAR_SATZ_MIN} – {HONORAR_SATZ_MAX} €
+            </span>
+          </div>
+
+          <div>
+            <label htmlFor="gueltigAb" className="block text-sm font-medium">
+              Gültig ab
+            </label>
             <input
-              id="betrag"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              value={betrag}
+              id="gueltigAb"
+              type="date"
+              required
+              value={gueltigAb}
               onChange={(e) => {
-                setBetrag(e.target.value);
+                setGueltigAb(e.target.value);
                 setMeldung(null);
               }}
-              className="w-32 rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+              className="mt-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
             />
-            <span className="text-sm text-muted-foreground">€</span>
           </div>
         </div>
 
-        <div>
-          <label htmlFor="gueltigAb" className="block text-sm font-medium">
-            Gültig ab
+        <div className="mt-4">
+          <label htmlFor="notiz" className="block text-sm font-medium">
+            Vermerk <span className="font-normal text-muted-foreground">(optional, z. B. Beschlussdatum)</span>
           </label>
           <input
-            id="gueltigAb"
-            type="date"
-            value={gueltigAb}
+            id="notiz"
+            type="text"
+            maxLength={500}
+            value={notiz}
             onChange={(e) => {
-              setGueltigAb(e.target.value);
+              setNotiz(e.target.value);
               setMeldung(null);
             }}
-            className="mt-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+            className="mt-1 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
           />
         </div>
-      </div>
 
-      <div className="mt-4">
-        <label htmlFor="notiz" className="block text-sm font-medium">
-          Vermerk <span className="font-normal text-muted-foreground">(optional, z. B. Beschlussdatum)</span>
-        </label>
-        <input
-          id="notiz"
-          type="text"
-          maxLength={500}
-          value={notiz}
-          onChange={(e) => setNotiz(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={genehmigen}
-        disabled={!bereit || laeuft}
-        className="mt-4 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
-        {laeuft ? "Genehmigt …" : "Satz genehmigen"}
-      </button>
+        <button
+          type="submit"
+          disabled={!bereit || laeuft}
+          className="mt-4 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+        >
+          {laeuft ? "Wird genehmigt …" : "Satz genehmigen"}
+        </button>
+      </form>
 
       {meldung && (
         <p

@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
-import { genehmigeHonorarSatz, HONORAR_SATZ_MIN, HONORAR_SATZ_MAX } from "@/lib/honorar-io";
+import { genehmigeHonorarSatz } from "@/lib/honorar-io";
+import { HONORAR_SATZ_MIN, HONORAR_SATZ_MAX } from "@/lib/honorar";
 import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
 
 const schema = z.object({
@@ -38,13 +39,23 @@ export async function POST(request: NextRequest) {
     return fehler("Das Gültig-ab-Datum ist ungültig.", 400);
   }
 
-  const ergebnis = await genehmigeHonorarSatz({
-    betrag: geprueft.data.betrag,
-    gueltigAb,
-    notiz: geprueft.data.notiz ?? null,
-    akteurId: benutzer.id,
-    headers: request.headers,
-  });
+  // Bei einer finanzwirksamen Genehmigung nicht auf den generischen 500 des
+  // Frameworks verlassen: ein DB-Ausfall im create soll eine deutsche Meldung
+  // liefern, kein Leak. Der DMS-/Mailpfad ist in genehmigeHonorarSatz selbst
+  // gefangen und wirft nicht.
+  let ergebnis;
+  try {
+    ergebnis = await genehmigeHonorarSatz({
+      betrag: geprueft.data.betrag,
+      gueltigAb,
+      notiz: geprueft.data.notiz ?? null,
+      akteurId: benutzer.id,
+      headers: request.headers,
+    });
+  } catch (f) {
+    console.error("[HONORAR] Genehmigung fehlgeschlagen", f);
+    return fehler("Der Satz konnte nicht genehmigt werden. Bitte versuche es später noch einmal.", 500);
+  }
 
   if (!ergebnis.ok) {
     return fehler(ergebnis.meldung, 400);

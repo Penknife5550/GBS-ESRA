@@ -15,7 +15,7 @@
 
 import type { PdfBlock } from "@/lib/pdf";
 import { euro } from "@/lib/honorar";
-import { datum, datumZeit } from "@/lib/auskunft-inhalt";
+import { datum, datumZeit } from "@/lib/datum";
 
 /** Eine Zeile der Satz-Historie, wie sie im Beleg erscheint. */
 export type BelegSatz = {

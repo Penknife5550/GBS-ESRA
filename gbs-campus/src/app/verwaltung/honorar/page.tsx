@@ -94,9 +94,9 @@ export default async function HonorarSeite({
           <table className="w-full min-w-[420px] text-sm">
             <thead className="bg-muted text-left text-xs uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Dozent</th>
-                <th className="px-4 py-2.5 font-semibold">Abende</th>
-                <th className="px-4 py-2.5 font-semibold">Honorar</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Dozent</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Abende</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Honorar</th>
               </tr>
             </thead>
             <tbody>

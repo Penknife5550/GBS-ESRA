@@ -18,6 +18,14 @@
  */
 export const HONORAR_SATZ_FALLBACK = 60;
 
+/**
+ * Grenzen des Honorarsatzes — im Code, nicht nur im Formular (wie bei den
+ * Einstellungen). Liegen bei der DB-freien Kernlogik, damit Route und
+ * IO-Prüfung dieselbe Quelle nutzen.
+ */
+export const HONORAR_SATZ_MIN = 0;
+export const HONORAR_SATZ_MAX = 100000;
+
 export type SatzZeile = { betrag: number; gueltigAb: Date; genehmigtAm?: Date };
 
 /**
@@ -45,25 +53,6 @@ export function satzFuer(datum: Date, saetze: SatzZeile[]): number {
     if (neuerIstSpaeter || gleichesDatumSpaeterGenehmigt) treffer = s;
   }
   return treffer ? treffer.betrag : HONORAR_SATZ_FALLBACK;
-}
-
-/**
- * Honorarbetrag eines Dozenten aus einer Liste von Abend-Betraegen. Beide Werte
- * sind ganzzahlig (Betraege in Euro), also ist auch die Summe ganzzahlig — keine
- * Rundung noetig. Weil verschiedene Abende zu verschiedenen Saetzen zaehlen
- * koennen, wird ueber die Abende summiert und nicht `Anzahl x ein Satz`.
- */
-export function summiereBetraege(betraege: number[]): number {
-  return betraege.reduce((s, b) => s + b, 0);
-}
-
-/**
- * Honorarbetrag bei einem einheitlichen Satz: Anzahl Abende x Satz. Gilt, wenn
- * fuer alle Abende eines Dozenten derselbe Satz greift (der Regelfall innerhalb
- * eines Semesters). Bleibt fuer die DB-freie Gegenprobe erhalten.
- */
-export function honorarBetrag(abende: number, satz: number): number {
-  return abende * satz;
 }
 
 /** Ganzzahliger Eurobetrag in deutscher Schreibweise, z. B. „1.260 €". */

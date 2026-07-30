@@ -460,8 +460,9 @@ model Anwesenheit {
 //
 // Der Honorarsatz je Unterrichtsabend ist KEIN einzelner Wert mehr, sondern
 // eine Historie mit Gueltig-ab-Datum: jeder Abend nimmt den Satz, der zu seinem
-// Datum galt. So veraendert eine spaetere Satzaenderung vergangene (und spaeter
-// abgerechnete) Betraege nicht mehr — die Grundlage der Abrechnung ist stabil.
+// Datum galt. Ein kuenftig datierter Satz veraendert vergangene Betraege nicht;
+// eine rueckwirkende Korrektur (vergangenheitsdatierte Zeile) ist bewusst
+// moeglich und wird beim Auszahlungslauf je Abend eingefroren.
 //
 // Das Eintragen eines Satzes durch eine berechtigte Person IST die Genehmigung:
 // genehmigtVonId (Akteur-Id, keine Relation — wie erfasstVonId) und genehmigtAm

@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from "fs";
-import { euro, honorarBetrag, satzFuer, summiereBetraege, HONORAR_SATZ_FALLBACK, type SatzZeile } from "../src/lib/honorar";
+import { euro, satzFuer, HONORAR_SATZ_FALLBACK, type SatzZeile } from "../src/lib/honorar";
 import { baueHonorarBelegBloecke, type HonorarBelegDaten } from "../src/lib/honorar-beleg";
 import { erzeugePdf } from "../src/lib/pdf";
 
@@ -51,10 +51,7 @@ pruefe("bei gleichem Gültig-ab gewinnt die zuletzt genehmigte Zeile (65)", satz
 const abZukunft: SatzZeile[] = [{ betrag: 90, gueltigAb: d("2026-09-01"), genehmigtAm: d("2026-06-01") }];
 pruefe("Abend vor dem ersten Satz ⇒ Rückfallsatz", satzFuer(d("2026-01-01"), abZukunft) === HONORAR_SATZ_FALLBACK);
 
-console.log("\n2. Betrag und Euro-Formatierung");
-pruefe("10 Abende × 60 € = 600 €", honorarBetrag(10, 60) === 600);
-pruefe("Summe über Abend-Beträge (60+70+70 = 200)", summiereBetraege([60, 70, 70]) === 200);
-pruefe("Summe ist ganzzahlig", Number.isInteger(summiereBetraege([60, 70, 70])));
+console.log("\n2. Euro-Formatierung");
 pruefe("600 wird zu 600 €", euro(600) === "600 €");
 pruefe("0 wird zu 0 €", euro(0) === "0 €");
 pruefe("Tausender bekommen einen Punkt (1.260 €)", euro(1260) === "1.260 €");
@@ -132,7 +129,7 @@ pruefe(
 );
 
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 33;
+const ERWARTET = 30;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

@@ -4,7 +4,7 @@ import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeHonorarSaetze } from "@/lib/honorar-io";
-import { datum, datumZeit } from "@/lib/auskunft-inhalt";
+import { datum, datumZeit } from "@/lib/datum";
 import { SatzForm } from "./satz-form";
 
 export const dynamic = "force-dynamic";
@@ -47,10 +47,10 @@ export default async function HonorarSaetzeSeite() {
           <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-muted text-left text-xs uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Satz</th>
-                <th className="px-4 py-2.5 font-semibold">Gültig ab</th>
-                <th className="px-4 py-2.5 font-semibold">Genehmigt</th>
-                <th className="px-4 py-2.5 font-semibold">DMS-Beleg</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Satz</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Gültig ab</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Genehmigt</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">DMS-Beleg</th>
               </tr>
             </thead>
             <tbody>
