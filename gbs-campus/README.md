@@ -110,8 +110,8 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 421 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Schüler-Quote, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
-| `bash scripts/durchstich.sh` | 343 Prüfungen gegen das gebaute Image und eine frische Datenbank |
+| `npm run pruefen` | 453 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Schüler-Quote, Noten, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
+| `bash scripts/durchstich.sh` | 376 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
 > Die Typprüfung und der Build hängen auf diesem Rechner regelmäßig, weil Synology Drive und iCloud

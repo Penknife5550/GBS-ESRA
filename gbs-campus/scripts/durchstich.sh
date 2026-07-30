@@ -1445,9 +1445,116 @@ $PSQL "insert into person_rolle (\"personId\",\"rolleCode\") values ('${SCHULLEI
 SL_VERW=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung" -H "Cookie: ${KEKS}")
 pruefe "ein unterrichtender Schulleiter bleibt in der Verwaltung (200, nicht /dozent)" "$(gleich "$SL_VERW" "200")" "$SL_VERW"
 
-# 342 Pruefungen plus diese eine, die sich selbst mitzaehlt. (Der Zaehler war seit
-# den Honorar-Abschnitten 29/29b veraltet — die liefen mangels Docker nie mit.)
-SOLL=343
+echo
+echo "=== 35. Noten Stufe 1 (Erfassung durch Dozent/Schulleitung, Schueler-Sicht) ==="
+# Schema: Tabelle, Unique-Index (je Teilnahme x Kurseinheit), Enum, CASCADE.
+pruefe "Tabelle leistungen existiert" \
+  "$(gleich "$($PSQL "select count(*) from information_schema.tables where table_name='leistungen';")" "1")"
+pruefe "Unique-Index (teilnahmeId, kurseinheitId) existiert" \
+  "$(gleich "$($PSQL "select count(*) from pg_indexes where tablename='leistungen' and indexname='leistungen_teilnahmeId_kurseinheitId_key';")" "1")"
+pruefe "Enum Leistungsergebnis existiert" \
+  "$(gleich "$($PSQL "select count(*) from pg_type where typname='Leistungsergebnis';")" "1")"
+pruefe "FK auf kurseinheiten loescht mit (CASCADE)" \
+  "$(gleich "$($PSQL "select confdeltype from pg_constraint where conname='leistungen_kurseinheitId_fkey';")" "c")"
+
+# Seed: die neuen Rechte sind Daten (kein Migration). Noten sind paedagogisch —
+# bewusst bei Dozent/Schulleitung, NICHT bei der Verwaltung.
+pruefe "Recht NOTEN_ERFASSEN_EIGENE ist geseedet" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='NOTEN_ERFASSEN_EIGENE';")" "1")"
+pruefe "Recht NOTEN_VERWALTEN ist geseedet" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='NOTEN_VERWALTEN';")" "1")"
+pruefe "DOZENT hat NOTEN_ERFASSEN_EIGENE" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rolleCode\"='DOZENT' and \"rechtCode\"='NOTEN_ERFASSEN_EIGENE';")" "1")"
+pruefe "SCHULLEITER hat NOTEN_VERWALTEN" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rolleCode\"='SCHULLEITER' and \"rechtCode\"='NOTEN_VERWALTEN';")" "1")"
+pruefe "VERWALTUNG hat NOTEN_VERWALTEN NICHT (paedagogische Entscheidung)" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rolleCode\"='VERWALTUNG' and \"rechtCode\"='NOTEN_VERWALTEN';")" "0")"
+pruefe "DOZENT hat NOTEN_VERWALTEN NICHT (nur das eigene Fach)" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rolleCode\"='DOZENT' and \"rechtCode\"='NOTEN_VERWALTEN';")" "0")"
+
+# Ein eigener, vergangener Abend der Dozentin MIT Kurseinheit — Grundlage der Note
+# (die implizite Dozent->Fach-Zuordnung: es existiert ein eigener Abend zu Kurseinheit+Semester).
+NT_TERMIN=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"dozentId\",\"kurseinheitId\",\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '5 days',95,'${DOZENT_ID}','${KURSEINHEIT_ID}',now()) returning id;")
+# Eine Kurseinheit eines ANDEREN Dozenten (Schulleiter) im selben Semester — Scope-Guard.
+FREMD_KURS=$($PSQL "select id from kurseinheiten where id <> '${KURSEINHEIT_ID}' order by sortierung limit 1;")
+$PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"dozentId\",\"kurseinheitId\",\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '4 days',94,'${SCHULLEITER_ID}','${FREMD_KURS}',now());" > /dev/null
+# Eine Kurseinheit OHNE Abend in diesem Semester — fuer kontext_fehlt.
+KONTEXT_KURS=$($PSQL "select id from kurseinheiten where id not in ('${KURSEINHEIT_ID}','${FREMD_KURS}') order by sortierung limit 1;")
+
+# Die Dozentin benotet ihre eigene Kurseinheit (200) — mit Ergebnis, Punkten und Note.
+NT_OK=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/note" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\",\"punkte\":87,\"note\":\"1,7\"}]}")
+pruefe "die Dozentin benotet ihre eigene Kurseinheit (200)" "$(gleich "$NT_OK" "200")" "$NT_OK"
+pruefe "das Ergebnis ist gespeichert (BESTANDEN)" \
+  "$(gleich "$($PSQL "select ergebnis from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}';")" "BESTANDEN")"
+pruefe "die optionalen Punkte sind gespeichert (87)" \
+  "$(gleich "$($PSQL "select punkte from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}';")" "87")"
+pruefe "die optionale Note ist gespeichert (1,7)" \
+  "$(gleich "$($PSQL "select note from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}';")" "1,7")"
+pruefe "der Eintrag traegt die Dozentin als Erfasser (Provenienz)" \
+  "$(gleich "$($PSQL "select \"erfasstVonId\" from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}';")" "${DOZENT_ID}")"
+pruefe "ein Audit-Eintrag LEISTUNG_ERFASST entsteht (auf die Kurseinheit bezogen)" \
+  "$(gleich "$($PSQL "select (count(*) > 0) from audit_log where aktion='LEISTUNG_ERFASST' and \"objektId\"='${KURSEINHEIT_ID}';")" "t")"
+
+# Scope-Guard: die Kurseinheit eines ANDEREN Dozenten wird der Dozentin abgewiesen (403).
+NT_FREMD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/note" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${FREMD_KURS}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\"}]}")
+pruefe "ein fremdes Fach wird der Dozentin abgewiesen (403, Scope-Guard)" "$(gleich "$NT_FREMD" "403")" "$NT_FREMD"
+
+# Strukturpruefung (Zod): ungueltiges Ergebnis und Punkte ausserhalb der Grenze sind 400.
+NT_BADERG=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/note" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"TANZEN\"}]}")
+pruefe "ein ungueltiges Ergebnis wird abgewiesen (400)" "$(gleich "$NT_BADERG" "400")" "$NT_BADERG"
+NT_BADPKT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/note" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\",\"punkte\":200}]}")
+pruefe "Punkte ausserhalb der Grenze werden abgewiesen (400)" "$(gleich "$NT_BADPKT" "400")" "$NT_BADPKT"
+
+# Ein Teilnehmer ohne Notenrecht darf die Dozentenroute nicht nutzen (403).
+NT_TEILN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/note" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\"}]}")
+pruefe "ein Teilnehmer darf die Dozenten-Notenroute nicht nutzen (403)" "$(gleich "$NT_TEILN" "403")" "$NT_TEILN"
+
+# Die Schulleitung benotet dieselbe Kurseinheit (200) und ueberschreibt — Provenienz springt um.
+SL_NOTE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/noten" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"ERFOLGREICH_TEILGENOMMEN\"}]}")
+pruefe "die Schulleitung benotet die Kurseinheit (200)" "$(gleich "$SL_NOTE" "200")" "$SL_NOTE"
+pruefe "das Ergebnis ist ueberschrieben (ERFOLGREICH_TEILGENOMMEN)" \
+  "$(gleich "$($PSQL "select ergebnis from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}';")" "ERFOLGREICH_TEILGENOMMEN")"
+pruefe "die Provenienz springt auf die Schulleitung um" \
+  "$(gleich "$($PSQL "select \"erfasstVonId\" from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}';")" "${SCHULLEITER_ID}")"
+# Das Ueberschreiben ohne Punkte/Note leert diese Felder (voller Upsert, kein Teil-Update).
+pruefe "beim Ueberschreiben ohne Punkte werden die Punkte geleert (NULL)" \
+  "$(gleich "$($PSQL "select count(*) from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}' and punkte is null;")" "1")"
+pruefe "beim Ueberschreiben ohne Note wird die Note geleert (NULL)" \
+  "$(gleich "$($PSQL "select count(*) from leistungen where \"teilnahmeId\"='${TEILNAHME_ID}' and \"kurseinheitId\"='${KURSEINHEIT_ID}' and note is null;")" "1")"
+
+# Schulleitung: eine Kurseinheit ohne Abend in diesem Semester ist kontext_fehlt (404).
+SL_KTX=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/noten" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KONTEXT_KURS}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\"}]}")
+pruefe "eine Kurseinheit ohne Abend im Semester ist 404 (kontext_fehlt)" "$(gleich "$SL_KTX" "404")" "$SL_KTX"
+
+# Ein Teilnehmer darf die Schulleitungs-Notenroute nicht nutzen (403).
+NT_VERW=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/noten" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\"}]}")
+pruefe "ein Teilnehmer darf die Schulleitungs-Notenroute nicht nutzen (403)" "$(gleich "$NT_VERW" "403")" "$NT_VERW"
+
+# Schueler-Selbstansicht: die eigene Note erscheint in /meine-daten (Klartext).
+TN_NOTEN=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")
+pruefe "der Schueler sieht den Abschnitt Meine Noten" "$(enthaelt "$TN_NOTEN" 'Meine Noten')"
+pruefe "der Schueler sieht sein Ergebnis im Klartext (erfolgreich teilgenommen)" "$(enthaelt "$TN_NOTEN" 'erfolgreich teilgenommen')"
+
+# Schulleitungs-Notenseite rendert die Kurseinheit-Matrix (nicht nur die Ueberschrift).
+SL_SEITE=$(curl -s "${BASIS}/verwaltung/noten" -H "Cookie: ${KEKS}")
+pruefe "die Notenseite der Schulleitung rendert die Matrix" "$(enthaelt "$SL_SEITE" 'Noten (')"
+
+# Die Dozentenseite zeigt den Noten-Abschnitt.
+DZ_NOTEN=$(curl -s "${BASIS}/dozent" -H "Cookie: ${KEKS_DOZ}")
+pruefe "die Dozentenseite zeigt den Abschnitt Meine Noten" "$(enthaelt "$DZ_NOTEN" 'Meine Noten')"
+
+# Whitelist (bewusst am Ende, da TEILNAHME_ID neu geschrieben wird): ein Batch mit
+# einem gueltigen + einem SEMESTERFREMDEN Eintrag schreibt nur den gueltigen. Dazu
+# eine Teilnahme derselben Person in einem zweiten Semester.
+SEM2=$($PSQL "insert into semester (id,code,bezeichnung,start,ende,\"erstelltAm\") values (gen_random_uuid(),'2099-X','Testsemester 2099','2099-01-01','2099-06-30',now()) returning id;")
+FREMD_TEILNAHME=$($PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${TEILNEHMER_ID}','${SEM2}','SCHUELER',now()) returning id;")
+WL=$(curl -s -X POST "${BASIS}/api/dozent/note" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"BESTANDEN\"},{\"teilnahmeId\":\"${FREMD_TEILNAHME}\",\"ergebnis\":\"BESTANDEN\"}]}")
+pruefe "Batch mit gueltigem + semesterfremdem Eintrag: nur der gueltige zaehlt (gesetzt=1)" "$(enthaelt "$WL" '"gesetzt":1')"
+pruefe "die semesterfremde Teilnahme bekommt KEINE Note (Whitelist greift)" \
+  "$(gleich "$($PSQL "select count(*) from leistungen where \"teilnahmeId\"='${FREMD_TEILNAHME}';")" "0")"
+
+# 375 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=376
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

@@ -323,6 +323,8 @@ model Teilnahme {
   erstelltAm DateTime @default(now())
 
   anwesenheiten Anwesenheit[]
+  /// Bewertungen dieser Teilnahme je Kurseinheit (Noten, Release 0.4).
+  leistungen    Leistung[]
 
   @@unique([personId, semesterId])
   @@index([semesterId])
@@ -379,7 +381,9 @@ model Kurseinheit {
 
   erstelltAm DateTime @default(now())
 
-  termine Unterrichtstermin[]
+  termine    Unterrichtstermin[]
+  /// Bewertungen zu dieser Kurseinheit je Teilnahme (Noten, Release 0.4).
+  leistungen Leistung[]
 
   @@unique([fachCode, jahrgangsjahr, halbjahr])
   @@index([jahrgangsjahr, halbjahr])
@@ -459,6 +463,63 @@ model Anwesenheit {
   @@unique([terminId, teilnahmeId])
   @@index([teilnahmeId])
   @@map("anwesenheiten")
+}
+
+// =============================================================================
+// Leistungen & Noten — M8 (Release 0.4, Stufe 1)
+//
+// Eine Bewertung haengt an der Teilnahme (Person x Semester) und der Kurseinheit
+// (Fach an einem Rasterplatz) — genau eine Zeile je (Teilnahme, Kurseinheit), das
+// @@unique haelt die Erfassung per upsert idempotent. Die Zuordnung zum konkreten
+// Semester laeuft ueber die Teilnahme; welche Kurseinheiten in einem Semester
+// unterrichtet werden, ergibt sich aus `Unterrichtstermin` (semesterId +
+// kurseinheitId).
+//
+// Bewertung ist bewusst FLEXIBEL je Fach: Real wird nur Bibelkunde benotet, der
+// Rest verbal. Deshalb ist nur das `ergebnis` Pflicht (TEILGENOMMEN /
+// ERFOLGREICH_TEILGENOMMEN / BESTANDEN / NICHT_BESTANDEN), `punkte` und `note`
+// sind optionale Zusatzangaben (Punktzahl bzw. freie Notenangabe wie „2" oder
+// „gut"). Provenienz wie bei der Anwesenheit ueber `erfasstVonId` (Akteur-Id,
+// keine Relation).
+// =============================================================================
+
+enum Leistungsergebnis {
+  TEILGENOMMEN // dabei gewesen, ohne Bewertung (deckt auch Hoerer ab)
+  ERFOLGREICH_TEILGENOMMEN // aktiv/erfolgreich teilgenommen, ohne Note
+  BESTANDEN // Pruefung bestanden
+  NICHT_BESTANDEN // Pruefung nicht bestanden
+}
+
+/// Bewertung einer Teilnahme in einer Kurseinheit. Genau eine Zeile je
+/// (Teilnahme, Kurseinheit) — das @@unique haelt die Erfassung per upsert
+/// idempotent (wie bei der Anwesenheit).
+model Leistung {
+  id String @id @default(uuid())
+
+  teilnahmeId String
+  teilnahme   Teilnahme @relation(fields: [teilnahmeId], references: [id], onDelete: Cascade)
+
+  kurseinheitId String
+  kurseinheit   Kurseinheit @relation(fields: [kurseinheitId], references: [id], onDelete: Cascade)
+
+  ergebnis Leistungsergebnis
+
+  /// Optionale Punktzahl (ganzzahlig, 0-100) — z. B. eine benotete Bibelkunde-
+  /// Pruefung. Null, wo nur verbal/ergebnis bewertet wird.
+  punkte Int?
+
+  /// Optionale freie Notenangabe (z. B. „2", „gut", „1,7"). Null, wo keine Note
+  /// vergeben wird.
+  note String?
+
+  /// Wer die Bewertung gesetzt hat (Akteur-Id, keine Relation — wie
+  /// Anwesenheit.erfasstVonId).
+  erfasstVonId String?
+  erfasstAm    DateTime @default(now()) @updatedAt
+
+  @@unique([teilnahmeId, kurseinheitId])
+  @@index([kurseinheitId])
+  @@map("leistungen")
 }
 
 // =============================================================================

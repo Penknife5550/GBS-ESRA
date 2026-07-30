@@ -145,6 +145,12 @@ const RECHTE = [
   // das Recht oeffnet nur die Tuer. GASTDOZENT bleibt bewusst rechtlos (Token-Flow).
   { code: "EIGENE_TERMINE_LESEN", bezeichnung: "Eigene Unterrichtsabende sehen", bereich: "UNTERRICHT" },
   { code: "ANWESENHEIT_ERFASSEN_EIGENE", bezeichnung: "Anwesenheit der eigenen Abende erfassen", bereich: "UNTERRICHT" },
+  // Release 0.4 — Noten Stufe 1. Der Dozent bewertet nur seine EIGENEN
+  // Kurseinheiten (Scope-Guard: es existiert ein eigener Abend zu Kurseinheit und
+  // Semester); die Schulleitung verwaltet alle Fächer. Bewusst NICHT bei der
+  // Verwaltung — Noten sind eine paedagogische Entscheidung (wie PERSON_ANONYMISIEREN).
+  { code: "NOTEN_ERFASSEN_EIGENE", bezeichnung: "Noten der eigenen Kurseinheiten erfassen", bereich: "UNTERRICHT" },
+  { code: "NOTEN_VERWALTEN", bezeichnung: "Noten aller Fächer verwalten", bereich: "UNTERRICHT" },
   { code: "ANMELDUNG_LESEN", bezeichnung: "Anmeldungen einsehen", bereich: "ANMELDUNG" },
   { code: "ANMELDUNG_ENTSCHEIDEN", bezeichnung: "Anmeldungen annehmen oder ablehnen", bereich: "ANMELDUNG" },
   { code: "FORMULAR_BEARBEITEN", bezeichnung: "Anmeldeformulare gestalten", bereich: "ANMELDUNG" },
@@ -206,6 +212,9 @@ const ROLLEN = [
       // Entscheidung — sie liegt bei der Schulleitung, nicht bei der Verwaltung.
       "PERSON_ANONYMISIEREN",
       "SEMESTER_VERWALTEN",
+      // Noten aller Fächer — paedagogische Entscheidung, bewusst nur hier (nicht
+      // bei der Verwaltung).
+      "NOTEN_VERWALTEN",
       "ANMELDUNG_LESEN",
       "ANMELDUNG_ENTSCHEIDEN",
       "FORMULAR_BEARBEITEN",
@@ -266,6 +275,7 @@ const ROLLEN = [
       "PERSON_BEARBEITEN_EIGENE",
       "EIGENE_TERMINE_LESEN",
       "ANWESENHEIT_ERFASSEN_EIGENE",
+      "NOTEN_ERFASSEN_EIGENE",
     ],
   },
   {

@@ -75,6 +75,12 @@ export default async function VerwaltungSeite() {
       sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
     },
     {
+      titel: "Noten",
+      text: "Bewertung je Fach eines Semesters — teilgenommen, bestanden usw., optional mit Punkten/Note.",
+      pfad: "/verwaltung/noten",
+      sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
+    },
+    {
       titel: "Dozentenhonorar",
       text: "Gehaltene Abende je Dozent mit dem je Tag geltenden Satz. Sätze mit Gültig-ab genehmigen; Beleg ans DMS.",
       pfad: "/verwaltung/honorar",
