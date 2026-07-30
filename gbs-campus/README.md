@@ -110,7 +110,7 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 351 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar, Anonymisierung), ohne Datenbank |
+| `npm run pruefen` | 366 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar inkl. Satz-Historie + DMS-Beleg, Anonymisierung), ohne Datenbank |
 | `bash scripts/durchstich.sh` | 269 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
@@ -450,14 +450,36 @@ Dozenten zuordnen (neues Feld `Unterrichtstermin.dozentId → Person`, `onDelete
 gelöschtes Dozentenkonto reißt den Abend nicht mit). Die Zuordnung läuft über die bestehende
 Termin-PUT und ist damit an `SEMESTER_VERWALTEN` gebunden; serverseitig wird geprüft, dass die Person
 die Rolle Dozent trägt (`istDozent`), sonst 400. Die read-only Übersicht `/verwaltung/honorar`
-(Recht `HONORAR_LESEN`, Bereich Finanzen) rechnet je Dozent **Anzahl gehaltener Abende × Honorarsatz**;
-der Satz ist eine Einstellung (`HONORAR_SATZ_PRO_ABEND`, ganzzahlig, Bereich Finanzen), kein Wert im
-Code. Die eigentliche **Abrechnung** — Freigabe und Auszahlung — ist bewusst auf Release 0.3
-verschoben; 0.2 liefert nur die Übersicht.
+(Recht `HONORAR_LESEN`, Bereich Finanzen) rechnet je Dozent die **gehaltenen Abende**, jeden Abend zu
+dem Satz, der zu seinem Datum galt (siehe Satz-Historie unten).
 
 Die Migration ist wie alle hier **von Hand** geschrieben und rein additiv (`ADD COLUMN` / `CREATE INDEX`
 / `ADD CONSTRAINT`, keine `DROP`s) — `prisma migrate dev` würde sonst den partiellen Unique-Index des
 laufenden Semesters und die Append-only-Trigger als DROP mit aufnehmen.
+
+### Honorarsatz-Historie und DMS-Beleg (Release 0.3, erster Slice)
+
+Der Honorarsatz ist kein einzelner Regler mehr, sondern eine **Historie mit Gültig-ab-Datum** (Modell
+`HonorarSatz`, Tabelle `honorar_saetze`): Jeder Abend nimmt den Satz, der zu seinem Datum galt. Damit
+verändert eine spätere Satzänderung **vergangene (und später abgerechnete) Beträge nicht mehr** — die
+Grundlage der Abrechnung ist stabil. Die Auflösung „welcher Satz gilt an Tag X" steht DB-frei in
+`satzFuer(datum, saetze)` (`src/lib/honorar.ts`, mutationssicher geprüft): das größte `gueltigAb ≤ X`,
+bei gleichem Datum die zuletzt genehmigte Zeile; liegt ein Abend vor dem ersten Satz oder ist die
+Historie leer, greift die Konstante `HONORAR_SATZ_FALLBACK` (= 60). Der bisherige Einzel-Regler
+`HONORAR_SATZ_PRO_ABEND` ist **abgelöst**: Der Seed überführt seinen Wert in die erste Historien-Zeile
+und entfernt die Einstellung, damit kein toter Regler zurückbleibt.
+
+Verwaltet werden die Sätze unter `/verwaltung/honorar/saetze` (neues Recht `HONORAR_SATZ_GENEHMIGEN`,
+Schulleitung + Verwaltung). Das **Eintragen eines Satzes ist die Genehmigung** — `genehmigtVonId` und
+`genehmigtAm` halten fest, wer wann genehmigt hat. Nach jeder Genehmigung erzeugt
+`genehmigeHonorarSatz` einen **DMS-Beleg** (PDF: komplette Satz-Historie + alle Unterrichtstage mit Fach
+und geltendem Satz, dazu Beleg-Nummer und Genehmiger) und schickt ihn per Mail an das DMS
+(`DMS_EMAIL`); `dmsBelegNr`/`dmsGesendetAm` protokollieren den Versand. Fehlerverhalten wie beim Mailer:
+Die Genehmigung ist die fachliche Tatsache und wird **nicht zurückgerollt**, wenn der Beleg-Versand
+(oder mangels `DMS_EMAIL` die Zustellung) ausbleibt — der offene Versand bleibt sichtbar. Der Beleg
+enthält bewusst **keine** Dozentennamen (Datenminimierung); der PDF-Erzeuger bleibt abhängigkeitsfrei,
+die DMS-Referenz ist deshalb eine Beleg-Nummer und kein QR-Bild. Ein Muster erzeugt
+`tsx scripts/muster-honorar-dms.ts`. Die eigentliche **Auszahlung** folgt im weiteren Verlauf von 0.3.
 
 ---
 

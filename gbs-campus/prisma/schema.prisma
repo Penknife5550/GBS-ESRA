@@ -456,6 +456,42 @@ model Anwesenheit {
 }
 
 // =============================================================================
+// Dozentenhonorar — Satz-Historie (M7, Release 0.3)
+//
+// Der Honorarsatz je Unterrichtsabend ist KEIN einzelner Wert mehr, sondern
+// eine Historie mit Gueltig-ab-Datum: jeder Abend nimmt den Satz, der zu seinem
+// Datum galt. So veraendert eine spaetere Satzaenderung vergangene (und spaeter
+// abgerechnete) Betraege nicht mehr — die Grundlage der Abrechnung ist stabil.
+//
+// Das Eintragen eines Satzes durch eine berechtigte Person IST die Genehmigung:
+// genehmigtVonId (Akteur-Id, keine Relation — wie erfasstVonId) und genehmigtAm
+// halten fest, wer wann genehmigt hat. Nach jeder Genehmigung geht ein Beleg
+// (PDF mit der kompletten Historie) an das DMS; dmsBelegNr/dmsGesendetAm halten
+// den Versand fest. Korrekturen sind neue Zeilen, kein Update — deshalb bewusst
+// KEIN @@unique auf gueltigAb: die Aufloesung nimmt bei gleichem Datum die
+// zuletzt genehmigte Zeile.
+// =============================================================================
+
+model HonorarSatz {
+  id        String   @id @default(uuid())
+  betrag    Int // Euro, ganzzahlig — wie die abgeloeste Einstellung
+  gueltigAb DateTime // ab diesem Zeitpunkt gilt der Satz (bezogen auf den Abend-Beginn)
+
+  notiz String? // optionaler Vermerk zur Genehmigung (z. B. Beschlussdatum)
+
+  genehmigtVonId String? // Akteur-Id (keine Relation, wie Anwesenheit.erfasstVonId)
+  genehmigtAm    DateTime @default(now())
+
+  /// Referenz und Zeitpunkt des an das DMS gesendeten Belegs. Nullbar: der Satz
+  /// ist genehmigt, auch wenn die DMS-Zustellung (noch) aussteht.
+  dmsBelegNr    String?
+  dmsGesendetAm DateTime?
+
+  @@index([gueltigAb])
+  @@map("honorar_saetze")
+}
+
+// =============================================================================
 // Anmeldung — ersetzt Microsoft Forms
 // =============================================================================
 

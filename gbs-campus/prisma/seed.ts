@@ -11,6 +11,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { EINSTELLUNGEN } from "../src/lib/einstellungen";
+import { HONORAR_SATZ_FALLBACK } from "../src/lib/honorar";
 import { ABSCHNITTE, EINLEITUNG } from "./anmeldeformular-definition";
 import { FAECHER, KURSEINHEITEN } from "./kursraster-definition";
 
@@ -149,8 +150,10 @@ const RECHTE = [
   // Arbeiten braucht (Datenminimierung, DSGVO Art. 5 Abs. 1 lit. c).
   { code: "BANKVERBINDUNG_LESEN", bezeichnung: "Bankverbindung sehen", bereich: "FINANZEN" },
   // Read-only ab Release 0.2: Anzahl gehaltener Abende je Dozent x Honorarsatz.
-  // Die eigentliche Abrechnung (Freigabe, Auszahlung) folgt in 0.3.
   { code: "HONORAR_LESEN", bezeichnung: "Honorarübersicht der Dozenten sehen", bereich: "FINANZEN" },
+  // Release 0.3: einen Honorarsatz mit Gueltig-ab-Datum genehmigen. Das Eintragen
+  // ist die Genehmigung; danach geht ein Beleg an das DMS.
+  { code: "HONORAR_SATZ_GENEHMIGEN", bezeichnung: "Honorarsatz genehmigen", bereich: "FINANZEN" },
   { code: "BENUTZER_VERWALTEN", bezeichnung: "Konten und Rollen verwalten", bereich: "SYSTEM" },
   { code: "SYSTEM_EINSTELLUNGEN", bezeichnung: "Systemeinstellungen aendern", bereich: "SYSTEM" },
   { code: "AUDIT_LESEN", bezeichnung: "Audit-Log lesen", bereich: "SYSTEM" },
@@ -201,6 +204,7 @@ const ROLLEN = [
       "MAIL_VORLAGEN_BEARBEITEN",
       "FINANZ_DATEN_LESEN",
       "HONORAR_LESEN",
+      "HONORAR_SATZ_GENEHMIGEN",
       // Ohne dieses Recht sähe die Schulleitung die Protokollansicht nicht — und
       // genau die Vorgänge dort sind ihre: Meldungen aus dem Hilfeformular,
       // Adressänderungen an fremden Konten, fehlgeschlagene Anmeldeversuche.
@@ -225,6 +229,7 @@ const ROLLEN = [
       "FINANZ_DATEN_LESEN",
       "BANKVERBINDUNG_LESEN",
       "HONORAR_LESEN",
+      "HONORAR_SATZ_GENEHMIGEN",
       "MAIL_VERTEILER_SENDEN",
       "PERSON_LESEN_EIGENE",
       "PERSON_BEARBEITEN_EIGENE",
@@ -695,6 +700,28 @@ async function main() {
     });
   }
 
+  // Honorarsatz-Historie: erste Zeile aus dem bisherigen Einzel-Regler ableiten
+  // (Release 0.2 → 0.3). Idempotent — nur anlegen, wenn die Historie leer ist —,
+  // damit ein Seed-Lauf spaeter genehmigte Saetze nicht ueberschreibt. Danach die
+  // abgeloeste Einstellung entfernen: sie steuert nichts mehr und wuerde sonst
+  // als toter Regler in der Einstellungen-Oberflaeche stehenbleiben.
+  console.log("[Seed] Honorarsatz-Historie...");
+  const bisherigerSatz = await prisma.einstellung.findUnique({ where: { schluessel: "HONORAR_SATZ_PRO_ABEND" } });
+  const startBetrag = bisherigerSatz ? Number(bisherigerSatz.wert) : HONORAR_SATZ_FALLBACK;
+  const vorhandene = await prisma.honorarSatz.count();
+  if (vorhandene === 0) {
+    await prisma.honorarSatz.create({
+      data: {
+        betrag: Number.isInteger(startBetrag) ? startBetrag : HONORAR_SATZ_FALLBACK,
+        // Frueher als jedes Semester (2026+), damit jeder Abend einen Satz findet.
+        gueltigAb: new Date("2000-01-01T00:00:00.000Z"),
+        notiz: "Aus dem bisherigen Honorarsatz übernommen (Umstellung auf die Satz-Historie).",
+        genehmigtVonId: null,
+      },
+    });
+  }
+  await prisma.einstellung.deleteMany({ where: { schluessel: "HONORAR_SATZ_PRO_ABEND" } });
+
   console.log("[Seed] Ermaessigungen...");
   for (const ermaessigung of ERMAESSIGUNGEN) {
     await prisma.ermaessigung.upsert({
@@ -759,6 +786,7 @@ async function main() {
     semester: await prisma.semester.count(),
     faecher: await prisma.fach.count(),
     kurseinheiten: await prisma.kurseinheit.count(),
+    honorarSaetze: await prisma.honorarSatz.count(),
   };
   console.log("[Seed] Fertig:", zahlen);
 }

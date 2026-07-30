@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { ladeMitRecht, hatRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeHonorarUebersicht } from "@/lib/honorar-io";
@@ -9,9 +9,9 @@ import { ladeHonorarUebersicht } from "@/lib/honorar-io";
 export const dynamic = "force-dynamic";
 
 /**
- * Read-only Honorar-Übersicht je Semester: Anzahl gehaltener Unterrichtsabende
- * je Dozent × Honorarsatz. Bewusst nur eine Ansicht — keine Freigabe, kein
- * Beleg, keine Auszahlung. Die eigentliche Abrechnung folgt mit Release 0.3.
+ * Read-only Honorar-Übersicht je Semester: gehaltene Unterrichtsabende je Dozent,
+ * jeder Abend zu dem Satz, der zu seinem Datum galt (Satz-Historie). Die
+ * Genehmigung der Sätze läuft über die Unterseite „Sätze"; die Auszahlung folgt.
  */
 export default async function HonorarSeite({
   searchParams,
@@ -49,11 +49,23 @@ export default async function HonorarSeite({
       <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
         ← Verwaltung
       </Link>
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
+      <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
+        {hatRecht(benutzer, RECHT.HONORAR_SATZ_GENEHMIGEN) && (
+          <Link
+            href="/verwaltung/honorar/saetze"
+            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
+          >
+            Sätze verwalten
+          </Link>
+        )}
+      </div>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Anzahl der gehaltenen Unterrichtsabende je Dozent × Honorarsatz ({euro(uebersicht.satz)} je Abend).
-        Nur zur Übersicht — die Abrechnung (Freigabe und Auszahlung) folgt in einem späteren Schritt. Der
-        Satz lässt sich unter Einstellungen ändern; die Zuordnung der Dozenten läuft über den Stundenplan.
+        Gehaltene Unterrichtsabende je Dozent, jeder Abend zu dem Satz, der zu seinem Datum galt (aktuell
+        {" "}
+        {euro(uebersicht.aktuellerSatz)} je Abend). Nur zur Übersicht — die Auszahlung folgt in einem
+        späteren Schritt. Die Sätze werden unter „Sätze verwalten" genehmigt; die Zuordnung der Dozenten
+        läuft über den Stundenplan.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-2">

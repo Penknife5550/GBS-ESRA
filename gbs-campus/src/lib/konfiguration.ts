@@ -81,3 +81,15 @@ export function smtpKonfiguriert(): boolean {
 export function cronKonfiguriert(): boolean {
   return Boolean(process.env.CRON_SECRET && process.env.CRON_SECRET.length >= 16);
 }
+
+/**
+ * Postfach des Dokumentenmanagements, an das der Honorarsatz-Beleg geht. Wie bei
+ * SMTP kein Fail-fast beim Start: Ist die Adresse nicht gesetzt, wird der Beleg
+ * trotzdem erzeugt und die Genehmigung protokolliert — nur die Zustellung
+ * unterbleibt und bleibt als offener Versand sichtbar. Die Honorar-Abrechnung
+ * ist kein Anmeldeweg und darf den Start nicht blockieren.
+ */
+export function dmsAdresse(): string | null {
+  const wert = process.env.DMS_EMAIL?.trim();
+  return wert ? wert : null;
+}

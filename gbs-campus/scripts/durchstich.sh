@@ -1046,10 +1046,19 @@ pruefe "Teilnehmer hat HONORAR_LESEN NICHT" \
   "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rechtCode\"='HONORAR_LESEN' and \"rolleCode\"='TEILNEHMER';")" "0")"
 pruefe "die Rolle Dozent ist ab Release 0.2 scharfgeschaltet" \
   "$(gleich "$($PSQL "select \"aktivAbRelease\" from rollen where code='DOZENT';")" "0.2")"
-pruefe "Einstellung HONORAR_SATZ_PRO_ABEND ist geseedet (60)" \
-  "$(gleich "$($PSQL "select wert from einstellungen where schluessel='HONORAR_SATZ_PRO_ABEND';")" "60")"
-pruefe "Einstellung HONORAR_SATZ_PRO_ABEND liegt im Bereich FINANZEN" \
-  "$(gleich "$($PSQL "select bereich from einstellungen where schluessel='HONORAR_SATZ_PRO_ABEND';")" "FINANZEN")"
+# --- Satz-Historie mit Gueltig-ab statt Einzel-Regler (Release 0.3) ---
+pruefe "Recht HONORAR_SATZ_GENEHMIGEN existiert" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='HONORAR_SATZ_GENEHMIGEN';")" "1")"
+pruefe "Schulleitung und Verwaltung duerfen Saetze genehmigen" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rechtCode\"='HONORAR_SATZ_GENEHMIGEN';")" "2")"
+pruefe "Teilnehmer darf Saetze NICHT genehmigen" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rechtCode\"='HONORAR_SATZ_GENEHMIGEN' and \"rolleCode\"='TEILNEHMER';")" "0")"
+pruefe "der abgeloeste Einzel-Regler HONORAR_SATZ_PRO_ABEND ist entfernt" \
+  "$(gleich "$($PSQL "select count(*) from einstellungen where schluessel='HONORAR_SATZ_PRO_ABEND';")" "0")"
+pruefe "die Satz-Historie hat eine Startzeile aus dem Altwert (60)" \
+  "$(gleich "$($PSQL "select betrag from honorar_saetze order by \"gueltigAb\" asc limit 1;")" "60")"
+pruefe "die Honorarsatz-Historie-Migration ist als angewendet eingetragen" \
+  "$(gleich "$($PSQL "select count(*) from _prisma_migrations where migration_name='20260730120000_honorarsatz_historie' and finished_at is not null;")" "1")"
 pruefe "Spalte unterrichtstermine.dozentId existiert" \
   "$(gleich "$($PSQL "select data_type from information_schema.columns where table_name='unterrichtstermine' and column_name='dozentId';")" "text")"
 pruefe "der Dozent-Fremdschluessel loescht nicht mit (SET NULL)" \
@@ -1060,8 +1069,24 @@ pruefe "die Dozent-Honorar-Migration ist als angewendet eingetragen" \
 # Einen Dozenten anlegen und ihm die Rolle geben.
 DOZENT_ID=$($PSQL "insert into personen (id,vorname,nachname,email,\"statusCode\",\"erstelltAm\",\"aktualisiertAm\") values (gen_random_uuid(),'Dora','Dozento','dozento@beispiel.de','AKTIV',now(),now()) returning id;")
 $PSQL "insert into person_rolle (\"personId\",\"rolleCode\") values ('${DOZENT_ID}','DOZENT');" > /dev/null
-# Honorarsatz auf 95 EUR setzen (direkt — die Einstellungs-API pruefen andere Tests).
-$PSQL "update einstellungen set wert='95' where schluessel='HONORAR_SATZ_PRO_ABEND';" > /dev/null
+
+# Einen neuen Satz (95 EUR) ueber die Genehmigungs-API festschreiben — gueltig ab
+# vor allen Abenden, damit die gehaltenen Abende zu 95 zaehlen. Das Eintragen ist
+# die Genehmigung; danach entsteht ein DMS-Beleg (Beleg-Nr gesetzt, Versand
+# unterbleibt mangels DMS_EMAIL und bleibt sichtbar offen).
+GEN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/saetze" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"betrag":95,"gueltigAb":"2000-01-02","notiz":"Durchstich"}')
+pruefe "die Schulleitung genehmigt einen Satz (200)" "$(gleich "$GEN" "200")" "$GEN"
+pruefe "der genehmigte Satz (95) steht in der Historie" \
+  "$(gleich "$($PSQL "select count(*) from honorar_saetze where betrag=95;")" "1")"
+pruefe "die Genehmigung haelt den Genehmiger fest" \
+  "$(gleich "$($PSQL "select count(*) > 0 from honorar_saetze where betrag=95 and \"genehmigtVonId\" is not null;")" "t")"
+pruefe "nach der Genehmigung ist eine DMS-Beleg-Nr vergeben (HON-...)" \
+  "$(enthaelt "$($PSQL "select \"dmsBelegNr\" from honorar_saetze where betrag=95;")" "HON-")"
+pruefe "die Genehmigung steht im Audit-Log" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='HONORAR_SATZ_GENEHMIGT';")" "t")"
+# Ein Teilnehmer darf keinen Satz genehmigen (403).
+GEN_T=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/honorar/saetze" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d '{"betrag":50,"gueltigAb":"2027-01-01"}')
+pruefe "ein Teilnehmer darf keinen Satz genehmigen (403)" "$(gleich "$GEN_T" "403")" "$GEN_T"
 
 # Dem Dozenten Abende zuordnen (ueber die Termin-PUT der Schulleitung): zwei
 # vergangene und einen zukuenftigen. Der zukuenftige darf im Honorar NICHT als
@@ -1087,6 +1112,11 @@ HON_S=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar?seme
 pruefe "die Schulleitung sieht die Honorar-Uebersicht (200)" "$(gleich "$HON_S" "200")" "$HON_S"
 HON_T=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar" -H "Cookie: ${KEKS2}")
 pruefe "ein Teilnehmer wird von der Honorar-Uebersicht weggeleitet (307)" "$(gleich "$HON_T" "307")" "$HON_T"
+# Die Satz-Verwaltung /saetze: Schulleitung 200, Teilnehmer wird weggeleitet (307).
+SAETZE_S=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar/saetze" -H "Cookie: ${KEKS}")
+pruefe "die Schulleitung sieht die Satz-Verwaltung (200)" "$(gleich "$SAETZE_S" "200")" "$SAETZE_S"
+SAETZE_T=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung/honorar/saetze" -H "Cookie: ${KEKS2}")
+pruefe "ein Teilnehmer wird von der Satz-Verwaltung weggeleitet (307)" "$(gleich "$SAETZE_T" "307")" "$SAETZE_T"
 
 # Inhalt: der Dozent und der Betrag der GEHALTENEN Abende (2 x 95 = 190 EUR)
 # stehen drin — der dritte, zukuenftige Abend zaehlt NICHT mit (sonst 3 x 95 = 285).

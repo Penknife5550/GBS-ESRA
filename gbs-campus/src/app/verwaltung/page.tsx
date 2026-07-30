@@ -69,7 +69,7 @@ export default async function VerwaltungSeite() {
     },
     {
       titel: "Dozentenhonorar",
-      text: "Gehaltene Abende je Dozent × Honorarsatz — als Übersicht. Abrechnung folgt später.",
+      text: "Gehaltene Abende je Dozent mit dem je Tag geltenden Satz. Sätze mit Gültig-ab genehmigen; Beleg ans DMS.",
       pfad: "/verwaltung/honorar",
       sichtbar: hatRecht(benutzer, RECHT.HONORAR_LESEN),
     },

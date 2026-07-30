@@ -15,12 +15,27 @@ import nodemailer from "nodemailer";
 import { prisma } from "@/lib/db";
 import { smtpKonfiguriert } from "@/lib/konfiguration";
 
+/** Ein Dateianhang. `inhalt` sind die Rohbytes (z. B. eine erzeugte PDF). */
+export type MailAnhang = {
+  dateiname: string;
+  inhalt: Buffer;
+  typ?: string; // MIME-Typ, z. B. "application/pdf"
+};
+
 export type MailAuftrag = {
   an: string;
   betreff: string;
   text: string;
   personId?: string | null;
   vorlageCode?: string | null;
+  /**
+   * Optionale Dateianhaenge. Bewusst sparsam einzusetzen: personenbezogene oder
+   * sensible Daten (IBAN, Art. 9) gehoeren NICHT als Anhang in den
+   * unverschluesselten Mailkanal — die DSGVO-Auskunft verschickt aus genau
+   * diesem Grund nur einen Abruf-Link. Der Honorar-Beleg an das DMS enthaelt
+   * keine solchen Daten (Saetze, Faecher, Tage; keine Dozentennamen).
+   */
+  anhaenge?: MailAnhang[];
 };
 
 /**
@@ -132,6 +147,11 @@ export async function sendeMail(auftrag: MailAuftrag): Promise<{ gesendet: boole
       to: auftrag.an,
       subject: auftrag.betreff,
       text: auftrag.text,
+      attachments: auftrag.anhaenge?.map((a) => ({
+        filename: a.dateiname,
+        content: a.inhalt,
+        contentType: a.typ,
+      })),
     });
 
     await schliesseProtokollAb(protokollId, { status: "GESENDET", gesendetAm: new Date() });
