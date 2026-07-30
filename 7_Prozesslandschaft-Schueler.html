@@ -1,0 +1,281 @@
+<!doctype html><html lang="de" data-t="light"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aus Sicht des Schülers — GBS Campus Prozesslandschaft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+:root{
+  --grau:#575756; --grau-hell:#DADADA;
+  --gelb:#FBC900; --gruen:#6BAA24; --rot:#E2001A; --blau:#009AC6;
+  --bg:#ffffff; --bg2:#f6f6f5; --bg3:#efefee;
+  --tx:#2b2b2b; --tx2:#6b6b6a; --li:#e2e2e0; --code:#f3f3f1;
+}
+html[data-t="dark"]{
+  --bg:#1a1a19; --bg2:#232322; --bg3:#2c2c2a;
+  --tx:#ececeb; --tx2:#a3a3a0; --li:#3a3a38; --code:#232322; --grau:#c9c9c7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:Montserrat,Arial,Helvetica,sans-serif;font-weight:400;
+  font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+a{color:var(--grau);text-underline-offset:3px}
+.credo{display:flex;height:9px;width:100%}
+.credo .g{flex:1 1 50%;background:var(--grau)}
+.credo .s{flex:1 1 12.5%}
+.credo .s1{background:var(--gelb)}.credo .s2{background:var(--gruen)}
+.credo .s3{background:var(--rot)}.credo .s4{background:var(--blau)}
+header{background:var(--bg2);border-bottom:1px solid var(--li);padding:44px 0 32px}
+.kicker{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx2);font-weight:600;margin-bottom:12px}
+h1{font-size:36px;line-height:1.16;margin:0 0 14px;font-weight:700;letter-spacing:-.02em}
+.lead{font-size:17px;line-height:1.6;max-width:84ch}
+.meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:24px;font-size:13px;color:var(--tx2)}
+.meta b{display:block;color:var(--tx);font-weight:600;font-size:14px;margin-top:2px}
+section{padding:44px 0 8px;border-top:1px solid var(--li)}
+section:first-of-type{border-top:none}
+h2{font-size:24px;font-weight:700;letter-spacing:-.015em;margin:0 0 6px;display:flex;align-items:baseline;gap:14px}
+h2 .no{font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:.08em}
+.sub{color:var(--tx2);font-size:15px;margin:0 0 22px;max-width:82ch}
+strong{font-weight:600}
+code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--code);padding:2px 6px;border-radius:3px}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:3px;color:#fff;line-height:1.5;white-space:nowrap}
+.t-rot{background:var(--rot)}.t-gelb{background:var(--gelb);color:#3a2f00}.t-blau{background:var(--blau)}.t-grau{background:var(--grau)}
+
+/* Prozess-Band (Landschaft) */
+.band{display:flex;gap:0;overflow-x:auto;padding:6px 2px 16px;margin:6px 0 10px}
+.step{flex:0 0 auto;min-width:150px;max-width:170px;background:var(--bg2);border:1px solid var(--li);
+  border-top:4px solid var(--grau);border-radius:8px;padding:12px 13px;margin-right:22px;position:relative}
+.step.st-rot{border-top-color:var(--rot)} .step.st-gelb{border-top-color:var(--gelb)} .step.st-gruen{border-top-color:var(--gruen)}
+.step:not(:last-child)::after{content:"›";position:absolute;right:-17px;top:50%;transform:translateY(-50%);
+  font-size:22px;color:var(--tx2);font-weight:700}
+.stepno{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.06em}
+.stepname{font-size:13.5px;font-weight:600;margin:3px 0 8px;line-height:1.3}
+.stepbadge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.st-rot .stepbadge{color:var(--rot)} .st-gelb .stepbadge{color:#a07a00} .st-gruen .stepbadge{color:var(--gruen)}
+.legende{display:flex;gap:20px;flex-wrap:wrap;font-size:12.5px;color:var(--tx2);margin-top:4px}
+.legende span{display:inline-flex;align-items:center;gap:7px}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+.d-gruen{background:var(--gruen)}.d-gelb{background:var(--gelb)}.d-rot{background:var(--rot)}
+
+/* Phasen-Detail */
+.phase{border:1px solid var(--li);border-radius:9px;padding:18px 20px;margin:16px 0;background:var(--bg)}
+.phhead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.phnum{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--grau);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+html[data-t="dark"] .phnum{color:#1a1a19}
+.phhead h3{margin:0;font-size:17px;font-weight:700;flex:1}
+.phdesc{margin:2px 0 12px;color:var(--tx)}
+.phgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px}
+@media(max-width:760px){.phgrid{grid-template-columns:1fr}}
+.lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx2)}
+.phgrid p{margin:3px 0 0;font-size:14px}
+.rec{border-radius:8px;padding:14px 16px;margin-top:14px;background:var(--bg2);border-left:5px solid var(--grau)}
+.rec.rot{border-left-color:var(--rot)} .rec.gelb{border-left-color:var(--gelb)} .rec.blau{border-left-color:var(--blau)}
+.rec h4{margin:0 0 6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:10px}
+.rec p{margin:0 0 6px;font-size:14px}
+.rec .why{color:var(--tx2);font-size:13.5px;margin-bottom:0}
+.rec .why b{color:var(--tx)}
+
+/* Blinde Flecken */
+.fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:8px}
+@media(max-width:760px){.fgrid{grid-template-columns:1fr}}
+.fleck{border:1px solid var(--li);border-radius:9px;padding:16px 18px;background:var(--bg2);border-top:4px solid var(--grau)}
+.fleck.rot{border-top-color:var(--rot)}.fleck.gelb{border-top-color:var(--gelb)}.fleck.blau{border-top-color:var(--blau)}
+.fleck h4{margin:0 0 4px;font-size:15.5px;font-weight:700;display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+.fleck p{margin:6px 0 0;font-size:14px}
+.fleck .why{color:var(--tx2);font-size:13.5px}.fleck .why b{color:var(--tx)}
+.toggle{position:fixed;right:16px;bottom:16px;background:var(--grau);color:var(--bg);border:none;
+  border-radius:20px;padding:8px 15px;font-size:12.5px;cursor:pointer;font-family:inherit;opacity:.85}
+footer{padding:40px 0 60px;color:var(--tx2);font-size:13px}
+</style></head><body>
+<div class="credo"><div class="g"></div><div class="s s1"></div><div class="s s2"></div><div class="s s3"></div><div class="s s4"></div></div>
+<header><div class="wrap">
+  <div class="kicker">GBS Campus · Prozesslandschaft · Schüler / Teilnehmer</div>
+  <h1>Aus Sicht des Schülers</h1>
+  <p class="lead">Als Schüler kann ich mich sauber bewerben, meine Kontakt- und Bankdaten selbst pflegen, per Ein-Klick-Link ins nächste Semester überleiten und vergangene Abende selbst als anwesend/nachgearbeitet bestätigen — das ist solide gebaut. Aber genau das, was mein Schulalltag ausmacht, fehlt fast vollständig: Ich sehe meine eigene 80%-Quote nicht (obwohl an ihr für mich als SCHUELER die Prüfungsberechtigung hängt), ich sehe keinen kommenden Stundenplan (nur Vergangenes), ich sehe keinen Cent meines Beitrags (kein Beitrags-/Zahlungsmodell existiert überhaupt, TEILNEHMER hat kein FINANZ_DATEN_LESEN), und Prüfung/Note/Zeugnis — der eigentliche Zweck meiner Schülerschaft — ist im Datenmodell noch nicht einmal angelegt. Praktisch alles Verbindliche läuft über E-Mail, deren Zustellung laut Projektstand nicht gehärtet ist (SPF/DKIM offen); ein In-App-Postfach, in dem ich Nachrichten nachlesen könnte, gibt es nicht. Ich bin als Schüler weitgehend Objekt der Verwaltung, nicht handelnder Nutzer eines Portals.</p>
+  <div class="meta">
+    <div>Software<b>GBS Campus (Stand 30.07.2026)</b></div>
+    <div>Perspektive<b>Schüler / Teilnehmer</b></div>
+    <div>Lesart<b>Farbe = Reifegrad · Empfehlung je Phase begründet</b></div>
+  </div>
+</div></header>
+<div class="wrap">
+  <section>
+    <h2><span class="no">01</span> Die Prozesslandschaft</h2>
+    <p class="sub">Der End-to-End-Weg in 10 Phasen. Die Kopffarbe zeigt, wie gut die Software die Phase heute trägt.</p>
+    <div class="band"><div class="step st-gelb"><div class="stepno">PHASE 1</div><div class="stepname">Bewerbung / Anmeldung</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 2</div><div class="stepname">Warten auf Entscheidung / Aufnahme</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 3</div><div class="stepname">Erster Zugang / Login</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 4</div><div class="stepname">Stammdaten pflegen</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 5</div><div class="stepname">Semesterteilnahme / Überleitung 'bin dabei'</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 6</div><div class="stepname">Unterricht besuchen / Anwesenheit + 80%-Quote</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 7</div><div class="stepname">Beitrag zahlen</div><div class="stepbadge">teilweise</div></div><div class="step st-rot"><div class="stepno">PHASE 8</div><div class="stepname">Prüfung / Zeugnis</div><div class="stepbadge">fehlt</div></div><div class="step st-gelb"><div class="stepno">PHASE 9</div><div class="stepname">Kommunikation / laufender Kontakt</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 10</div><div class="stepname">DSGVO-Auskunft / Austritt</div><div class="stepbadge">teilweise</div></div></div>
+    <div class="legende">
+      <span><span class="dot d-gruen"></span> vorhanden — die Software trägt die Phase</span>
+      <span><span class="dot d-gelb"></span> teilweise — vorhanden, aber mit Lücke</span>
+      <span><span class="dot d-rot"></span> fehlt — die Software leistet hier (noch) nichts</span>
+    </div>
+  </section>
+  <section>
+    <h2><span class="no">02</span> Phasen im Detail — mit Empfehlungen</h2>
+    <p class="sub">Je Phase: was heute passiert, was die Software tut, die Lücke — und die begründete Empfehlung.</p>
+    <div class="phase">
+    <div class="phhead"><span class="phnum">1</span><h3>Bewerbung / Anmeldung</h3></div>
+    <p class="phdesc">Ich fülle das öffentliche Formular unter /anmeldung aus, kann es per Token-Link zwischenspeichern und später fortsetzen, gebe meine Einwilligungen (auch Art. 9, Gemeindezugehörigkeit) und schicke ab. Danach bekomme ich eine Bestätigungsmail (sendeBestaetigung, src/lib/anmeldung.ts Z.382/424).</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Öffentliches, gestaltbares Formular (verwaltung/formulare), Speichern-und-Fortsetzen per Token, Doppel-Anmeldungs-Schutz, Bestätigungsmail an mich + Benachrichtigung der Verwaltung.</p></div>
+      <div><span class="lbl">Lücke</span><p>Nach dem Absenden habe ich KEINE Möglichkeit, den Status meiner Bewerbung einzusehen. Es gibt keine 'Meine Bewerbung'-Seite; die einzige Rückmeldung ist die eine Bestätigungsmail. Kommt sie nicht an (Spam / SPF-DKIM nicht gehärtet), weiß ich nicht, ob meine Anmeldung überhaupt angekommen ist.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Nach dem Absenden eine dauerhafte Statusseite pro Bewerbung anbieten (erreichbar über denselben Fortsetzen-Token), die 'eingereicht / in Prüfung / entschieden' zeigt — unabhängig von der Mailzustellung.</p><p class="why"><b>Warum:</b> Bewerber an einer berufsbegleitenden Schule warten oft wochenlang. Ohne einsehbaren Status entstehen Rückfragen per Telefon/Mail bei der Verwaltung und Unsicherheit, ob die Anmeldung verloren ging — genau das MS-Forms-Problem, das die Software ablösen sollte.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">2</span><h3>Warten auf Entscheidung / Aufnahme</h3></div>
+    <p class="phdesc">Die Verwaltung/Schulleitung entscheidet über meine Anmeldung. Bei Annahme bekomme ich eine Willkommensmail mit Link auf /anmelden (src/app/api/anmeldungen/[id]/entscheiden/route.ts Z.165-178). Bei Ablehnung geht bewusst KEINE automatische Mail raus (Z.180-182).</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Annahme legt Person + Teilnahme an, setzt ggf. Ehepartner-Ermäßigung, protokolliert und meldet der Schulleitung ehrlich zurück, ob die Willkommensmail wirklich versendet wurde (mailGesendet).</p></div>
+      <div><span class="lbl">Lücke</span><p>Als abgelehnter Bewerber erhalte ich per Design gar keine Rückmeldung durch das System — nur, wenn die Schulleitung von Hand schreibt. Vergisst sie es, warte ich unendlich. Als angenommener Bewerber bekomme ich KEINEN direkten Zugangslink, sondern nur einen Verweis auf /anmelden und muss mir den Magic-Link selbst neu anfordern — ein zusätzlicher Schritt, an dem die Mailzustellung erneut hängt.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Ablehnung: verpflichtender (auch manuell auslösbarer) Absage-Schritt mit Nachverfolgung, damit kein Bewerber im Nichts hängt. Annahme: Willkommensmail direkt mit einmaligem Zugangs-/Magic-Link versehen, statt nur auf die Login-Seite zu verweisen.</p><p class="why"><b>Warum:</b> Eine christliche Schule, die Bewerber ohne jede Antwort lässt, beschädigt Vertrauen und Ruf. Und je mehr Mail-abhängige Zwischenschritte bis zum ersten Login, desto mehr Aufnahmen scheitern still an nicht zugestellten Mails.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">3</span><h3>Erster Zugang / Login</h3></div>
+    <p class="phdesc">Ich gehe auf /anmelden, fordere per E-Mail einen Magic-Link an oder setze optional ein Passwort. Bei Problemen gibt es /anmelden/hilfe (Zugang-Hilfe-Formular).</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Magic-Link-Login + optionales Passwort (/meine-daten/passwort-abschnitt), Rate-Limiting am Login, Selbsthilfe-Formular bei Zugangsproblemen (api/zugang-hilfe).</p></div>
+      <div><span class="lbl">Lücke</span><p>Der gesamte Erst-Zugang hängt an genau einem Kanal: E-Mail. Ist die Zustellung nicht scharf (SPF/DKIM laut Projektstand offen) oder landet der Link im Spam, komme ich nicht rein. Das Hilfeformular erzeugt wieder nur einen Vorgang bei der Verwaltung — also erneut Mail/Mensch.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Vor GoLive Mailzustellung härten (SPF/DKIM/DMARC) und im Login klar kommunizieren, wie lange der Link gültig ist und was bei Nicht-Ankunft zu tun ist. Optional: Passwort-Erstvergabe direkt im Willkommens-Flow, damit ich nicht bei jedem Login auf eine Mail warte.</p><p class="why"><b>Warum:</b> Ohne funktionierende Mailzustellung ist ein Magic-Link-only-System für einen Teil der Nutzer schlicht nicht benutzbar — und ältere/technikferne Gemeindeschüler sind hier die Regel, nicht die Ausnahme.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">4</span><h3>Stammdaten pflegen</h3></div>
+    <p class="phdesc">Unter /meine-daten sehe ich meine zur Ausbildung hinterlegten Daten (Name, Geburtsdatum, Gemeinde, Teilnahmeform, Status, Ermäßigung — read-only) und kann Telefon, Adresse, Bankverbindung und (über Bestätigungsweg) E-Mail selbst ändern.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Saubere Trennung änderbar/read-only, IBAN verschlüsselt, E-Mail-Änderung mit Bestätigungslink, Verwaltung wird über jede Änderung informiert. Das ist der reifste Teil aus Schülersicht.</p></div>
+      <div><span class="lbl">Lücke</span><p>Ich gebe hier meine IBAN ein, sehe aber nie, wofür sie verwendet wird — ob/wann/wieviel abgebucht wird (siehe Phase 7). Änderungen an unveränderlichen Feldern (z.B. Namensänderung nach Heirat, Gemeindewechsel) kann ich nur per Verweis 'wende dich an die Schulleitung' anstoßen — es gibt keinen strukturierten Änderungsantrag.</p></div>
+    </div>
+    <div class="rec blau"><h4>Empfehlung <span class="tag t-blau">Niedrig</span></h4><p>Für die read-only-Felder einen einfachen 'Änderung beantragen'-Knopf ergänzen, der einen nachverfolgbaren Vorgang bei der Verwaltung erzeugt, statt den Schüler auf einen externen Kanal zu verweisen.</p><p class="why"><b>Warum:</b> Namens- und Gemeindewechsel kommen im dreijährigen berufsbegleitenden Verlauf real vor. Ein Verweis 'melde dich bei der Schulleitung' bricht den digitalen Prozess und ist genau die Medienbruch-Reibung, die das Portal beseitigen soll.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">5</span><h3>Semesterteilnahme / Überleitung 'bin dabei'</h3></div>
+    <p class="phdesc">Vor dem neuen Semester bekomme ich einen 'Bist du dabei?'-Link (/dabei), bestätige mit einem Klick meine Teilnahme, mit Erinnerungen T-14/-7/-3 (schema Teilnahme, erinnertStufe1-3Am).</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Ein-Klick-Bestätigung per kurzlebigem Token, idempotente Erinnerungsstufen, Aufräumlauf für abgelaufene Links.</p></div>
+      <div><span class="lbl">Lücke</span><p>Ich kann die Überleitung AUSSCHLIESSLICH über den gemailten Link bestätigen. In /meine-daten gibt es keinen Weg, aktiv 'ich bin nächstes Semester dabei' zu sagen, den Bestätigungsstatus zu sehen oder aktiv 'ich pausiere/steige aus' zu melden. Verpasse ich die Mail oder ist der Link abgelaufen, habe ich keinen In-App-Ausweg. Ein 'Ich bin NICHT dabei' (bewusste Abmeldung) ist gar nicht vorgesehen.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Den Überleitungsstatus und einen 'Bin dabei'/'Bin nicht dabei'-Schalter direkt in /meine-daten spiegeln, sodass der gemailte Link nur ein bequemer zusätzlicher Weg ist, nicht der einzige.</p><p class="why"><b>Warum:</b> Die Semesterüberleitung entscheidet über Planung, Raumgröße und Beitrag. Hängt sie an einer einzelnen, evtl. nicht zugestellten Mail mit ablaufendem Link, entstehen Fehlplanungen und stille Abbrüche, die niemand sauber erfassen kann.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">6</span><h3>Unterricht besuchen / Anwesenheit + 80%-Quote</h3></div>
+    <p class="phdesc">Dienstagabends ist Unterricht. Ich möchte wissen, was ansteht, war ich anwesend, und ob ich die 80%-Pflichtquote erreiche. Unter /meine-daten kann ich vergangene Abende selbst als 'anwesend' oder 'nachgearbeitet' bestätigen (anwesenheit-abschnitt.tsx).</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Selbstbestätigung vergangener Abende (ladeEigeneUnterrichtstermine liefert nur beginn&lt;=jetzt), klare Trennung 'selbst bestätigt' vs. 'von der Schule erfasst' (read-only), optimistisches Speichern.</p></div>
+      <div><span class="lbl">Lücke</span><p>Zwei gravierende Lücken: (1) Ich sehe meine eigene 80%-QUOTE NICHT. anwesenheitsquote() wird nur in verwaltung/stundenplan/page.tsx berechnet und angezeigt — für mich als Schüler nirgends. Ich weiß also nicht, ob ich in Prüfungsgefahr bin. (2) Ich sehe KEINEN kommenden Stundenplan — nur vergangene Abende. Welches Fach, welcher Dozent, welcher Termin als Nächstes kommt, erfahre ich im Portal nicht.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>In /meine-daten einen Quoten-Indikator je Teilnahme anzeigen ('X von Y Abenden, Schwelle 80% erfüllt/gefährdet') und die kommenden Unterrichtsabende (Fach, Datum, ggf. Dozent) als Vorschau ausgeben — die Daten (Unterrichtstermin, Kurseinheit) liegen bereits im Modell.</p><p class="why"><b>Warum:</b> Für die Teilnahmeform SCHUELER hängt an der 80%-Quote die Prüfungs-/Zeugnisberechtigung. Ein Schüler, der seine eigene Quote nicht sehen kann, kann nicht gegensteuern (nacharbeiten) — die Schule erzeugt vermeidbare Härtefälle. Und ein Portal ohne 'wann ist der nächste Unterricht' verfehlt den elementarsten Alltagsnutzen.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">7</span><h3>Beitrag zahlen</h3></div>
+    <p class="phdesc">Als Schüler zahle ich einen Semesterbeitrag, evtl. mit Ermäßigung oder als Ehepaar gekoppelt. Ich möchte sehen, was ich schulde, was abgebucht wurde und ob meine Ermäßigung greift.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Praktisch nichts Schülerseitiges. Es gibt nur Grundlagen: Person.beitragLaeuft-Flag, Ermaessigung-Modell, Ehepartner-Kopplung bei der Aufnahme. Ein Beitrags-/Forderungs-/Zahlungsmodell existiert NICHT (schema-Kommentar: Beitragslauf erst ab 0.3). TEILNEHMER hat kein FINANZ_DATEN_LESEN-Recht (seed.ts).</p></div>
+      <div><span class="lbl">Lücke</span><p>Ich gebe meine IBAN ein, sehe aber niemals einen Betrag, eine Fälligkeit, einen Abbuchungsstatus, meine Ermäßigung in Euro oder eine Quittung. Der Beitrag ist für mich ein komplettes Black-Box. Selbst wenn der Beitragslauf in 0.3 kommt: Die Rollenrechte sehen keine Selbstansicht für Teilnehmer vor.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Beim Bau des Beitragslaufs (0.3) von Anfang an eine Schüler-Selbstansicht mitdenken: eigenes FINANZ_DATEN_LESEN_EIGENE-Recht, in /meine-daten ein Beitragsabschnitt mit Betrag, Ermäßigung, Fälligkeit, Zahlungs-/Abbuchungsstatus und Beleg-Download.</p><p class="why"><b>Warum:</b> Geld ist der sensibelste Vertrauenspunkt. Eine IBAN abzugeben, ohne je zu sehen, was damit passiert, ist für Nutzer beunruhigend und erzeugt Rückfragen. Transparenz beim Beitrag reduziert Verwaltungsaufwand und Streit über 'habe ich bezahlt?'.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">8</span><h3>Prüfung / Zeugnis</h3></div>
+    <p class="phdesc">Als SCHUELER (nicht Hörer) ist der ganze Sinn meiner Teilnahme: Prüfungen ablegen und am Ende ein Zeugnis bekommen. Ich möchte Prüfungstermine sehen, mich anmelden, Noten einsehen und mein Zeugnis erhalten.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Nichts. Prüfungen/Noten/Zeugnis sind im Datenmodell noch nicht angelegt (schema.prisma Z.7: 'Pruefungen (M8) ... bewusst noch nicht modelliert'). Die Teilnahmeform-Unterscheidung SCHUELER (mit Prüfung/Zeugnis) vs. HOERER existiert als Enum, hat aber keine Funktion dahinter.</p></div>
+      <div><span class="lbl">Lücke</span><p>Als Schüler kann ich weder Prüfungstermine sehen noch mich anmelden, keine Noten einsehen und kein Zeugnis herunterladen. Der Kernunterschied, der meine Rolle als SCHUELER überhaupt begründet, ist softwareseitig leer.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Prüfungs-/Noten-/Zeugnismodul als eigenes Release priorisieren, mit Schüler-Selbstansicht (eigene Prüfungsergebnisse, Zeugnis-PDF). Bis dahin ehrlich kommunizieren, dass dieser Teil außerhalb der Software läuft.</p><p class="why"><b>Warum:</b> Ohne Prüfung/Zeugnis ist die Software für einen SCHUELER kein Ausbildungsportal, sondern eine Stammdaten- und Anwesenheitsverwaltung. Der prüfungs-/zeugnisbezogene Prozess ist der eigentliche Wert der dreijährigen Ausbildung — er fehlt vollständig.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">9</span><h3>Kommunikation / laufender Kontakt</h3></div>
+    <p class="phdesc">Während der drei Jahre bekomme ich Rundmails und Systemmails; bei Fragen möchte ich der Schule antworten oder Mitteilungen nachlesen können.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Magic-Link-/Systemmails + Rundmail an Verteiler (MAIL_VERTEILER_SENDEN, verwaltungsseitig). E-Mail-Vorlagen sind pflegbar.</p></div>
+      <div><span class="lbl">Lücke</span><p>Es gibt kein In-App-Postfach: Ich kann im Portal keine an mich gerichtete Nachricht nachlesen. Verpasse ich eine Rundmail (Spam, SPF/DKIM offen), ist sie für mich verloren. Und ich habe keinen strukturierten Rückkanal an die Schule außer dem Zugangs-Hilfeformular — für inhaltliche Anliegen (Krankmeldung, Nacharbeit-Frage, Beitragsfrage) gibt es keinen Weg im System.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Mindestens ein lesendes In-App-Postfach (Archiv aller an mich versendeten System-/Rundmails) ergänzen, damit Kommunikation nicht allein von der Mailzustellung abhängt. Mittelfristig einen einfachen Rückkanal für inhaltliche Anliegen.</p><p class="why"><b>Warum:</b> Wenn 100% der Kommunikation über einen nicht gehärteten Mailkanal läuft und es kein Archiv gibt, gehen wichtige Mitteilungen (Terminverschiebung, Ausfall, Beitrag) für einzelne Schüler still verloren — mit realen Folgen für Anwesenheitsquote und Organisation.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">10</span><h3>DSGVO-Auskunft / Austritt</h3></div>
+    <p class="phdesc">Am Ende oder bei Abbruch möchte ich meine gespeicherten Daten einsehen (Art. 15), ggf. Löschung verlangen (Art. 17) und die Schule verlassen.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Datenauskunft-PDF (Art. 15) und Anonymisierung statt Löschung (Art. 17) sind gebaut. Die Auskunft wird aber von der Verwaltung erzeugt (verwaltung/personen), ich rufe sie nur über einen Token-Link ab (/auskunft/token). Anonymisierung ist Schulleiter-only.</p></div>
+      <div><span class="lbl">Lücke</span><p>Als Schüler kann ich meine Auskunft NICHT selbst anstoßen — ich muss die Verwaltung bitten, die den Vorgang erzeugt. In /meine-daten gibt es keinen 'Meine Daten anfordern'- und keinen 'Löschung beantragen'-Knopf. Es gibt auch KEINEN Self-Service-Austritt: 'Ich verlasse die Schule' ist ausschließlich eine Verwaltungs-/Schulleiter-Aktion (StatusWechsel) — ich habe keinen Weg, das im Portal zu erklären.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>In /meine-daten Selbstbedienungs-Knöpfe ergänzen: 'Datenauskunft anfordern' (erzeugt den Vorgang, den heute die Verwaltung von Hand anstößt) und 'Teilnahme beenden / Austritt melden' (erzeugt einen nachverfolgbaren Antrag an die Verwaltung).</p><p class="why"><b>Warum:</b> Die DSGVO gewährt das Auskunfts- und Löschrecht der betroffenen Person selbst. Wenn der Schüler es nur über einen Umweg durch die Verwaltung ausüben kann, ist der Prozess weder betroffenenfreundlich noch nachweissicher — und ein fehlender Austrittsweg führt zu 'Karteileichen' im aktiven Bestand.</p></div>
+  </div>
+  </section>
+  <section>
+    <h2><span class="no">03</span> Blinde Flecken</h2>
+    <p class="sub">Was für diese Rolle fehlt oder übersehen wird — mit Empfehlung und Begründung.</p>
+    <div class="fgrid"><div class="fleck rot">
+    <h4><span>Ich sehe meine eigene 80%-Quote nicht</span><span class="tag t-rot">Schüler</span></h4>
+    <p>Die Anwesenheitsquote (anwesenheitsquote(), src/lib/stundenplan.ts) wird ausschließlich in der Verwaltungsansicht (verwaltung/stundenplan/page.tsx) berechnet und angezeigt. In /meine-daten sehe ich nur eine Liste vergangener Abende, aber keine Kennzahl, ob ich die 80%-Schwelle erreiche oder gefährde.</p>
+    <p><b>Empfehlung:</b> Quoten-Indikator je Teilnahme in /meine-daten anzeigen (teilgenommen/gesamt, Schwelle erfüllt ja/nein/gefährdet).</p>
+    <p class="why"><b>Warum:</b> Für SCHUELER hängt die Prüfungsberechtigung an dieser Quote. Ohne Sicht kann ich nicht gegensteuern (nacharbeiten), und die Schule produziert vermeidbare Härtefälle.</p>
+  </div><div class="fleck rot">
+    <h4><span>Beitrag ist für mich ein Black-Box (kein Modell, keine Sicht)</span><span class="tag t-rot">Schüler</span></h4>
+    <p>Es existiert kein Beitrags-/Forderungs-/Zahlungsmodell in der Datenbank (nur beitragLaeuft-Flag + Ermaessigung). TEILNEHMER hat kein FINANZ_DATEN_LESEN-Recht. Ich gebe eine IBAN ein, sehe aber nie Betrag, Ermäßigung in Euro, Fälligkeit, Abbuchung oder Beleg.</p>
+    <p><b>Empfehlung:</b> Beim 0.3-Beitragslauf von Beginn an eine Schüler-Selbstansicht (eigenes Leserecht + Beitragsabschnitt in /meine-daten) mitbauen.</p>
+    <p class="why"><b>Warum:</b> Eine IBAN ohne jede Transparenz über ihre Verwendung untergräbt Vertrauen und erzeugt genau die 'habe ich bezahlt?'-Rückfragen, die die Software einsparen soll.</p>
+  </div><div class="fleck rot">
+    <h4><span>Prüfung/Note/Zeugnis existiert für mich gar nicht</span><span class="tag t-rot">Schüler</span></h4>
+    <p>Kein Prüfungs-, Noten- oder Zeugnismodell im Schema (schema.prisma Z.7). Die Teilnahmeform SCHUELER (mit Prüfung/Zeugnis) ist als Enum vorhanden, aber ohne jede Funktion. Ich kann weder Prüfungstermine sehen noch Noten einsehen noch ein Zeugnis erhalten.</p>
+    <p><b>Empfehlung:</b> Prüfungs-/Zeugnismodul mit Schüler-Selbstansicht als eigenes Release priorisieren; bis dahin klar kommunizieren, dass dieser Teil außerhalb der Software läuft.</p>
+    <p class="why"><b>Warum:</b> Das ist der eigentliche Ausbildungszweck für einen SCHUELER. Ohne ihn ist das System nur Stammdaten- und Anwesenheitsverwaltung, kein Ausbildungsportal.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Kein Blick nach vorn: kein kommender Stundenplan, kein Material</span><span class="tag t-gelb">Schüler</span></h4>
+    <p>ladeEigeneUnterrichtstermine (stundenplan-io.ts) liefert nur Abende mit beginn&lt;=jetzt. Zukünftige Termine, Fächer, Dozenten und Kursmaterial sehe ich als Schüler nirgends. Kursmaterial/Inhalte sind nicht gebaut.</p>
+    <p><b>Empfehlung:</b> Kommende Unterrichtsabende (Datum, Fach, ggf. Dozent) als Vorschau in /meine-daten ausgeben — die Daten liegen bereits vor. Materialbereich später ergänzen.</p>
+    <p class="why"><b>Warum:</b> 'Wann ist der nächste Unterricht und worum geht es' ist der elementarste Alltagsnutzen eines Schulportals — er fehlt komplett.</p>
+  </div><div class="fleck rot">
+    <h4><span>Alles Verbindliche hängt an nicht gehärteter E-Mail, kein In-App-Postfach</span><span class="tag t-rot">Schüler</span></h4>
+    <p>Zugang (Magic-Link), Aufnahme, Semesterüberleitung, Rundmails, DSGVO-Auskunft-Link — alles läuft über E-Mail, deren Zustellung laut Projektstand nicht scharf ist (SPF/DKIM offen), und der Mailer verwirft still, wenn SMTP nicht konfiguriert ist (mailer.ts). Ein In-App-Postfach zum Nachlesen gibt es nicht.</p>
+    <p><b>Empfehlung:</b> Vor GoLive Mailzustellung härten (SPF/DKIM/DMARC) und ein lesendes In-App-Postfach (Archiv der an mich gesendeten Mails) ergänzen, damit kritische Vorgänge nicht single-channel sind.</p>
+    <p class="why"><b>Warum:</b> Bei technikfernen Gemeindeschülern führt ein reiner, unzuverlässiger Mailkanal dazu, dass einzelne Nutzer weder reinkommen noch Mitteilungen sehen — mit direkten Folgen für Anwesenheit und Organisation.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Kein Self-Service für Austritt und DSGVO-Auskunft</span><span class="tag t-gelb">Schüler</span></h4>
+    <p>Die Datenauskunft (Art. 15) stößt die Verwaltung an, ich rufe sie nur per Token ab; Anonymisierung ist Schulleiter-only. In /meine-daten gibt es weder 'Auskunft anfordern' noch 'Löschung beantragen' noch 'Austritt melden'. Auch Änderungen an read-only-Stammdaten kann ich nur per Verweis an die Schulleitung anstoßen.</p>
+    <p><b>Empfehlung:</b> Selbstbedienungs-Anträge in /meine-daten ergänzen: Auskunft anfordern, Löschung/ Austritt melden, Stammdaten-Änderung beantragen — jeweils als nachverfolgbarer Vorgang.</p>
+    <p class="why"><b>Warum:</b> Die DSGVO-Rechte stehen der betroffenen Person zu; ein Umweg über die Verwaltung ist weder betroffenenfreundlich noch nachweissicher. Ein fehlender Austrittsweg erzeugt Karteileichen im aktiven Bestand.</p>
+  </div><div class="fleck rot">
+    <h4><span>Prüfungen, Noten und Zeugnis fehlen komplett</span><span class="tag t-rot">Fachlichkeit</span></h4>
+    <p>Das Teilnahmeform-Enum in prisma/schema.prisma (Zeile 139-143) definiert SCHUELER ausdrücklich als 'mit Pruefung, mit Zeugnis' und HOERER als 'ohne'. Es gibt aber im gesamten Datenmodell KEIN Modell Pruefung/Note/Zeugnis, in seed.ts KEIN entsprechendes Recht (die RECHTE-Liste kennt nur PERSON/ANMELDUNG/FINANZEN/KOMMUNIKATION/SYSTEM) und in src/app/** KEINE Seite dafür. Der prüfungspflichtige Kern einer 3-jährigen Bibelschule mit Zeugnisabschluss ist nicht abgebildet.</p>
+    <p><b>Empfehlung:</b> Datenmodell für Prüfungsleistungen je Kurseinheit/Fach und Zeugnisgenerierung am Ausbildungsende einführen; Recht PRUEFUNG_VERWALTEN/ZEUGNIS_ERSTELLEN und eine Verwaltungs-/Schulleiter-Ansicht ergänzen. Klären, ob Noten je Abend, je Fach oder je Lehrjahr erfasst werden.</p>
+    <p class="why"><b>Warum:</b> Ohne Prüfung und Zeugnis erfüllt die Software den definierten Zweck für die Teilnahmeform SCHUELER nicht — genau das, was Schüler von Hörern unterscheidet, existiert nur als Enum-Kommentar, nicht als Funktion.</p>
+  </div><div class="fleck rot">
+    <h4><span>Schüler erfährt nie, ob er unter der 80%-Quote liegt</span><span class="tag t-rot">Prozess</span></h4>
+    <p>In src/app/meine-daten/anwesenheit-abschnitt.tsx bestätigt der Schüler pro Abend 'anwesend/nachgearbeitet', sieht aber NIRGENDS seinen aktuellen Anwesenheitsprozentsatz oder eine Warnung. Die 80%-Berechnung (Einstellung ANWESENHEIT_MINDEST_PROZENT) und die Quotenanzeige existieren laut Code nur Verwaltungs-seitig. Der Schüler, dessen Zeugnis-/Prüfungszulassung genau an dieser Schwelle hängt, hat keinen Blick auf seinen eigenen Stand.</p>
+    <p><b>Empfehlung:</b> In 'Meine Anwesenheit' die aktuelle Quote je laufendem Semester anzeigen und bei Unterschreitung (bzw. Gefährdung) einen deutlichen, freundlichen Hinweis geben — idealerweise plus proaktive Mail, sobald rechnerisch nicht mehr erreichbar.</p>
+    <p class="why"><b>Warum:</b> Eine Quote, die über Zeugnis/Zulassung entscheidet, muss für den Betroffenen sichtbar sein — sonst erfährt er vom Scheitern erst, wenn es zu spät zum Nacharbeiten ist.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Kein Ort für Kursmaterial und Unterrichtsinhalte</span><span class="tag t-gelb">Fachlichkeit</span></h4>
+    <p>Das Datenmodell hat Fach, Kurseinheit und Unterrichtstermin (mit optionalem 'thema'), aber kein Modell für Skripte, Handouts oder Downloads. Schüler haben keinen Ort, um Unterlagen zum jeweiligen Abend/Fach abzurufen, Dozenten keinen, sie bereitzustellen.</p>
+    <p><b>Empfehlung:</b> Einfache Materialablage je Kurseinheit/Termin (Datei-Upload mit den bestehenden Härtungen: Magic-Bytes, 10-MB-Grenze, Path-Traversal-Schutz), sichtbar für Teilnehmer des jeweiligen Semesters.</p>
+    <p class="why"><b>Warum:</b> Bibelschulunterricht lebt von Textgrundlagen und Skripten; ohne Ablage läuft der Materialfluss weiter über private E-Mail-Verteiler an der Software vorbei.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Teilnehmer kann eigenen Beitrag/Ermäßigung nicht einsehen</span><span class="tag t-gelb">Prozess</span></h4>
+    <p>Das Recht FINANZ_DATEN_LESEN ('Beitragsstatus sehen') haben laut seed.ts nur SCHULLEITER und VERWALTUNG. Teilnehmer haben nur PERSON_LESEN_EIGENE/BEARBEITEN_EIGENE. Der Schüler sieht also nicht, welcher Beitrag für ihn gilt, ob eine Ermäßigung (z.B. Ehepartner-Kopplung) greift oder was offen ist. Der Beitragseinzug selbst ist ohnehin erst für 0.3 vorgesehen.</p>
+    <p><b>Empfehlung:</b> Zusammen mit dem Beitragslauf (0.3) eine Selbstansicht in 'Meine Daten' vorsehen: aktueller Beitrag, angewandte Ermäßigung, Zahlungsstatus.</p>
+    <p class="why"><b>Warum:</b> Wer einen Beitrag zahlt, hat ein berechtigtes Interesse zu sehen, was und warum — sonst landet jede Rückfrage telefonisch bei der Verwaltung.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Terminausfall/-verschiebung wird nicht abgebildet oder kommuniziert</span><span class="tag t-gelb">Kommunikation</span></h4>
+    <p>Unterrichtstermin (schema.prisma Zeile 400) hat beginn/ende/thema, aber kein Feld für 'fällt aus' oder 'verschoben' und keinen Benachrichtigungsweg. Fällt ein Dienstagabend aus (Krankheit des Dozenten, Feiertag), gibt es weder einen Status noch eine automatische Info an die betroffenen Teilnehmer.</p>
+    <p><b>Empfehlung:</b> Termin-Status (findet statt / fällt aus / verschoben) plus optionale automatische Info an die Semester-Teilnehmer ergänzen; Auswirkung auf die Anwesenheits-Grundgesamtheit (zählt ein ausgefallener Abend in die 80%?) definieren.</p>
+    <p class="why"><b>Warum:</b> Ein ausgefallener Abend, von dem niemand rechtzeitig erfährt, kostet Vertrauen und verzerrt zudem die Quotenberechnung, wenn er weiter als Pflichttermin zählt.</p>
+  </div><div class="fleck blau">
+    <h4><span>Keine Teilnahmebescheinigung — besonders für Hörer</span><span class="tag t-blau">Fachlichkeit</span></h4>
+    <p>Hörer bekommen laut Teilnahmeform-Enum bewusst KEIN Zeugnis. Es gibt aber auch keinen Weg, ihnen (oder Schülern zwischendurch) eine einfache Teilnahmebescheinigung auszustellen — kein Modell, keine PDF-Erzeugung dafür (die vorhandene PDF-Logik in src/lib/ dient Honorarbeleg und Art.-15-Auskunft).</p>
+    <p><b>Empfehlung:</b> Einfache, generierbare Teilnahmebescheinigung je Semester/Ausbildung (Name, Zeitraum, ggf. Stundenumfang) für Hörer und auf Wunsch für Schüler.</p>
+    <p class="why"><b>Warum:</b> Teilnehmer brauchen gelegentlich einen Nachweis (Arbeitgeber, Gemeinde); ohne Funktion wird das manuell in Word erledigt und umgeht die Software.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Gesamter Zugang und Betrieb hängen an ungesicherter Mailzustellung</span><span class="tag t-gelb">Sicherheit</span></h4>
+    <p>Magic-Link ist laut Vorlagentext der 'einzige Weg ins Portal', und alle Benachrichtigungen (Aufnahme, Datenänderung, Passwort-Notbremse, Semesterüberleitung, Art.-15-Auskunft) laufen über E-Mail. Laut Projektstand ist SPF/DKIM noch offen und ein In-App-Postfach fehlt. Die ZUGANG_HILFE-Meldung ist die einzige Notbremse.</p>
+    <p><b>Empfehlung:</b> Vor GoLive Mailzustellung scharf stellen (SPF/DKIM/DMARC), Zustellfehler sichtbar machen (EmailVersand-Status auswerten statt Fire-and-Forget) und den Hilfe-Weg für Ausgesperrte prominent halten.</p>
+    <p class="why"><b>Warum:</b> Wenn der einzige Zugangsweg im Spam landet, ist der Nutzer ausgesperrt und mehrere Sicherheits-Notbremsen (Passwort-/E-Mail-Änderungshinweis) erreichen ihn nie — das ist ein Single Point of Failure für Zugang und Kontosicherheit.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Admin kann sich selbst jede Rolle geben — keine Funktionstrennung erzwungen</span><span class="tag t-gelb">Sicherheit</span></h4>
+    <p>Die Rollen-Route (personen/[id]/rollen/route.ts) prüft ausschließlich BENUTZER_VERWALTEN und setzt dann die Rollen jeder Person auf eine beliebige Menge. Die ADMIN-Rolle besitzt BENUTZER_VERWALTEN (seed.ts Z. 178). Ein Admin kann sich damit selbst — oder einem beliebigen Teilnehmer — SCHULLEITER/VERWALTUNG zuweisen und so an alle IBANs, Honorare, Anonymisierung und den Mailverteiler kommen. Die Beschreibung „Administrator … trifft ausdruecklich keine fachlichen Entscheidungen" (seed.ts Z. 174) ist reine Policy, technisch nicht durchgesetzt. Einzige Kontrolle ist detektivisch: der Audit-Eintrag ROLLEN_GEAENDERT (append-only) — den aber ebenfalls nur ADMIN/SCHULLEITER lesen dürfen (AUDIT_LESEN). Es gibt keine präventive Sperre gegen Selbst-Eskalation.</p>
+    <p><b>Empfehlung:</b> Bewusst entscheiden, ob das akzeptiert wird (kleiner Betrieb, ein technischer Admin) oder ob eine Sperre nötig ist, z. B.: ADMIN darf sich nicht selbst fachliche Rollen zuweisen, oder fachliche Rollenänderungen erfordern eine zweite Person (Vier-Augen). Mindestens: die Selbst-Eskalation im Audit gezielt überwachen und in der Übergabe als bekanntes Rest-Risiko benennen.</p>
+    <p class="why"><b>Warum:</b> Die Trennung von technischer und fachlicher Verantwortung ist im Seed-Design ausdrücklich gewollt, aber nur beschriftet, nicht erzwungen. Bei sensiblen Daten (IBAN, Art.-9-Religionsangaben, Anonymisierung) sollte die im System behauptete Funktionstrennung nicht allein an der Disziplin des Admins hängen.</p>
+  </div><div class="fleck blau">
+    <h4><span>Art. 9 (Religionszugehörigkeit): Einwilligungstext und Verarbeitungsverzeichnis prüfen</span><span class="tag t-blau">DSGVO</span></h4>
+    <p>Schon die Teilnahme an einer Bibelschule ist eine Angabe zur Religionszugehörigkeit (Art. 9 DSGVO) — das Team behandelt das im Code vorbildlich (Timing-Schutz in magic-link.ts/passwort, Voll-Scrub der Anmeldeantworten inkl. Art.-9-Angaben in anonymisierung.ts). Einwilligungen werden bei der Anmeldung erfasst (einwilligungsText/EINWILLIGUNGEN im seed). Offen ist eine reine Dokumentations-/Rechtsgrundlagenfrage, nicht am Code prüfbar: Deckt der Einwilligungstext ausdrücklich die Verarbeitung besonderer Kategorien (Art. 9 Abs. 2 lit. a) ab, und ist der IBAN-per-Mail-Weg ans DMS im Verzeichnis von Verarbeitungstätigkeiten benannt?</p>
+    <p><b>Empfehlung:</b> Mit dem Datenschutzverantwortlichen vor GoLive gegenlesen: (1) explizite Art.-9-Einwilligung im Formulartext, (2) DMS-Mailweg + IBAN-Speicherung im VVT, (3) Löschfristen der Aufräum-Regler (AUFRAEUMEN_*_TAGE) mit der Datenschutzerklärung abgleichen.</p>
+    <p class="why"><b>Warum:</b> Die technische Umsetzung ist stark; das Rest-Risiko liegt in der rechtlichen Dokumentation. Das lässt sich nicht am Code entscheiden und gehört ausdrücklich an die Verantwortlichen adressiert, damit es nicht zwischen Technik und Organisation verloren geht.</p>
+  </div></div>
+  </section>
+  <footer>GBS Campus · Prozesslandschaft Schüler / Teilnehmer · maschinell erzeugt aus einer kritischen Mehr-Agenten-Analyse am Code, 30.07.2026. Empfehlungen sind Vorschläge zur Diskussion, keine Beschlüsse.</footer>
+</div>
+<button class="toggle" onclick="var h=document.documentElement;h.dataset.t=h.dataset.t==='dark'?'light':'dark'">hell / dunkel</button>
+</body></html>

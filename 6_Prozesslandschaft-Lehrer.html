@@ -1,0 +1,271 @@
+<!doctype html><html lang="de" data-t="light"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aus Sicht des Dozenten — GBS Campus Prozesslandschaft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+:root{
+  --grau:#575756; --grau-hell:#DADADA;
+  --gelb:#FBC900; --gruen:#6BAA24; --rot:#E2001A; --blau:#009AC6;
+  --bg:#ffffff; --bg2:#f6f6f5; --bg3:#efefee;
+  --tx:#2b2b2b; --tx2:#6b6b6a; --li:#e2e2e0; --code:#f3f3f1;
+}
+html[data-t="dark"]{
+  --bg:#1a1a19; --bg2:#232322; --bg3:#2c2c2a;
+  --tx:#ececeb; --tx2:#a3a3a0; --li:#3a3a38; --code:#232322; --grau:#c9c9c7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:Montserrat,Arial,Helvetica,sans-serif;font-weight:400;
+  font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+a{color:var(--grau);text-underline-offset:3px}
+.credo{display:flex;height:9px;width:100%}
+.credo .g{flex:1 1 50%;background:var(--grau)}
+.credo .s{flex:1 1 12.5%}
+.credo .s1{background:var(--gelb)}.credo .s2{background:var(--gruen)}
+.credo .s3{background:var(--rot)}.credo .s4{background:var(--blau)}
+header{background:var(--bg2);border-bottom:1px solid var(--li);padding:44px 0 32px}
+.kicker{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx2);font-weight:600;margin-bottom:12px}
+h1{font-size:36px;line-height:1.16;margin:0 0 14px;font-weight:700;letter-spacing:-.02em}
+.lead{font-size:17px;line-height:1.6;max-width:84ch}
+.meta{display:flex;flex-wrap:wrap;gap:26px;margin-top:24px;font-size:13px;color:var(--tx2)}
+.meta b{display:block;color:var(--tx);font-weight:600;font-size:14px;margin-top:2px}
+section{padding:44px 0 8px;border-top:1px solid var(--li)}
+section:first-of-type{border-top:none}
+h2{font-size:24px;font-weight:700;letter-spacing:-.015em;margin:0 0 6px;display:flex;align-items:baseline;gap:14px}
+h2 .no{font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:.08em}
+.sub{color:var(--tx2);font-size:15px;margin:0 0 22px;max-width:82ch}
+strong{font-weight:600}
+code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--code);padding:2px 6px;border-radius:3px}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:3px;color:#fff;line-height:1.5;white-space:nowrap}
+.t-rot{background:var(--rot)}.t-gelb{background:var(--gelb);color:#3a2f00}.t-blau{background:var(--blau)}.t-grau{background:var(--grau)}
+
+/* Prozess-Band (Landschaft) */
+.band{display:flex;gap:0;overflow-x:auto;padding:6px 2px 16px;margin:6px 0 10px}
+.step{flex:0 0 auto;min-width:150px;max-width:170px;background:var(--bg2);border:1px solid var(--li);
+  border-top:4px solid var(--grau);border-radius:8px;padding:12px 13px;margin-right:22px;position:relative}
+.step.st-rot{border-top-color:var(--rot)} .step.st-gelb{border-top-color:var(--gelb)} .step.st-gruen{border-top-color:var(--gruen)}
+.step:not(:last-child)::after{content:"›";position:absolute;right:-17px;top:50%;transform:translateY(-50%);
+  font-size:22px;color:var(--tx2);font-weight:700}
+.stepno{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.06em}
+.stepname{font-size:13.5px;font-weight:600;margin:3px 0 8px;line-height:1.3}
+.stepbadge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.st-rot .stepbadge{color:var(--rot)} .st-gelb .stepbadge{color:#a07a00} .st-gruen .stepbadge{color:var(--gruen)}
+.legende{display:flex;gap:20px;flex-wrap:wrap;font-size:12.5px;color:var(--tx2);margin-top:4px}
+.legende span{display:inline-flex;align-items:center;gap:7px}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+.d-gruen{background:var(--gruen)}.d-gelb{background:var(--gelb)}.d-rot{background:var(--rot)}
+
+/* Phasen-Detail */
+.phase{border:1px solid var(--li);border-radius:9px;padding:18px 20px;margin:16px 0;background:var(--bg)}
+.phhead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.phnum{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--grau);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+html[data-t="dark"] .phnum{color:#1a1a19}
+.phhead h3{margin:0;font-size:17px;font-weight:700;flex:1}
+.phdesc{margin:2px 0 12px;color:var(--tx)}
+.phgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px}
+@media(max-width:760px){.phgrid{grid-template-columns:1fr}}
+.lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx2)}
+.phgrid p{margin:3px 0 0;font-size:14px}
+.rec{border-radius:8px;padding:14px 16px;margin-top:14px;background:var(--bg2);border-left:5px solid var(--grau)}
+.rec.rot{border-left-color:var(--rot)} .rec.gelb{border-left-color:var(--gelb)} .rec.blau{border-left-color:var(--blau)}
+.rec h4{margin:0 0 6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:10px}
+.rec p{margin:0 0 6px;font-size:14px}
+.rec .why{color:var(--tx2);font-size:13.5px;margin-bottom:0}
+.rec .why b{color:var(--tx)}
+
+/* Blinde Flecken */
+.fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:8px}
+@media(max-width:760px){.fgrid{grid-template-columns:1fr}}
+.fleck{border:1px solid var(--li);border-radius:9px;padding:16px 18px;background:var(--bg2);border-top:4px solid var(--grau)}
+.fleck.rot{border-top-color:var(--rot)}.fleck.gelb{border-top-color:var(--gelb)}.fleck.blau{border-top-color:var(--blau)}
+.fleck h4{margin:0 0 4px;font-size:15.5px;font-weight:700;display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+.fleck p{margin:6px 0 0;font-size:14px}
+.fleck .why{color:var(--tx2);font-size:13.5px}.fleck .why b{color:var(--tx)}
+.toggle{position:fixed;right:16px;bottom:16px;background:var(--grau);color:var(--bg);border:none;
+  border-radius:20px;padding:8px 15px;font-size:12.5px;cursor:pointer;font-family:inherit;opacity:.85}
+footer{padding:40px 0 60px;color:var(--tx2);font-size:13px}
+</style></head><body>
+<div class="credo"><div class="g"></div><div class="s s1"></div><div class="s s2"></div><div class="s s3"></div><div class="s s4"></div></div>
+<header><div class="wrap">
+  <div class="kicker">GBS Campus · Prozesslandschaft · Lehrer / Dozent</div>
+  <h1>Aus Sicht des Dozenten</h1>
+  <p class="lead">Ich bin Dozent und verantworte laut Rollenbeschreibung "einen ganzen Kurs" — im Code aber kann ich als Dozent buchstäblich nichts, was einen Dozenten ausmacht. Meine Rolle (prisma/seed.ts:258) trägt exakt dieselben zwei Rechte wie ein Schüler (PERSON_LESEN_EIGENE, PERSON_BEARBEITEN_EIGENE) — mehr nicht. Ich sehe meinen eigenen Stundenplan nicht, kann keine Anwesenheit erfassen, sehe mein Honorar nicht und habe keinen Kanal, um mit der Schule zu kommunizieren. Die Software behandelt mich als Datenobjekt, das die Verwaltung Terminen zuordnet und abrechnet — nicht als handelnden Nutzer. Für einen echten Schulbetrieb ist das der größte blinde Fleck: der Kern-Arbeitsablauf des Lehrpersonals findet in dieser Software überhaupt nicht statt.</p>
+  <div class="meta">
+    <div>Software<b>GBS Campus (Stand 30.07.2026)</b></div>
+    <div>Perspektive<b>Dozent / Lehrer</b></div>
+    <div>Lesart<b>Farbe = Reifegrad · Empfehlung je Phase begründet</b></div>
+  </div>
+</div></header>
+<div class="wrap">
+  <section>
+    <h2><span class="no">01</span> Die Prozesslandschaft</h2>
+    <p class="sub">Der End-to-End-Weg in 10 Phasen. Die Kopffarbe zeigt, wie gut die Software die Phase heute trägt.</p>
+    <div class="band"><div class="step st-gelb"><div class="stepno">PHASE 1</div><div class="stepname">Ich werde als Dozent angelegt</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 2</div><div class="stepname">Ich melde mich zum ersten Mal an</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 3</div><div class="stepname">Semestervorbereitung — welches Fach, welche Abende habe ich?</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 4</div><div class="stepname">Meinen Stundenplan / meine Termine sehen</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 5</div><div class="stepname">Unterricht halten — Kursmaterial und Inhalte</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 6</div><div class="stepname">Anwesenheit der Schüler erfassen</div><div class="stepbadge">teilweise</div></div><div class="step st-rot"><div class="stepno">PHASE 7</div><div class="stepname">Prüfung, Noten, Zeugnis</div><div class="stepbadge">fehlt</div></div><div class="step st-gelb"><div class="stepno">PHASE 8</div><div class="stepname">Mein Honorar sehen und abrechnen</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 9</div><div class="stepname">Auszahlung und Zahlungsbeleg</div><div class="stepbadge">teilweise</div></div><div class="step st-gelb"><div class="stepno">PHASE 10</div><div class="stepname">Kommunikation mit Schule und Schülern</div><div class="stepbadge">teilweise</div></div></div>
+    <div class="legende">
+      <span><span class="dot d-gruen"></span> vorhanden — die Software trägt die Phase</span>
+      <span><span class="dot d-gelb"></span> teilweise — vorhanden, aber mit Lücke</span>
+      <span><span class="dot d-rot"></span> fehlt — die Software leistet hier (noch) nichts</span>
+    </div>
+  </section>
+  <section>
+    <h2><span class="no">02</span> Phasen im Detail — mit Empfehlungen</h2>
+    <p class="sub">Je Phase: was heute passiert, was die Software tut, die Lücke — und die begründete Empfehlung.</p>
+    <div class="phase">
+    <div class="phhead"><span class="phnum">1</span><h3>Ich werde als Dozent angelegt</h3></div>
+    <p class="phdesc">Die Verwaltung legt mich als Person an und gibt mir die Rolle DOZENT (Benutzerverwaltung, api/personen/[id]/rollen/route.ts). Ich existiere jetzt als Konto mit E-Mail-Adresse.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Person anlegen + Rollen-Zuweisung über Recht BENUTZER_VERWALTEN vorhanden; DOZENT ist als Rolle geseedet (seed.ts:253) und laut aktivAbRelease seit 0.2 aktiv.</p></div>
+      <div><span class="lbl">Lücke</span><p>Beim Anlegen wird nichts Dozenten-Spezifisches erfasst: kein Fach, dem ich zugeordnet bin, keine Honorarvereinbarung mit mir, keine Angabe zur steuerlichen Behandlung (Übungsleiterpauschale/Kleinunternehmer). Technisch bin ich von einem Schüler nicht unterscheidbar außer durch das Rollen-Label.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Beim Anlegen eines Dozenten eine fachliche Zuordnung (welche Kurseinheit/welches Fach) sowie dozentenbezogene Stammdaten ermöglichen, statt die Fachbindung nur implizit über die spätere Termin-Zuordnung entstehen zu lassen.</p><p class="why"><b>Warum:</b> Die Rollenbeschreibung verspricht 'Rechte sind auf das eigene Fach begrenzt' (seed.ts:255), aber im Datenmodell existiert keine Dozent-zu-Fach-Bindung — nur dozentId je Einzeltermin (schema.prisma:415). Das Versprechen ist damit im Code nicht eingelöst.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">2</span><h3>Ich melde mich zum ersten Mal an</h3></div>
+    <p class="phdesc">Ich bekomme einen Magic-Link, klicke ihn und lande im Portal. Ich erwarte, hier meine Kurse, Termine und Aufgaben als Dozent zu sehen.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Magic-Link-Login (+ optional Passwort) funktioniert für alle Konten. Nach Login greift die Verzweigung in verwaltung/page.tsx:17.</p></div>
+      <div><span class="lbl">Lücke</span><p>Weil ich LESEN_EIGENE, aber nicht LESEN_ALLE habe, werde ich nach /meine-daten umgeleitet — exakt dieselbe Seite wie ein Schüler. Dort sehe ich nur meine eigene Akte (Adresse, Bank, Status). Es gibt keinen Hinweis, keinen Menüpunkt, keine Kachel, die mich als Dozent adressiert. Für mich sieht die Software aus, als hätte ich mich falsch angemeldet.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Eine eigene Dozenten-Startseite (z. B. /dozent) mit meinen Terminen, meinem Fach und Aufgaben; die Verzweigung nach Login muss die Rolle DOZENT erkennen und dorthin führen, statt sie mit einem Schüler gleichzusetzen.</p><p class="why"><b>Warum:</b> Der erste Eindruck entscheidet über Akzeptanz. Ein Dozent, der nach dem Login nur 'Meine Daten' sieht, hält das System für nicht für ihn gemacht und weicht auf E-Mail/Telefon aus — dann bringt die Software für den Unterrichtsbetrieb null Nutzen.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">3</span><h3>Semestervorbereitung — welches Fach, welche Abende habe ich?</h3></div>
+    <p class="phdesc">Vor Semesterbeginn will ich wissen: An welchen Dienstagabenden unterrichte ich, welches Fach/Thema, welcher Raum, welcher Jahrgang. Ich will meine Vorbereitung planen.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Die Verwaltung ordnet mich im Stundenplan einzelnen Abenden zu (dozentId auf Unterrichtstermin, stundenplan-client.tsx, api/stundenplan/termine/[id]). Die Zuordnung existiert also — aber ausschließlich in der Verwaltungsansicht.</p></div>
+      <div><span class="lbl">Lücke</span><p>Ich als Dozent kann diese Zuordnung nicht sehen. Die Stundenplan-Seite ist an SEMESTER_VERWALTEN gebunden (verwaltung/page.tsx:68), das ich nicht habe. Ich erfahre meine eigenen Termine nur, wenn die Verwaltung sie mir per E-Mail/Telefon mitteilt — außerhalb des Systems.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Read-only-Ansicht meines eigenen Semesterplans für Dozenten: nur meine Termine (dozentId == ich), mit Fach/Thema/Datum. Dafür genügt ein neues, eng gescoptes Recht wie EIGENE_TERMINE_LESEN.</p><p class="why"><b>Warum:</b> Die Daten liegen bereits vollständig vor (Relation dozentTermine, schema.prisma:213) — es fehlt nur eine gescopte Leseansicht. Ohne sie bleibt der zentrale Planungsschritt des Dozenten ein manueller Zettel-/Mail-Prozess neben der Software.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">4</span><h3>Meinen Stundenplan / meine Termine sehen</h3></div>
+    <p class="phdesc">Während des laufenden Semesters will ich jederzeit nachschauen: Wann ist mein nächster Abend, was steht an, hat sich etwas verschoben?</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Es existiert die Relation Person.dozentTermine (schema.prisma:213) und eine Funktion ladeEigeneUnterrichtstermine — die ist aber an teilnahme (Schüler-Sicht) gebunden, nicht an dozentTermine (stundenplan-io.ts:172). Für Dozenten existiert keine analoge Funktion/Seite.</p></div>
+      <div><span class="lbl">Lücke</span><p>Kein Dozenten-Zugriff auf den eigenen Terminkalender. Verschiebungen oder Themenänderungen, die die Verwaltung im Stundenplan vornimmt, erreichen mich nicht automatisch — es gibt weder eine Ansicht noch eine Benachrichtigung.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Die vorhandene Muster-Funktion für Selbstansicht auf die Dozentenrolle spiegeln (Query auf dozentId statt teilnahmeId) und auf der Dozenten-Startseite anzeigen; bei Änderung eines meiner Termine eine automatische Info-Mail an mich.</p><p class="why"><b>Warum:</b> Ein Bibelschul-Dozent unterrichtet berufsbegleitend und plant um den Job herum. Eine kurzfristige Verschiebung, die er nicht mitbekommt, führt zu einem ausgefallenen Abend — genau das, was die Software verhindern sollte.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">5</span><h3>Unterricht halten — Kursmaterial und Inhalte</h3></div>
+    <p class="phdesc">Ich bereite meinen Abend vor, will Skripte/Folien hinterlegen, damit Schüler sie bekommen, und den Unterrichtsinhalt dokumentieren (Thema je Abend).</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Am Termin gibt es ein Feld thema (api/stundenplan/termine/[id]/route.ts:25), das aber nur die Verwaltung setzen kann. Kursmaterial/Datei-Upload für Lehrinhalte existiert laut Projektstand gar nicht.</p></div>
+      <div><span class="lbl">Lücke</span><p>Ich kann als Dozent weder das Thema meines eigenen Abends pflegen noch Material für Schüler bereitstellen. Der gesamte inhaltliche Kern meiner Arbeit findet außerhalb der Software statt (Mail-Anhänge, USB-Stick, Papier).</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Mittelfristig ein schlankes Kursmaterial-/Themen-Modul, in dem der zugeordnete Dozent zu seinen eigenen Terminen Thema und Dateien pflegt (mit den bereits vorhandenen Upload-Härtungen: Magic-Bytes, 10-MB-Limit, Path-Traversal-Schutz).</p><p class="why"><b>Warum:</b> Für eine 3-jährige Ausbildung mit festem Kursraster ist Lehrmaterial ein Dauerbedarf. Solange das fehlt, ist 'GBS Campus' eine reine Verwaltungssoftware und kein Campus — der Name verspricht mehr als das System für Lehre leistet.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">6</span><h3>Anwesenheit der Schüler erfassen</h3></div>
+    <p class="phdesc">Am Ende meines Abends will ich abhaken, wer da war — das ist die Grundlage der 80%-Pflichtquote für Prüfungszulassung/Zeugnis. Ich stand vor der Gruppe, ich weiß, wer fehlte.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Anwesenheitserfassung existiert (api/stundenplan/anwesenheit/route.ts, erfasseAnwesenheit), Quote inklusive — aber die Route verlangt SEMESTER_VERWALTEN (route.ts:24). Es gibt zusätzlich eine Selbstbestätigung durch den Teilnehmer selbst (meine-daten).</p></div>
+      <div><span class="lbl">Lücke</span><p>Genau der Anwesende, der es am besten weiß — ich, der Dozent — darf die Anwesenheit nicht erfassen. Die Verwaltung muss das im Nachhinein tun, ohne im Raum gewesen zu sein, oder sich auf die Selbstbestätigung der Schüler verlassen. Das ist ein Bruch im offensichtlichsten Arbeitsablauf.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Dem Dozenten das Erfassen der Anwesenheit NUR für seine eigenen Termine (dozentId == ich) erlauben — über ein gescoptes Recht statt SEMESTER_VERWALTEN. Die serverseitige Prüfung muss den Termin gegen meine dozentId prüfen, nicht nur das Recht.</p><p class="why"><b>Warum:</b> Die 80%-Quote hat harte Konsequenzen (Prüfungszulassung). Wenn die Erfassung von der Person entkoppelt ist, die die Präsenz gesehen hat, sinkt die Datenqualität und die Verwaltung trägt Aufwand und Fehlerrisiko für etwas, das der Dozent in 2 Minuten korrekt erledigen könnte.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">7</span><h3>Prüfung, Noten, Zeugnis</h3></div>
+    <p class="phdesc">Als Kursverantwortlicher nehme ich Prüfungen ab, bewerte Schüler und trage zur Zeugnisnote bei. Schüler (im Gegensatz zu Hörern) haben Prüfung und Zeugnis.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Nichts. Prüfungen/Noten/Zeugnis sind laut Projektstand nicht gebaut — es gibt kein Datenmodell, keine Seite, kein Recht dafür.</p></div>
+      <div><span class="lbl">Lücke</span><p>Der komplette Leistungs- und Bewertungsprozess fehlt. Ich kann keine Note erfassen, kein Prüfungsergebnis hinterlegen, nichts zum Zeugnis beitragen. Für die Teilnahmeform 'Schüler' (mit Prüfung+Zeugnis) ist das ein tragender Baustein, der komplett außerhalb des Systems läuft.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Für einen echten Schulbetrieb Prüfungen/Noten/Zeugnis als eigenes Modul einplanen, mit Dozenten-Erfassung je Fach und Zeugnis-Zusammenführung durch die Schulleitung; zunächst als klar abgegrenzter späterer Release, nicht im Vorbeigehen.</p><p class="why"><b>Warum:</b> Die Unterscheidung Schüler/Hörer ist ein Kernkonzept der Schule (Prüfung+Zeugnis vs. nur Zuhören). Ohne Noten/Zeugnis bildet die Software die halbe Existenzberechtigung der Ausbildung nicht ab — das muss bewusst als bekannte Lücke benannt, nicht stillschweigend übergangen werden.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">8</span><h3>Mein Honorar sehen und abrechnen</h3></div>
+    <p class="phdesc">Ich habe meine Abende gehalten und will nachvollziehen: Wie viele Abende sind erfasst, welcher Satz gilt, wie viel bekomme ich? Idealerweise löse ich die Abrechnung selbst aus oder bestätige sie.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Vollständige Honorar-Verwaltung existiert (Satz-Historie mit Gültig-ab, Abrechnung, Freigabe, Auszahlung, Beleg mit IBAN ans DMS). Aber alles hängt an HONORAR_LESEN/HONORAR_ABRECHNEN (honorar/page.tsx:21) — reine Verwaltungsrechte.</p></div>
+      <div><span class="lbl">Lücke</span><p>Ich als Dozent sehe von meinem eigenen Honorar nichts. Nicht die Zahl der erfassten Abende, nicht den Satz, nicht die Summe, nicht den Status meiner Auszahlung. Ich muss der Verwaltung glauben oder nachfragen. Die Honorarübersicht (honorar-io.ts) berechnet meine Zeile — zeigt sie mir aber nie.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Eine read-only Selbstansicht 'Mein Honorar' für Dozenten: meine gehaltenen Abende, der je Abend geltende Satz, meine Summe und der Auszahlungsstatus — gefiltert strikt auf meine dozentId. Die Berechnungslogik ist bereits vorhanden und müsste nur gescopt wiederverwendet werden.</p><p class="why"><b>Warum:</b> Honorar ist Geld und schafft Vertrauen oder Misstrauen. Fehlende Transparenz erzeugt genau die Rückfragen und Doppelabgleiche per Mail, die das System eigentlich abschaffen soll — und bei Bus-Faktor-1-Verwaltung ist jede vermeidbare Rückfrage teuer.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">9</span><h3>Auszahlung und Zahlungsbeleg</h3></div>
+    <p class="phdesc">Mein Honorar wird ausgezahlt. Für meine Unterlagen (auch steuerlich) brauche ich einen Beleg: welche Abende, welcher Betrag, wann überwiesen.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Die Freigabe erzeugt einen Zahlungsbeleg mit meiner IBAN, der ans DMS geht (honorar-abrechnung-io.ts, honorar-abrechnung-beleg.ts). Auszahlen-Route markiert als ausgezahlt.</p></div>
+      <div><span class="lbl">Lücke</span><p>Der Beleg wird für die interne Ablage (DMS) erzeugt, aber mir als Dozent nie zugestellt oder zugänglich gemacht. Ich bekomme keine automatische Benachrichtigung 'ausgezahlt' und keinen eigenen Beleg. Für meine eigene Buchhaltung habe ich aus dem System nichts in der Hand.</p></div>
+    </div>
+    <div class="rec gelb"><h4>Empfehlung <span class="tag t-gelb">Mittel</span></h4><p>Nach 'ausgezahlt' eine Info-Mail an den Dozenten und den Beleg über einen persönlichen, zeitlich begrenzten Token-Link abrufbar machen (analog zum bestehenden Auskunfts-Link-Muster in auskunft/token) — die IBAN gehört dabei nicht in die Mail selbst.</p><p class="why"><b>Warum:</b> Das Beleg-an-DMS-Muster und der geschützte Token-Abruf existieren bereits (DSGVO-Auskunft). Den Dozenten leer ausgehen zu lassen ist inkonsequent: Für seine Steuer/Unterlagen ist der Beleg genau so relevant wie für die Schule.</p></div>
+  </div><div class="phase">
+    <div class="phhead"><span class="phnum">10</span><h3>Kommunikation mit Schule und Schülern</h3></div>
+    <p class="phdesc">Ich muss mit der Schule reden: Abend verschieben, mich krankmelden, eine Vertretung ankündigen, eine Frage stellen — und ggf. meine Schülergruppe erreichen.</p>
+    <div class="phgrid">
+      <div><span class="lbl">Software heute</span><p>Es gibt System-/Magic-Link-Mails und Rundmail an Verteiler (Recht MAIL_VERTEILER_SENDEN). Kein In-App-Postfach (laut Projektstand). Mailzustellung ist noch nicht scharf (SPF/DKIM offen).</p></div>
+      <div><span class="lbl">Lücke</span><p>Als Dozent habe ich keinen Kanal im System: Ich kann keine Rundmail senden (Recht fehlt), es gibt kein Postfach, und es gibt keinen Weg, der Schule aus der Software heraus 'ich falle Dienstag aus' zu melden. Umgekehrt kann die Schule mich nur per externer Mail erreichen. Die gesamte Dozenten-Kommunikation läuft an der Software vorbei.</p></div>
+    </div>
+    <div class="rec rot"><h4>Empfehlung <span class="tag t-rot">Hoch</span></h4><p>Mindestens einen einfachen, gerichteten Meldeweg Dozent -&gt; Schulleitung/Verwaltung im System (analog zum bestehenden Zugang-Hilfe-Formular, zugang-hilfe.ts), z. B. 'Termin-/Ausfallmeldung'. Vor jedem Ausbau der Mail-Funktionen zuerst SPF/DKIM scharf schalten, sonst kommt ohnehin nichts an.</p><p class="why"><b>Warum:</b> Kurzfristige Ausfälle sind im Dozentenalltag der Normalfall und zeitkritisch. Ohne systemgestützten Meldeweg bleibt es bei Telefon/Privat-Mail — und die ungeklärte Mailzustellung (SPF/DKIM) gefährdet zusätzlich, dass selbst die vorhandenen System-Mails an Dozenten ankommen.</p></div>
+  </div>
+  </section>
+  <section>
+    <h2><span class="no">03</span> Blinde Flecken</h2>
+    <p class="sub">Was für diese Rolle fehlt oder übersehen wird — mit Empfehlung und Begründung.</p>
+    <div class="fgrid"><div class="fleck rot">
+    <h4><span>Die Rolle DOZENT ist eine leere Hülle — identisch mit einem Schüler</span><span class="tag t-rot">Lehrer</span></h4>
+    <p>Im Seed (prisma/seed.ts:258) hat DOZENT exakt die zwei Rechte PERSON_LESEN_EIGENE und PERSON_BEARBEITEN_EIGENE — zeichengleich mit TEILNEHMER (seed.ts:250). Es gibt kein einziges Recht und keine einzige Seite, die einem Dozenten etwas Dozenten-Spezifisches erlaubt. 'Dozent' ist nur ein Label, das die Verwaltung nutzt, um jemanden im Stundenplan zuzuordnen (honorar-io.ts:32).</p>
+    <p><b>Empfehlung:</b> Mindestens drei eng gescopte Rechte einführen: eigene Termine sehen, Anwesenheit der eigenen Termine erfassen, eigenes Honorar sehen — jeweils serverseitig gegen dozentId gefiltert, nicht nur per Rechte-Flag.</p>
+    <p class="why"><b>Warum:</b> Solange die Rolle keine eigenen Rechte trägt, ist der komplette Dozenten-Self-Service (im Projektstand als 'noch nicht gebaut' notiert) nicht nur unfertig, sondern konzeptionell abwesend. Das ist der mit Abstand größte blinde Fleck aus Dozentensicht.</p>
+  </div><div class="fleck gelb">
+    <h4><span>GASTDOZENT verspricht einen Token-Login, den es nicht gibt</span><span class="tag t-gelb">Lehrer</span></h4>
+    <p>Die Rollenbeschreibung sagt: 'Arbeitet über einen Token-Link ohne Login' (seed.ts:263), doch die Rolle hat rechte: [] (seed.ts:266) und im Code existiert kein Unterrichts-/Gastdozenten-Token-Flow. Vorhandene Token-Wege sind nur dabei/token (Semesterüberleitung), anmelden/token (Login), auskunft/token (DSGVO).</p>
+    <p><b>Empfehlung:</b> Entweder den versprochenen Token-Flow für Gastdozenten bauen (eigener Abend erfassen ohne Vollkonto) oder die Rollenbeschreibung ehrlich auf den Ist-Zustand zurücknehmen, damit niemand ein Feature annimmt, das fehlt.</p>
+    <p class="why"><b>Warum:</b> Gastdozenten halten einzelne Einheiten und sind der klassische Fall für einen niedrigschwelligen Zugang. Eine Beschreibung, die ein nicht existierendes Feature zusagt, führt im Betrieb zu falschen Erwartungen und stillen Lücken.</p>
+  </div><div class="fleck rot">
+    <h4><span>Kein Fach-Scope, obwohl die Rolle ihn ausdrücklich zusagt</span><span class="tag t-rot">Lehrer</span></h4>
+    <p>seed.ts:255 sagt 'Rechte sind auf das eigene Fach begrenzt'. Im Datenmodell gibt es aber keine Dozent-zu-Fach-Bindung — nur dozentId je Einzeltermin (schema.prisma:415). Würde man Dozenten künftig Schülerdaten (Anwesenheit) sehen lassen, gäbe es aktuell keinen Mechanismus, der das auf das eigene Fach/die eigenen Termine begrenzt.</p>
+    <p><b>Empfehlung:</b> Vor jeder Dozenten-Leseberechtigung auf Schülerdaten den Scope technisch verankern: Zugriff nur auf Termine mit dozentId == ich bzw. auf die Kurseinheit, die ich halte. Serverseitig erzwingen, nicht in der UI ausblenden.</p>
+    <p class="why"><b>Warum:</b> Bei Art.-9-Daten (Glaube/Gemeinde) und Anwesenheiten ist Datenminimierung Pflicht (DSGVO). Ein zugesagter, aber nicht umgesetzter Scope ist ein latentes Datenschutzrisiko, sobald Dozenten überhaupt Leserechte auf Fremddaten bekommen.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Kein Meldeweg für Ausfall/Vertretung</span><span class="tag t-gelb">Lehrer</span></h4>
+    <p>Es gibt keinerlei Funktion, mit der ich als Dozent einen Ausfall, eine Verschiebung oder eine Vertretung melden oder ankündigen kann. Der Termin trägt nur eine optionale dozentId, die ausschließlich die Verwaltung ändert (api/stundenplan/termine/[id]).</p>
+    <p><b>Empfehlung:</b> Einen einfachen, gerichteten Meldeweg Dozent -&gt; Verwaltung/Schulleitung nach dem Vorbild des bestehenden Zugang-Hilfe-Formulars (zugang-hilfe.ts) ergänzen; kein volles Nachrichtensystem nötig.</p>
+    <p class="why"><b>Warum:</b> Kurzfristige Ausfälle sind im berufsbegleitenden Betrieb Alltag und zeitkritisch. Ohne systemischen Meldeweg bleibt es bei Telefon/Privat-Mail, und die Schule erfährt Änderungen zu spät oder gar nicht — mit direkter Folge eines ausgefallenen Unterrichtsabends.</p>
+  </div><div class="fleck rot">
+    <h4><span>Mailzustellung (SPF/DKIM) offen — trifft Dozenten doppelt</span><span class="tag t-rot">Lehrer</span></h4>
+    <p>Laut Projektstand ist die Mailzustellung noch nicht scharf. Für einen Dozenten, der ohnehin keinen In-App-Kanal hat, ist E-Mail der EINZIGE Draht zur Software (Magic-Link, Terminänderung, Auszahlungshinweis).</p>
+    <p><b>Empfehlung:</b> SPF/DKIM/DMARC verbindlich einrichten und die Zustellung nachweisbar testen, bevor weitere dozentenrelevante Mail-Benachrichtigungen (Termin, Honorar) gebaut werden.</p>
+    <p class="why"><b>Warum:</b> Kommt der Magic-Link nicht an, kommt der Dozent nicht ins Portal (die Vorlage MAGIC_LINK ist laut Beschreibung 'der einzige Weg ins Portal'). Jede geplante Dozenten-Benachrichtigung steht und fällt mit einer belastbaren Mailzustellung.</p>
+  </div><div class="fleck rot">
+    <h4><span>Prüfungen, Noten und Zeugnis fehlen komplett</span><span class="tag t-rot">Fachlichkeit</span></h4>
+    <p>Das Teilnahmeform-Enum in prisma/schema.prisma (Zeile 139-143) definiert SCHUELER ausdrücklich als 'mit Pruefung, mit Zeugnis' und HOERER als 'ohne'. Es gibt aber im gesamten Datenmodell KEIN Modell Pruefung/Note/Zeugnis, in seed.ts KEIN entsprechendes Recht (die RECHTE-Liste kennt nur PERSON/ANMELDUNG/FINANZEN/KOMMUNIKATION/SYSTEM) und in src/app/** KEINE Seite dafür. Der prüfungspflichtige Kern einer 3-jährigen Bibelschule mit Zeugnisabschluss ist nicht abgebildet.</p>
+    <p><b>Empfehlung:</b> Datenmodell für Prüfungsleistungen je Kurseinheit/Fach und Zeugnisgenerierung am Ausbildungsende einführen; Recht PRUEFUNG_VERWALTEN/ZEUGNIS_ERSTELLEN und eine Verwaltungs-/Schulleiter-Ansicht ergänzen. Klären, ob Noten je Abend, je Fach oder je Lehrjahr erfasst werden.</p>
+    <p class="why"><b>Warum:</b> Ohne Prüfung und Zeugnis erfüllt die Software den definierten Zweck für die Teilnahmeform SCHUELER nicht — genau das, was Schüler von Hörern unterscheidet, existiert nur als Enum-Kommentar, nicht als Funktion.</p>
+  </div><div class="fleck rot">
+    <h4><span>Dozent hat keinerlei Self-Service — Rolle ist faktisch leer</span><span class="tag t-rot">Prozess</span></h4>
+    <p>In prisma/seed.ts hat die Rolle DOZENT exakt dieselben zwei Rechte wie ein Teilnehmer: PERSON_LESEN_EIGENE und PERSON_BEARBEITEN_EIGENE. Kein HONORAR_LESEN, kein Stundenplan-/Anwesenheitsrecht. Alle Dozenten-bezogenen Seiten liegen unter src/app/verwaltung/** und sind auf Verwaltungsrechte gegatet (z.B. honorar/page.tsx: ladeMitRecht(RECHT.HONORAR_LESEN)). Es existiert keine /dozent-Route. Ein Dozent kann seinen eigenen Stundenplan nicht sehen, seine Anwesenheitsliste nicht führen und sein eigenes Honorar nicht einsehen.</p>
+    <p><b>Empfehlung:</b> Dozenten-Self-Service bauen: eigener Stundenplan (nur eigene Termine über dozentId), Anwesenheitserfassung für die eigenen Abende, Einsicht ins eigene Honorar. Dafür feld-/scope-begrenzte Rechte einführen (Dozent sieht nur eigene Termine/Teilnehmer).</p>
+    <p class="why"><b>Warum:</b> Die Software beschreibt DOZENT als 'verantwortet einen ganzen Kurs', gibt der Rolle aber null kursbezogene Funktion — der Dozent ist die einzige Person, die am Dienstagabend im Raum steht, und kann im System nichts tun.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Gastdozent-Token-Zugang ist beschrieben, aber nicht gebaut</span><span class="tag t-gelb">Fachlichkeit</span></h4>
+    <p>seed.ts beschreibt GASTDOZENT als 'Arbeitet über einen Token-Link ohne Login' und vergibt bewusst KEINE Rechte (rechte: []). Der Code kennt GASTDOZENT nur als Konstante in src/lib/constants.ts — es gibt keine Token-Route, keine Seite, keinen Workflow. Ein Gastdozent für einzelne Einheiten kann konkret nichts tun.</p>
+    <p><b>Empfehlung:</b> Entweder den Token-Workflow tatsächlich bauen (z.B. Gastdozent bestätigt seinen Abend/erfasst Anwesenheit über einen zeitlich begrenzten Link, analog zum 'bin dabei'-Muster) oder die Rolle bis dahin klar als Platzhalter kennzeichnen.</p>
+    <p class="why"><b>Warum:</b> Eine Rolle mit leerer Rechteliste und ohne Zugangsweg weckt die Erwartung einer Funktion, die es nicht gibt — das fällt spätestens auf, wenn der erste Gastdozent eingeladen wird.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Kein Ort für Kursmaterial und Unterrichtsinhalte</span><span class="tag t-gelb">Fachlichkeit</span></h4>
+    <p>Das Datenmodell hat Fach, Kurseinheit und Unterrichtstermin (mit optionalem 'thema'), aber kein Modell für Skripte, Handouts oder Downloads. Schüler haben keinen Ort, um Unterlagen zum jeweiligen Abend/Fach abzurufen, Dozenten keinen, sie bereitzustellen.</p>
+    <p><b>Empfehlung:</b> Einfache Materialablage je Kurseinheit/Termin (Datei-Upload mit den bestehenden Härtungen: Magic-Bytes, 10-MB-Grenze, Path-Traversal-Schutz), sichtbar für Teilnehmer des jeweiligen Semesters.</p>
+    <p class="why"><b>Warum:</b> Bibelschulunterricht lebt von Textgrundlagen und Skripten; ohne Ablage läuft der Materialfluss weiter über private E-Mail-Verteiler an der Software vorbei.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Terminausfall/-verschiebung wird nicht abgebildet oder kommuniziert</span><span class="tag t-gelb">Kommunikation</span></h4>
+    <p>Unterrichtstermin (schema.prisma Zeile 400) hat beginn/ende/thema, aber kein Feld für 'fällt aus' oder 'verschoben' und keinen Benachrichtigungsweg. Fällt ein Dienstagabend aus (Krankheit des Dozenten, Feiertag), gibt es weder einen Status noch eine automatische Info an die betroffenen Teilnehmer.</p>
+    <p><b>Empfehlung:</b> Termin-Status (findet statt / fällt aus / verschoben) plus optionale automatische Info an die Semester-Teilnehmer ergänzen; Auswirkung auf die Anwesenheits-Grundgesamtheit (zählt ein ausgefallener Abend in die 80%?) definieren.</p>
+    <p class="why"><b>Warum:</b> Ein ausgefallener Abend, von dem niemand rechtzeitig erfährt, kostet Vertrauen und verzerrt zudem die Quotenberechnung, wenn er weiter als Pflichttermin zählt.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Gesamter Zugang und Betrieb hängen an ungesicherter Mailzustellung</span><span class="tag t-gelb">Sicherheit</span></h4>
+    <p>Magic-Link ist laut Vorlagentext der 'einzige Weg ins Portal', und alle Benachrichtigungen (Aufnahme, Datenänderung, Passwort-Notbremse, Semesterüberleitung, Art.-15-Auskunft) laufen über E-Mail. Laut Projektstand ist SPF/DKIM noch offen und ein In-App-Postfach fehlt. Die ZUGANG_HILFE-Meldung ist die einzige Notbremse.</p>
+    <p><b>Empfehlung:</b> Vor GoLive Mailzustellung scharf stellen (SPF/DKIM/DMARC), Zustellfehler sichtbar machen (EmailVersand-Status auswerten statt Fire-and-Forget) und den Hilfe-Weg für Ausgesperrte prominent halten.</p>
+    <p class="why"><b>Warum:</b> Wenn der einzige Zugangsweg im Spam landet, ist der Nutzer ausgesperrt und mehrere Sicherheits-Notbremsen (Passwort-/E-Mail-Änderungshinweis) erreichen ihn nie — das ist ein Single Point of Failure für Zugang und Kontosicherheit.</p>
+  </div><div class="fleck gelb">
+    <h4><span>Admin kann sich selbst jede Rolle geben — keine Funktionstrennung erzwungen</span><span class="tag t-gelb">Sicherheit</span></h4>
+    <p>Die Rollen-Route (personen/[id]/rollen/route.ts) prüft ausschließlich BENUTZER_VERWALTEN und setzt dann die Rollen jeder Person auf eine beliebige Menge. Die ADMIN-Rolle besitzt BENUTZER_VERWALTEN (seed.ts Z. 178). Ein Admin kann sich damit selbst — oder einem beliebigen Teilnehmer — SCHULLEITER/VERWALTUNG zuweisen und so an alle IBANs, Honorare, Anonymisierung und den Mailverteiler kommen. Die Beschreibung „Administrator … trifft ausdruecklich keine fachlichen Entscheidungen" (seed.ts Z. 174) ist reine Policy, technisch nicht durchgesetzt. Einzige Kontrolle ist detektivisch: der Audit-Eintrag ROLLEN_GEAENDERT (append-only) — den aber ebenfalls nur ADMIN/SCHULLEITER lesen dürfen (AUDIT_LESEN). Es gibt keine präventive Sperre gegen Selbst-Eskalation.</p>
+    <p><b>Empfehlung:</b> Bewusst entscheiden, ob das akzeptiert wird (kleiner Betrieb, ein technischer Admin) oder ob eine Sperre nötig ist, z. B.: ADMIN darf sich nicht selbst fachliche Rollen zuweisen, oder fachliche Rollenänderungen erfordern eine zweite Person (Vier-Augen). Mindestens: die Selbst-Eskalation im Audit gezielt überwachen und in der Übergabe als bekanntes Rest-Risiko benennen.</p>
+    <p class="why"><b>Warum:</b> Die Trennung von technischer und fachlicher Verantwortung ist im Seed-Design ausdrücklich gewollt, aber nur beschriftet, nicht erzwungen. Bei sensiblen Daten (IBAN, Art.-9-Religionsangaben, Anonymisierung) sollte die im System behauptete Funktionstrennung nicht allein an der Disziplin des Admins hängen.</p>
+  </div><div class="fleck blau">
+    <h4><span>Art. 9 (Religionszugehörigkeit): Einwilligungstext und Verarbeitungsverzeichnis prüfen</span><span class="tag t-blau">DSGVO</span></h4>
+    <p>Schon die Teilnahme an einer Bibelschule ist eine Angabe zur Religionszugehörigkeit (Art. 9 DSGVO) — das Team behandelt das im Code vorbildlich (Timing-Schutz in magic-link.ts/passwort, Voll-Scrub der Anmeldeantworten inkl. Art.-9-Angaben in anonymisierung.ts). Einwilligungen werden bei der Anmeldung erfasst (einwilligungsText/EINWILLIGUNGEN im seed). Offen ist eine reine Dokumentations-/Rechtsgrundlagenfrage, nicht am Code prüfbar: Deckt der Einwilligungstext ausdrücklich die Verarbeitung besonderer Kategorien (Art. 9 Abs. 2 lit. a) ab, und ist der IBAN-per-Mail-Weg ans DMS im Verzeichnis von Verarbeitungstätigkeiten benannt?</p>
+    <p><b>Empfehlung:</b> Mit dem Datenschutzverantwortlichen vor GoLive gegenlesen: (1) explizite Art.-9-Einwilligung im Formulartext, (2) DMS-Mailweg + IBAN-Speicherung im VVT, (3) Löschfristen der Aufräum-Regler (AUFRAEUMEN_*_TAGE) mit der Datenschutzerklärung abgleichen.</p>
+    <p class="why"><b>Warum:</b> Die technische Umsetzung ist stark; das Rest-Risiko liegt in der rechtlichen Dokumentation. Das lässt sich nicht am Code entscheiden und gehört ausdrücklich an die Verantwortlichen adressiert, damit es nicht zwischen Technik und Organisation verloren geht.</p>
+  </div></div>
+  </section>
+  <footer>GBS Campus · Prozesslandschaft Dozent / Lehrer · maschinell erzeugt aus einer kritischen Mehr-Agenten-Analyse am Code, 30.07.2026. Empfehlungen sind Vorschläge zur Diskussion, keine Beschlüsse.</footer>
+</div>
+<button class="toggle" onclick="var h=document.documentElement;h.dataset.t=h.dataset.t==='dark'?'light':'dark'">hell / dunkel</button>
+</body></html>
