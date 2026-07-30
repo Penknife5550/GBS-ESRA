@@ -1401,6 +1401,12 @@ pruefe "der Eintrag traegt die Dozentin als Erfasser" \
 # Ueberschreib-Pfad (Autoritaet des Dozenten): DT2 traegt eine SELBSTBESTAETIGUNG der
 # Teilnehmerin (NACHGEARBEITET, erfasstVonId = sie selbst, aus Abschnitt 28). Der Dozent
 # DARF sie ueberschreiben — der Teilnehmer-Pfad darf einen fremden Eintrag gerade NICHT.
+# Vorbedingung explizit sichern, damit der Test wirklich den UPDATE-Zweig prueft und
+# nicht lautlos zum Insert-Zweig degradiert, falls sich die Abende-Reihenfolge aendert.
+pruefe "DT2 traegt vorher eine Selbstbestaetigung (NACHGEARBEITET)" \
+  "$(gleich "$($PSQL "select status from anwesenheiten where \"terminId\"='${DT2}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "NACHGEARBEITET")"
+pruefe "und diese stammt von der Teilnehmerin selbst" \
+  "$(gleich "$($PSQL "select \"erfasstVonId\" from anwesenheiten where \"terminId\"='${DT2}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "${TEILNEHMER_ID}")"
 DZ_OW=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DT2}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"GEFEHLT\"}]}")
 pruefe "der Dozent ueberschreibt eine Selbstbestaetigung (200)" "$(gleich "$DZ_OW" "200")" "$DZ_OW"
 pruefe "der Status ist danach GEFEHLT (ueberschrieben)" \
@@ -1425,6 +1431,10 @@ pruefe "ein eigener kuenftiger Abend wird abgewiesen (409)" "$(gleich "$DZ_FUT" 
 DZ_ENT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ENTSCHULDIGT\"}]}")
 pruefe "entschuldigt wird fuer den Dozenten abgewiesen (400)" "$(gleich "$DZ_ENT" "400")" "$DZ_ENT"
 
+# Ein nicht existierender Termin ist 404 (nicht 500) — prueft das termin_fehlt-Mapping.
+DZ_404=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"$(uuidgen | tr 'A-Z' 'a-z')\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
+pruefe "ein nicht existierender Abend ist 404" "$(gleich "$DZ_404" "404")" "$DZ_404"
+
 # Ein Teilnehmer ohne Dozentenrecht darf die Route gar nicht nutzen (403).
 DZ_TEILN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
 pruefe "ein Teilnehmer ohne Dozentenrecht darf nicht erfassen (403)" "$(gleich "$DZ_TEILN" "403")" "$DZ_TEILN"
@@ -1435,9 +1445,9 @@ $PSQL "insert into person_rolle (\"personId\",\"rolleCode\") values ('${SCHULLEI
 SL_VERW=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung" -H "Cookie: ${KEKS}")
 pruefe "ein unterrichtender Schulleiter bleibt in der Verwaltung (200, nicht /dozent)" "$(gleich "$SL_VERW" "200")" "$SL_VERW"
 
-# 339 Pruefungen plus diese eine, die sich selbst mitzaehlt. (Der Zaehler war seit
+# 342 Pruefungen plus diese eine, die sich selbst mitzaehlt. (Der Zaehler war seit
 # den Honorar-Abschnitten 29/29b veraltet — die liefen mangels Docker nie mit.)
-SOLL=340
+SOLL=343
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 
@@ -43,7 +43,7 @@ export function StundenplanDozent({
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ terminId: string; art: "ok" | "fehler"; text: string } | null>(null);
 
-  function wert(gruppe: Gruppe, terminId: string, teilnahmeId: string): string {
+  function anzeigeWert(gruppe: Gruppe, terminId: string, teilnahmeId: string): string {
     return overlay[terminId]?.[teilnahmeId] ?? gruppe.anwesenheit[terminId]?.[teilnahmeId] ?? "";
   }
   function setWert(terminId: string, teilnahmeId: string, neu: string) {
@@ -69,15 +69,19 @@ export function StundenplanDozent({
       setMeldung({ terminId, art: "fehler", text: antwort.meldung });
       return;
     }
-    // Overlay dieses Abends leeren → die Anzeige fällt auf den frischen Server-Stand.
-    setOverlay((o) => {
-      const rest = { ...o };
-      delete rest[terminId];
-      return rest;
-    });
     const n = antwort.daten.gesetzt;
     setMeldung({ terminId, art: "ok", text: `Anwesenheit gespeichert (${n} ${n === 1 ? "Eintrag" : "Einträge"}).` });
-    router.refresh();
+    // Overlay leeren + Server-Daten neu laden gemeinsam als Transition: React hält
+    // die aktuelle Ansicht, bis die frischen Props da sind — sonst flackert der
+    // gerade gesetzte Status kurz auf den alten Server-Stand zurück.
+    startTransition(() => {
+      setOverlay((o) => {
+        const rest = { ...o };
+        delete rest[terminId];
+        return rest;
+      });
+      router.refresh();
+    });
   }
 
   return (
@@ -89,7 +93,11 @@ export function StundenplanDozent({
             {gruppe.termine.map((termin) => {
               const kannErfassen = darfErfassen && termin.istVergangen;
               const istOffen = offen === termin.id;
-              const erfasst = Object.keys(gruppe.anwesenheit[termin.id] ?? {}).length;
+              // Nur aktive Teilnehmer mit Status zählen — Zähler und Nenner
+              // (gruppe.teilnehmer = ebenfalls nur aktive) aus derselben Menge, sonst
+              // täuscht die Zeile eines inzwischen inaktiven Teilnehmers „4 von 3".
+              const erfasst = gruppe.teilnehmer.filter((t) => gruppe.anwesenheit[termin.id]?.[t.teilnahmeId]).length;
+              const zeigtMeldung = meldung?.terminId === termin.id;
               return (
                 <li key={termin.id} className="rounded-lg border border-border bg-card p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -107,7 +115,10 @@ export function StundenplanDozent({
                     ) : kannErfassen ? (
                       <button
                         type="button"
-                        onClick={() => setOffen(istOffen ? null : termin.id)}
+                        onClick={() => {
+                          setMeldung(null);
+                          setOffen(istOffen ? null : termin.id);
+                        }}
                         aria-expanded={istOffen}
                         className="min-h-11 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-primary"
                       >
@@ -134,7 +145,7 @@ export function StundenplanDozent({
                                 <span className="text-sm">{t.name}</span>
                                 <select
                                   aria-label={`Anwesenheit von ${t.name} am ${termin.text}`}
-                                  value={wert(gruppe, termin.id, t.teilnahmeId)}
+                                  value={anzeigeWert(gruppe, termin.id, t.teilnahmeId)}
                                   onChange={(e) => setWert(termin.id, t.teilnahmeId, e.target.value)}
                                   className="min-h-11 rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
                                 >
@@ -158,18 +169,19 @@ export function StundenplanDozent({
                           >
                             {laeuft === termin.id ? "Wird gespeichert …" : "Speichern"}
                           </button>
-                          {/* Rückmeldung direkt an der Aktion; Region dauerhaft im DOM,
-                              damit Screenreader den Statuswechsel zuverlässig ansagen. */}
+                          {/* Rückmeldung direkt an der Aktion; Region dauerhaft im DOM.
+                              Das role bestimmt die Dringlichkeit (alert = assertiv bei
+                              Fehler, status = höflich bei Erfolg) — kein explizites
+                              aria-live, das den role-Wert überstimmen würde. */}
                           <p
-                            role={meldung?.terminId === termin.id && meldung.art === "fehler" ? "alert" : "status"}
-                            aria-live="polite"
+                            role={zeigtMeldung && meldung?.art === "fehler" ? "alert" : "status"}
                             className={
-                              meldung?.terminId === termin.id
-                                ? `mt-3 rounded-lg px-3 py-2 text-sm ${meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"}`
+                              zeigtMeldung
+                                ? `mt-3 rounded-lg px-3 py-2 text-sm ${meldung?.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"}`
                                 : "sr-only"
                             }
                           >
-                            {meldung?.terminId === termin.id ? meldung.text : ""}
+                            {zeigtMeldung ? meldung?.text : ""}
                           </p>
                         </>
                       )}

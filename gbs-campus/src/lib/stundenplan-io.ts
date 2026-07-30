@@ -74,41 +74,49 @@ export type ErfassErgebnis = { fehler: "termin_fehlt" } | { gesetzt: number };
  * Schreibt die Anwesenheit mehrerer Teilnehmer an EINEM Termin — der gemeinsame
  * Kern von `erfasseAnwesenheit` (Verwaltung) und `erfasseAlsDozent` (Dozent an der
  * Quelle). Nur Teilnahmen desselben Semesters werden angenommen; fremde werden
- * still übersprungen. Alle Upserts laufen in EINER Transaktion (alles-oder-nichts),
- * und wird der Termin oder eine Teilnahme in der Lücke gelöscht, meldet der
- * Fremdschlüssel P2003/P2025 — das kommt als `"termin_fehlt"` zurück (der Aufrufer
- * antwortet 404) statt als 500. Rückgabe sonst: die Zahl der geschriebenen Zeilen.
+ * still übersprungen. Das Gültig-Set steht bewusst VOR der Transaktion (reine
+ * Whitelist); die eigentliche Lösch-Lücke fängt der Fremdschlüssel in der
+ * Transaktion ab. Alle Upserts laufen in EINER Transaktion (alles-oder-nichts):
+ * wird der Termin oder eine Teilnahme in der Lücke gelöscht, meldet der
+ * Fremdschlüssel P2003/P2025 — das kommt als `{ fehler: "termin_fehlt" }` zurück
+ * (der Aufrufer antwortet 404) statt als 500; sonst `{ gesetzt }`.
  */
 async function schreibeAnwesenheiten(
   terminId: string,
   semesterId: string,
   eintraege: AnwesenheitEintrag[],
   erfasstVonId: string,
-): Promise<number | "termin_fehlt"> {
+): Promise<{ gesetzt: number } | { fehler: "termin_fehlt" }> {
   const gueltig = new Set(
     (await prisma.teilnahme.findMany({ where: { semesterId }, select: { id: true } })).map((t) => t.id),
   );
 
   try {
-    return await prisma.$transaction(async (tx) => {
-      let gesetzt = 0;
-      for (const eintrag of eintraege) {
-        if (!gueltig.has(eintrag.teilnahmeId)) continue;
-        await tx.anwesenheit.upsert({
-          where: { terminId_teilnahmeId: { terminId, teilnahmeId: eintrag.teilnahmeId } },
-          update: { status: eintrag.status, erfasstVonId },
-          create: { terminId, teilnahmeId: eintrag.teilnahmeId, status: eintrag.status, erfasstVonId },
-        });
-        gesetzt++;
-      }
-      return gesetzt;
-    });
+    const gesetzt = await prisma.$transaction(
+      async (tx) => {
+        let n = 0;
+        for (const eintrag of eintraege) {
+          if (!gueltig.has(eintrag.teilnahmeId)) continue;
+          await tx.anwesenheit.upsert({
+            where: { terminId_teilnahmeId: { terminId, teilnahmeId: eintrag.teilnahmeId } },
+            update: { status: eintrag.status, erfasstVonId },
+            create: { terminId, teilnahmeId: eintrag.teilnahmeId, status: eintrag.status, erfasstVonId },
+          });
+          n++;
+        }
+        return n;
+      },
+      // Großzügiges Limit statt des 5-s-Defaults: auch eine ganze Kohorte in Serie
+      // bleibt darunter; reißt es doch, rollt der ganze Batch sauber zurück.
+      { timeout: 15_000 },
+    );
+    return { gesetzt };
   } catch (ausnahme) {
     if (
       ausnahme instanceof Prisma.PrismaClientKnownRequestError &&
       (ausnahme.code === "P2003" || ausnahme.code === "P2025")
     ) {
-      return "termin_fehlt";
+      return { fehler: "termin_fehlt" };
     }
     throw ausnahme;
   }
@@ -131,19 +139,19 @@ export async function erfasseAnwesenheit(
   });
   if (!termin) return { fehler: "termin_fehlt" };
 
-  const gesetzt = await schreibeAnwesenheiten(terminId, termin.semesterId, eintraege, akteurId);
-  if (gesetzt === "termin_fehlt") return { fehler: "termin_fehlt" };
+  const ergebnis = await schreibeAnwesenheiten(terminId, termin.semesterId, eintraege, akteurId);
+  if ("fehler" in ergebnis) return ergebnis;
 
   await protokolliere({
     aktion: "ANWESENHEIT_ERFASST",
     objektTyp: "Unterrichtstermin",
     objektId: terminId,
     akteurId,
-    nachher: { gesetzt },
+    nachher: { gesetzt: ergebnis.gesetzt },
     headers,
   });
 
-  return { gesetzt };
+  return ergebnis;
 }
 
 /**
@@ -423,7 +431,7 @@ export async function ladeEigeneDozentTermine(dozentId: string, jetzt: Date): Pr
 
   // Reihenfolge = wie in `termine` (neuestes Semester zuerst); Set hält die Ordnung.
   const semesterIds = [...new Set(termine.map((t) => t.semesterId))];
-  const vergangeneIds = termine.filter((t) => t.beginn.getTime() <= jetzt.getTime()).map((t) => t.id);
+  const vergangeneIds = termine.filter((t) => terminVergangen(t.beginn, jetzt)).map((t) => t.id);
 
   // Aktive Teilnehmer der betroffenen Semester + die bereits erfasste Anwesenheit
   // zu den vergangenen Abenden dieses Dozenten — nebenläufig.
@@ -463,7 +471,7 @@ export async function ladeEigeneDozentTermine(dozentId: string, jetzt: Date): Pr
         id: t.id,
         text: terminText(t.beginn),
         fach: t.kurseinheit?.fach.bezeichnung ?? null,
-        istVergangen: t.beginn.getTime() <= jetzt.getTime(),
+        istVergangen: terminVergangen(t.beginn, jetzt),
       })),
       anwesenheit: anwesenheitProSemester.get(sid) ?? {},
     };
@@ -504,17 +512,17 @@ export async function erfasseAlsDozent(
   if (!terminVergangen(termin.beginn, new Date())) return { fehler: "zukunft" };
   if (!eintraege.every((e) => istDozentStatusErlaubt(e.status))) return { fehler: "status_ungueltig" };
 
-  const gesetzt = await schreibeAnwesenheiten(terminId, termin.semesterId, eintraege, dozentId);
-  if (gesetzt === "termin_fehlt") return { fehler: "termin_fehlt" };
+  const ergebnis = await schreibeAnwesenheiten(terminId, termin.semesterId, eintraege, dozentId);
+  if ("fehler" in ergebnis) return ergebnis;
 
   await protokolliere({
     aktion: "ANWESENHEIT_ERFASST",
     objektTyp: "Unterrichtstermin",
     objektId: terminId,
     akteurId: dozentId,
-    nachher: { gesetzt, quelle: "DOZENT" },
+    nachher: { gesetzt: ergebnis.gesetzt, quelle: "DOZENT" },
     headers,
   });
 
-  return { gesetzt };
+  return ergebnis;
 }
