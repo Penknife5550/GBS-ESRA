@@ -10,10 +10,17 @@ export default async function VerwaltungSeite() {
   const benutzer = await ladeAngemeldeten();
   if (!benutzer) redirect("/anmelden");
 
+  // Der Anmeldelink führt für alle auf diese Seite, die Verzweigung passiert hier.
+  // Ein reiner Dozent (eigene Termine, aber keine Verwaltungsrechte) gehört in
+  // seinen Bereich — vor der Teilnehmer-Weiche geprüft, weil er ebenfalls
+  // PERSON_LESEN_EIGENE trägt. Wer zusätzlich ein Verwaltungsrecht hat
+  // (Schulleiter, der auch Dozent ist), bleibt hier.
+  if (hatRecht(benutzer, RECHT.EIGENE_TERMINE_LESEN) && !hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE)) {
+    redirect("/dozent");
+  }
+
   // Teilnehmer haben hier nichts zu suchen und sahen bisher eine leere Seite
-  // mit dem Hinweis, dass nichts freigeschaltet ist. Sie gehören in ihre Akte —
-  // der Anmeldelink führt für alle auf diese Seite, die Verzweigung passiert
-  // hier.
+  // mit dem Hinweis, dass nichts freigeschaltet ist. Sie gehören in ihre Akte.
   if (!hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE) && hatRecht(benutzer, RECHT.PERSON_LESEN_EIGENE)) {
     redirect("/meine-daten");
   }

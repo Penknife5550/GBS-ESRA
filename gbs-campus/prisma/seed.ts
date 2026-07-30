@@ -139,6 +139,12 @@ const RECHTE = [
   { code: "PERSON_EXPORTIEREN", bezeichnung: "Teilnehmerliste exportieren", bereich: "PERSON" },
   { code: "PERSON_ANONYMISIEREN", bezeichnung: "Person anonymisieren (Löschung nach Art. 17 DSGVO)", bereich: "PERSON" },
   { code: "SEMESTER_VERWALTEN", bezeichnung: "Semester anlegen und das laufende festlegen", bereich: "PERSON" },
+  // Release 0.3 — Dozenten-Self-Service: der Dozent sieht seine eigenen Abende
+  // (read-only) und erfasst die Anwesenheit der EIGENEN Abende an der Quelle.
+  // Der eigentliche Schutz ist der Scope-Guard termin.dozentId === eigene Id;
+  // das Recht oeffnet nur die Tuer. GASTDOZENT bleibt bewusst rechtlos (Token-Flow).
+  { code: "EIGENE_TERMINE_LESEN", bezeichnung: "Eigene Unterrichtsabende sehen", bereich: "UNTERRICHT" },
+  { code: "ANWESENHEIT_ERFASSEN_EIGENE", bezeichnung: "Anwesenheit der eigenen Abende erfassen", bereich: "UNTERRICHT" },
   { code: "ANMELDUNG_LESEN", bezeichnung: "Anmeldungen einsehen", bereich: "ANMELDUNG" },
   { code: "ANMELDUNG_ENTSCHEIDEN", bezeichnung: "Anmeldungen annehmen oder ablehnen", bereich: "ANMELDUNG" },
   { code: "FORMULAR_BEARBEITEN", bezeichnung: "Anmeldeformulare gestalten", bereich: "ANMELDUNG" },
@@ -255,7 +261,12 @@ const ROLLEN = [
     beschreibung: "Verantwortet einen ganzen Kurs. Rechte sind auf das eigene Fach begrenzt.",
     aktivAbRelease: "0.2",
     sortierung: 50,
-    rechte: ["PERSON_LESEN_EIGENE", "PERSON_BEARBEITEN_EIGENE"],
+    rechte: [
+      "PERSON_LESEN_EIGENE",
+      "PERSON_BEARBEITEN_EIGENE",
+      "EIGENE_TERMINE_LESEN",
+      "ANWESENHEIT_ERFASSEN_EIGENE",
+    ],
   },
   {
     code: "GASTDOZENT",

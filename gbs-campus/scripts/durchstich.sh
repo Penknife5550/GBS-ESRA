@@ -1350,9 +1350,94 @@ pruefe "die Stammdatenaenderung ist protokolliert (PERSON_STAMMDATEN_GEAENDERT)"
 # unterwegs einen ganzen Block ueberspringt, weiterhin "0 fehlgeschlagen" — ein
 # nicht gelaufener Test schlaegt nicht fehl, er fehlt nur. Beim Ergaenzen einer
 # Pruefung gehoert diese Zahl mit angehoben.
-# 316 Pruefungen plus diese eine, die sich selbst mitzaehlt. (Der Zaehler war seit
+echo
+echo "=== 34. Dozenten-Self-Service (eigener Bereich + Anwesenheit an der Quelle) ==="
+# Die neuen Rechte sind Daten (Seed, keine Migration) und der Rolle DOZENT zugeordnet.
+pruefe "Recht EIGENE_TERMINE_LESEN ist geseedet" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='EIGENE_TERMINE_LESEN';")" "1")"
+pruefe "Recht ANWESENHEIT_ERFASSEN_EIGENE ist geseedet" \
+  "$(gleich "$($PSQL "select count(*) from rechte where code='ANWESENHEIT_ERFASSEN_EIGENE';")" "1")"
+pruefe "DOZENT hat EIGENE_TERMINE_LESEN" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rolleCode\"='DOZENT' and \"rechtCode\"='EIGENE_TERMINE_LESEN';")" "1")"
+pruefe "GASTDOZENT hat das Dozentenrecht NICHT (Token-Flow ohne Login)" \
+  "$(gleich "$($PSQL "select count(*) from rolle_recht where \"rolleCode\"='GASTDOZENT' and \"rechtCode\"='EIGENE_TERMINE_LESEN';")" "0")"
+
+# Zwei dedizierte vergangene Abende: einer der Dozentin (DOZENT_ID aus Abschnitt 29),
+# einer ohne Dozent — fuer den Scope-Guard.
+DZ_TERMIN=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"dozentId\",\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '7 days',97,'${DOZENT_ID}',now()) returning id;")
+FREMD_TERMIN=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '6 days',96,now()) returning id;")
+
+# Die Dozentin meldet sich an (frischer Magic-Link, wie im echten Ablauf).
+DZTOKEN=$(uuidgen | tr 'A-Z' 'a-z'); DZHASH=$(printf %s "$DZTOKEN" | shasum -a 256 | cut -d' ' -f1)
+$PSQL "insert into magic_links (id,\"personId\",\"tokenHash\",\"laeuftAb\",\"erstelltAm\") values (gen_random_uuid(),'${DOZENT_ID}','${DZHASH}',now()+interval '1 hour',now());" > /dev/null
+curl -s -D /tmp/gbs-kopf-doz.txt -o /dev/null -X POST "${BASIS}/api/auth/token" -H 'Content-Type: application/json' -d "{\"token\":\"${DZTOKEN}\"}"
+KEKS_DOZ=$(grep -i '^set-cookie:' /tmp/gbs-kopf-doz.txt | head -1 | sed 's/^[^:]*: //' | cut -d';' -f1)
+pruefe "die Dozentin meldet sich an" "$([ -n "$KEKS_DOZ" ] && echo 1 || echo 0)"
+
+# Login-Routing: der Verwaltungsbereich leitet die reine Dozentin auf /dozent.
+DZ_LOC=$(curl -s -o /dev/null -w '%{redirect_url}' "${BASIS}/verwaltung" -H "Cookie: ${KEKS_DOZ}")
+pruefe "die Dozentin wird vom Verwaltungsbereich auf /dozent geleitet" "$(enthaelt "$DZ_LOC" '/dozent')"
+
+# Ein Teilnehmer (ohne Dozentenrecht) wird NICHT nach /dozent, sondern in die Akte geleitet.
+TN_LOC=$(curl -s -o /dev/null -w '%{redirect_url}' "${BASIS}/verwaltung" -H "Cookie: ${KEKS2}")
+pruefe "ein Teilnehmer wird auf /meine-daten geleitet (nicht /dozent)" "$(enthaelt "$TN_LOC" '/meine-daten')"
+# Ohne Dozentenrecht fuehrt /dozent selbst weg (Seiten-Guard, 307).
+DZ_GUARD=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/dozent" -H "Cookie: ${KEKS2}")
+pruefe "ohne Dozentenrecht fuehrt /dozent weg (307)" "$(gleich "$DZ_GUARD" "307")" "$DZ_GUARD"
+
+# Die Dozentenseite rendert und zeigt den eigenen Unterricht — wertpruefend, nicht nur die Ueberschrift.
+DZ_SEITE=$(curl -s "${BASIS}/dozent" -H "Cookie: ${KEKS_DOZ}")
+pruefe "die Dozentenseite rendert (Mein Unterricht)" "$(enthaelt "$DZ_SEITE" 'Mein Unterricht')"
+pruefe "die Seite zeigt die eigenen Abende (nicht den Leerzustand)" "$(fehlt_in "$DZ_SEITE" 'noch keine Unterrichtsabende zugeordnet')"
+pruefe "ein vergangener eigener Abend bietet die Erfassung an" "$(enthaelt "$DZ_SEITE" 'Anwesenheit (')"
+pruefe "ein kuenftiger eigener Abend ist markiert (noch nicht stattgefunden)" "$(enthaelt "$DZ_SEITE" 'noch nicht stattgefunden')"
+
+# Anwesenheit fuer den EIGENEN vergangenen Abend erfassen (200) + Provenienz.
+DZ_OK=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
+pruefe "die Dozentin erfasst Anwesenheit ihres eigenen Abends (200)" "$(gleich "$DZ_OK" "200")" "$DZ_OK"
+pruefe "der Eintrag traegt die Dozentin als Erfasser" \
+  "$(gleich "$($PSQL "select \"erfasstVonId\" from anwesenheiten where \"terminId\"='${DZ_TERMIN}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "${DOZENT_ID}")"
+
+# Ueberschreib-Pfad (Autoritaet des Dozenten): DT2 traegt eine SELBSTBESTAETIGUNG der
+# Teilnehmerin (NACHGEARBEITET, erfasstVonId = sie selbst, aus Abschnitt 28). Der Dozent
+# DARF sie ueberschreiben — der Teilnehmer-Pfad darf einen fremden Eintrag gerade NICHT.
+DZ_OW=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DT2}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"GEFEHLT\"}]}")
+pruefe "der Dozent ueberschreibt eine Selbstbestaetigung (200)" "$(gleich "$DZ_OW" "200")" "$DZ_OW"
+pruefe "der Status ist danach GEFEHLT (ueberschrieben)" \
+  "$(gleich "$($PSQL "select status from anwesenheiten where \"terminId\"='${DT2}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "GEFEHLT")"
+pruefe "die Provenienz springt auf den Dozenten um" \
+  "$(gleich "$($PSQL "select \"erfasstVonId\" from anwesenheiten where \"terminId\"='${DT2}' and \"teilnahmeId\"='${TEILNAHME_ID}';")" "${DOZENT_ID}")"
+
+# Scope-Guard: ein FREMDER Abend (nicht ihr dozentId) wird abgewiesen (403).
+DZ_FREMD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${FREMD_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
+pruefe "ein fremder Abend wird abgewiesen (403, Scope-Guard)" "$(gleich "$DZ_FREMD" "403")" "$DZ_FREMD"
+
+# Scope-Guard auch gegen den Abend eines ANDEREN Dozenten (nicht nur unassigniert).
+FREMD_DOZ_TERMIN=$($PSQL "insert into unterrichtstermine (id,\"semesterId\",beginn,reihenfolge,\"dozentId\",\"erstelltAm\") values (gen_random_uuid(),'${SEMESTER_ID}',now()-interval '8 days',98,'${SCHULLEITER_ID}',now()) returning id;")
+DZ_FREMD2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${FREMD_DOZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
+pruefe "der Abend eines ANDEREN Dozenten wird abgewiesen (403)" "$(gleich "$DZ_FREMD2" "403")" "$DZ_FREMD2"
+
+# Vergangenheits-Gate: ein EIGENER, aber kuenftiger Abend (DT_FUT) wird abgewiesen (409).
+DZ_FUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DT_FUT}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
+pruefe "ein eigener kuenftiger Abend wird abgewiesen (409)" "$(gleich "$DZ_FUT" "409")" "$DZ_FUT"
+
+# ENTSCHULDIGT ist fuer den Dozenten nicht erlaubt (400) — Schulentscheidung.
+DZ_ENT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ENTSCHULDIGT\"}]}")
+pruefe "entschuldigt wird fuer den Dozenten abgewiesen (400)" "$(gleich "$DZ_ENT" "400")" "$DZ_ENT"
+
+# Ein Teilnehmer ohne Dozentenrecht darf die Route gar nicht nutzen (403).
+DZ_TEILN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
+pruefe "ein Teilnehmer ohne Dozentenrecht darf nicht erfassen (403)" "$(gleich "$DZ_TEILN" "403")" "$DZ_TEILN"
+
+# Ein unterrichtender Schulleiter (Dozent + Verwaltungsrecht) bleibt in der Verwaltung —
+# die !PERSON_LESEN_ALLE-Klausel der Weiche haelt ihn dort.
+$PSQL "insert into person_rolle (\"personId\",\"rolleCode\") values ('${SCHULLEITER_ID}','DOZENT') on conflict do nothing;" > /dev/null
+SL_VERW=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/verwaltung" -H "Cookie: ${KEKS}")
+pruefe "ein unterrichtender Schulleiter bleibt in der Verwaltung (200, nicht /dozent)" "$(gleich "$SL_VERW" "200")" "$SL_VERW"
+
+# 339 Pruefungen plus diese eine, die sich selbst mitzaehlt. (Der Zaehler war seit
 # den Honorar-Abschnitten 29/29b veraltet — die liefen mangels Docker nie mit.)
-SOLL=317
+SOLL=340
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

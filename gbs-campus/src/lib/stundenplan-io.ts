@@ -13,6 +13,7 @@ import { zahl } from "@/lib/einstellungen";
 import {
   anwesenheitsquote,
   dienstagstermine,
+  istDozentStatusErlaubt,
   quoteAusVergangenen,
   terminText,
   type QuoteModellA,
@@ -70,10 +71,53 @@ export type AnwesenheitEintrag = { teilnahmeId: string; status: Anwesenheitsstat
 export type ErfassErgebnis = { fehler: "termin_fehlt" } | { gesetzt: number };
 
 /**
- * Erfasst die Anwesenheit für einen Termin, mehrere Teilnehmer auf einmal.
- * Upsert je (Termin, Teilnahme) — idempotent und ohne Doppelzeilen. Nur
- * Teilnahmen desselben Semesters werden angenommen (kein Eintrag für eine
- * fremde Teilnahme).
+ * Schreibt die Anwesenheit mehrerer Teilnehmer an EINEM Termin — der gemeinsame
+ * Kern von `erfasseAnwesenheit` (Verwaltung) und `erfasseAlsDozent` (Dozent an der
+ * Quelle). Nur Teilnahmen desselben Semesters werden angenommen; fremde werden
+ * still übersprungen. Alle Upserts laufen in EINER Transaktion (alles-oder-nichts),
+ * und wird der Termin oder eine Teilnahme in der Lücke gelöscht, meldet der
+ * Fremdschlüssel P2003/P2025 — das kommt als `"termin_fehlt"` zurück (der Aufrufer
+ * antwortet 404) statt als 500. Rückgabe sonst: die Zahl der geschriebenen Zeilen.
+ */
+async function schreibeAnwesenheiten(
+  terminId: string,
+  semesterId: string,
+  eintraege: AnwesenheitEintrag[],
+  erfasstVonId: string,
+): Promise<number | "termin_fehlt"> {
+  const gueltig = new Set(
+    (await prisma.teilnahme.findMany({ where: { semesterId }, select: { id: true } })).map((t) => t.id),
+  );
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      let gesetzt = 0;
+      for (const eintrag of eintraege) {
+        if (!gueltig.has(eintrag.teilnahmeId)) continue;
+        await tx.anwesenheit.upsert({
+          where: { terminId_teilnahmeId: { terminId, teilnahmeId: eintrag.teilnahmeId } },
+          update: { status: eintrag.status, erfasstVonId },
+          create: { terminId, teilnahmeId: eintrag.teilnahmeId, status: eintrag.status, erfasstVonId },
+        });
+        gesetzt++;
+      }
+      return gesetzt;
+    });
+  } catch (ausnahme) {
+    if (
+      ausnahme instanceof Prisma.PrismaClientKnownRequestError &&
+      (ausnahme.code === "P2003" || ausnahme.code === "P2025")
+    ) {
+      return "termin_fehlt";
+    }
+    throw ausnahme;
+  }
+}
+
+/**
+ * Erfasst die Anwesenheit für einen Termin, mehrere Teilnehmer auf einmal
+ * (Verwaltung, Recht SEMESTER_VERWALTEN). Idempotent und ohne Doppelzeilen; nur
+ * Teilnahmen desselben Semesters werden angenommen.
  */
 export async function erfasseAnwesenheit(
   terminId: string,
@@ -87,22 +131,8 @@ export async function erfasseAnwesenheit(
   });
   if (!termin) return { fehler: "termin_fehlt" };
 
-  const gueltig = new Set(
-    (await prisma.teilnahme.findMany({ where: { semesterId: termin.semesterId }, select: { id: true } })).map(
-      (t) => t.id,
-    ),
-  );
-
-  let gesetzt = 0;
-  for (const eintrag of eintraege) {
-    if (!gueltig.has(eintrag.teilnahmeId)) continue;
-    await prisma.anwesenheit.upsert({
-      where: { terminId_teilnahmeId: { terminId, teilnahmeId: eintrag.teilnahmeId } },
-      update: { status: eintrag.status, erfasstVonId: akteurId },
-      create: { terminId, teilnahmeId: eintrag.teilnahmeId, status: eintrag.status, erfasstVonId: akteurId },
-    });
-    gesetzt++;
-  }
+  const gesetzt = await schreibeAnwesenheiten(terminId, termin.semesterId, eintraege, akteurId);
+  if (gesetzt === "termin_fehlt") return { fehler: "termin_fehlt" };
 
   await protokolliere({
     aktion: "ANWESENHEIT_ERFASST",
@@ -346,4 +376,145 @@ export async function bestaetigeEigeneAnwesenheit(
   });
 
   return { ok: true, status };
+}
+
+// =============================================================================
+// Dozenten-Self-Service — der Dozent sieht seine eigenen Abende und erfasst dort
+// die Anwesenheit an der Quelle
+// =============================================================================
+
+export type DozentTermin = {
+  id: string;
+  text: string;
+  fach: string | null;
+  istVergangen: boolean;
+};
+
+export type DozentSemesterGruppe = {
+  semesterBezeichnung: string;
+  /** Aktive Teilnehmer des Semesters — die Zeilen der Erfassungs-Matrix. */
+  teilnehmer: { teilnahmeId: string; name: string }[];
+  termine: DozentTermin[];
+  /** terminId → teilnahmeId → Status, nur für die vergangenen Abende befüllt. */
+  anwesenheit: Record<string, Record<string, string>>;
+};
+
+/**
+ * Die Unterrichtsabende, an denen die Person als Dozent eingetragen ist
+ * (`Unterrichtstermin.dozentId`), gruppiert nach Semester (neuestes zuerst) —
+ * vergangene UND kommende Abende, damit der Dozent seinen Stundenplan sieht. Für
+ * die vergangenen Abende zusätzlich die Teilnehmer-Matrix mit dem aktuell
+ * erfassten Status, damit er die Anwesenheit an der Quelle erfassen kann.
+ * Streng auf `dozentId` gescoped — keine fremden Abende.
+ */
+export async function ladeEigeneDozentTermine(dozentId: string, jetzt: Date): Promise<DozentSemesterGruppe[]> {
+  const termine = await prisma.unterrichtstermin.findMany({
+    where: { dozentId },
+    orderBy: [{ semester: { start: "desc" } }, { beginn: "asc" }],
+    select: {
+      id: true,
+      beginn: true,
+      semesterId: true,
+      semester: { select: { bezeichnung: true } },
+      kurseinheit: { select: { fach: { select: { bezeichnung: true } } } },
+    },
+  });
+  if (termine.length === 0) return [];
+
+  // Reihenfolge = wie in `termine` (neuestes Semester zuerst); Set hält die Ordnung.
+  const semesterIds = [...new Set(termine.map((t) => t.semesterId))];
+  const vergangeneIds = termine.filter((t) => t.beginn.getTime() <= jetzt.getTime()).map((t) => t.id);
+
+  // Aktive Teilnehmer der betroffenen Semester + die bereits erfasste Anwesenheit
+  // zu den vergangenen Abenden dieses Dozenten — nebenläufig.
+  const [teilnehmerRoh, anwesenheitRoh] = await Promise.all([
+    prisma.teilnahme.findMany({
+      where: { semesterId: { in: semesterIds }, person: { status: { istAktiv: true } } },
+      orderBy: [{ person: { nachname: "asc" } }, { person: { vorname: "asc" } }],
+      select: { id: true, semesterId: true, person: { select: { vorname: true, nachname: true } } },
+    }),
+    vergangeneIds.length > 0
+      ? prisma.anwesenheit.findMany({
+          where: { terminId: { in: vergangeneIds } },
+          select: { terminId: true, teilnahmeId: true, status: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Anwesenheit je Semester ablegen (terminId → teilnahmeId → Status).
+  const semesterVonTermin = new Map(termine.map((t) => [t.id, t.semesterId]));
+  const anwesenheitProSemester = new Map<string, Record<string, Record<string, string>>>();
+  for (const a of anwesenheitRoh) {
+    const sid = semesterVonTermin.get(a.terminId);
+    if (!sid) continue;
+    const proSemester = anwesenheitProSemester.get(sid) ?? {};
+    (proSemester[a.terminId] ??= {})[a.teilnahmeId] = a.status;
+    anwesenheitProSemester.set(sid, proSemester);
+  }
+
+  return semesterIds.map((sid) => {
+    const semesterTermine = termine.filter((t) => t.semesterId === sid);
+    return {
+      semesterBezeichnung: semesterTermine[0].semester.bezeichnung,
+      teilnehmer: teilnehmerRoh
+        .filter((t) => t.semesterId === sid)
+        .map((t) => ({ teilnahmeId: t.id, name: `${t.person.nachname}, ${t.person.vorname}` })),
+      termine: semesterTermine.map((t) => ({
+        id: t.id,
+        text: terminText(t.beginn),
+        fach: t.kurseinheit?.fach.bezeichnung ?? null,
+        istVergangen: t.beginn.getTime() <= jetzt.getTime(),
+      })),
+      anwesenheit: anwesenheitProSemester.get(sid) ?? {},
+    };
+  });
+}
+
+export type DozentErfassErgebnis =
+  | { fehler: "termin_fehlt" | "fremd" | "zukunft" | "status_ungueltig" }
+  | { gesetzt: number };
+
+/**
+ * Der Dozent erfasst die Anwesenheit für EINEN seiner eigenen Abende, mehrere
+ * Teilnehmer auf einmal. Anders als die Verwaltungs-Erfassung ist sie dreifach
+ * begrenzt:
+ *  - **Scope**: der Abend muss dem Dozenten gehören (`termin.dozentId === dozentId`)
+ *    — sonst `fremd` (die Route antwortet 403). Das ist der eigentliche Schutz;
+ *    das Recht öffnet nur die Tür.
+ *  - **Vergangenheit**: nur bereits stattgefundene Abende (`zukunft` sonst) — wie
+ *    bei der Selbstbestätigung; die Route darf nicht laxer sein als die UI.
+ *  - **Zustände**: nur ANWESEND/GEFEHLT/NACHGEARBEITET (kein „entschuldigt").
+ *
+ * Das Schreiben (Upsert je Teilnahme, `erfasstVonId = dozentId`) läuft über
+ * `schreibeAnwesenheiten` — er überschreibt wie die Verwaltung (Autorität für
+ * seinen Abend), die Provenienz bleibt erhalten.
+ */
+export async function erfasseAlsDozent(
+  dozentId: string,
+  terminId: string,
+  eintraege: AnwesenheitEintrag[],
+  headers: Headers,
+): Promise<DozentErfassErgebnis> {
+  const termin = await prisma.unterrichtstermin.findUnique({
+    where: { id: terminId },
+    select: { id: true, semesterId: true, dozentId: true, beginn: true },
+  });
+  if (!termin) return { fehler: "termin_fehlt" };
+  if (termin.dozentId !== dozentId) return { fehler: "fremd" };
+  if (!terminVergangen(termin.beginn, new Date())) return { fehler: "zukunft" };
+  if (!eintraege.every((e) => istDozentStatusErlaubt(e.status))) return { fehler: "status_ungueltig" };
+
+  const gesetzt = await schreibeAnwesenheiten(terminId, termin.semesterId, eintraege, dozentId);
+  if (gesetzt === "termin_fehlt") return { fehler: "termin_fehlt" };
+
+  await protokolliere({
+    aktion: "ANWESENHEIT_ERFASST",
+    objektTyp: "Unterrichtstermin",
+    objektId: terminId,
+    akteurId: dozentId,
+    nachher: { gesetzt, quelle: "DOZENT" },
+    headers,
+  });
+
+  return { gesetzt };
 }

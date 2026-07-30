@@ -48,6 +48,19 @@ export function zaehltAlsVersaeumt(status: string | null | undefined): boolean {
   return status === "GEFEHLT" || status === "ENTSCHULDIGT";
 }
 
+/**
+ * Die Zustände, die ein Dozent für seine eigenen Abende setzen darf: anwesend,
+ * gefehlt oder nachgearbeitet. „Entschuldigt" ist bewusst NICHT dabei — ob eine
+ * Abwesenheit entschuldigt ist, entscheidet die Schule, nicht der Dozent im Raum
+ * (dieselbe Grenze wie bei der Selbstbestätigung des Teilnehmers).
+ */
+export const DOZENT_STATUS = ["ANWESEND", "GEFEHLT", "NACHGEARBEITET"] as const;
+export type DozentStatus = (typeof DOZENT_STATUS)[number];
+
+export function istDozentStatusErlaubt(status: string): status is DozentStatus {
+  return (DOZENT_STATUS as readonly string[]).includes(status);
+}
+
 export type QuoteErgebnis = {
   gesamt: number;
   teilgenommen: number;

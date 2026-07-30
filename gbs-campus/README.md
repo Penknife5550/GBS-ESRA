@@ -110,8 +110,8 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | 417 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Schüler-Quote, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
-| `bash scripts/durchstich.sh` | 317 Prüfungen gegen das gebaute Image und eine frische Datenbank |
+| `npm run pruefen` | 421 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort, Auskunft/PDF, Beitrag, Fächer, Stundenplan, Schüler-Quote, Selbstbestätigung, Honorar inkl. Satz-Historie + Abrechnung/Auszahlung, Anonymisierung), ohne Datenbank |
+| `bash scripts/durchstich.sh` | 340 Prüfungen gegen das gebaute Image und eine frische Datenbank |
 | `npm run pruefen:db` | 30 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine Datenbank |
 
 > Die Typprüfung und der Build hängen auf diesem Rechner regelmäßig, weil Synology Drive und iCloud
@@ -460,6 +460,30 @@ Kein neues Recht, keine Migration. Die Kernrechnung steht DB-frei in
 Verwaltungssicht aus der Einstellung `ANWESENHEIT_MINDEST_PROZENT`. Weil die Quote eine reine Ansicht
 ist, erscheint sie schon mit `PERSON_LESEN_EIGENE` — nur die Selbstbestätigungs-Knöpfe hängen weiter an
 `PERSON_BEARBEITEN_EIGENE`. Der Durchstich weist die gerenderte Quote für einen angemeldeten Schüler nach.
+
+### Dozenten-Self-Service (Release 0.3)
+
+Die Rolle **Dozent** war bis dahin faktisch leer — dieselben zwei Rechte wie ein Teilnehmer, und nach
+dem Login landete ein Dozent in der eigenen Akte. Jetzt hat er einen eigenen Bereich **`/dozent`**
+(„Mein Unterricht"): Nach dem Login leitet die Weiche in `/verwaltung` einen reinen Dozenten dorthin
+(wer zusätzlich ein Verwaltungsrecht trägt, z. B. ein Schulleiter, der auch unterrichtet, bleibt in der
+Verwaltung). `/meine-daten` bleibt erreichbar — der Dozent braucht es für seine Bankverbindung
+(Honorar-Auszahlung).
+
+**Stufe 1 — eigener Stundenplan (read-only):** `ladeEigeneDozentTermine` spiegelt den Schüler-Loader,
+filtert aber über `Unterrichtstermin.dozentId` statt über die Teilnahme; vergangene und kommende Abende
+je Semester mit Fach. Neues Recht `EIGENE_TERMINE_LESEN`.
+
+**Stufe 2 — Anwesenheit an der Quelle** (löst den blinden Fleck, dass der Dozent im Raum die
+prüfungsrelevante 80-%-Quote bisher nicht speisen konnte): Für seine **eigenen** vergangenen Abende
+trägt der Dozent die Anwesenheit der Teilnehmer ein. Der eigentliche Schutz ist ein **Scope-Guard** in
+`erfasseAlsDozent` — `termin.dozentId === benutzer.id`, sonst **403**; das Recht
+`ANWESENHEIT_ERFASSEN_EIGENE` öffnet nur die Route (`POST /api/dozent/anwesenheit`). Erlaubt sind nur
+**anwesend/gefehlt/nachgearbeitet** — „entschuldigt" bleibt eine Schulentscheidung (DB-frei in
+`istDozentStatusErlaubt`, dieselbe Grenze wie bei der Selbstbestätigung). Beide Rechte sind **Daten im
+Seed** — keine Migration; **GASTDOZENT** bleibt bewusst rechtlos (Token-Flow ohne Login). Der Durchstich
+weist Login-Routing, gerenderte Seite, Erfassung des eigenen Abends (200), den Scope-Guard (403 auf
+fremden Abend) und die Zustands-Grenze (400 bei „entschuldigt") nach.
 
 ### Dozentenhonorar (Release 0.2)
 

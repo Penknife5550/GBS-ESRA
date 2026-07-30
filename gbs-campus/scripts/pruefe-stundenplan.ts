@@ -7,7 +7,13 @@
  * nie auf die Anzahl.
  */
 
-import { anwesenheitName, anwesenheitsquote, dienstagstermine, zaehltAlsTeilgenommen } from "../src/lib/stundenplan";
+import {
+  anwesenheitName,
+  anwesenheitsquote,
+  dienstagstermine,
+  istDozentStatusErlaubt,
+  zaehltAlsTeilgenommen,
+} from "../src/lib/stundenplan";
 
 let geprueft = 0;
 let fehlgeschlagen = 0;
@@ -66,8 +72,14 @@ pruefe(
   pruefe("der erste Termin liegt am/nach dem Semesterbeginn (unter 7 Tagen)", diffTage >= 0 && diffTage < 7, diffTage);
 }
 
+console.log("\n4. Erlaubte Dozenten-Zustände (Anwesenheit an der Quelle)");
+pruefe("ANWESEND ist für den Dozenten erlaubt", istDozentStatusErlaubt("ANWESEND") === true);
+pruefe("GEFEHLT ist für den Dozenten erlaubt", istDozentStatusErlaubt("GEFEHLT") === true);
+pruefe("NACHGEARBEITET ist für den Dozenten erlaubt", istDozentStatusErlaubt("NACHGEARBEITET") === true);
+pruefe("ENTSCHULDIGT ist NICHT erlaubt (Schulentscheidung)", istDozentStatusErlaubt("ENTSCHULDIGT") === false);
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 20;
+const ERWARTET = 24;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 
