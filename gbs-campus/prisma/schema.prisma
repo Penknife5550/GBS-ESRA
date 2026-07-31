@@ -213,6 +213,8 @@ model Person {
   dozentTermine      Unterrichtstermin[] @relation("TerminDozent")
   /// Honorar-Abrechnungen dieser Person als Dozent (Release 0.3).
   honorarAbrechnungen HonorarAbrechnung[] @relation("AbrechnungDozent")
+  /// Ausgestellte Zeugnisse/Bescheinigungen dieser Person (Release 0.4).
+  zeugnisse           Zeugnis[]
 
   @@index([statusCode])
   @@index([nachname, vorname])
@@ -286,6 +288,7 @@ model Semester {
   anmeldungen Anmeldung[]
   termine     Unterrichtstermin[]
   honorarAbrechnungen HonorarAbrechnung[]
+  zeugnisse           Zeugnis[]
 
   @@map("semester")
 }
@@ -520,6 +523,78 @@ model Leistung {
   @@unique([teilnahmeId, kurseinheitId])
   @@index([kurseinheitId])
   @@map("leistungen")
+}
+
+// =============================================================================
+// Zeugnisse & Bescheinigungen — M8 (Release 0.4, Stufe 2)
+//
+// Ein Zeugnis ist ein EINGEFRORENES Dokument: beim Ausstellen wird ein Snapshot
+// der gedruckten Daten (Name, Fach-Ergebnisse) als JSON festgeschrieben — eine
+// spaetere Noten- oder Namensaenderung veraendert ein bereits ausgestelltes
+// Zeugnis nicht mehr (wie der eingefrorene Honorar-Beleg). Der Snapshot enthaelt
+// bewusst KEINE besonderen Daten (keine IBAN, keine Art.-9-Angaben).
+//
+// Drei Typen: SEMESTER (ein Semester), ABSCHLUSS (die ganze Ausbildung, Inhalt
+// aggregiert alle Semester) und BESCHEINIGUNG (Hoerer — Teilnahme ohne Bewertung,
+// kein Zeugnis). `semesterId` ist immer das AUSSTELLUNGS-Semester (auch beim
+// Abschluss: der Jahrgang/Ausloeser) — so laesst sich ein Seriendruck je Semester
+// jederzeit reproduzieren.
+//
+// Korrektur = Neuausstellung mit Storno: das falsche Zeugnis wird ERSETZT (bleibt
+// als Nachweis), ein neues mit hoeherer `version` und neuer Beleg-Nr tritt an
+// seine Stelle; `ersetztId` zeigt auf den Vorgaenger, der „ersetzt Beleg …"-
+// Vermerk steht im Snapshot.
+//
+// Eindeutigkeit (zwei partielle Unique-Indizes, siehe Migration): Semester-Zeugnis
+// und Bescheinigung sind je (Person, Semester, Typ) eindeutig; das
+// Abschlusszeugnis dagegen je PERSON (sein Inhalt aggregiert die ganze Ausbildung
+// — es darf nicht je Ausstellungs-Semester ein zweites „Original" geben).
+// =============================================================================
+
+enum Zeugnistyp {
+  SEMESTER // Semester-Zeugnis (ein Semester)
+  ABSCHLUSS // Gesamt-Abschlusszeugnis (Inhalt aggregiert die ganze Ausbildung)
+  BESCHEINIGUNG // Teilnahmebescheinigung (Hoerer, ohne Bewertung)
+}
+
+enum Zeugnisstatus {
+  GUELTIG
+  ERSETZT // durch eine Neuausstellung abgeloest, bleibt als Nachweis
+}
+
+model Zeugnis {
+  id      String @id @default(uuid())
+  belegNr String @unique // ZEU-JJJJ-MM-TT-XXXX bzw. BESCH-JJJJ-MM-TT-XXXX
+
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  /// Ausstellungs-Semester (Kontext/Jahrgang) — immer gesetzt, auch beim Abschluss.
+  /// Restrict wie bei der Honorar-Abrechnung: ein Zeugnis darf sein Semester nicht
+  /// verlieren.
+  semesterId String
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+
+  typ     Zeugnistyp
+  status  Zeugnisstatus @default(GUELTIG)
+  version Int           @default(1)
+
+  /// Id des ersetzten Zeugnisses (bewusst keyless, keine Self-Relation): der
+  /// „ersetzt Beleg …"-Vermerk ist bereits in den Snapshot denormalisiert, und
+  /// die Kette verschwindet ohnehin gemeinsam ueber die Person-Cascade — eine
+  /// echte FK-Beziehung braeuchte es hier nicht.
+  ersetztId String?
+
+  /// Eingefrorener Snapshot der gedruckten Daten (JSON). KEIN IBAN, keine Art.-9-Angaben.
+  snapshot Json
+
+  ausgestelltVonId String? // Akteur-Id (keine Relation, wie erfasstVonId)
+  ausgestelltAm    DateTime  @default(now())
+  dmsGesendetAm    DateTime?
+
+  @@index([semesterId, typ, status])
+  @@index([personId, status])
+  @@map("zeugnisse")
 }
 
 // =============================================================================

@@ -22,7 +22,10 @@ export type PdfBlock =
   | { art: "absatz"; text: string }
   | { art: "kv"; label: string; wert: string }
   | { art: "klein"; text: string }
-  | { art: "leer" };
+  | { art: "leer" }
+  // Erzwingt eine neue Seite — fuer den Zeugnis-Seriendruck, damit jede Person auf
+  // einem eigenen Blatt beginnt.
+  | { art: "seitenumbruch" };
 
 const SEITE_B = 595.28; // A4 hoch, PostScript-Punkte
 const SEITE_H = 841.89;
@@ -31,7 +34,7 @@ const TEXTBREITE = SEITE_B - 2 * RAND;
 const OBEN = SEITE_H - RAND;
 const UNTEN = RAND;
 
-type Zeile = { text: string; size: number; bold: boolean; gray: boolean };
+type Zeile = { text: string; size: number; bold: boolean; gray: boolean; umbruch?: boolean };
 
 /**
  * Ersetzt Zeichen ausserhalb von Latin-1 durch nahe Entsprechungen, escaped die
@@ -133,6 +136,9 @@ export function erzeugePdf(bloecke: PdfBlock[]): Buffer {
       case "leer":
         zeilen.push({ text: "", size: 6, bold: false, gray: false });
         break;
+      case "seitenumbruch":
+        zeilen.push({ text: "", size: 0, bold: false, gray: false, umbruch: true });
+        break;
     }
   }
 
@@ -146,6 +152,12 @@ export function erzeugePdf(bloecke: PdfBlock[]): Buffer {
     y = OBEN;
   };
   for (const z of zeilen) {
+    // Erzwungener Seitenumbruch: die aktuelle Seite abschliessen und neu beginnen.
+    // Eine bereits leere Seite (nichts geschrieben) nicht ein zweites Mal umbrechen.
+    if (z.umbruch) {
+      if (strom.length > 0) flush();
+      continue;
+    }
     const lh = z.size * 1.42;
     if (y - lh < UNTEN) flush();
     y -= lh;

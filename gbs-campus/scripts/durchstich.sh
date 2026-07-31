@@ -1553,8 +1553,130 @@ pruefe "Batch mit gueltigem + semesterfremdem Eintrag: nur der gueltige zaehlt (
 pruefe "die semesterfremde Teilnahme bekommt KEINE Note (Whitelist greift)" \
   "$(gleich "$($PSQL "select count(*) from leistungen where \"teilnahmeId\"='${FREMD_TEILNAHME}';")" "0")"
 
-# 375 Pruefungen plus diese eine, die sich selbst mitzaehlt.
-SOLL=376
+echo
+echo "=== 36. Zeugnisse & Bescheinigungen (Stufe 2: ausstellen, einfrieren, Storno, Seriendruck) ==="
+# Schema: Tabelle, Enums, partieller Unique-Index (ein gueltiges je Person/Semester/Typ), FK.
+pruefe "Tabelle zeugnisse existiert" \
+  "$(gleich "$($PSQL "select count(*) from information_schema.tables where table_name='zeugnisse';")" "1")"
+pruefe "Enum Zeugnistyp existiert" \
+  "$(gleich "$($PSQL "select count(*) from pg_type where typname='Zeugnistyp';")" "1")"
+pruefe "partieller Unique-Index zeugnis_ein_gueltiges existiert" \
+  "$(gleich "$($PSQL "select count(*) from pg_indexes where tablename='zeugnisse' and indexname='zeugnis_ein_gueltiges';")" "1")"
+pruefe "FK auf semester ist RESTRICT" \
+  "$(gleich "$($PSQL "select confdeltype from pg_constraint where conname='zeugnisse_semesterId_fkey';")" "r")"
+
+# Rechte: Zeugnisse laufen ueber NOTEN_VERWALTEN (kein neues Recht). Seite + Route-Gate.
+ZS_SEITE=$(curl -s "${BASIS}/verwaltung/zeugnisse" -H "Cookie: ${KEKS}")
+pruefe "die Zeugnisseite der Schulleitung rendert" "$(enthaelt "$ZS_SEITE" 'Zeugnisse')"
+ZS_TEILN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS2}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\"}")
+pruefe "ein Teilnehmer darf keine Zeugnisse ausstellen (403)" "$(gleich "$ZS_TEILN" "403")" "$ZS_TEILN"
+
+# Ausgangslage sicherstellen: die Teilnahme ist SCHUELER (bekommt ein Zeugnis, keine Bescheinigung).
+# Der Schueler hat aus Abschnitt 35 eine BESTANDEN-Note in KURSEINHEIT_ID.
+$PSQL "update teilnahmen set teilnahmeform='SCHUELER' where id='${TEILNAHME_ID}';" > /dev/null
+
+# Einzel-Ausstellung (200) + eingefrorener Snapshot.
+ZAUS=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\",\"personId\":\"${TEILNEHMER_ID}\"}")
+pruefe "die Schulleitung stellt ein Semester-Zeugnis aus (Beleg-Nr ZEU-)" "$(enthaelt "$ZAUS" '"belegNr":"ZEU-')"
+Z1=$($PSQL "select id from zeugnisse where \"personId\"='${TEILNEHMER_ID}' and typ='SEMESTER' and status='GUELTIG';")
+Z1_BELEG=$($PSQL "select \"belegNr\" from zeugnisse where id='${Z1}';")
+pruefe "das Zeugnis ist gueltig und Ausfertigung 1" \
+  "$(gleich "$($PSQL "select version from zeugnisse where id='${Z1}' and status='GUELTIG';")" "1")"
+pruefe "der Snapshot friert das Ergebnis als Klartext ein (bestanden)" \
+  "$(gleich "$($PSQL "select snapshot->'leistungen'->0->>'ergebnisText' from zeugnisse where id='${Z1}';")" "bestanden")"
+
+# Immutabilitaet: die Note nachtraeglich aendern — der Snapshot bleibt unveraendert.
+curl -s -o /dev/null -X POST "${BASIS}/api/noten" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"kurseinheitId\":\"${KURSEINHEIT_ID}\",\"semesterId\":\"${SEMESTER_ID}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"ergebnis\":\"NICHT_BESTANDEN\"}]}"
+pruefe "nach der Notenaenderung bleibt der ausgestellte Snapshot bestanden (eingefroren)" \
+  "$(gleich "$($PSQL "select snapshot->'leistungen'->0->>'ergebnisText' from zeugnisse where id='${Z1}';")" "bestanden")"
+
+# Korrektur = Neuausstellung mit Storno.
+ZNEU=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\",\"personId\":\"${TEILNEHMER_ID}\"}")
+pruefe "die Neuausstellung liefert Ausfertigung 2" "$(enthaelt "$ZNEU" '"version":2')"
+pruefe "das alte Zeugnis ist jetzt ERSETZT" \
+  "$(gleich "$($PSQL "select status from zeugnisse where id='${Z1}';")" "ERSETZT")"
+pruefe "es gibt genau EIN gueltiges Zeugnis (Person/Semester/Typ)" \
+  "$(gleich "$($PSQL "select count(*) from zeugnisse where \"personId\"='${TEILNEHMER_ID}' and \"semesterId\"='${SEMESTER_ID}' and typ='SEMESTER' and status='GUELTIG';")" "1")"
+Z2=$($PSQL "select id from zeugnisse where \"personId\"='${TEILNEHMER_ID}' and typ='SEMESTER' and status='GUELTIG';")
+pruefe "die neue Ausfertigung friert den KORRIGIERTEN Stand ein (nicht bestanden)" \
+  "$(gleich "$($PSQL "select snapshot->'leistungen'->0->>'ergebnisText' from zeugnisse where id='${Z2}';")" "nicht bestanden")"
+pruefe "die neue Ausfertigung traegt den Storno-Vermerk (ersetzt alte Beleg-Nr)" \
+  "$(gleich "$($PSQL "select snapshot->>'ersetztBelegNr' from zeugnisse where id='${Z2}';")" "${Z1_BELEG}")"
+pruefe "ein Audit-Eintrag ZEUGNIS_AUSGESTELLT entsteht (auf das Zeugnis bezogen)" \
+  "$(gleich "$($PSQL "select (count(*) > 0) from audit_log where aktion='ZEUGNIS_AUSGESTELLT' and \"objektId\"='${Z2}';")" "t")"
+
+# Hoerer bekommt eine Bescheinigung (kein Zeugnis) — ueber den Sammellauf.
+ZH_PID=$($PSQL "insert into personen (id,vorname,nachname,email,\"statusCode\",teilnahmeform,\"erstelltAm\",\"aktualisiertAm\") values (gen_random_uuid(),'Hanna','Hoerer','hoerer-zeugnis@example.org','AKTIV','HOERER',now(),now()) returning id;")
+$PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${ZH_PID}','${SEMESTER_ID}','HOERER',now());" > /dev/null
+ZBATCH=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\"}")
+pruefe "der Sammellauf laeuft durch (200)" "$(gleich "$ZBATCH" "200")" "$ZBATCH"
+pruefe "der Hoerer bekommt eine BESCHEINIGUNG (kein Zeugnis)" \
+  "$(gleich "$($PSQL "select typ from zeugnisse where \"personId\"='${ZH_PID}' and status='GUELTIG';")" "BESCHEINIGUNG")"
+pruefe "die Bescheinigung traegt das Praefix BESCH-" \
+  "$(enthaelt "$($PSQL "select \"belegNr\" from zeugnisse where \"personId\"='${ZH_PID}' and status='GUELTIG';")" 'BESCH-')"
+
+# Seriendruck: EIN PDF ueber alle gueltigen (Schueler-Zeugnis + Hoerer-Bescheinigung),
+# je Person auf eigenem Blatt (Seitenumbruch wirkt).
+ZSCODE=$(curl -s -o /tmp/gbs-serien.pdf -w '%{http_code}' "${BASIS}/api/zeugnisse/seriendruck?semester=${SEMESTER_ID}&typ=SEMESTER" -H "Cookie: ${KEKS}")
+pruefe "der Seriendruck liefert ein PDF (200)" "$(gleich "$ZSCODE" "200")" "$ZSCODE"
+pruefe "die Datei ist ein PDF" "$([ "$(head -c4 /tmp/gbs-serien.pdf)" = "%PDF" ] && echo 1 || echo 0)"
+pruefe "der Seriendruck hat mindestens 2 Seiten (Seitenumbruch je Person)" \
+  "$([ "$(grep -ao '/Type /Page ' /tmp/gbs-serien.pdf | wc -l | tr -d ' ')" -ge 2 ] && echo 1 || echo 0)" \
+  "$(grep -ao '/Type /Page ' /tmp/gbs-serien.pdf | wc -l | tr -d ' ')"
+
+# Einzeldownload: der Schueler laedt sein eigenes (200), ein Fremder nicht (403), die Schulleitung jedes (200).
+ZDL_OWN=$(curl -s -o /tmp/gbs-z.pdf -w '%{http_code}' "${BASIS}/api/zeugnisse/${Z2}/pdf" -H "Cookie: ${KEKS2}")
+pruefe "der Schueler laedt sein eigenes Zeugnis (200)" "$(gleich "$ZDL_OWN" "200")" "$ZDL_OWN"
+pruefe "und es ist ein PDF" "$([ "$(head -c4 /tmp/gbs-z.pdf)" = "%PDF" ] && echo 1 || echo 0)"
+ZDL_FREMD=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/api/zeugnisse/${Z2}/pdf" -H "Cookie: ${KEKS_DOZ}")
+pruefe "ein Fremder ohne Notenrecht darf ein fremdes Zeugnis nicht laden (403)" "$(gleich "$ZDL_FREMD" "403")" "$ZDL_FREMD"
+ZDL_SL=$(curl -s -o /dev/null -w '%{http_code}' "${BASIS}/api/zeugnisse/${Z2}/pdf" -H "Cookie: ${KEKS}")
+pruefe "die Schulleitung darf jedes Zeugnis drucken (200)" "$(gleich "$ZDL_SL" "200")" "$ZDL_SL"
+
+# Schueler-Selbstansicht.
+ZTN=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")
+pruefe "der Schueler sieht den Abschnitt Meine Zeugnisse" "$(enthaelt "$ZTN" 'Meine Zeugnisse')"
+
+# --- Abschlusszeugnis: aggregiert die Leistungen ALLER Semester der Person. ---
+# FREMD_TEILNAHME (SEM2, aus Abschnitt 35) eine zweite Leistung geben, damit die
+# Aggregation ueber zwei Semester nachweisbar ist.
+$PSQL "insert into leistungen (id,\"teilnahmeId\",\"kurseinheitId\",ergebnis,\"erfasstAm\") values (gen_random_uuid(),'${FREMD_TEILNAHME}','${KONTEXT_KURS}','BESTANDEN',now());" > /dev/null
+ZA1=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"ABSCHLUSS\",\"personId\":\"${TEILNEHMER_ID}\"}")
+pruefe "die Schulleitung stellt ein Abschlusszeugnis aus (Beleg-Nr ZEU-)" "$(enthaelt "$ZA1" '"belegNr":"ZEU-')"
+ZA1_ID=$($PSQL "select id from zeugnisse where \"personId\"='${TEILNEHMER_ID}' and typ='ABSCHLUSS' and status='GUELTIG';")
+ZA1_BELEG=$($PSQL "select \"belegNr\" from zeugnisse where id='${ZA1_ID}';")
+pruefe "das Abschlusszeugnis traegt den Abschnitt 'Gesamte Ausbildung'" \
+  "$(gleich "$($PSQL "select snapshot->>'abschnitt' from zeugnisse where id='${ZA1_ID}';")" "Gesamte Ausbildung")"
+pruefe "der Snapshot aggregiert die Leistungen BEIDER Semester (2)" \
+  "$(gleich "$($PSQL "select jsonb_array_length(snapshot->'leistungen') from zeugnisse where id='${ZA1_ID}';")" "2")"
+pruefe "der Titel ist 'Abschlusszeugnis'" \
+  "$(gleich "$($PSQL "select snapshot->>'titel' from zeugnisse where id='${ZA1_ID}';")" "Abschlusszeugnis")"
+
+# Kritisch: ein zweiter Abschluss-Lauf in einem ANDEREN Semester legt KEIN zweites
+# gueltiges Abschlusszeugnis an — er storniert das erste (je Person eindeutig).
+curl -s -o /dev/null -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEM2}\",\"typ\":\"ABSCHLUSS\",\"personId\":\"${TEILNEHMER_ID}\"}"
+pruefe "genau EIN gueltiges Abschlusszeugnis je Person (semesterunabhaengig)" \
+  "$(gleich "$($PSQL "select count(*) from zeugnisse where \"personId\"='${TEILNEHMER_ID}' and typ='ABSCHLUSS' and status='GUELTIG';")" "1")"
+ZA2_ID=$($PSQL "select id from zeugnisse where \"personId\"='${TEILNEHMER_ID}' and typ='ABSCHLUSS' and status='GUELTIG';")
+pruefe "das neue Abschlusszeugnis ist Ausfertigung 2" \
+  "$(gleich "$($PSQL "select version from zeugnisse where id='${ZA2_ID}';")" "2")"
+pruefe "und es storniert das erste (ersetztBelegNr = alte Beleg-Nr)" \
+  "$(gleich "$($PSQL "select snapshot->>'ersetztBelegNr' from zeugnisse where id='${ZA2_ID}';")" "${ZA1_BELEG}")"
+
+# --- Batch-Idempotenz: der zweite Sammellauf stellt nichts neu aus, storniert nichts. ---
+ZBATCH2=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\"}")
+pruefe "der zweite Sammellauf stellt nichts neu aus (idempotent)" "$(enthaelt "$ZBATCH2" '"ausgestellt":0')"
+pruefe "der Hoerer wird nicht neu ausgestellt (Bescheinigung bleibt Ausfertigung 1)" \
+  "$(gleich "$($PSQL "select version from zeugnisse where \"personId\"='${ZH_PID}' and typ='BESCHEINIGUNG' and status='GUELTIG';")" "1")"
+
+# --- Hoerer-Bescheinigung inhaltlich: Faecher als 'teilgenommen', ohne Bewertung. ---
+pruefe "die Bescheinigung friert die Faecher als 'teilgenommen' ein" \
+  "$(gleich "$($PSQL "select snapshot->'leistungen'->0->>'ergebnisText' from zeugnisse where \"personId\"='${ZH_PID}' and status='GUELTIG';")" "teilgenommen")"
+pruefe "die Bescheinigung traegt keine Punkte (Hoerer, ohne Pruefung)" \
+  "$(gleich "$($PSQL "select ((snapshot->'leistungen'->0->>'punkte') is null) from zeugnisse where \"personId\"='${ZH_PID}' and status='GUELTIG';")" "t")"
+
+# 413 Pruefungen plus diese eine, die sich selbst mitzaehlt.
+SOLL=414
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

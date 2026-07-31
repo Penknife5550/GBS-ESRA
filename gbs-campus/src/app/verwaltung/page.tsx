@@ -81,6 +81,12 @@ export default async function VerwaltungSeite() {
       sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
     },
     {
+      titel: "Zeugnisse",
+      text: "Semester- und Abschlusszeugnisse ausstellen (einzeln/gesammelt), Seriendruck, Korrektur per Neuausstellung.",
+      pfad: "/verwaltung/zeugnisse",
+      sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
+    },
+    {
       titel: "Dozentenhonorar",
       text: "Gehaltene Abende je Dozent mit dem je Tag geltenden Satz. Sätze mit Gültig-ab genehmigen; Beleg ans DMS.",
       pfad: "/verwaltung/honorar",

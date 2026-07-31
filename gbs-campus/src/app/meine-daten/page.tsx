@@ -4,15 +4,18 @@ import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { deutscherTag, teilnahmeformName } from "@/lib/semester";
+import { datum } from "@/lib/datum";
 import { zahl } from "@/lib/einstellungen";
 import { ladeEigeneUnterrichtstermine } from "@/lib/stundenplan-io";
 import { ladeEigeneLeistungen } from "@/lib/leistung-io";
+import { ladeEigeneZeugnisse } from "@/lib/zeugnis-io";
 import { AbmeldenKnopf } from "@/app/verwaltung/abmelden-knopf";
 import { StammdatenFormular } from "./stammdaten-formular";
 import { EmailAendern } from "./email-aendern";
 import { PasswortAbschnitt } from "./passwort-abschnitt";
 import { AnwesenheitAbschnitt } from "./anwesenheit-abschnitt";
 import { MeineNotenAbschnitt } from "./meine-noten-abschnitt";
+import { MeineZeugnisseAbschnitt } from "./meine-zeugnisse-abschnitt";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +52,7 @@ export default async function MeineDatenSeite() {
   //   Quote. Bewusst schon bei reinem Leserecht laden: Die Anwesenheitsquote ist
   //   eine reine Ansicht (PERSON_LESEN_EIGENE) — nur die Selbstbestätigungs-Knöpfe
   //   hängen zusätzlich an PERSON_BEARBEITEN_EIGENE.
-  const [offenerEmailAntrag, anwesenheitGruppen, notenGruppen] = await Promise.all([
+  const [offenerEmailAntrag, anwesenheitGruppen, notenGruppen, zeugnisse] = await Promise.all([
     prisma.emailAenderung.findFirst({
       where: { personId: person.id, benutztAm: null, laeuftAb: { gt: new Date() } },
       orderBy: { erstelltAm: "desc" },
@@ -59,6 +62,7 @@ export default async function MeineDatenSeite() {
     // Read-only, deshalb schon bei reinem Leserecht (PERSON_LESEN_EIGENE) geladen —
     // wie die Anwesenheitsquote.
     ladeEigeneLeistungen(person.id),
+    ladeEigeneZeugnisse(person.id),
   ]);
 
   const unveraenderlich = [
@@ -130,6 +134,23 @@ export default async function MeineDatenSeite() {
             Meine Noten
           </h2>
           <MeineNotenAbschnitt gruppen={notenGruppen} />
+        </section>
+      )}
+
+      {zeugnisse.length > 0 && (
+        <section className="mt-12">
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Meine Zeugnisse
+          </h2>
+          <MeineZeugnisseAbschnitt
+            zeugnisse={zeugnisse.map((z) => ({
+              id: z.id,
+              belegNr: z.belegNr,
+              titel: z.titel,
+              abschnitt: z.abschnitt,
+              ausgestelltAm: datum(z.ausgestelltAm),
+            }))}
+          />
         </section>
       )}
 
