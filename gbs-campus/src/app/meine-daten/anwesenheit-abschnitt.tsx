@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
-import { anwesenheitName, type QuoteModellA, type QuoteZustand } from "@/lib/stundenplan";
+import { anwesenheitName, type QuoteModellA } from "@/lib/stundenplan";
+import { QuoteAmpel } from "@/components/ui/quote-ampel";
 
 type Termin = {
   id: string;
@@ -22,58 +23,6 @@ const OPTIONEN = [
   { wert: "ANWESEND", label: "anwesend" },
   { wert: "NACHGEARBEITET", label: "nachgearbeitet" },
 ] as const;
-
-// Ampel je Zustand — Tint aus der CREDO-Linie, Text durchgehend `text-foreground`
-// (dunkel) für sicheren Kontrast auf den blassen Tints (roter Tint mit rotem Text
-// verfehlt WCAG AA). Die Farbe unterscheidet, der Label-Text trägt die Aussage
-// (WCAG 1.4.1 — nicht allein über Farbe).
-const ZUSTAND_STIL: Record<QuoteZustand, { label: string; badge: string }> = {
-  ERFUELLT: { label: "Erfüllt", badge: "bg-credo-gruen/15 text-foreground" },
-  OFFEN: { label: "Noch offen", badge: "bg-credo-gelb/25 text-foreground" },
-  NICHT_ERREICHBAR: { label: "Nicht mehr erreichbar", badge: "bg-credo-rot/15 text-foreground" },
-};
-
-function abendWort(n: number): string {
-  return n === 1 ? "Abend" : "Abende";
-}
-
-function hinweisText(q: QuoteModellA): string {
-  if (q.zustand === "ERFUELLT") {
-    return "Die Anwesenheitspflicht ist damit gesichert — bereits erfasste Teilnahmen zählen fest.";
-  }
-  if (q.zustand === "NICHT_ERREICHBAR") {
-    return "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. Bitte wende dich an die Schulleitung.";
-  }
-  if (q.darfNochFehlen <= 0) {
-    return "Achtung: Du darfst keinen Abend mehr fehlen, sonst reißt die Grenze.";
-  }
-  return `Du darfst noch ${q.darfNochFehlen} ${abendWort(q.darfNochFehlen)} fehlen.`;
-}
-
-function QuoteZeile({ quote }: { quote: QuoteModellA }) {
-  // Fällt ein unbekannter Zustand herein (Server/Client-Skew, künftiger vierter
-  // Zustand), lieber neutral „offen" zeigen als die ganze Sektion crashen lassen.
-  const stil = ZUSTAND_STIL[quote.zustand] ?? ZUSTAND_STIL.OFFEN;
-  // Der handlungsrelevante Fall (nicht mehr erreichbar / kein Puffer mehr) darf
-  // nicht der leiseste Text auf der Seite sein.
-  const dringend =
-    quote.zustand === "NICHT_ERREICHBAR" || (quote.zustand === "OFFEN" && quote.darfNochFehlen <= 0);
-  return (
-    <div className="mt-2 rounded-lg border border-border bg-muted px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium">
-          Teilgenommen: {quote.teilgenommen} von {quote.gesamt} Abenden
-        </span>
-        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${stil.badge}`}>
-          {stil.label}
-        </span>
-      </div>
-      <p className={`mt-1 text-xs ${dringend ? "font-medium text-foreground" : "text-muted-foreground"}`}>
-        Nötig sind {quote.benoetigt} von {quote.gesamt} Abenden ({quote.schwelleProzent}&nbsp;%). {hinweisText(quote)}
-      </p>
-    </div>
-  );
-}
 
 export function AnwesenheitAbschnitt({
   gruppen,
@@ -136,7 +85,9 @@ export function AnwesenheitAbschnitt({
         <div key={gruppe.teilnahmeId} className="mt-6">
           <h3 className="text-sm font-semibold">{gruppe.semesterBezeichnung}</h3>
 
-          <QuoteZeile quote={gruppe.quote} />
+          <div className="mt-2">
+            <QuoteAmpel quote={gruppe.quote} />
+          </div>
 
           <ul className="mt-3 space-y-2">
             {gruppe.termine.map((termin) => {

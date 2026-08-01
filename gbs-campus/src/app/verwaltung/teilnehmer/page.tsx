@@ -94,10 +94,22 @@ export default async function TeilnehmerSeite() {
                   </thead>
                   <tbody>
                     {zeilen.map((zeile) => (
-                      <tr key={zeile.personId} className="border-t border-border">
+                      <tr key={zeile.personId} className="border-t border-border transition-colors hover:bg-muted/40">
                         {EXPORT_SPALTEN.map((spalte) => (
                           <td key={spalte.titel} className="whitespace-nowrap px-4 py-2.5">
-                            {spalte.wert(zeile) || "—"}
+                            {/* Die Namensspalte führt in die Detailakte; der Rest bleibt
+                                Text. Die Link-Logik lebt hier in der Seite, nicht in
+                                EXPORT_SPALTEN — sonst bräche der Excel-Export. */}
+                            {spalte.titel === "Nachname" ? (
+                              <Link
+                                href={`/verwaltung/personen/${zeile.personId}`}
+                                className="font-medium text-foreground underline-offset-4 hover:underline"
+                              >
+                                {spalte.wert(zeile) || "—"}
+                              </Link>
+                            ) : (
+                              spalte.wert(zeile) || "—"
+                            )}
                           </td>
                         ))}
                       </tr>

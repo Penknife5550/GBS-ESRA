@@ -8,7 +8,15 @@
  * nie auf die Anzahl.
  */
 
-import { quoteAusVergangenen, quoteModellA, zaehltAlsVersaeumt } from "../src/lib/stundenplan";
+import {
+  abendWort,
+  istQuoteDringend,
+  quoteAusVergangenen,
+  quoteErfuellt,
+  quoteHinweis,
+  quoteModellA,
+  zaehltAlsVersaeumt,
+} from "../src/lib/stundenplan";
 
 let geprueft = 0;
 let fehlgeschlagen = 0;
@@ -106,8 +114,36 @@ pruefe("fehlender Status zählt NICHT als versäumt", zaehltAlsVersaeumt(null) =
   pruefe("unerfasster Abend zählt NICHT als versäumt (bleibt offen)", q.versaeumt === 2 && q.offen === 6, q);
 }
 
+console.log("\n10. Quote-Klartext: Wortlaut & Dringlichkeit (die Aussage an den Schüler)");
+pruefe("abendWort(1) → Abend (Singular)", abendWort(1) === "Abend");
+pruefe("abendWort(2) → Abende (Plural)", abendWort(2) === "Abende");
+pruefe("Hinweis ERFUELLT nennt „gesichert“", quoteHinweis(quoteModellA(5, 4, 0, 80)).includes("gesichert"));
+pruefe("Hinweis NICHT_ERREICHBAR nennt „nicht mehr erreichbar“", quoteHinweis(quoteModellA(20, 3, 5, 80)).includes("nicht mehr erreichbar"));
+pruefe(
+  "Hinweis ohne Puffer: kein Abend mehr",
+  quoteHinweis(quoteModellA(20, 3, 4, 80)) === "Achtung: Es darf kein Abend mehr fehlen, sonst reißt die Grenze.",
+  quoteHinweis(quoteModellA(20, 3, 4, 80)),
+);
+pruefe(
+  "Hinweis bei 1 Puffer: Singular „1 Abend“",
+  quoteHinweis(quoteModellA(20, 8, 3, 80)) === "Es dürfen noch 1 Abend fehlen.",
+  quoteHinweis(quoteModellA(20, 8, 3, 80)),
+);
+pruefe(
+  "Hinweis bei 2 Puffer: Plural „2 Abende“",
+  quoteHinweis(quoteModellA(20, 8, 2, 80)) === "Es dürfen noch 2 Abende fehlen.",
+  quoteHinweis(quoteModellA(20, 8, 2, 80)),
+);
+pruefe("dringend: NICHT_ERREICHBAR", istQuoteDringend(quoteModellA(20, 3, 5, 80)) === true);
+pruefe("dringend: OFFEN ohne Puffer (0)", istQuoteDringend(quoteModellA(20, 3, 4, 80)) === true);
+pruefe("nicht dringend: OFFEN mit Puffer", istQuoteDringend(quoteModellA(20, 8, 2, 80)) === false);
+pruefe("nicht dringend: ERFUELLT", istQuoteDringend(quoteModellA(5, 4, 0, 80)) === false);
+pruefe("quoteErfuellt: 4 von 5 bei 80 %", quoteErfuellt(4, 5, 80) === true);
+pruefe("quoteErfuellt: 3 von 4 bei 80 % (75 %)", quoteErfuellt(3, 4, 80) === false);
+pruefe("quoteErfuellt: ohne Abende gilt als erfüllt", quoteErfuellt(0, 0, 80) === true);
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 37;
+const ERWARTET = 51;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

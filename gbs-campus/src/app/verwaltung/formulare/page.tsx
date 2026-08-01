@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { EntwurfOeffnen } from "./entwurf-oeffnen";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,8 @@ export default async function FormulareSeite() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      <h1 className="text-2xl font-bold tracking-tight">Formulare</h1>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Formulare" />
+      <h1 className="mt-6 text-2xl font-bold tracking-tight">Formulare</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Jede Änderung entsteht als neuer Entwurf. Eine veröffentlichte Fassung bleibt unverändert, damit auch später
         nachvollziehbar ist, welche Frage jemand tatsächlich beantwortet hat.

@@ -34,6 +34,17 @@ export function istErgebnisErlaubt(ergebnis: string): ergebnis is Leistungsergeb
   return (LEISTUNG_ERGEBNISSE as readonly string[]).includes(ergebnis);
 }
 
+/**
+ * Welche Ergebnisse als „bestanden" zählen (grün). Zentral, damit die
+ * Personen-Liste („X/Y bestanden") und das ErgebnisBadge dieselbe Wahrheit nutzen
+ * und ein künftiges fünftes Ergebnis nicht still an einer Kopie vorbeiläuft.
+ */
+export const BESTANDEN_ERGEBNISSE = ["BESTANDEN", "ERFOLGREICH_TEILGENOMMEN"] as const;
+
+export function giltAlsBestanden(ergebnis: string | null | undefined): boolean {
+  return ergebnis === "BESTANDEN" || ergebnis === "ERFOLGREICH_TEILGENOMMEN";
+}
+
 /** Klartext für die Anzeige. */
 export function ergebnisName(ergebnis: string | null | undefined): string {
   switch (ergebnis) {

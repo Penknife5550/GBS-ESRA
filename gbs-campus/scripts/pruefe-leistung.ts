@@ -10,6 +10,7 @@
 
 import {
   ergebnisName,
+  giltAlsBestanden,
   istErgebnisErlaubt,
   noteNormalisiert,
   NOTE_MAX_LAENGE,
@@ -99,8 +100,15 @@ console.log("\n5. Bewertungseingabe prüfen und normalisieren");
   pruefe("explizit null bei Punkte/Note ist gültig", "wert" in r && r.wert.punkte === null && r.wert.note === null, r);
 }
 
+console.log("\n6. Was als bestanden zählt (Personen-Liste: X/Y bestanden)");
+pruefe("BESTANDEN gilt als bestanden", giltAlsBestanden("BESTANDEN") === true);
+pruefe("ERFOLGREICH_TEILGENOMMEN gilt als bestanden", giltAlsBestanden("ERFOLGREICH_TEILGENOMMEN") === true);
+pruefe("TEILGENOMMEN gilt NICHT als bestanden", giltAlsBestanden("TEILGENOMMEN") === false);
+pruefe("NICHT_BESTANDEN gilt NICHT als bestanden", giltAlsBestanden("NICHT_BESTANDEN") === false);
+pruefe("fehlendes Ergebnis gilt NICHT als bestanden", giltAlsBestanden(null) === false);
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 32;
+const ERWARTET = 37;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

@@ -1,0 +1,1600 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBS Campus — UI-Neustrukturierung · rollenübergreifender Plan &amp; Mockups</title>
+<style>
+  :root{
+    --primary:#575756;
+    --primary-fg:#ffffff;
+    --gelb:#fbc900;
+    --gruen:#6baa24;
+    --rot:#e2001a;
+    --blau:#009ac6;
+    --bg:#f6f6f6;
+    --card:#ffffff;
+    --border:#e6e6e6;
+    --fg:#2b2b2b;
+    --muted:#6b6b6b;
+    --input:#dadada;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Montserrat','Segoe UI',system-ui,Arial,sans-serif;
+    background:var(--bg);color:var(--fg);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--primary);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* CREDO-Linie */
+  .credo-linie{display:flex;height:6px;width:100%}
+  .credo-linie span{flex:1}
+  .credo-linie .grau{background:var(--primary);flex:6}
+  .credo-linie .gelb{background:var(--gelb)}
+  .credo-linie .gruen{background:var(--gruen)}
+  .credo-linie .rot{background:var(--rot)}
+  .credo-linie .blau{background:var(--blau)}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* Dokument-Kopf */
+  .doc-head{background:var(--card);border-bottom:1px solid var(--border)}
+  .doc-head .inner{padding:30px 0 26px}
+  .doc-head .brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .doc-head .logo{width:34px;height:34px;border:1.5px solid var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--primary);font-weight:800;font-size:13px}
+  .doc-head .brand b{font-weight:700}
+  .doc-head .brand small{color:var(--muted);font-weight:500}
+  .doc-head h1{margin:0 0 8px;font-size:26px;font-weight:700;letter-spacing:.1px}
+  .doc-head .intro{max-width:820px;color:#444;font-size:14px;margin:0}
+  .doc-head .stamp{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+  .stamp .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:3px 11px;background:var(--bg)}
+
+  /* Abschnitts-Titel */
+  .part{max-width:1180px;margin:44px auto 0;padding:0 24px}
+  .part-kicker{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);font-weight:700;margin:0 0 3px}
+  .part h2{margin:0 0 4px;font-size:21px;font-weight:700}
+  .part .part-sub{margin:0 0 18px;color:var(--muted);font-size:13px;max-width:820px}
+
+  /* Plan-Karten */
+  .plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.plan-grid{grid-template-columns:1fr}}
+  .req{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .req-head{display:flex;align-items:flex-start;gap:12px;padding:15px 16px 12px;border-bottom:1px solid var(--border)}
+  .req-num{flex:none;width:30px;height:30px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .req-head h3{margin:0;font-size:14.5px;font-weight:700}
+  .req-head .tag{margin-top:4px;display:inline-flex;font-size:11px;font-weight:600;color:var(--muted)}
+  .req-body{padding:12px 16px 14px;font-size:13px}
+  .req-body .row{margin-bottom:10px}
+  .req-body .row:last-child{margin-bottom:0}
+  .req-body .lbl{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:3px}
+  .req-body p{margin:0;color:#3d3d3d}
+  .req-body code,.path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:#444}
+  .req-body .files{display:flex;flex-direction:column;gap:4px}
+  .aufwand{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px}
+  .a-s{background:rgba(107,170,36,.14);color:#3f6613}
+  .a-m{background:rgba(251,201,0,.20);color:#7a5c00}
+  .a-l{background:rgba(0,154,198,.13);color:#065f77}
+
+  /* Reihenfolge-Block */
+  .seq{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blau);border-radius:var(--radius);padding:16px 18px;margin-top:16px;box-shadow:var(--shadow)}
+  .seq h4{margin:0 0 10px;font-size:14px}
+  .seq ol{margin:0;padding-left:20px}
+  .seq li{margin-bottom:6px;font-size:13px;color:#3d3d3d}
+  .seq li b{color:var(--fg)}
+  .seq .dep{color:var(--muted);font-size:12px}
+
+  /* ============ MOCKUP-RAHMEN ============ */
+  .mock-intro{max-width:1180px;margin:26px auto 0;padding:0 24px}
+  .mock-intro .k{font-size:11px;text-transform:uppercase;letter-spacing:1.1px;color:var(--muted);font-weight:700}
+  .mock-intro h3{margin:2px 0 3px;font-size:16px;font-weight:700}
+  .mock-intro p{margin:0;color:var(--muted);font-size:12.5px;max-width:820px}
+  .mock-frame{max-width:1180px;margin:12px auto 0;padding:0 24px}
+  .screen{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .appbar{display:flex;align-items:center;justify-content:space-between;padding:0 22px;height:54px;border-bottom:1px solid var(--border);background:#fbfbfb}
+  .appbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--primary)}
+  .appbar .brand .logo{width:26px;height:26px;border:2px solid var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+  .appbar .brand small{color:var(--muted);font-weight:500}
+  .appbar .right{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12.5px}
+  .appbar .who{display:flex;align-items:center;gap:8px;color:var(--fg);font-weight:500}
+  .avatar{width:27px;height:27px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .backbar{display:flex;align-items:center;gap:14px;padding:11px 22px;border-bottom:1px solid var(--border)}
+  .back{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font-weight:600;font-size:13px}
+  .back svg{width:14px;height:14px}
+  .crumb{color:var(--muted);font-size:12.5px}
+  .crumb b{color:var(--fg);font-weight:600}
+  .screen-body{padding:20px 24px 26px}
+  h1.page{font-size:20px;margin:0 0 2px;font-weight:700}
+  .page-sub{color:var(--muted);margin:0 0 18px;font-size:13px}
+
+  /* Dashboard-Kategorien */
+  .kat{margin-bottom:24px}
+  .kat:last-child{margin-bottom:0}
+  .kat-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .kat-head h3{margin:0;font-size:12.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--primary);font-weight:700}
+  .kat-head .anz{font-size:11.5px;color:var(--muted)}
+  .kacheln{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:820px){.kacheln{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.kacheln{grid-template-columns:1fr}}
+  .kachel{display:flex;gap:12px;padding:13px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);align-items:flex-start;transition:border-color .12s,background .12s}
+  .kachel:hover{border-color:#cfcfcf;background:#fbfbfb;text-decoration:none}
+  .kachel .ic{flex:none;width:34px;height:34px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--primary)}
+  .kachel .ic svg{width:18px;height:18px;stroke:var(--primary);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .kachel .txt{min-width:0}
+  .kachel .t{font-weight:700;font-size:13.5px;color:var(--fg);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .kachel .d{color:var(--muted);font-size:12px;line-height:1.4;margin-top:3px}
+  .kachel .metric{font-size:11.5px;font-weight:600;color:var(--primary);margin-top:4px;display:block}
+  .pill{display:inline-flex;align-items:center;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+  .pill.blau{background:rgba(0,154,198,.13);color:#065f77}
+  .pill.rot{background:rgba(226,0,26,.10);color:#a3101d}
+  .pill.gelb{background:rgba(251,201,0,.20);color:#7a5c00}
+
+  /* Toolbar */
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .search{position:relative;flex:1;min-width:220px}
+  .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);stroke:currentColor;fill:none;stroke-width:2}
+  .search input{width:100%;border:1px solid var(--input);border-radius:8px;background:var(--card);padding:9px 12px 9px 34px;font:inherit;font-size:13px}
+  .search input::placeholder{color:#9a9a9a}
+  select.filter{border:1px solid var(--input);border-radius:8px;background:var(--card);padding:9px 30px 9px 12px;font:inherit;font-size:13px;color:var(--fg);appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--primary);background:var(--primary);color:#fff;border-radius:8px;padding:9px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+  .btn.ghost{background:var(--card);color:var(--primary);border-color:var(--border)}
+  .btn.sm{padding:6px 11px;font-size:12.5px}
+
+  /* Tabelle */
+  .tbl-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .tbl-scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
+  thead th{background:#fafafa;text-align:left;font-weight:700;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+  tbody td{padding:11px 14px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr.klick{cursor:pointer}
+  tbody tr.klick:hover{background:#fafafa}
+  .name-cell{display:flex;align-items:center;gap:10px}
+  .name-cell .nm{font-weight:600;color:var(--fg)}
+  .name-cell .sub{color:var(--muted);font-size:11.5px}
+  td.num{font-variant-numeric:tabular-nums;text-align:right}
+  .chev{color:#bdbdbd}
+  .chev svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+  tbody tr.klick:hover .chev{color:var(--blau)}
+  .tbl-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#fafafa;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .dot.g{background:var(--gruen)}.dot.b{background:var(--blau)}.dot.y{background:var(--gelb)}.dot.r{background:var(--rot)}.dot.gr{background:#9a9a9a}
+  .b-aktiv{background:rgba(107,170,36,.14);color:#3f6613}
+  .b-ruhend{background:rgba(107,107,106,.14);color:#4a4a49}
+  .b-anmeld{background:rgba(0,154,198,.13);color:#065f77}
+  .b-problem{background:rgba(226,0,26,.10);color:#a3101d}
+  .b-abschluss{background:rgba(87,87,86,.12);color:#3a3a39}
+  .tf-schueler{background:rgba(0,154,198,.12);color:#065f77}
+  .tf-hoerer{background:rgba(251,201,0,.20);color:#7a5c00}
+  .q-gut{color:#3f6613;font-weight:600}
+  .q-warn{color:#7a5c00;font-weight:600}
+  .q-krit{color:#a3101d;font-weight:600}
+
+  /* Detail-Kopf */
+  .person-head{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;background:var(--card);margin-bottom:18px}
+  .ph-left{display:flex;gap:15px;align-items:flex-start;min-width:0}
+  .ph-av{width:54px;height:54px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;flex:none}
+  .ph-left h1{margin:0;font-size:21px;font-weight:700}
+  .ph-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+  .ph-tags .contact{color:var(--muted);font-size:12.5px}
+  .facts{display:grid;grid-template-columns:repeat(4,auto);gap:12px 26px;margin-top:15px}
+  @media(max-width:720px){.facts{grid-template-columns:repeat(2,auto)}}
+  .fact .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+  .fact .v{font-size:13.5px;font-weight:600;margin-top:2px}
+  .ph-actions{display:flex;flex-direction:column;gap:8px;flex:none}
+
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:#fafafa}
+  .panel-head h3{margin:0;font-size:13.5px;font-weight:700}
+  .panel-head .hint{font-size:12px;color:var(--muted)}
+
+  /* Noten inline */
+  .noten-tbl{min-width:0}
+  .noten-tbl table{min-width:520px}
+  .noten-tbl td{padding:9px 16px}
+  .fach{font-weight:600}
+  .fach small{display:block;color:var(--muted);font-weight:400;font-size:11.5px;margin-top:1px}
+  .inp{border:1px solid var(--input);border-radius:7px;background:var(--card);padding:6px 9px;font:inherit;font-size:12.5px;color:var(--fg)}
+  select.inp{appearance:none;padding-right:26px;min-width:130px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+  .inp.pkt{width:56px;text-align:center}
+  .inp.note{width:56px;text-align:center}
+  .unsaved{background:rgba(251,201,0,.25);color:#7a5c00;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700}
+  .saved{color:var(--gruen);font-size:12px;font-weight:600;display:inline-flex;gap:5px;align-items:center}
+  .saved svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.4}
+  .offen{font-size:11.5px;color:var(--muted)}
+  .noten-foot{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:#fafafa;border-top:1px solid var(--border)}
+  .noten-foot .lg{font-size:12px;color:var(--muted)}
+
+  /* Anwesenheit */
+  .quote-box{display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .quote-num{font-size:26px;font-weight:800;color:var(--gruen);line-height:1;font-variant-numeric:tabular-nums}
+  .quote-bar{height:8px;border-radius:5px;background:#eee;overflow:hidden}
+  .quote-bar>i{display:block;height:100%;background:var(--gruen)}
+  .quote-meta{font-size:11.5px;color:var(--muted);margin-top:5px}
+  .aw-row{display:grid;grid-template-columns:88px 1fr auto;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid #f0f0f0;font-size:13px}
+  .aw-row:last-child{border-bottom:none}
+  .aw-date{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+  .aw-fach{font-weight:500}
+  .aw-fach small{color:var(--muted);font-weight:400}
+  .zust{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600}
+  .z-an{background:rgba(107,170,36,.16);color:#3f6613}
+  .z-fehl{background:rgba(226,0,26,.12);color:#a3101d}
+  .z-ent{background:rgba(251,201,0,.22);color:#7a5c00}
+  .z-nach{background:rgba(0,154,198,.14);color:#065f77}
+
+  /* Hinweis-Karten */
+  .callout{border:1px solid var(--border);border-left:3px solid var(--blau);border-radius:var(--radius);background:var(--card);padding:16px 18px;margin-bottom:14px}
+  .callout:last-child{margin-bottom:0}
+  .callout.fix{border-left-color:var(--rot)}
+  .callout h4{margin:0 0 6px;font-size:13.5px}
+  .callout p{margin:0 0 8px;font-size:13px;color:#3d3d3d}
+  .callout p:last-child{margin-bottom:0}
+  .flag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px}
+  .flag.ok{color:#3f6613;background:rgba(107,170,36,.14)}
+  .flag.bad{color:#a3101d;background:rgba(226,0,26,.10)}
+  .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .flow .step{background:#fafafa;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600}
+  .flow .arr{color:#bdbdbd}
+  .flow .arr svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+
+  /* Designprinzipien */
+  .prinzip{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.prinzip{grid-template-columns:1fr}}
+  .pcard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:15px 17px}
+  .pcard .pn{display:inline-flex;width:24px;height:24px;border-radius:6px;background:var(--bg);border:1px solid var(--border);align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--primary);margin-bottom:8px}
+  .pcard h4{margin:0 0 5px;font-size:14px;font-weight:700}
+  .pcard p{margin:0;font-size:12.5px;color:#3d3d3d;line-height:1.5}
+
+  .footer{max-width:1180px;margin:40px auto 56px;padding:22px 24px 0;border-top:1px solid var(--border);color:#9a9a9a;font-size:11.5px}
+</style>
+
+<!-- ===== Gescopte Styles der Rollen-Mockups (Dozent / Schüler) =====
+     Beide Rollen-Entwürfe nutzen dieselben CREDO-Tokens wie oben. Um Kollisionen mit
+     dem Haupt-Dokument sicher auszuschließen, ist jede Rolle unter einer Wrapper-Klasse
+     geschachtelt (.mock-dozent / .mock-schueler) — die Regeln greifen nur innerhalb ihres
+     Screens und können nach außen nichts überschreiben. -->
+<style>
+  /* ---------- Rolle Dozent ---------- */
+  .mock-dozent{
+    .screen{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+    .appbar{display:flex;align-items:center;justify-content:space-between;padding:0 22px;height:54px;border-bottom:1px solid var(--border);background:#fbfbfb}
+    .appbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--primary)}
+    .appbar .brand .logo{width:26px;height:26px;border:2px solid var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+    .appbar .right{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12.5px}
+    .appbar .who{display:flex;align-items:center;gap:8px;color:var(--fg);font-weight:500}
+    .avatar{width:27px;height:27px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none}
+    .backbar{display:flex;align-items:center;gap:14px;padding:11px 22px;border-bottom:1px solid var(--border)}
+    .back{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font-weight:600;font-size:13px}
+    .back svg{width:14px;height:14px}
+    .crumb{color:var(--muted);font-size:12.5px}
+    .crumb b{color:var(--fg);font-weight:600}
+    .screen-body{padding:20px 24px 26px}
+    h1.page{font-size:20px;margin:0 0 2px;font-weight:700}
+    .page-sub{color:var(--muted);margin:0 0 18px;font-size:13px}
+    .kat{margin-bottom:26px}
+    .kat:last-child{margin-bottom:0}
+    .kat-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .kat-head h3{margin:0;font-size:12.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--primary);font-weight:700}
+    .kat-head .anz{font-size:11.5px;color:var(--muted)}
+    .kacheln{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    @media(max-width:820px){.kacheln{grid-template-columns:1fr}}
+    .kachel{display:flex;gap:12px;padding:13px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);align-items:flex-start}
+    .kachel .ic{flex:none;width:34px;height:34px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--primary)}
+    .kachel .ic svg{width:18px;height:18px;stroke:var(--primary);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+    .kachel .txt{min-width:0}
+    .kachel .t{font-weight:700;font-size:13.5px;color:var(--fg);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .kachel .d{color:var(--muted);font-size:12px;line-height:1.4;margin-top:3px}
+    .kachel .metric{font-size:11.5px;font-weight:600;color:var(--primary);margin-top:6px;display:block}
+    .pill{display:inline-flex;align-items:center;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+    .pill.blau{background:rgba(0,154,198,.13);color:#065f77}
+    .pill.rot{background:rgba(226,0,26,.10);color:#a3101d}
+    .pill.gelb{background:rgba(251,201,0,.20);color:#7a5c00}
+    .pill.gruen{background:rgba(107,170,36,.14);color:#3f6613}
+    .aufgaben{display:flex;flex-direction:column;gap:10px}
+    .aufgabe{display:flex;align-items:center;gap:13px;border:1px solid var(--border);border-left:3px solid var(--gelb);border-radius:var(--radius);background:var(--card);padding:12px 15px}
+    .aufgabe.rot{border-left-color:var(--rot)}
+    .aufgabe .ai{flex:none;width:30px;height:30px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--primary)}
+    .aufgabe .ai svg{width:16px;height:16px;stroke:var(--primary);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    .aufgabe .body{min-width:0;flex:1}
+    .aufgabe .h{font-size:13.5px;font-weight:700}
+    .aufgabe .s{font-size:12px;color:var(--muted);margin-top:2px}
+    .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--primary);background:var(--primary);color:#fff;border-radius:8px;padding:9px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+    .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+    .btn.ghost{background:var(--card);color:var(--primary);border-color:var(--border)}
+    .btn.sm{padding:7px 12px;font-size:12.5px}
+    .panel{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden;margin-bottom:12px}
+    .panel:last-child{margin-bottom:0}
+    .panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:#fafafa}
+    .panel-head .ph-l{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+    .panel-head h3{margin:0;font-size:13.5px;font-weight:700}
+    .panel-head .sub{font-size:12px;color:var(--muted)}
+    .panel-head .hint{font-size:12px;color:var(--muted)}
+    .panel-head.offen{border-left:3px solid var(--gelb)}
+    .badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;white-space:nowrap}
+    .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .dot.g{background:var(--gruen)}.dot.b{background:var(--blau)}.dot.y{background:var(--gelb)}.dot.r{background:var(--rot)}.dot.gr{background:#9a9a9a}
+    .b-gehalten{background:rgba(107,170,36,.14);color:#3f6613}
+    .b-geplant{background:rgba(107,107,106,.14);color:#4a4a49}
+    .b-offen{background:rgba(251,201,0,.20);color:#7a5c00}
+    .aw-row{display:grid;grid-template-columns:88px 1fr auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:13px}
+    .aw-row:last-child{border-bottom:none}
+    .aw-row.aktiv{background:#fafafa}
+    .aw-date{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+    .aw-fach{font-weight:600}
+    .aw-fach small{color:var(--muted);font-weight:400}
+    .aw-status{display:flex;align-items:center;gap:10px;justify-content:flex-end}
+    .erf{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+    .matrix{border-top:1px solid var(--border);background:#fcfcfc}
+    .matrix-note{padding:9px 16px 0;font-size:11.5px;color:var(--muted)}
+    .tbl-scroll{overflow-x:auto}
+    table.mtx{border-collapse:collapse;width:100%;min-width:560px;font-size:13px}
+    table.mtx thead th{background:transparent;text-align:left;font-weight:700;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:8px 16px;border-bottom:1px solid var(--border);white-space:nowrap}
+    table.mtx tbody td{padding:8px 16px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+    table.mtx tbody tr:last-child td{border-bottom:none}
+    .tn{font-weight:600;color:var(--fg)}
+    .tn small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:1px}
+    .inp{border:1px solid var(--input);border-radius:7px;background:var(--card);padding:6px 9px;font:inherit;font-size:12.5px;color:var(--fg)}
+    select.inp{appearance:none;padding-right:26px;min-width:150px;
+      background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+      background-repeat:no-repeat;background-position:right 8px center}
+    select.inp.leer{color:#9a9a9a}
+    .inp.pkt{width:60px;text-align:center}
+    .inp.note{width:60px;text-align:center}
+    .unsaved{background:rgba(251,201,0,.25);color:#7a5c00;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+    .saved{color:var(--gruen);font-size:12px;font-weight:600;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+    .saved svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.4}
+    .offen-txt{font-size:11.5px;color:var(--muted)}
+    .mtx-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 16px;background:#fafafa;border-top:1px solid var(--border)}
+    .mtx-foot .lg{font-size:12px;color:var(--muted)}
+    .tbl-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;background:#fafafa;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+  }
+
+  /* ---------- Rolle Schüler ---------- */
+  .mock-schueler{
+    .screen{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+    .appbar{display:flex;align-items:center;justify-content:space-between;padding:0 22px;height:54px;border-bottom:1px solid var(--border);background:#fbfbfb;gap:12px}
+    .appbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--primary)}
+    .appbar .brand .logo{width:26px;height:26px;border:2px solid var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+    .appbar .brand small{color:var(--muted);font-weight:500}
+    .appbar .right{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12.5px}
+    .appbar .who{display:flex;align-items:center;gap:8px;color:var(--fg);font-weight:500}
+    .avatar{width:27px;height:27px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none}
+    .backbar{display:flex;align-items:center;gap:14px;padding:11px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+    .back{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font-weight:600;font-size:13px}
+    .back svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .crumb{color:var(--muted);font-size:12.5px}
+    .crumb b{color:var(--fg);font-weight:600}
+    .screen-body{padding:20px 24px 28px}
+    .badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;white-space:nowrap}
+    .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .dot.g{background:var(--gruen)}.dot.b{background:var(--blau)}.dot.y{background:var(--gelb)}.dot.r{background:var(--rot)}
+    .b-aktiv{background:rgba(107,170,36,.14);color:#3f6613}
+    .tf-schueler{background:rgba(0,154,198,.12);color:#065f77}
+    .q-gut{color:#3f6613;font-weight:600}
+    .q-warn{color:#7a5c00;font-weight:600}
+    .q-krit{color:#a3101d;font-weight:600}
+    .person-head{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;background:var(--card);margin-bottom:16px}
+    .ph-left{display:flex;gap:15px;align-items:flex-start;min-width:0}
+    .ph-av{width:54px;height:54px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;flex:none}
+    .ph-left h1{margin:0;font-size:21px;font-weight:700}
+    .ph-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+    .ph-tags .contact{color:var(--muted);font-size:12.5px}
+    .facts{display:grid;grid-template-columns:repeat(3,auto);gap:12px 26px;margin-top:15px}
+    @media(max-width:640px){.facts{grid-template-columns:repeat(2,auto)}}
+    .fact .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+    .fact .v{font-size:13.5px;font-weight:600;margin-top:2px}
+    .ph-side{flex:none;width:210px}
+    @media(max-width:760px){.ph-side{width:100%}}
+    .ph-side .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:8px}
+    .jump{display:flex;flex-direction:column;gap:2px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+    .jump a{display:flex;align-items:center;gap:9px;padding:8px 11px;font-size:12.5px;color:var(--fg);border-bottom:1px solid #f0f0f0}
+    .jump a:last-child{border-bottom:none}
+    .jump a:hover{background:#fafafa;text-decoration:none}
+    .jump a svg{width:15px;height:15px;stroke:var(--primary);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+    .jump a .n{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+    .note{border:1px solid var(--border);border-left:3px solid var(--blau);border-radius:var(--radius);background:var(--card);padding:12px 15px;margin-bottom:18px;font-size:12.5px;color:#3d3d3d}
+    .note b{color:var(--fg)}
+    .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-bottom:16px}
+    @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+    .panel{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);overflow:hidden;margin-bottom:16px}
+    .panel:last-child{margin-bottom:0}
+    .grid2 .panel{margin-bottom:0}
+    .panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fafafa}
+    .panel-head h2{margin:0;font-size:13.5px;font-weight:700}
+    .panel-head .hint{font-size:12px;color:var(--muted)}
+    .panel-body{padding:14px 16px 16px}
+    .panel-lead{font-size:12.5px;color:var(--muted);margin:0 0 12px;max-width:60ch}
+    .quote-box{display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .quote-num{font-size:26px;font-weight:800;color:var(--gruen);line-height:1;font-variant-numeric:tabular-nums}
+    .quote-bar{height:8px;border-radius:5px;background:#eee;overflow:hidden}
+    .quote-bar>i{display:block;height:100%;background:var(--gruen)}
+    .quote-meta{font-size:11.5px;color:var(--muted);margin-top:5px}
+    .quote-meta b{color:var(--fg)}
+    .aw-lead{padding:11px 16px 0;font-size:12px;color:var(--muted)}
+    .aw-row{display:grid;grid-template-columns:82px 1fr auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid #f0f0f0;font-size:13px}
+    .aw-row:last-child{border-bottom:none}
+    .aw-date{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+    .aw-fach{font-weight:500}
+    .aw-fach small{color:var(--muted);font-weight:400}
+    .zust{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600}
+    .z-an{background:rgba(107,170,36,.16);color:#3f6613}
+    .z-ent{background:rgba(251,201,0,.22);color:#7a5c00}
+    .z-nach{background:rgba(0,154,198,.14);color:#065f77}
+    .z-erfasst{background:rgba(107,107,106,.12);color:#4a4a49}
+    .selbst{display:inline-flex;gap:6px}
+    .sbtn{border:1px solid var(--border);background:var(--card);color:var(--fg);border-radius:8px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+    .sbtn:hover{border-color:var(--primary)}
+    .sbtn.aktiv{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .aw-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;background:#fafafa;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .liste{display:flex;flex-direction:column;gap:8px}
+    .li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:9px;background:var(--card);padding:10px 12px}
+    .li .fach{min-width:0}
+    .li .fach .t{font-size:13px;font-weight:600}
+    .li .fach .s{font-size:11.5px;color:var(--muted)}
+    .li .werte{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+    .erg{display:inline-flex;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600}
+    .erg-best{background:rgba(107,170,36,.14);color:#3f6613}
+    .erg-teil{background:rgba(0,154,198,.12);color:#065f77}
+    .erg-offen{background:rgba(107,107,106,.12);color:#4a4a49}
+    .werte .pn{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+    .noten-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:#fafafa;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .noten-foot b{color:var(--fg)}
+    .zg{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--border);border-radius:9px;background:var(--card);padding:11px 13px}
+    .zg .meta .t{font-size:13px;font-weight:600}
+    .zg .meta .s{font-size:11.5px;color:var(--muted);margin-top:1px}
+    .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--primary);background:var(--primary);color:#fff;border-radius:8px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none}
+    .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .btn.ghost{background:var(--card);color:var(--primary);border-color:var(--border)}
+    .btn.sm{padding:6px 12px;font-size:12.5px}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:640px){.form-grid{grid-template-columns:1fr}}
+    .fld label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}
+    .fld input{width:100%;border:1px solid var(--input);border-radius:8px;background:var(--card);padding:9px 12px;font:inherit;font-size:13px;color:var(--fg)}
+    .fld input::placeholder{color:#9a9a9a}
+    .fld .fh{font-size:11px;color:var(--muted);margin-top:4px}
+    .sub-h{font-size:12.5px;font-weight:700;margin:16px 0 4px}
+    .sub-p{font-size:12px;color:var(--muted);margin:0 0 12px;max-width:64ch}
+    .form-foot{margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .form-foot .st{font-size:12px;color:var(--muted)}
+    .kv{display:flex;flex-wrap:wrap;gap:8px 26px;margin-bottom:12px}
+    .kv .k{font-size:12.5px;color:var(--muted)}
+    .kv .k b{color:var(--fg);font-weight:600}
+  }
+</style>
+</head>
+<body>
+
+<div class="credo-linie"><span class="grau"></span><span class="gelb"></span><span class="gruen"></span><span class="rot"></span><span class="blau"></span></div>
+
+<!-- ================= DOKUMENT-KOPF ================= -->
+<div class="doc-head">
+  <div class="wrap inner">
+    <div class="brand">
+      <span class="logo">GBS</span>
+      <span><b>GBS Campus</b> <small>· Gemeindebibelschule Minden · Verwaltung</small></span>
+    </div>
+    <h1>UI-Neustrukturierung — rollenübergreifender Plan &amp; Mockups zur Freigabe</h1>
+    <p class="intro">
+      Dieses Dokument bündelt den Umbauplan für die Oberfläche und zeigt die veredelten Screens als statische,
+      CREDO-konforme Mockups. Das Redesign gilt <b>rollenübergreifend</b>: Die Schulleitung/Verwaltung erhält
+      Dashboard, Personen-Liste, Personen-Detailakte und behobene Navigation; der Dozent bekommt seinen Bereich
+      <span class="path">/dozent</span> „Mein Unterricht" (Anwesenheit an der Quelle, Noten der eigenen Fächer); der
+      Schüler seine Selbst-Akte <span class="path">/meine-daten</span>. Der Admin nutzt dieselbe Verwaltungs-Oberfläche
+      mit (kein eigener Screen), der Gastdozent bleibt im bestehenden Token-Flow. Ziel: aus einer flachen
+      15-Kachel-Startseite und verstreuten Einzellisten eine ruhige, seit Jahren real genutzt wirkende Schulverwaltung
+      machen — mit einer Personen-Detailakte als Dreh- und Angelpunkt und derselben Design-Sprache in jeder Rolle. Der
+      Plan adressiert die acht Verwaltungs-Anforderungspunkte einzeln und ergänzt die rollenübergreifende Umsetzung
+      (Änderung, Routen/Dateien, Aufwand). Nichts davon ist bereits umgesetzt — die Mockups dienen der Freigabe vor der
+      Implementierung.
+    </p>
+    <div class="stamp">
+      <span class="chip">Stand 31.07.2026</span>
+      <span class="chip">Rollen: Verwaltung · Dozent · Schüler</span>
+      <span class="chip">Basis: Entwurf A · veredelt mit B &amp; C</span>
+      <span class="chip">CREDO Corporate Design · Montserrat · #575756</span>
+      <span class="chip">Keine Farbverläufe · self-contained</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= TEIL 1: PLAN ================= -->
+<div class="part">
+  <p class="part-kicker">Teil 1</p>
+  <h2>Plan — die acht Anforderungspunkte</h2>
+  <p class="part-sub">Je Punkt: (a) was geändert wird, (b) betroffene Routen/Dateien im Code, (c) grober Aufwand.
+    Aufwand als Größenordnung: <span class="aufwand a-s">S · Stunden</span> <span class="aufwand a-m">M · 1–2 Tage</span> <span class="aufwand a-l">L · mehrere Tage</span></p>
+
+  <div class="plan-grid">
+
+    <!-- 1 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">1</span>
+        <div><h3>Dashboard gruppieren statt 15 flacher Kacheln</h3><span class="tag">Übersicht &amp; Kategorisierung</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Die Startseite wird in fünf sachliche Kategorien gegliedert (Schüler &amp; Ausbildung · Semester &amp; Kursraster · Finanzen · System &amp; Betrieb · Mein Konto). Jede Kachel bekommt ein dezentes einfarbiges Linien-Icon, eine echte Kennzahl und — wo relevant — einen Status-Pill (z. B. „3 neu“, „2 Fehler“).</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/verwaltung/page.tsx</code><code>src/lib/verwaltung-nav.ts</code> (Kategorien + Kennzahl-Quellen, zentral)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-m">M · 1–2 Tage</span> — Kennzahlen müssen aus vorhandenen Queries aggregiert werden.</div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">2</span>
+        <div><h3>Personen-Liste als scannbare Tabelle</h3><span class="tag">Suche + drei Filter</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Neue, dichte Tabelle für 30–60 Schüler je Jahrgang mit Suche (Name/E-Mail) und drei Filtern: Status, Teilnahmeform, Semester. Spalten inkl. aktuellem Semester, Ø-Note und Anwesenheitsquote. Horizontales Scrollen im eigenen Container (aus Entwurf B), Avatare zur Scannbarkeit (aus C).</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/verwaltung/personen/page.tsx</code> (neu)<code>src/app/api/personen/route.ts</code> (Filter/Suche · Pagination)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-m">M · 1–2 Tage</span></div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">3</span>
+        <div><h3>Personen-Detailakte mit Semester-Kontext</h3><span class="tag">der Dreh- und Angelpunkt</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Neue Detailseite mit Kopf (Stammdaten, Status, Teilnahmeform, aktuelles Semester, Gemeinde, Quote) und darunter zwei Arbeitsbereichen: Noten und Anwesenheit. Kopf-Aktionen: Stammdaten bearbeiten, Anmeldelink schicken, DSGVO-Auskunft.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/verwaltung/personen/[id]/page.tsx</code> (neu)<code>src/app/api/personen/[id]/route.ts</code></div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-l">L · mehrere Tage</span> — trägt Noten + Anwesenheit zusammen.</div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">4</span>
+        <div><h3>Noten inline auf der Detailakte erfassen</h3><span class="tag">Ergebnis + Punkte/Note</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Je Fach eine Zeile: Ergebnis-Select (bestanden / teilgenommen / nicht bestanden / offen), optional Punkte + Note, Dozentenname als Kontext. „ungespeichert“/„gespeichert“-Zustände exakt im Muster der bestehenden Noten-Matrix. Sammel-Speichern; Änderungen werden protokolliert.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>components/personen/noten-inline.tsx</code> (neu)<code>src/app/api/noten</code> (bestehend, wiederverwenden)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-s">S · Stunden</span> — API existiert, nur neue Ansicht.</div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">5</span>
+        <div><h3>Anwesenheit &amp; 80%-Quote in der Akte</h3><span class="tag">je Abend + Kennzahl</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Quote-Kachel (Prozent, Balken, Soll ≥ 80 %) plus Timeline je Abend mit Datum, Fach und Ampel-Zustand (anwesend / gefehlt / entschuldigt / nachgearbeitet) samt Bemerkung. Reine Einsicht — die Erfassung bleibt beim Dozenten unter <code>/dozent</code>.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>components/personen/anwesenheit-liste.tsx</code> (neu)<code>src/app/api/anwesenheit</code> (bestehend)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-s">S · Stunden</span> — Quote-Logik existiert bereits.</div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">6</span>
+        <div><h3>Deep-Link aus „Aktive dieses Semester“</h3><span class="tag">Teilnehmerliste → Person</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Jede Namenszelle der Teilnehmerliste (heute reiner Text) wird ein Deep-Link auf <code>/verwaltung/personen/{id}</code> — ein Klick vom Semester-Überblick direkt in Noten &amp; Anwesenheit. Der Excel-Export und seine Spalten bleiben unverändert.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/verwaltung/teilnehmer/page.tsx</code> (Zeile → Link)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-s">S · Stunden</span></div>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">7</span>
+        <div><h3>Zurück-Navigation überall — Sackgasse schließen</h3><span class="tag">Formular-Bereich &amp; Standard</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Konsistenter „← Verwaltung“-Link + Breadcrumb oben auf <b>jeder</b> Verwaltungs-Unterseite. Konkret behoben: <code>/verwaltung/formulare</code> beginnt heute ohne Rückweg; der Builder <code>[versionId]</code> hat nur „← Alle Formulare“ und führt in ebendiese Sackgasse.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>components/verwaltung/zurueck-leiste.tsx</code> (neu, geteilt)<code>formulare/page.tsx</code> · <code>formulare/[versionId]/page.tsx</code></div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-s">S · Stunden</span></div>
+      </div>
+    </div>
+
+    <!-- 8 -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">8</span>
+        <div><h3>CREDO-Treue &amp; „menschlich, nicht KI“</h3><span class="tag">durchgängiges Design-System</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Verbindliche Tokens (Primär #575756, CREDO-6px-Linie, Status-Tints mit dunklem Text, keine Verläufe, Montserrat). Sachliche deutsche Terminologie, echte Kennzahlen statt Marketing. Regeln in Teil 3.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/globals.css</code> (Theme-Variablen)<code>components/ui/*</code> (Badge, Button, Card — bestehend)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-s">S · laufend</span> — Konvention, kein Einzel-Feature.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="seq">
+    <h4>Ehrliche Reihenfolge &amp; Abhängigkeiten</h4>
+    <ol>
+      <li><b>Zuerst die Detailakte (Punkt 3).</b> Sie ist das Ziel fast aller anderen Punkte — Liste, Deep-Link und Dashboard-Kachel verlinken darauf. Ohne <code>/verwaltung/personen/[id]</code> hängen 2, 4, 5 und 6 in der Luft.</li>
+      <li><b>Noten (4) &amp; Anwesenheit (5)</b> als Bausteine der Akte — beide nutzen bestehende APIs, daher klein.</li>
+      <li><b>Personen-Liste (2)</b>, sobald die Detailseite als Sprungziel steht.</li>
+      <li><b>Deep-Link (6) und Zurück-Leiste (7)</b> sind kleine, unabhängige Anschluss-Fixes — jederzeit machbar, sinnvoll gebündelt zum Schluss.</li>
+      <li><b>Dashboard (1)</b> kann parallel laufen, sollte aber erst „scharf“ verlinken, wenn die Zielseiten existieren. <span class="dep">Punkt 8 gilt über allem und wird nicht separat abgearbeitet.</span></li>
+    </ol>
+  </div>
+
+  <!-- ===== Rollenübergreifende Umsetzung ===== -->
+  <h3 style="margin:34px 0 4px;font-size:17px;font-weight:700">Rollenübergreifende Umsetzung</h3>
+  <p class="part-sub" style="margin-bottom:14px">Dieselbe Design-Sprache trägt über alle Rollen. Die Verwaltungs-Punkte oben liefern die Bausteine
+    (Badges, Quote-Ampel, Kacheln, Linien-Icons, Zurück-Leiste, Noten- und Anwesenheits-Matrix); Dozent und Schüler
+    verwenden sie wieder, statt eigene Varianten zu bauen — das hält die Oberfläche konsistent und die Wartung klein.</p>
+
+  <div class="plan-grid">
+
+    <!-- Rolle Dozent -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">D</span>
+        <div><h3>Dozent — „Mein Unterricht“</h3><span class="tag">Route /dozent · Anwesenheit an der Quelle</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p>Eigener Bereich <code>/dozent</code> mit ruhigem Begrüßungskopf und „← Meine Daten“ (statt „← Verwaltung“), Übersichts-Kacheln (Meine Fächer · Meine Abende · Offene Erfassung mit echten Zahlen), einer prominenten Sektion „Offene Aufgaben“, der Anwesenheits-Erfassung je Abend an der Quelle (nur gehaltene Abende erfassbar, „entschuldigt“ entscheidet die Schule) und der Noten-Matrix nur der eigenen Fächer. Teilnehmernamen sind reiner Text ohne Deep-Link — dem Dozenten fehlt das Personen-Detailrecht.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/dozent/page.tsx</code> (Übersichts-Widget + Offene Aufgaben)<code>components/dozent/anwesenheit-matrix.tsx</code> (neu)<code>components/personen/noten-inline.tsx</code> (wiederverwendet)<code>src/app/api/dozent/*</code> · <code>/api/anwesenheit</code> · <code>/api/noten</code> (bestehend)</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-m">M · 1–2 Tage</span> — Layout neu, Logik/APIs bestehen (Self-Service Stufe 1+2 bereits live). <span class="dep">Abhängig von den geteilten Bausteinen (Kacheln, Badges, Matrix).</span></div>
+      </div>
+    </div>
+
+    <!-- Rolle Schüler -->
+    <div class="req">
+      <div class="req-head">
+        <span class="req-num">S</span>
+        <div><h3>Schüler — „Meine Akte“</h3><span class="tag">Route /meine-daten · Selbst-Sicht</span></div>
+      </div>
+      <div class="req-body">
+        <div class="row"><span class="lbl">a · Änderung</span><p><code>/meine-daten</code> wird zur Selbst-Akte im Layout der Detailakte: <code>person-head</code> mit unveränderlichen Ausbildungsdaten read-only („an die Schulleitung wenden“) und einer Sprungnavigation statt Admin-Aktionen; „Meine Anwesenheit“ mit Quote-Ampel und Selbstbestätigung („anwesend/nachgearbeitet“, gesperrt wo die Schule schon erfasst hat, Hinweis „Du darfst noch 2 Abende fehlen“); „Meine Noten“ rein lesend (Ergebnis-Badge/Punkte/Note); Zeugnis-Download-Liste sowie die editierbaren Blöcke Kontakt/Bank, E-Mail (mit Bestätigungsweg) und Passwort.</p></div>
+        <div class="row"><span class="lbl">b · Code</span><div class="files"><code>src/app/meine-daten/page.tsx</code> (Akte-Layout)<code>components/meine-daten/selbst-anwesenheit.tsx</code> (neu)<code>person-head · facts · quote-box · badges · liste</code> (wiederverwendet)<code>/api/meine-daten</code> · Quote-Sicht (Slice 0.3) bestehend</div></div>
+        <div class="row"><span class="lbl">c · Aufwand</span><span class="aufwand a-m">M · 1–2 Tage</span> — überwiegend Read-only plus vier Selbstpflege-Blöcke; Datenquellen bestehen. <span class="dep">Nutzt dieselben Bausteine wie die Verwaltungs-Detailakte.</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="seq" style="border-left-color:var(--gruen)">
+    <h4>Admin &amp; Gastdozent — ohne eigenen Mockup</h4>
+    <ol>
+      <li><b>Admin.</b> Arbeitet in derselben Verwaltungs-Oberfläche wie die Schulleitung — kein eigener Screen. Das Rollen-Gate blendet lediglich zusätzliche System-Kacheln (Betrieb, Protokoll, Einstellungen) ein; Aussehen und Wege bleiben identisch.</li>
+      <li><b>Gastdozent.</b> Bleibt im bestehenden Token-Flow: zeitlich begrenzter Link auf genau seinen Abend (Anwesenheit/Noten), kein Portal-Login, keine Navigation ins Haus. Deshalb kein eigener Mockup — die vorhandene Token-Ansicht übernimmt nur die geteilten Badges/Matrix-Bausteine.</li>
+    </ol>
+  </div>
+
+  <div class="seq">
+    <h4>Gesamt-Roadmap — gemeinsame Bausteine zuerst, dann Rollen</h4>
+    <ol>
+      <li><b>Gemeinsame Design-Bausteine extrahieren.</b> Badges, Quote-Ampel, Kachel, Linien-Icons, Zurück-Leiste sowie Noten- und Anwesenheits-Matrix als geteilte Komponenten (<code>components/ui</code>, <code>components/shared</code>). Das Fundament, das alle drei Rollen konsistent hält — zuerst, damit niemand Varianten nachbaut.</li>
+      <li><b>Verwaltungs-Kern.</b> Person-Detailakte (3), Deep-Links (6), Dashboard-Gruppen (1) und Formular-Zurück (7) — die acht Punkte oben, in ihrer Reihenfolge. Hier entstehen die meisten Bausteine ohnehin.</li>
+      <li><b>Rollen-Konsistenz.</b> Dozent-Übersicht (<code>/dozent</code>) und Schüler-Akte (<code>/meine-daten</code>) auf die geteilten Bausteine heben — bewusst zuletzt, weil sie exakt dieselben Komponenten wiederverwenden und so am schnellsten fertig sind. <span class="dep">Punkt 8 (CREDO-Treue) gilt durchgängig über alle drei Stufen.</span></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ================= TEIL 2: MOCKUPS ================= -->
+<div class="part">
+  <p class="part-kicker">Teil 2</p>
+  <h2>Mockups — die veredelten Screens, rollenübergreifend</h2>
+  <p class="part-sub">Statisch gerendert, self-contained, CREDO-konform. Vier Screens für die Verwaltung (Dashboard, Personen-Liste,
+    Personen-Detailakte, Navigations-Fixes) und zwei Rollen-Screens (Dozent · Schüler) in derselben Design-Sprache —
+    dieselben Tokens, Badges, Quote-Ampel und Erfassungs-Matrix. Basis ist der dichteste Entwurf, ergänzt um den
+    Scroll-Container und die Ø-Note-/Bemerkungs-Spalten der beiden anderen.</p>
+</div>
+
+<!-- MOCKUP A: DASHBOARD -->
+<div class="mock-intro">
+  <div class="k">Screen A · /verwaltung</div>
+  <h3>Dashboard — gruppiert, mit Icons und echten Kennzahlen</h3>
+  <p>Fünf Kategorien statt flacher Kachel-Wand. Je Kachel ein dezentes Linien-Icon, eine reale Zahl und bei Handlungsbedarf ein Status-Pill.</p>
+</div>
+<div class="mock-frame">
+  <div class="screen">
+    <div class="appbar">
+      <div class="brand"><span class="logo">GBS</span> Campus · Verwaltung</div>
+      <div class="right"><span>Sommersemester 2026 · läuft</span><span class="who"><span class="avatar">DR</span> D. Riesen · Schulleitung</span></div>
+    </div>
+    <div class="screen-body">
+      <h1 class="page">Verwaltung</h1>
+      <p class="page-sub">Übersicht aller Bereiche · 54 aktive Schüler · 3 offene Anmeldungen · zuletzt heute 08:14 Uhr</p>
+
+      <div class="kat">
+        <div class="kat-head"><h3>Schüler &amp; Ausbildung</h3><span class="anz">5 Bereiche</span></div>
+        <div class="kacheln">
+          <a class="kachel" href="#screenB">
+            <span class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 8.5a3 3 0 0 1 0 5"/><path d="M18.5 19c0-2.2-1-3.7-2.5-4.5"/></svg></span>
+            <span class="txt"><span class="t">Personen</span><span class="d">Stammdaten, Detailakte, Wiederaufnahme, Rollen.</span><span class="metric">312 Personen · 54 aktiv</span></span>
+          </a>
+          <a class="kachel" href="#screenD">
+            <span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+            <span class="txt"><span class="t">Aktive dieses Semester</span><span class="d">Teilnehmerliste des laufenden Semesters, auch als Excel.</span><span class="metric">54 Teilnehmer · 41 Schüler / 13 Hörer</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5"/><path d="M8 20v-4a3 3 0 0 1 6 0v4"/></svg></span>
+            <span class="txt"><span class="t">Anmeldungen <span class="pill blau">3 neu</span></span><span class="d">Eingegangene Anmeldungen ansehen, aufnehmen oder ablehnen.</span><span class="metric">3 offen · zuletzt heute 07:52</span></span>
+          </a>
+          <a class="kachel" href="#screenC">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 4l2.3 4.7 5.2.8-3.7 3.6.9 5.1L12 15.8 7.3 18.2l.9-5.1L4.5 9.1l5.2-.8z"/></svg></span>
+            <span class="txt"><span class="t">Noten</span><span class="d">Bewertung je Fach — teilgenommen, bestanden, mit Punkten/Note.</span><span class="metric">7 von 9 Fächern erfasst</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M8 3h8l1 4H7z"/><rect x="6" y="7" width="12" height="13" rx="1.5"/><path d="M9 11h6M9 14h6M9 17h3"/></svg></span>
+            <span class="txt"><span class="t">Zeugnisse</span><span class="d">Semester- und Abschlusszeugnisse, Seriendruck, Neuausstellung.</span><span class="metric">28 ausgestellt · 0 Storni</span></span>
+          </a>
+        </div>
+      </div>
+
+      <div class="kat">
+        <div class="kat-head"><h3>Semester &amp; Kursraster</h3><span class="anz">4 Bereiche</span></div>
+        <div class="kacheln">
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/></svg></span>
+            <span class="txt"><span class="t">Semester</span><span class="d">Semester anlegen und festlegen, welches gerade läuft.</span><span class="metric">SoSe 2026 aktiv · 11 gesamt</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h6l2 5 4-11 2 6h4"/></svg></span>
+            <span class="txt"><span class="t">Semesterüberleitung</span><span class="d">Jahrgang ins Folgesemester einladen, Rückmeldungen verfolgen.</span><span class="metric">37 von 41 zurückgemeldet</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9h17M9 9v11M3.5 14.5h17"/></svg></span>
+            <span class="txt"><span class="t">Fächer &amp; Kursraster</span><span class="d">Das 3-Jahres-Kursraster — Grundstein für den Stundenplan.</span><span class="metric">24 Fächer · 3 Jahrgänge</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <span class="txt"><span class="t">Stundenplan</span><span class="d">Unterrichtsabende, Fach-/Dozentenzuordnung, Anwesenheit &amp; Quote.</span><span class="metric">18 Abende geplant · 11 gehalten</span></span>
+          </a>
+        </div>
+      </div>
+
+      <div class="kat">
+        <div class="kat-head"><h3>Finanzen</h3><span class="anz">1 Bereich</span></div>
+        <div class="kacheln">
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5v9M9.5 10c0-1.2 1.1-2 2.5-2s2.5.7 2.5 1.8c0 2.4-5 1.2-5 3.6 0 1.1 1.1 1.9 2.5 1.9s2.5-.8 2.5-2"/></svg></span>
+            <span class="txt"><span class="t">Dozentenhonorar <span class="pill gelb">2 Sätze</span></span><span class="d">Gehaltene Abende je Dozent mit geltendem Satz; Sätze genehmigen, Beleg ans DMS.</span><span class="metric">11 Abende offen · 2 Sätze zu prüfen</span></span>
+          </a>
+        </div>
+      </div>
+
+      <div class="kat">
+        <div class="kat-head"><h3>System &amp; Betrieb</h3><span class="anz">4 Bereiche</span></div>
+        <div class="kacheln">
+          <a class="kachel" href="#screenD">
+            <span class="ic"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg></span>
+            <span class="txt"><span class="t">Formulare</span><span class="d">Das Anmeldeformular gestalten und veröffentlichen.</span><span class="metric">1 veröffentlicht · v4</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.5M12 18v2.5M4.6 7.5l2.2 1.3M17.2 15.2l2.2 1.3M19.4 7.5l-2.2 1.3M6.8 15.2l-2.2 1.3"/></svg></span>
+            <span class="txt"><span class="t">Einstellungen</span><span class="d">Gültigkeit der Anmeldelinks, Drosselung, Sitzungsdauer.</span><span class="metric">Links 14 Tage · Session 8 h</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H5.2L4 18z"/><path d="M8 9h8M8 12h5"/></svg></span>
+            <span class="txt"><span class="t">Betrieb <span class="pill rot">2 Fehler</span></span><span class="d">Nicht zugestellte E-Mails. Ohne Mail kommt niemand ins Portal.</span><span class="metric">2 Zustellfehler seit gestern</span></span>
+          </a>
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9.5 12l1.8 1.8 3.5-3.6"/></svg></span>
+            <span class="txt"><span class="t">Protokoll</span><span class="d">Wer hat was geändert — das Audit-Log, das niemand löschen kann.</span><span class="metric">1.284 Einträge</span></span>
+          </a>
+        </div>
+      </div>
+
+      <div class="kat">
+        <div class="kat-head"><h3>Mein Konto</h3><span class="anz">1 Bereich</span></div>
+        <div class="kacheln">
+          <a class="kachel" href="#">
+            <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span>
+            <span class="txt"><span class="t">Meine Daten</span><span class="d">Die eigene Akte ansehen, Kontakt und Bankverbindung pflegen.</span><span class="metric">Zuletzt geprüft 12.05.2026</span></span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOCKUP B: PERSONEN-LISTE -->
+<div class="mock-intro" id="screenB">
+  <div class="k">Screen B · /verwaltung/personen</div>
+  <h3>Personen-Liste — scannbare Tabelle mit Suche &amp; drei Filtern</h3>
+  <p>Für 30–60 Schüler je Jahrgang: dichte Tabelle mit Avatar, Status, Teilnahmeform, aktuellem Semester, Ø-Note und Quote. Jede Zeile ist ein Deep-Link; breite Inhalte scrollen im eigenen Container.</p>
+</div>
+<div class="mock-frame">
+  <div class="screen">
+    <div class="appbar">
+      <div class="brand"><span class="logo">GBS</span> Campus · Verwaltung</div>
+      <div class="right"><span class="who"><span class="avatar">DR</span> D. Riesen · Schulleitung</span></div>
+    </div>
+    <div class="backbar">
+      <a class="back" href="#"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Verwaltung</a>
+      <span class="crumb">Verwaltung · <b>Personen</b></span>
+    </div>
+    <div class="screen-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px">
+        <div><h1 class="page">Personen</h1><p class="page-sub" style="margin-bottom:0">312 Personen · 54 aktiv im Sommersemester 2026</p></div>
+        <button class="btn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Person anlegen</button>
+      </div>
+
+      <div class="toolbar" style="margin-top:16px">
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <input type="text" placeholder="Name oder E-Mail suchen …">
+        </div>
+        <select class="filter"><option>Status: alle</option><option>Aktiv</option><option>In Anmeldung</option><option>Ruhend</option><option>Ausgeschieden</option></select>
+        <select class="filter"><option>Teilnahme: alle</option><option>Schüler</option><option>Hörer</option></select>
+        <select class="filter"><option>Semester: SoSe 2026</option><option>WiSe 2025/26</option><option>Alle Semester</option></select>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-scroll">
+          <table>
+            <thead><tr>
+              <th style="width:28%">Name</th><th>Status</th><th>Teilnahme</th><th>Semester</th><th>Gemeinde</th><th style="text-align:right">Ø Note</th><th style="text-align:right">Quote</th><th style="width:20px"></th>
+            </tr></thead>
+            <tbody>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">AB</span><div><div class="nm">Bauer, Annika</div><div class="sub">a.bauer@web.de</div></div></div></td>
+                <td><span class="badge b-aktiv"><span class="dot g"></span>Aktiv</span></td>
+                <td><span class="badge tf-schueler">Schüler</span></td>
+                <td>2. Jahr · SoSe 2026</td><td>FeG Minden</td>
+                <td class="num">1,7</td><td class="num q-gut">92 %</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">JB</span><div><div class="nm">Brinkmann, Jonas</div><div class="sub">jonas.brinkmann@gmx.de</div></div></div></td>
+                <td><span class="badge b-aktiv"><span class="dot g"></span>Aktiv</span></td>
+                <td><span class="badge tf-schueler">Schüler</span></td>
+                <td>1. Jahr · SoSe 2026</td><td>EFG Lübbecke</td>
+                <td class="num">2,3</td><td class="num q-warn">74 %</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">KD</span><div><div class="nm">Dyck, Katharina</div><div class="sub">k.dyck@posteo.de</div></div></div></td>
+                <td><span class="badge b-aktiv"><span class="dot b"></span>Aktiv</span></td>
+                <td><span class="badge tf-hoerer">Hörer</span></td>
+                <td>— · SoSe 2026</td><td>MG Espelkamp</td>
+                <td class="num">—</td><td class="num" style="color:var(--muted)">n. rel.</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">DF</span><div><div class="nm">Friesen, Daniel</div><div class="sub">daniel.friesen@online.de</div></div></div></td>
+                <td><span class="badge b-aktiv"><span class="dot g"></span>Aktiv</span></td>
+                <td><span class="badge tf-schueler">Schüler</span></td>
+                <td>3. Jahr · SoSe 2026</td><td>FeG Minden</td>
+                <td class="num">1,3</td><td class="num q-gut">96 %</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">MH</span><div><div class="nm">Hildebrandt, Marie</div><div class="sub">marie.h@icloud.com</div></div></div></td>
+                <td><span class="badge b-anmeld"><span class="dot y"></span>In Anmeldung</span></td>
+                <td><span class="badge tf-schueler">Schüler</span></td>
+                <td>— (Aufnahme geplant)</td><td>CG Bad Oeynhausen</td>
+                <td class="num">—</td><td class="num" style="color:var(--muted)">—</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">VN</span><div><div class="nm">Neufeld, Viktor</div><div class="sub">v.neufeld@t-online.de</div></div></div></td>
+                <td><span class="badge b-problem"><span class="dot r"></span>Quote kritisch</span></td>
+                <td><span class="badge tf-schueler">Schüler</span></td>
+                <td>2. Jahr · SoSe 2026</td><td>MBG Herford</td>
+                <td class="num">2,7</td><td class="num q-krit">63 %</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">LP</span><div><div class="nm">Penner, Lena</div><div class="sub">lena.penner@web.de</div></div></div></td>
+                <td><span class="badge b-aktiv"><span class="dot g"></span>Aktiv</span></td>
+                <td><span class="badge tf-schueler">Schüler</span></td>
+                <td>1. Jahr · SoSe 2026</td><td>FeG Minden</td>
+                <td class="num">2,0</td><td class="num q-gut">88 %</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+              <tr class="klick">
+                <td><div class="name-cell"><span class="avatar">TW</span><div><div class="nm">Wiebe, Thomas</div><div class="sub">t.wiebe@gmail.com</div></div></div></td>
+                <td><span class="badge b-ruhend"><span class="dot gr"></span>Ruhend</span></td>
+                <td><span class="badge tf-hoerer">Hörer</span></td>
+                <td>WiSe 2025/26 · pausiert</td><td>EFG Lübbecke</td>
+                <td class="num">—</td><td class="num" style="color:var(--muted)">—</td>
+                <td><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tbl-foot"><span>8 von 54 aktiven Personen · gefiltert auf „SoSe 2026“</span><span>Sortiert nach Nachname · Klick öffnet die Person · Seite 1 / 7</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOCKUP C: PERSONEN-DETAIL -->
+<div class="mock-intro" id="screenC">
+  <div class="k">Screen C · /verwaltung/personen/{id}</div>
+  <h3>Personen-Detailakte — Semester, Noten inline, Anwesenheit</h3>
+  <p>Der Dreh- und Angelpunkt. Kopf mit Stammdaten &amp; Semester, Noten mit Inline-Erfassung (Ergebnis + Punkte/Note, gespeichert/ungespeichert) und Anwesenheit je Abend mit prominenter Quote. Breadcrumb plus zwei Zurücklinks.</p>
+</div>
+<div class="mock-frame">
+  <div class="screen">
+    <div class="appbar">
+      <div class="brand"><span class="logo">GBS</span> Campus · Verwaltung</div>
+      <div class="right"><span class="who"><span class="avatar">DR</span> D. Riesen · Schulleitung</span></div>
+    </div>
+    <div class="backbar">
+      <a class="back" href="#screenB"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Personen</a>
+      <a class="back" href="#" style="color:var(--muted)"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Verwaltung</a>
+      <span class="crumb">Verwaltung · Personen · <b>Annika Bauer</b></span>
+    </div>
+    <div class="screen-body">
+
+      <div class="person-head">
+        <div class="ph-left">
+          <div class="ph-av">AB</div>
+          <div>
+            <h1>Annika Bauer</h1>
+            <div class="ph-tags">
+              <span class="badge b-aktiv"><span class="dot g"></span>Aktiv</span>
+              <span class="badge tf-schueler">Schülerin</span>
+              <span class="contact">a.bauer@web.de · 0571 8842190</span>
+            </div>
+            <div class="facts">
+              <div class="fact"><div class="k">Aktuelles Semester</div><div class="v">2. Jahr · SoSe 2026</div></div>
+              <div class="fact"><div class="k">Teilnahme</div><div class="v">Schülerin (Vollprogramm)</div></div>
+              <div class="fact"><div class="k">Gemeinde</div><div class="v">FeG Minden</div></div>
+              <div class="fact"><div class="k">Anwesenheitsquote</div><div class="v q-gut">92 % (Soll 80 %)</div></div>
+              <div class="fact"><div class="k">Aufgenommen</div><div class="v">14.09.2024</div></div>
+              <div class="fact"><div class="k">Ermäßigung</div><div class="v">Keine</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="ph-actions">
+          <button class="btn sm">Stammdaten bearbeiten</button>
+          <button class="btn ghost sm">Anmeldelink schicken</button>
+          <button class="btn ghost sm">DSGVO-Auskunft</button>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- NOTEN -->
+        <div class="panel">
+          <div class="panel-head"><h3>Noten · SoSe 2026</h3><span class="hint">Erfassung durch Dozent / Schulleitung · protokolliert</span></div>
+          <div class="noten-tbl">
+            <div class="tbl-scroll">
+              <table>
+                <thead><tr><th>Fach</th><th>Ergebnis</th><th>Punkte</th><th>Note</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="fach">Systematische Theologie I<small>Pastor M. Reimer</small></div></td>
+                    <td><select class="inp"><option selected>bestanden</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                    <td><input class="inp pkt" value="87"></td>
+                    <td><input class="inp note" value="1,7"></td>
+                    <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="fach">Biblische Hermeneutik<small>Dr. S. Klassen</small></div></td>
+                    <td><select class="inp"><option selected>bestanden</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                    <td><input class="inp pkt" value="79"></td>
+                    <td><input class="inp note" value="2,3"></td>
+                    <td><span class="unsaved">ungespeichert</span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="fach">Kirchengeschichte<small>Prof. H. Wall</small></div></td>
+                    <td><select class="inp"><option selected>teilgenommen</option><option>bestanden</option><option>nicht bestanden</option></select></td>
+                    <td><input class="inp pkt" value=""></td>
+                    <td><input class="inp note" value=""></td>
+                    <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="fach">Homiletik (Predigtlehre)<small>Pastor M. Reimer</small></div></td>
+                    <td><select class="inp"><option selected>— offen —</option><option>bestanden</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                    <td><input class="inp pkt" placeholder="–"></td>
+                    <td><input class="inp note" placeholder="–"></td>
+                    <td><span class="offen">läuft noch</span></td>
+                  </tr>
+                  <tr>
+                    <td><div class="fach">Griechisch I<small>Dr. S. Klassen</small></div></td>
+                    <td><select class="inp"><option selected>bestanden</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                    <td><input class="inp pkt" value="68"></td>
+                    <td><input class="inp note" value="2,7"></td>
+                    <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="noten-foot">
+            <span class="lg">1 Fach ungespeichert · Ø aus abgeschlossenen: <b style="color:var(--fg)">2,0</b></span>
+            <button class="btn sm"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg> Noten speichern</button>
+          </div>
+        </div>
+
+        <!-- ANWESENHEIT -->
+        <div class="panel">
+          <div class="panel-head"><h3>Anwesenheit · SoSe 2026</h3><span class="hint">11 von 18 Abenden gehalten</span></div>
+          <div class="quote-box">
+            <div class="quote-num">92 %</div>
+            <div style="flex:1">
+              <div class="quote-bar"><i style="width:92%"></i></div>
+              <div class="quote-meta">9 anwesend · 1 nachgearbeitet · 1 entschuldigt · 0 unentschuldigt · <b>Soll ≥ 80 % · erfüllt</b></div>
+            </div>
+          </div>
+          <div>
+            <div class="aw-row"><span class="aw-date">08.05.2026</span><span class="aw-fach">Syst. Theologie I <small>· Abend 11</small></span><span class="zust z-an"><span class="dot g"></span>anwesend</span></div>
+            <div class="aw-row"><span class="aw-date">01.05.2026</span><span class="aw-fach">Hermeneutik <small>· Abend 10</small></span><span class="zust z-ent"><span class="dot y"></span>entschuldigt</span></div>
+            <div class="aw-row"><span class="aw-date">24.04.2026</span><span class="aw-fach">Kirchengeschichte <small>· Abend 9</small></span><span class="zust z-nach"><span class="dot b"></span>nachgearbeitet</span></div>
+            <div class="aw-row"><span class="aw-date">17.04.2026</span><span class="aw-fach">Griechisch I <small>· Abend 8</small></span><span class="zust z-an"><span class="dot g"></span>anwesend</span></div>
+            <div class="aw-row"><span class="aw-date">10.04.2026</span><span class="aw-fach">Homiletik <small>· Abend 7</small></span><span class="zust z-an"><span class="dot g"></span>anwesend</span></div>
+            <div class="aw-row"><span class="aw-date">03.04.2026</span><span class="aw-fach">Syst. Theologie I <small>· Abend 6</small></span><span class="zust z-an"><span class="dot g"></span>anwesend</span></div>
+            <div class="aw-row"><span class="aw-date">27.03.2026</span><span class="aw-fach">Hermeneutik <small>· Abend 5</small></span><span class="zust z-an"><span class="dot g"></span>anwesend</span></div>
+            <div class="aw-row"><span class="aw-date">20.03.2026</span><span class="aw-fach">Kirchengeschichte <small>· Abend 4</small></span><span class="zust z-an"><span class="dot g"></span>anwesend</span></div>
+          </div>
+          <div class="tbl-foot"><span>8 von 11 Abenden</span><span>Erfassung am Abend durch den Dozenten unter /dozent · hier nur Einsicht</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOCKUP D: NAVIGATIONS-FIXES -->
+<div class="mock-intro" id="screenD">
+  <div class="k">Screen D · Verknüpfungen &amp; behobene Navigation</div>
+  <h3>Deep-Link aus der Semester-Liste &amp; der fehlende Zurück-Knopf</h3>
+  <p>Zwei konkrete Punkte aus der Bestandsaufnahme, im neuen Entwurf gelöst — jeweils mit Ort und Zielverhalten.</p>
+</div>
+<div class="mock-frame">
+  <div class="screen">
+    <div class="screen-body">
+      <div class="callout">
+        <h4>1 · „Aktive dieses Semester“ verlinkt in die Person <span class="flag ok">gelöst</span></h4>
+        <p>Die Teilnehmerliste <span class="path">/verwaltung/teilnehmer</span> zeigt heute nur Textzellen. Neu: jede Namenszelle wird ein Deep-Link auf <span class="path">/verwaltung/personen/{id}</span> — ein Klick vom Semester-Überblick direkt in Noten &amp; Anwesenheit (Screen C). Die Excel-Ausgabe und ihre Spalten bleiben unverändert daneben bestehen.</p>
+        <div class="flow">
+          <span class="step">Aktive dieses Semester</span>
+          <span class="arr"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          <span class="step">Klick auf „Bauer, Annika“</span>
+          <span class="arr"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+          <span class="step">Detailakte · Noten / Anwesenheit</span>
+        </div>
+      </div>
+
+      <div class="callout fix">
+        <h4>2 · Fehlender Zurück-Knopf im Formular-Bereich <span class="flag bad">Sackgasse heute</span></h4>
+        <p>Die Formular-Übersicht <span class="path">/verwaltung/formulare</span> beginnt heute direkt mit der Überschrift „Formulare“ — <b>ohne</b> „← Verwaltung“. Die Builder-Detailseite <span class="path">/verwaltung/formulare/[versionId]</span> hat nur „← Alle Formulare“ und führt so zurück in ebendiese Sackgasse.</p>
+        <p>Neu: eine geteilte Zurück-Leiste mit „← Verwaltung“ und Breadcrumb oben auf <b>jeder</b> Verwaltungs-Unterseite — inkl. Formular-Übersicht und Builder. Damit gibt es überall einen definierten Rückweg zum Dashboard.</p>
+        <div class="backbar" style="margin-top:12px;border:1px solid var(--border);border-radius:8px;background:#fff">
+          <a class="back" href="#"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Verwaltung</a>
+          <span class="crumb">Verwaltung · <b>Formulare</b> — neuer Standard-Rücklink, oben links auf jeder Unterseite</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOCKUP E: ROLLE DOZENT -->
+<div class="mock-intro" id="screenE">
+  <div class="k">Screen E · /dozent</div>
+  <h3>Dozent — „Mein Unterricht“, Anwesenheit an der Quelle</h3>
+  <p>Dieselbe Design-Sprache, rollenspezifisch zugeschnitten: Begrüßungskopf mit „← Meine Daten“, Übersichts-Kacheln,
+    „Offene Aufgaben“, Anwesenheits-Erfassung je Abend (nur gehaltene Abende) und Noten-Matrix der eigenen Fächer.
+    Teilnehmernamen bewusst ohne Deep-Link — kein Personen-Detailrecht.</p>
+</div>
+<div class="mock-frame">
+  <div class="mock-dozent">
+    <div class="screen">
+
+    <!-- Kopf: ruhig, Rolle Dozent -->
+    <div class="appbar">
+      <div class="brand"><span class="logo">GBS</span> Campus · Mein Unterricht</div>
+      <div class="right"><span>Sommersemester 2026 · läuft</span><span class="who"><span class="avatar">MR</span> Markus Reimer · Dozent</span></div>
+    </div>
+
+    <!-- Zurück-/Konto-Navigation: Dozent hat nur seinen Bereich + eigene Daten -->
+    <div class="backbar">
+      <a class="back" href="#"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Meine Daten</a>
+      <span class="crumb"><b>Mein Unterricht</b></span>
+    </div>
+
+    <div class="screen-body">
+      <h1 class="page">Guten Abend, Pastor Reimer</h1>
+      <p class="page-sub">Ihre Fächer im Sommersemester 2026 · 2. Jahrgang · 14 Teilnehmer · zuletzt erfasst am 08.05.2026</p>
+
+      <!-- ============ ÜBERSICHT ============ -->
+      <div class="kat">
+        <div class="kat-head"><h3>Übersicht</h3><span class="anz">Dieses Semester</span></div>
+        <div class="kacheln">
+          <div class="kachel">
+            <span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+            <span class="txt"><span class="t">Meine Fächer</span><span class="d">Systematische Theologie I · Homiletik (Predigtlehre)</span><span class="metric">2 Fächer · 2. Jahr · SoSe 2026</span></span>
+          </div>
+          <div class="kachel">
+            <span class="ic"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/></svg></span>
+            <span class="txt"><span class="t">Meine Abende</span><span class="d">Gehaltene und geplante Unterrichtsabende beider Fächer.</span><span class="metric">12 Abende · 8 gehalten · nächster Do 15.05.</span></span>
+          </div>
+          <div class="kachel">
+            <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9.5 12l1.8 1.8 3.5-3.6"/></svg></span>
+            <span class="txt"><span class="t">Offene Erfassung <span class="pill rot">2 offen</span></span><span class="d">Noch zu erledigen: Anwesenheit und Noten Ihrer Fächer.</span><span class="metric">1 Abend ohne Anwesenheit · 1 Fach unvollständig</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ OFFENE AUFGABEN ============ -->
+      <div class="kat">
+        <div class="kat-head"><h3>Offene Aufgaben</h3><span class="anz">2 · nach Fälligkeit</span></div>
+        <div class="aufgaben">
+          <div class="aufgabe rot">
+            <span class="ai"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 15.8v.2"/></svg></span>
+            <div class="body">
+              <div class="h">Anwesenheit für Abend 8 noch nicht erfasst</div>
+              <div class="s">Homiletik · 08.05.2026 · gehalten · 0 von 14 Teilnehmern erfasst</div>
+            </div>
+            <a class="btn sm" href="#abend8">Jetzt erfassen</a>
+          </div>
+          <div class="aufgabe">
+            <span class="ai"><svg viewBox="0 0 24 24"><path d="M12 4l2.3 4.7 5.2.8-3.7 3.6.9 5.1L12 15.8 7.3 18.2l.9-5.1L4.5 9.1l5.2-.8z"/></svg></span>
+            <div class="body">
+              <div class="h">Noten in Homiletik unvollständig</div>
+              <div class="s">9 von 14 Teilnehmern bewertet · 5 noch offen · Ergebnis ist Pflicht</div>
+            </div>
+            <a class="btn ghost sm" href="#noten-homiletik">Noten vervollständigen</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ ANWESENHEIT ERFASSEN ============ -->
+      <div class="kat">
+        <div class="kat-head"><h3>Anwesenheit erfassen</h3><span class="anz">An der Quelle · je Abend</span></div>
+
+        <!-- Abende beider Fächer, chronologisch. Nur vergangene Abende lassen sich erfassen. -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="ph-l"><h3>Unterrichtsabende</h3><span class="sub">Sommersemester 2026 · 2. Jahr</span></div>
+            <span class="hint">Nur gehaltene Abende erfassbar · „entschuldigt" entscheidet die Schule</span>
+          </div>
+
+          <div class="aw-row">
+            <span class="aw-date">08.05.2026</span>
+            <span class="aw-fach">Homiletik <small>· Abend 8 · Predigtaufbau</small></span>
+            <span class="aw-status"><span class="erf">0 von 14 erfasst</span><span class="badge b-offen"><span class="dot y"></span>offen</span><a class="btn sm ghost" href="#abend8">Erfassen</a></span>
+          </div>
+
+          <!-- Aktiver, aufgeklappter Abend = die eigentliche Erfassung -->
+          <div class="aw-row aktiv" id="abend8">
+            <span class="aw-date">01.05.2026</span>
+            <span class="aw-fach">Syst. Theologie I <small>· Abend 7 · Christologie</small></span>
+            <span class="aw-status"><span class="erf">14 von 14 erfasst</span><span class="badge b-gehalten"><span class="dot g"></span>gehalten</span><a class="btn sm ghost" href="#">Ändern</a></span>
+          </div>
+          <div class="matrix">
+            <div class="tbl-scroll">
+              <table class="mtx">
+                <thead><tr><th style="width:60%">Teilnehmer</th><th>Anwesenheit</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="tn">Bauer, Annika</span></td><td><select class="inp"><option selected>anwesend</option><option>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Brandt, Michael</span></td><td><select class="inp"><option selected>anwesend</option><option>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Dyck, Katharina</span></td><td><select class="inp"><option>anwesend</option><option selected>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Enns, Peter</span></td><td><select class="inp"><option selected>anwesend</option><option>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Friesen, Daniel</span></td><td><select class="inp"><option selected>anwesend</option><option>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Görtz, Lukas</span></td><td><select class="inp"><option>anwesend</option><option>gefehlt</option><option selected>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Harder, Miriam</span></td><td><select class="inp"><option selected>anwesend</option><option>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                  <tr><td><span class="tn">Neufeld, Viktor</span></td><td><select class="inp"><option>anwesend</option><option selected>gefehlt</option><option>nachgearbeitet</option><option>— (nicht erfasst)</option></select></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="mtx-foot">
+              <span class="lg">14 Teilnehmer · 12 anwesend · 2 gefehlt · 0 nachgearbeitet · gesetzter Status lässt sich ändern, aber nicht leeren</span>
+              <button class="btn sm"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg> Anwesenheit speichern</button>
+            </div>
+          </div>
+
+          <div class="aw-row">
+            <span class="aw-date">24.04.2026</span>
+            <span class="aw-fach">Homiletik <small>· Abend 6 · Textexegese</small></span>
+            <span class="aw-status"><span class="erf">14 von 14 erfasst</span><span class="badge b-gehalten"><span class="dot g"></span>gehalten</span><a class="btn sm ghost" href="#">Ändern</a></span>
+          </div>
+          <div class="aw-row">
+            <span class="aw-date">17.04.2026</span>
+            <span class="aw-fach">Syst. Theologie I <small>· Abend 5 · Pneumatologie</small></span>
+            <span class="aw-status"><span class="erf">13 von 14 erfasst</span><span class="badge b-gehalten"><span class="dot g"></span>gehalten</span><a class="btn sm ghost" href="#">Ändern</a></span>
+          </div>
+          <div class="aw-row">
+            <span class="aw-date">15.05.2026</span>
+            <span class="aw-fach">Syst. Theologie I <small>· Abend 9 · Soteriologie</small></span>
+            <span class="aw-status"><span class="badge b-geplant"><span class="dot gr"></span>noch nicht stattgefunden</span></span>
+          </div>
+          <div class="tbl-foot"><span>5 von 12 Abenden · nach Datum absteigend</span><span>Erfassung nur für Ihre eigenen Fächer · Teilnehmerakte über die Verwaltung</span></div>
+        </div>
+      </div>
+
+      <!-- ============ NOTEN ERFASSEN ============ -->
+      <div class="kat" id="noten-homiletik">
+        <div class="kat-head"><h3>Meine Noten</h3><span class="anz">Je eigenem Fach · Ergebnis Pflicht, Punkte/Note optional</span></div>
+
+        <!-- Fach 1: unvollständig, aufgeklappt -->
+        <div class="panel">
+          <div class="panel-head offen">
+            <div class="ph-l"><h3>Homiletik (Predigtlehre)</h3><span class="sub">2. Jahr · SoSe 2026</span></div>
+            <span class="badge b-offen"><span class="dot y"></span>9 von 14 bewertet</span>
+          </div>
+          <div class="tbl-scroll">
+            <table class="mtx">
+              <thead><tr><th style="width:40%">Teilnehmer</th><th>Ergebnis</th><th>Punkte</th><th>Note</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="tn">Bauer, Annika</span></td>
+                  <td><select class="inp"><option selected>bestanden</option><option>erfolgreich teilgenommen</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                  <td><input class="inp pkt" value="87"></td>
+                  <td><input class="inp note" value="1,7"></td>
+                  <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                </tr>
+                <tr>
+                  <td><span class="tn">Brandt, Michael</span></td>
+                  <td><select class="inp"><option selected>erfolgreich teilgenommen</option><option>bestanden</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                  <td><input class="inp pkt" value="74"></td>
+                  <td><input class="inp note" value="2,3"></td>
+                  <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                </tr>
+                <tr>
+                  <td><span class="tn">Dyck, Katharina</span></td>
+                  <td><select class="inp"><option selected>bestanden</option><option>erfolgreich teilgenommen</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                  <td><input class="inp pkt" value="91"></td>
+                  <td><input class="inp note" value="1,3"></td>
+                  <td><span class="unsaved">ungespeichert</span></td>
+                </tr>
+                <tr>
+                  <td><span class="tn">Enns, Peter</span></td>
+                  <td><select class="inp leer"><option selected>— nicht erfasst —</option><option>bestanden</option><option>erfolgreich teilgenommen</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                  <td><input class="inp pkt" placeholder="–"></td>
+                  <td><input class="inp note" placeholder="–"></td>
+                  <td><span class="offen-txt">offen</span></td>
+                </tr>
+                <tr>
+                  <td><span class="tn">Friesen, Daniel</span></td>
+                  <td><select class="inp leer"><option selected>— nicht erfasst —</option><option>bestanden</option><option>erfolgreich teilgenommen</option><option>teilgenommen</option><option>nicht bestanden</option></select></td>
+                  <td><input class="inp pkt" placeholder="–"></td>
+                  <td><input class="inp note" placeholder="–"></td>
+                  <td><span class="offen-txt">offen</span></td>
+                </tr>
+                <tr>
+                  <td><span class="tn">Görtz, Lukas</span></td>
+                  <td><select class="inp"><option selected>teilgenommen</option><option>bestanden</option><option>erfolgreich teilgenommen</option><option>nicht bestanden</option></select></td>
+                  <td><input class="inp pkt" placeholder="–"></td>
+                  <td><input class="inp note" placeholder="–"></td>
+                  <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                </tr>
+                <tr>
+                  <td><span class="tn">Neufeld, Viktor</span></td>
+                  <td><select class="inp"><option selected>nicht bestanden</option><option>bestanden</option><option>erfolgreich teilgenommen</option><option>teilgenommen</option></select></td>
+                  <td><input class="inp pkt" value="41"></td>
+                  <td><input class="inp note" value="5,0"></td>
+                  <td><span class="saved"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>gesp.</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mtx-foot">
+            <span class="lg">14 Teilnehmer · 9 bewertet · 5 offen · 1 ungespeichert · nur bewertete Zeilen werden gespeichert</span>
+            <button class="btn sm"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg> Noten speichern</button>
+          </div>
+        </div>
+
+        <!-- Fach 2: vollständig, zugeklappt -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="ph-l"><h3>Systematische Theologie I</h3><span class="sub">2. Jahr · SoSe 2026</span></div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="badge b-gehalten"><span class="dot g"></span>14 von 14 bewertet</span>
+              <button class="btn sm ghost">Noten (14 von 14)</button>
+            </div>
+          </div>
+          <div class="tbl-foot"><span>Vollständig erfasst · zuletzt gespeichert 02.05.2026</span><span>Zum Bearbeiten aufklappen · Änderungen werden protokolliert</span></div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOCKUP F: ROLLE SCHÜLER -->
+<div class="mock-intro" id="screenF">
+  <div class="k">Screen F · /meine-daten</div>
+  <h3>Schüler — „Meine Akte“, Selbst-Sicht der Detailakte</h3>
+  <p>Die Personen-Detailakte auf die Selbst-Sicht reduziert: Ausbildungsdaten read-only mit Sprungnavigation, Anwesenheit
+    mit Quote-Ampel und Selbstbestätigung (gesperrt wo die Schule erfasst hat), Noten rein lesend, Zeugnis-Download und
+    die Selbstpflege-Blöcke Kontakt/Bank, E-Mail und Passwort.</p>
+</div>
+<div class="mock-frame">
+  <div class="mock-schueler">
+    <div class="screen">
+
+    <div class="appbar">
+      <div class="brand"><span class="logo">GBS</span> Campus</div>
+      <div class="right">
+        <span>Sommersemester 2026 · läuft</span>
+        <span class="who"><span class="avatar">AB</span> Annika Bauer · Schülerin</span>
+      </div>
+    </div>
+
+    <div class="backbar">
+      <a class="back" href="#"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Startseite</a>
+      <span class="crumb">Mein Bereich · <b>Meine Daten</b></span>
+    </div>
+
+    <div class="screen-body">
+
+      <!-- KOPF: die eigene Akte -->
+      <div class="person-head">
+        <div class="ph-left">
+          <div class="ph-av">AB</div>
+          <div>
+            <h1>Annika Bauer</h1>
+            <div class="ph-tags">
+              <span class="badge b-aktiv"><span class="dot g"></span>Aktiv</span>
+              <span class="badge tf-schueler">Schülerin</span>
+              <span class="contact">a.bauer@web.de · 0571 8842190</span>
+            </div>
+            <div class="facts">
+              <div class="fact"><div class="k">Aktuelles Semester</div><div class="v">2. Jahr · SoSe 2026</div></div>
+              <div class="fact"><div class="k">Teilnahme</div><div class="v">Schülerin (Vollprogramm)</div></div>
+              <div class="fact"><div class="k">Gemeinde</div><div class="v">FeG Minden</div></div>
+              <div class="fact"><div class="k">Anwesenheitsquote</div><div class="v q-gut">92 % · Soll ≥ 80 %</div></div>
+              <div class="fact"><div class="k">Aufgenommen</div><div class="v">14.09.2024</div></div>
+              <div class="fact"><div class="k">Ermäßigung</div><div class="v">Keine</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="ph-side">
+          <div class="lbl">Auf dieser Seite</div>
+          <nav class="jump">
+            <a href="#anwesenheit"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Meine Anwesenheit <span class="n">92 %</span></a>
+            <a href="#noten"><svg viewBox="0 0 24 24"><path d="M12 4l2.3 4.7 5.2.8-3.7 3.6.9 5.1L12 15.8 7.3 18.2l.9-5.1L4.5 9.1l5.2-.8z"/></svg> Meine Noten <span class="n">4 / 5</span></a>
+            <a href="#zeugnisse"><svg viewBox="0 0 24 24"><path d="M8 3h8l1 4H7z"/><rect x="6" y="7" width="12" height="13" rx="1.5"/><path d="M9 11h6M9 14h6M9 17h3"/></svg> Meine Zeugnisse <span class="n">2</span></a>
+            <a href="#kontakt"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg> Kontakt &amp; Bank</a>
+          </nav>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Zur Ausbildung hinterlegt.</b> Name, Geburtsdatum, Gemeinde, Teilnahmeform und Status stehen hier nur
+        zum Nachlesen — an ihnen hängt die Aufnahmeentscheidung. Stimmt etwas nicht, wende dich an die Schulleitung.
+        Kontakt, Bankverbindung, E-Mail und Passwort kannst du weiter unten selbst pflegen.
+      </div>
+
+      <div class="grid2">
+
+        <!-- MEINE ANWESENHEIT -->
+        <div class="panel" id="anwesenheit">
+          <div class="panel-head">
+            <h2>Meine Anwesenheit · SoSe 2026</h2>
+            <span class="hint">11 von 18 Abenden gehalten</span>
+          </div>
+          <div class="quote-box">
+            <div class="quote-num">92 %</div>
+            <div style="flex:1">
+              <div class="quote-bar"><i style="width:92%"></i></div>
+              <div class="quote-meta">Nötig sind 15 von 18 Abenden (80 %). <b>Du darfst noch 2 Abende fehlen.</b></div>
+            </div>
+            <span class="badge b-aktiv"><span class="dot g"></span>Erfüllt</span>
+          </div>
+          <p class="aw-lead">
+            Bestätige selbst, an welchen vergangenen Abenden du da warst oder den Stoff nachgearbeitet hast — beides
+            zählt als Teilnahme. Was die Schule schon erfasst hat, steht fest.
+          </p>
+          <div style="margin-top:8px">
+            <div class="aw-row">
+              <span class="aw-date">08.05.2026</span>
+              <span class="aw-fach">Syst. Theologie I <small>· Abend 11</small></span>
+              <span class="selbst"><button class="sbtn aktiv" type="button">anwesend</button><button class="sbtn" type="button">nachgearbeitet</button></span>
+            </div>
+            <div class="aw-row">
+              <span class="aw-date">01.05.2026</span>
+              <span class="aw-fach">Hermeneutik <small>· Abend 10</small></span>
+              <span class="zust z-ent"><span class="dot y"></span>entschuldigt</span>
+            </div>
+            <div class="aw-row">
+              <span class="aw-date">24.04.2026</span>
+              <span class="aw-fach">Kirchengeschichte <small>· Abend 9</small></span>
+              <span class="selbst"><button class="sbtn" type="button">anwesend</button><button class="sbtn aktiv" type="button">nachgearbeitet</button></span>
+            </div>
+            <div class="aw-row">
+              <span class="aw-date">17.04.2026</span>
+              <span class="aw-fach">Griechisch I <small>· Abend 8</small></span>
+              <span class="zust z-erfasst">von der Schule erfasst: anwesend</span>
+            </div>
+            <div class="aw-row">
+              <span class="aw-date">10.04.2026</span>
+              <span class="aw-fach">Homiletik <small>· Abend 7</small></span>
+              <span class="selbst"><button class="sbtn aktiv" type="button">anwesend</button><button class="sbtn" type="button">nachgearbeitet</button></span>
+            </div>
+            <div class="aw-row">
+              <span class="aw-date">03.04.2026</span>
+              <span class="aw-fach">Syst. Theologie I <small>· Abend 6</small></span>
+              <span class="zust z-an"><span class="dot g"></span>anwesend</span>
+            </div>
+            <div class="aw-row">
+              <span class="aw-date">27.03.2026</span>
+              <span class="aw-fach">Hermeneutik <small>· Abend 5</small></span>
+              <span class="zust z-an"><span class="dot g"></span>anwesend</span>
+            </div>
+          </div>
+          <div class="aw-foot">
+            <span>7 von 11 gehaltenen Abenden</span>
+            <span>Erfasst wird am Abend durch den Dozenten</span>
+          </div>
+        </div>
+
+        <!-- MEINE NOTEN -->
+        <div class="panel" id="noten">
+          <div class="panel-head">
+            <h2>Meine Noten · SoSe 2026</h2>
+            <span class="hint">nur zum Nachlesen</span>
+          </div>
+          <div class="panel-body">
+            <p class="panel-lead">Deine Bewertungen. Erfasst werden sie von deinem Dozenten oder der Schulleitung.</p>
+            <div class="liste">
+              <div class="li">
+                <div class="fach"><div class="t">Systematische Theologie I</div><div class="s">Pastor M. Reimer</div></div>
+                <div class="werte"><span class="erg erg-best">bestanden</span><span class="pn">87 Punkte</span><span class="pn">Note 1,7</span></div>
+              </div>
+              <div class="li">
+                <div class="fach"><div class="t">Biblische Hermeneutik</div><div class="s">Dr. S. Klassen</div></div>
+                <div class="werte"><span class="erg erg-best">bestanden</span><span class="pn">79 Punkte</span><span class="pn">Note 2,3</span></div>
+              </div>
+              <div class="li">
+                <div class="fach"><div class="t">Kirchengeschichte</div><div class="s">Prof. H. Wall</div></div>
+                <div class="werte"><span class="erg erg-teil">teilgenommen</span></div>
+              </div>
+              <div class="li">
+                <div class="fach"><div class="t">Griechisch I</div><div class="s">Dr. S. Klassen</div></div>
+                <div class="werte"><span class="erg erg-best">bestanden</span><span class="pn">68 Punkte</span><span class="pn">Note 2,7</span></div>
+              </div>
+              <div class="li">
+                <div class="fach"><div class="t">Homiletik (Predigtlehre)</div><div class="s">Pastor M. Reimer</div></div>
+                <div class="werte"><span class="erg erg-offen">läuft noch</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="noten-foot">
+            <span>4 von 5 Fächern abgeschlossen</span>
+            <span>Ø aus abgeschlossenen: <b>2,0</b></span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- MEINE ZEUGNISSE -->
+      <div class="panel" id="zeugnisse">
+        <div class="panel-head">
+          <h2>Meine Zeugnisse</h2>
+          <span class="hint">2 ausgestellt</span>
+        </div>
+        <div class="panel-body">
+          <p class="panel-lead">Deine ausgestellten Zeugnisse und Bescheinigungen. Lade sie hier als PDF herunter.</p>
+          <div class="liste">
+            <div class="zg">
+              <div class="meta">
+                <div class="t">Semesterzeugnis · 1. Jahr</div>
+                <div class="s">Wintersemester 2025/26 · Beleg-Nr. ZG-2026-0142 · ausgestellt 28.02.2026</div>
+              </div>
+              <a class="btn" href="#"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> Herunterladen</a>
+            </div>
+            <div class="zg">
+              <div class="meta">
+                <div class="t">Hörer-Bescheinigung · Teilnahme</div>
+                <div class="s">Sommersemester 2025 · Beleg-Nr. BE-2025-0087 · ausgestellt 05.09.2025</div>
+              </div>
+              <a class="btn" href="#"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> Herunterladen</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KONTAKT & BANKVERBINDUNG -->
+      <div class="panel" id="kontakt">
+        <div class="panel-head">
+          <h2>Kontakt und Bankverbindung</h2>
+          <span class="hint">selbst änderbar · Verwaltung wird informiert</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="fld"><label for="telefon">Telefonnummer</label><input id="telefon" type="tel" value="0571 8842190"></div>
+            <div class="fld"><label for="strasse">Straße und Hausnummer</label><input id="strasse" value="Ringstraße 14"></div>
+            <div class="fld"><label for="plz">Postleitzahl</label><input id="plz" value="32423"></div>
+            <div class="fld"><label for="ort">Ort</label><input id="ort" value="Minden"></div>
+          </div>
+
+          <h3 class="sub-h">Bankverbindung</h3>
+          <p class="sub-p">
+            Es ist eine Bankverbindung hinterlegt. Sie wird aus Sicherheitsgründen nicht angezeigt. Das Feld nur
+            ausfüllen, wenn sich die IBAN geändert hat — leer lassen ändert nichts.
+          </p>
+          <div class="form-grid">
+            <div class="fld"><label for="kontoinhaber">Kontoinhaber</label><input id="kontoinhaber" value="Annika Bauer"></div>
+            <div class="fld">
+              <label for="iban">Neue IBAN</label>
+              <input id="iban" placeholder="unverändert lassen">
+              <div class="fh">Wird verschlüsselt gespeichert und ist nur für die Verwaltung einsehbar.</div>
+            </div>
+          </div>
+          <div class="form-foot">
+            <button class="btn" type="button">Änderungen speichern</button>
+            <span class="st">Zuletzt geprüft am 12.05.2026</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- E-MAIL -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>E-Mail-Adresse</h2>
+          <span class="hint">Anmeldung &amp; Benachrichtigungen</span>
+        </div>
+        <div class="panel-body">
+          <div class="kv"><span class="k">Aktuell: <b>a.bauer@web.de</b></span></div>
+          <p class="sub-p" style="margin-top:0">
+            Eine Änderung wird erst wirksam, wenn du den Bestätigungslink in der neuen Mailbox anklickst.
+          </p>
+          <div class="form-grid">
+            <div class="fld"><label for="neuemail">Neue E-Mail-Adresse</label><input id="neuemail" type="email" placeholder="neue-adresse@beispiel.de"></div>
+            <div class="fld" style="display:flex;align-items:flex-end"><button class="btn ghost" type="button">Bestätigungslink anfordern</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASSWORT -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Passwort</h2>
+          <span class="hint">zuletzt geändert 03.03.2026</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="fld"><label for="pw-alt">Aktuelles Passwort</label><input id="pw-alt" type="password" placeholder="••••••••"></div>
+            <div class="fld"><label for="pw-neu">Neues Passwort</label><input id="pw-neu" type="password" placeholder="mindestens 10 Zeichen"></div>
+          </div>
+          <div class="form-foot">
+            <button class="btn" type="button">Passwort ändern</button>
+            <span class="st">Mindestens 10 Zeichen · nach dem Ändern bleibst du angemeldet</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= TEIL 3: DESIGNPRINZIPIEN ================= -->
+<div class="part">
+  <p class="part-kicker">Teil 3</p>
+  <h2>Designprinzipien gegen den KI-Look</h2>
+  <p class="part-sub">Sieben Regeln, die wir in der Umsetzung befolgen, damit die Oberfläche wie eine seit Jahren real genutzte Schulverwaltung wirkt — nicht wie eine generische SaaS-Landingpage.</p>
+
+  <div class="prinzip">
+    <div class="pcard"><span class="pn">1</span><h4>Dichte vor Luft</h4><p>Echte Tabellen mit vielen Zeilen statt großzügiger Karten-Raster. Eine Schulverwaltung zeigt 54 Namen auf einen Blick — keine Hero-Sektion, kein Weißraum-Theater. Kompakte Zeilenhöhen, tabellarische Zahlen.</p></div>
+    <div class="pcard"><span class="pn">2</span><h4>Keine Farbverläufe, nur CREDO-Tokens</h4><p>Flächen weiß auf #f6f6f6, Border #e6e6e6, Radius ~10px, sehr dezente Schatten. Primär #575756 für Buttons/Links/aktive Elemente. Nur die 6px-CREDO-Linie oben trägt die vier Akzentfarben. Keine hartcodierten Hex-Werte in Komponenten.</p></div>
+    <div class="pcard"><span class="pn">3</span><h4>Status-Tints dezent, Text dunkel</h4><p>Grün/Gelb/Rot/Blau nur als 10–22 % transparente Tints hinterlegt, die Schrift bleibt dunkel und kontrastreich. Farbe signalisiert (Quote kritisch, ungespeichert), sie dekoriert nicht.</p></div>
+    <div class="pcard"><span class="pn">4</span><h4>Einfarbige Linien-Icons, sparsam</h4><p>Dezente Outline-SVGs in Primärgrau, ein Icon je Kachel. Keine bunten gefüllten Piktogramme, keine Emojis, keine Illustrationen als Dekoration.</p></div>
+    <div class="pcard"><span class="pn">5</span><h4>Sachliche deutsche Fachsprache</h4><p>„Nicht zugestellte E-Mails“, „gehaltene Abende je Dozent“, „das Audit-Log, das niemand löschen kann“. Keine Marketing-Sprache, keine Ausrufezeichen, keine Gendersprache. Benennungen wie im Kollegium gesprochen.</p></div>
+    <div class="pcard"><span class="pn">6</span><h4>Echte Zahlen statt Platzhalter</h4><p>Jede Kachel und jeder Kopf zeigt reale Kennzahlen (312 Personen · 54 aktiv, 2 Zustellfehler seit gestern). Zahlen erzeugen Betriebs-Vertrauen; „Lorem“-artige Fülltexte zerstören es.</p></div>
+    <div class="pcard"><span class="pn">7</span><h4>Immer ein definierter Rückweg</h4><p>Jede Unterseite trägt oben „← Verwaltung“ + Breadcrumb. Klare Deep-Links zwischen zusammengehörenden Ansichten (Liste ↔ Person ↔ Semester). Keine Sackgassen — der Nutzer weiß stets, wo er ist und wie er zurückkommt.</p></div>
+  </div>
+</div>
+
+<div class="footer">
+  GBS Campus · UI-Neustrukturierung — rollenübergreifender Plan &amp; Mockups zur Freigabe · statisches Dokument, keine Implementierung · CREDO Corporate Design (Montserrat / #575756, keine Farbverläufe) · sechs Screens: Dashboard, Personen-Liste, Personen-Detailakte, Navigations-Fixes, Dozent „Mein Unterricht“, Schüler „Meine Akte“.
+</div>
+
+</body>
+</html>

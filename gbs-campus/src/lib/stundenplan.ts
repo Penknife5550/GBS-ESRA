@@ -89,6 +89,17 @@ export function anwesenheitsquote(status: string[], schwelleProzent: number): Qu
   };
 }
 
+/**
+ * Ist die Schwelle mit `teilgenommen` von `gesamt` Abenden erfüllt? Ganzzahliger
+ * Vergleich (wie in `anwesenheitsquote`) — die eine Wahrheit, damit die
+ * Personen-Liste keine eigene Kopie der Kreuzmultiplikation führt. Ohne Abende
+ * (gesamt 0) gilt sie als erfüllt.
+ */
+export function quoteErfuellt(teilgenommen: number, gesamt: number, schwelleProzent: number): boolean {
+  if (gesamt <= 0) return true;
+  return teilgenommen * 100 >= schwelleProzent * gesamt;
+}
+
 /** Der Ampel-Zustand der eigenen Quote in der Schüler-Sicht. */
 export type QuoteZustand = "ERFUELLT" | "OFFEN" | "NICHT_ERREICHBAR";
 
@@ -179,6 +190,41 @@ export function quoteAusVergangenen(
   return quoteModellA(gesamt, teilgenommen, versaeumt, schwelleProzent);
 }
 
+// -----------------------------------------------------------------------------
+// Quote-Klartext für die Ampel (DB-frei, damit `pruefe-quote-schueler.ts` den
+// schülerrelevanten Wortlaut gegenprüfen kann — nicht nur die Zahlen).
+// -----------------------------------------------------------------------------
+
+export function abendWort(n: number): string {
+  return n === 1 ? "Abend" : "Abende";
+}
+
+/**
+ * Der handlungsrelevante Fall (nicht mehr erreichbar oder kein Puffer mehr): darf
+ * nicht der leiseste Text auf der Seite sein. Eine Wahrheit für Textzweig UND Stil.
+ */
+export function istQuoteDringend(q: QuoteModellA): boolean {
+  return q.zustand === "NICHT_ERREICHBAR" || (q.zustand === "OFFEN" && q.darfNochFehlen <= 0);
+}
+
+/**
+ * Der Klartext unter der Quote-Ampel — die eigentliche Aussage „bin ich auf Kurs".
+ * Bewusst rein: ein falscher Zweig führt einen Schüler über seine Anwesenheit in
+ * die Irre, und das ist ohne DB gegenprüfbar.
+ */
+export function quoteHinweis(q: QuoteModellA): string {
+  if (q.zustand === "ERFUELLT") {
+    return "Die Anwesenheitspflicht ist damit gesichert — bereits erfasste Teilnahmen zählen fest.";
+  }
+  if (q.zustand === "NICHT_ERREICHBAR") {
+    return "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. Bitte wende dich an die Schulleitung.";
+  }
+  if (q.darfNochFehlen <= 0) {
+    return "Achtung: Es darf kein Abend mehr fehlen, sonst reißt die Grenze.";
+  }
+  return `Es dürfen noch ${q.darfNochFehlen} ${abendWort(q.darfNochFehlen)} fehlen.`;
+}
+
 /**
  * Die Dienstagabende eines Semesters: der erste Dienstag ab dem Semesterbeginn
  * (der Beginn selbst, wenn er ein Dienstag ist), dann wöchentlich, `anzahl` Mal,
@@ -217,4 +263,40 @@ export function dienstagstermine(start: Date, anzahl: number, stunde = 19, minut
     termine.push(new Date(jahr, monat, tag + bisDienstag + i * 7, stunde, minute));
   }
   return termine;
+}
+
+// -----------------------------------------------------------------------------
+// Dozenten-Übersicht: welche vergangenen Abende sind noch nicht vollständig
+// erfasst? DB-frei über die schon geladene Stundenplan-Struktur — damit die
+// „Offene Aufgaben" des Dozenten testbar sind und nicht in der JSX-Seite hängen.
+// -----------------------------------------------------------------------------
+
+export type OffenerAbend = { semester: string; text: string; fach: string | null; erfasst: number; gesamt: number };
+
+type ErfassungsGruppe = {
+  semesterBezeichnung: string;
+  teilnehmer: { teilnahmeId: string }[];
+  termine: { id: string; text: string; fach: string | null; istVergangen: boolean }[];
+  /** terminId → teilnahmeId → Status (nur für vergangene Abende befüllt). */
+  anwesenheit: Record<string, Record<string, string>>;
+};
+
+/**
+ * Alle vergangenen Abende mit aktiven Teilnehmern, bei denen noch nicht für jeden
+ * ein Status erfasst ist (`erfasst < gesamt`). Der `teilnehmer.length > 0`-Guard
+ * verhindert, dass ein Semester ohne Teilnehmer als „offen" zählt.
+ */
+export function offeneErfassung(gruppen: ErfassungsGruppe[]): OffenerAbend[] {
+  return gruppen.flatMap((g) =>
+    g.termine
+      .filter((t) => t.istVergangen && g.teilnehmer.length > 0)
+      .map((t) => ({
+        semester: g.semesterBezeichnung,
+        text: t.text,
+        fach: t.fach,
+        erfasst: g.teilnehmer.filter((tn) => g.anwesenheit[t.id]?.[tn.teilnahmeId]).length,
+        gesamt: g.teilnehmer.length,
+      }))
+      .filter((a) => a.erfasst < a.gesamt),
+  );
 }

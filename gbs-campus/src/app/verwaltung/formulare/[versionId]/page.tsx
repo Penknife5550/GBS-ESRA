@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { Abschnitt, FeldTypWert, FormularBuilder, PersonFeldWert } from "../formular-builder";
 
 export const dynamic = "force-dynamic";
@@ -39,9 +39,11 @@ export default async function BuilderSeite({ params }: { params: Promise<{ versi
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      <Link href="/verwaltung/formulare" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Alle Formulare
-      </Link>
+      <ZurueckLeiste
+        href="/verwaltung/formulare"
+        label="Alle Formulare"
+        breadcrumb={`Verwaltung · Formulare · Fassung ${version.version}`}
+      />
 
       <div className="mt-6">
         <FormularBuilder

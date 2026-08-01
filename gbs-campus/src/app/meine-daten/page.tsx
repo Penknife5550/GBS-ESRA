@@ -1,4 +1,4 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
@@ -9,6 +9,10 @@ import { zahl } from "@/lib/einstellungen";
 import { ladeEigeneUnterrichtstermine } from "@/lib/stundenplan-io";
 import { ladeEigeneLeistungen } from "@/lib/leistung-io";
 import { ladeEigeneZeugnisse } from "@/lib/zeugnis-io";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { PersonKopf } from "@/components/personen/person-kopf";
+import { StatusBadge, TeilnahmeformBadge } from "@/components/ui/badges";
+import { QuoteChip } from "@/components/ui/quote-ampel";
 import { AbmeldenKnopf } from "@/app/verwaltung/abmelden-knopf";
 import { StammdatenFormular } from "./stammdaten-formular";
 import { EmailAendern } from "./email-aendern";
@@ -20,13 +24,15 @@ import { MeineZeugnisseAbschnitt } from "./meine-zeugnisse-abschnitt";
 export const dynamic = "force-dynamic";
 
 /**
- * Die eigene Akte.
+ * Die eigene Akte — im Layout der Verwaltungs-Detailakte, nur aus der Selbstsicht:
+ * Kopf mit unveränderlichen Ausbildungsdaten (read-only), eine Sprungnavigation
+ * statt Admin-Aktionen, darunter Anwesenheit, Noten und Zeugnisse (lesend) sowie
+ * die selbst pflegbaren Blöcke Kontakt/Bank, E-Mail und Passwort.
  *
- * Änderbar ist, was den Kontakt betrifft — Adresse, Telefon, Bankverbindung und
- * (über den Bestätigungsweg) die E-Mail-Adresse. Name, Geburtsdatum, Gemeinde,
+ * Änderbar ist nur, was den Kontakt betrifft. Name, Geburtsdatum, Gemeinde,
  * Teilnahmeform und Status stehen nur zum Nachlesen da: An ihnen hängt die
  * Aufnahmeentscheidung, und die Gemeindezugehörigkeit ist eine Angabe nach
- * Art. 9 DSGVO, die nicht im Vorbeigehen umgeschrieben werden sollte.
+ * Art. 9 DSGVO.
  */
 export default async function MeineDatenSeite() {
   const benutzer = await ladeAngemeldeten();
@@ -45,103 +51,112 @@ export default async function MeineDatenSeite() {
   const hatVerwaltungsbereich = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
   const darfBearbeiten = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_EIGENE);
 
-  // Beide Reads hängen nur an der Person, nicht aneinander — parallel laden.
-  // - Ein beantragter Adresswechsel ist sonst nach dem Neuladen unsichtbar: Die
-  //   Seite zeigt wieder nur die alte Adresse, und der Antrag wirkt verloren.
-  // - Die vergangenen Unterrichtsabende der eigenen Teilnahmen mit der eigenen
-  //   Quote. Bewusst schon bei reinem Leserecht laden: Die Anwesenheitsquote ist
-  //   eine reine Ansicht (PERSON_LESEN_EIGENE) — nur die Selbstbestätigungs-Knöpfe
-  //   hängen zusätzlich an PERSON_BEARBEITEN_EIGENE.
-  const [offenerEmailAntrag, anwesenheitGruppen, notenGruppen, zeugnisse] = await Promise.all([
+  const [offenerEmailAntrag, anwesenheitGruppen, notenGruppen, zeugnisse, passwortMinLaenge] = await Promise.all([
     prisma.emailAenderung.findFirst({
       where: { personId: person.id, benutztAm: null, laeuftAb: { gt: new Date() } },
       orderBy: { erstelltAm: "desc" },
       select: { neueEmail: true, laeuftAb: true },
     }),
     ladeEigeneUnterrichtstermine(person.id, new Date()),
-    // Read-only, deshalb schon bei reinem Leserecht (PERSON_LESEN_EIGENE) geladen —
-    // wie die Anwesenheitsquote.
     ladeEigeneLeistungen(person.id),
     ladeEigeneZeugnisse(person.id),
+    darfBearbeiten ? zahl("AUTH_PASSWORT_MIN_LAENGE") : Promise.resolve(0),
   ]);
 
-  const unveraenderlich = [
-    { bezeichnung: "Name", wert: `${person.vorname} ${person.nachname}` },
+  const aktuelleForm = person.teilnahmen[0]?.teilnahmeform ?? person.teilnahmeform;
+  const aktuelleQuote = anwesenheitGruppen[0]?.quote ?? null;
+
+  const facts: { bezeichnung: string; wert: ReactNode }[] = [
     { bezeichnung: "Geburtsdatum", wert: deutscherTag(person.geburtsdatum) || "—" },
-    { bezeichnung: "Gemeinde", wert: person.gemeinde ?? "—" },
-    { bezeichnung: "Teilnahme", wert: teilnahmeformName(person.teilnahmeform) || "—" },
+    { bezeichnung: "Gemeinde", wert: person.gemeinde || "—" },
+    { bezeichnung: "Teilnahme", wert: teilnahmeformName(aktuelleForm) || "—" },
     { bezeichnung: "Status", wert: person.status.bezeichnung },
-    ...(person.ermaessigung ? [{ bezeichnung: "Ermäßigung", wert: person.ermaessigung.bezeichnung }] : []),
+    { bezeichnung: "Anwesenheit", wert: aktuelleQuote ? <QuoteChip quote={aktuelleQuote} /> : "—" },
   ];
+  if (person.ermaessigung) facts.push({ bezeichnung: "Ermäßigung", wert: person.ermaessigung.bezeichnung });
+
+  // Sprungnavigation nur auf tatsächlich gerenderte Abschnitte — sonst tote Anker.
+  const sprungziele: { id: string; label: string }[] = [];
+  if (anwesenheitGruppen.length > 0) sprungziele.push({ id: "anwesenheit", label: "Anwesenheit" });
+  if (notenGruppen.length > 0) sprungziele.push({ id: "noten", label: "Noten" });
+  if (zeugnisse.length > 0) sprungziele.push({ id: "zeugnisse", label: "Zeugnisse" });
+  if (darfBearbeiten) {
+    sprungziele.push({ id: "kontakt", label: "Kontakt & Bank" });
+    sprungziele.push({ id: "email", label: "E-Mail" });
+    sprungziele.push({ id: "passwort", label: "Passwort" });
+  }
+
+  const eyebrow = "mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          {hatVerwaltungsbereich && (
-            <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-              ← Verwaltung
-            </Link>
-          )}
-          <h1 className="mt-3 text-2xl font-bold tracking-tight">Meine Daten</h1>
-          <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-            Was sich ändert, kannst du hier selbst pflegen. Die Verwaltung wird über jede Änderung
-            informiert — du musst niemandem gesondert Bescheid geben.
-          </p>
-        </div>
+    <main className="mx-auto max-w-4xl px-6 py-10">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {hatVerwaltungsbereich ? (
+          <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Meine Daten" />
+        ) : (
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Meine Akte</p>
+        )}
         <AbmeldenKnopf />
       </div>
 
-      <section className="mt-10">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Zur Ausbildung hinterlegt
-        </h2>
-        <dl className="grid gap-x-6 gap-y-2 rounded-lg border border-border bg-muted px-5 py-4 text-sm sm:grid-cols-2">
-          {unveraenderlich.map((eintrag) => (
-            <div key={eintrag.bezeichnung} className="flex min-w-0 gap-2">
-              <dt className="text-muted-foreground">{eintrag.bezeichnung}:</dt>
-              <dd className="break-words">{eintrag.wert}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-2 max-w-prose text-xs text-muted-foreground">
-          Stimmt hier etwas nicht, wende dich an die Schulleitung — diese Angaben gehören zur
-          Aufnahmeentscheidung und lassen sich deshalb nicht selbst ändern.
-        </p>
+      <div className="mt-4">
+        <PersonKopf
+          vorname={person.vorname}
+          nachname={person.nachname}
+          badges={
+            <>
+              <StatusBadge code={person.status.code} label={person.status.bezeichnung} />
+              <TeilnahmeformBadge form={aktuelleForm} />
+            </>
+          }
+          kontakt={
+            <>
+              {person.email}
+              {person.telefon && <span className="text-muted-foreground"> · {person.telefon}</span>}
+            </>
+          }
+          facts={facts}
+          rechts={
+            sprungziele.length > 0 ? (
+              <nav aria-label="Abschnitte dieser Seite" className="w-full sm:w-52">
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.04em] text-muted-foreground">Abschnitte</p>
+                <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+                  {sprungziele.map((z) => (
+                    <li key={z.id}>
+                      <a href={`#${z.id}`} className="block px-3 py-2 text-sm hover:bg-muted">
+                        {z.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ) : undefined
+          }
+        />
+      </div>
 
-        {person.teilnahmen.length > 0 && (
-          <p className="mt-4 text-sm text-muted-foreground">
-            Angemeldet für:{" "}
-            {person.teilnahmen
-              .map((t) => `${t.semester.bezeichnung} (${teilnahmeformName(t.teilnahmeform)})`)
-              .join(", ")}
-          </p>
-        )}
-      </section>
+      <p className="mt-3 max-w-prose text-xs text-muted-foreground">
+        Stimmt oben etwas nicht, wende dich an die Schulleitung — diese Angaben gehören zur Aufnahmeentscheidung und
+        lassen sich deshalb nicht selbst ändern. Kontakt, Bankverbindung, E-Mail und Passwort pflegst du unten selbst.
+      </p>
 
       {anwesenheitGruppen.length > 0 && (
-        <section className="mt-12">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Meine Anwesenheit
-          </h2>
+        <section id="anwesenheit" className="mt-12 scroll-mt-6">
+          <h2 className={eyebrow}>Meine Anwesenheit</h2>
           <AnwesenheitAbschnitt gruppen={anwesenheitGruppen} darfBearbeiten={darfBearbeiten} />
         </section>
       )}
 
       {notenGruppen.length > 0 && (
-        <section className="mt-12">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Meine Noten
-          </h2>
+        <section id="noten" className="mt-12 scroll-mt-6">
+          <h2 className={eyebrow}>Meine Noten</h2>
           <MeineNotenAbschnitt gruppen={notenGruppen} />
         </section>
       )}
 
       {zeugnisse.length > 0 && (
-        <section className="mt-12">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Meine Zeugnisse
-          </h2>
+        <section id="zeugnisse" className="mt-12 scroll-mt-6">
+          <h2 className={eyebrow}>Meine Zeugnisse</h2>
           <MeineZeugnisseAbschnitt
             zeugnisse={zeugnisse.map((z) => ({
               id: z.id,
@@ -156,10 +171,8 @@ export default async function MeineDatenSeite() {
 
       {darfBearbeiten ? (
         <>
-          <section className="mt-12">
-            <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Kontakt und Bankverbindung
-            </h2>
+          <section id="kontakt" className="mt-12 scroll-mt-6">
+            <h2 className={eyebrow}>Kontakt und Bankverbindung</h2>
             <StammdatenFormular
               vorbelegung={{
                 telefon: person.telefon ?? "",
@@ -172,10 +185,8 @@ export default async function MeineDatenSeite() {
             />
           </section>
 
-          <section className="mt-12">
-            <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              E-Mail-Adresse
-            </h2>
+          <section id="email" className="mt-12 scroll-mt-6">
+            <h2 className={eyebrow}>E-Mail-Adresse</h2>
             <EmailAendern
               bisherige={person.email}
               offenerAntrag={
@@ -192,13 +203,11 @@ export default async function MeineDatenSeite() {
             />
           </section>
 
-          <section className="mt-12">
-            <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Passwort
-            </h2>
+          <section id="passwort" className="mt-12 scroll-mt-6">
+            <h2 className={eyebrow}>Passwort</h2>
             <PasswortAbschnitt
               hatPasswort={Boolean(person.passwortHash)}
-              mindestLaenge={await zahl("AUTH_PASSWORT_MIN_LAENGE")}
+              mindestLaenge={passwortMinLaenge}
               gesetztAm={person.passwortGeaendertAm?.toLocaleDateString("de-DE") ?? null}
             />
           </section>

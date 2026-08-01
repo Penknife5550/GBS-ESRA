@@ -12,6 +12,7 @@ import {
   anwesenheitsquote,
   dienstagstermine,
   istDozentStatusErlaubt,
+  offeneErfassung,
   zaehltAlsTeilgenommen,
 } from "../src/lib/stundenplan";
 
@@ -78,8 +79,38 @@ pruefe("GEFEHLT ist für den Dozenten erlaubt", istDozentStatusErlaubt("GEFEHLT"
 pruefe("NACHGEARBEITET ist für den Dozenten erlaubt", istDozentStatusErlaubt("NACHGEARBEITET") === true);
 pruefe("ENTSCHULDIGT ist NICHT erlaubt (Schulentscheidung)", istDozentStatusErlaubt("ENTSCHULDIGT") === false);
 
+console.log("\n5. Offene Erfassung (Dozenten-Übersicht: Offene Aufgaben)");
+{
+  const offen = offeneErfassung([
+    {
+      semesterBezeichnung: "Herbstsemester 2026",
+      teilnehmer: [{ teilnahmeId: "t1" }, { teilnahmeId: "t2" }],
+      termine: [
+        { id: "a1", text: "Di 01", fach: "Bibelkunde", istVergangen: true }, // nur t1 erfasst → offen
+        { id: "a2", text: "Di 02", fach: null, istVergangen: true }, // beide erfasst → nicht offen
+        { id: "a3", text: "Di 03", fach: null, istVergangen: false }, // künftig → ignoriert
+      ],
+      anwesenheit: {
+        a1: { t1: "ANWESEND" },
+        a2: { t1: "ANWESEND", t2: "GEFEHLT" },
+      },
+    },
+  ]);
+  pruefe("genau ein Abend ist offen", offen.length === 1, offen);
+  pruefe("offener Abend ist a1 mit 1 von 2 erfasst", offen[0]?.text === "Di 01" && offen[0]?.erfasst === 1 && offen[0]?.gesamt === 2, offen);
+  pruefe("vollständig erfasster Abend zählt nicht", !offen.some((o) => o.text === "Di 02"), offen);
+  pruefe("künftiger Abend zählt nicht", !offen.some((o) => o.text === "Di 03"), offen);
+}
+{
+  // Ein Semester ohne aktive Teilnehmer darf nie als „offen" erscheinen (0/0).
+  const ohne = offeneErfassung([
+    { semesterBezeichnung: "X", teilnehmer: [], termine: [{ id: "a", text: "t", fach: null, istVergangen: true }], anwesenheit: {} },
+  ]);
+  pruefe("Semester ohne Teilnehmer erzeugt keine offenen Abende", ohne.length === 0, ohne);
+}
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 24;
+const ERWARTET = 29;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

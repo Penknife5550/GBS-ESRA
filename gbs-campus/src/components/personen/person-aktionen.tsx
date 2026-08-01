@@ -1,10 +1,23 @@
 "use client";
 
+/**
+ * GBS Campus — Verwaltungs-Aktionen auf der Personen-Detailakte
+ *
+ * Bündelt die Aktionen, die vorher in der aufklappbaren Listenzeile
+ * (`person-zeile.tsx`) saßen: Anmeldeadresse ändern, Stammdaten bearbeiten,
+ * Anmeldelink schicken, DSGVO-Auskunft anstoßen, anonymisieren und Rollen
+ * verwalten. Dieselben APIs, dasselbe `sendeAnfrage`+`router.refresh()`-Muster,
+ * dieselben Bestätigungsdialoge — nur jetzt an EINEM Ort (der Akte) statt in jeder
+ * Listenzeile.
+ */
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 
-export type PersonAnzeige = {
+type Rolle = { code: string; bezeichnung: string };
+
+export type PersonAktionenDaten = {
   id: string;
   name: string;
   vorname: string;
@@ -17,13 +30,10 @@ export type PersonAnzeige = {
   status: string;
   istTerminal: boolean;
   istAnonym: boolean;
-  rollen: string;
   rollenCodes: string[];
 };
 
-type Rolle = { code: string; bezeichnung: string };
-
-export function PersonZeile({
+export function PersonAktionen({
   person,
   darfAendern,
   darfAuskunft,
@@ -31,7 +41,7 @@ export function PersonZeile({
   darfRollenVerwalten,
   alleRollen,
 }: {
-  person: PersonAnzeige;
+  person: PersonAktionenDaten;
   darfAendern: boolean;
   darfAuskunft: boolean;
   darfAnonymisieren: boolean;
@@ -50,7 +60,11 @@ export function PersonZeile({
     plz: person.plz,
     ort: person.ort,
   });
-  const [laeuft, setLaeuft] = useState(false);
+  // Welche Aktion gerade läuft (oder null). Ein gemeinsames Flag ließe sonst alle
+  // Buttons zugleich „Läuft …" zeigen; so ist nur der aktive betroffen, und die
+  // Umschalter werden währenddessen gesperrt.
+  const [laeuft, setLaeuft] = useState<null | "email" | "link" | "auskunft" | "anonym" | "rollen" | "stammdaten">(null);
+  const beschaeftigt = laeuft !== null;
   const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
 
   const rollenGeaendert =
@@ -68,21 +82,17 @@ export function PersonZeile({
     ) {
       return;
     }
-
-    setLaeuft(true);
+    setLaeuft("email");
     setMeldung(null);
-
     const antwort = await sendeAnfrage<{ email: string; mailGesendet: boolean; passwortEntfernt: boolean }>(
       `/api/personen/${person.id}/email`,
       { methode: "PUT", rumpf: { email: neueEmail } },
     );
-    setLaeuft(false);
-
+    setLaeuft(null);
     if (!antwort.ok) {
       setMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-
     setModus("ruhe");
     setNeueEmail("");
     setMeldung({
@@ -97,14 +107,12 @@ export function PersonZeile({
   }
 
   async function anmeldelinkSchicken() {
-    setLaeuft(true);
+    setLaeuft("link");
     setMeldung(null);
-
     const antwort = await sendeAnfrage<{ empfaenger: string }>(`/api/personen/${person.id}/anmeldelink`, {
       methode: "POST",
     });
-    setLaeuft(false);
-
+    setLaeuft(null);
     setMeldung(
       antwort.ok
         ? { art: "ok", text: `Anmeldelink an ${antwort.daten.empfaenger} verschickt.` }
@@ -123,21 +131,17 @@ export function PersonZeile({
     ) {
       return;
     }
-
-    setLaeuft(true);
+    setLaeuft("auskunft");
     setMeldung(null);
-
     const antwort = await sendeAnfrage<{ empfaenger: string; gesendet: boolean }>(
       `/api/personen/${person.id}/auskunft`,
       { methode: "POST" },
     );
-    setLaeuft(false);
-
+    setLaeuft(null);
     if (!antwort.ok) {
       setMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-
     setMeldung({
       art: "ok",
       text: antwort.daten.gesendet
@@ -158,20 +162,16 @@ export function PersonZeile({
     ) {
       return;
     }
-
-    setLaeuft(true);
+    setLaeuft("anonym");
     setMeldung(null);
-
     const antwort = await sendeAnfrage<{ anmeldungen: number }>(`/api/personen/${person.id}/anonymisieren`, {
       methode: "POST",
     });
-    setLaeuft(false);
-
+    setLaeuft(null);
     if (!antwort.ok) {
       setMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-
     setMeldung({ art: "ok", text: "Die Person wurde anonymisiert. Die personenbezogenen Daten sind gelöscht." });
     router.refresh();
   }
@@ -182,13 +182,13 @@ export function PersonZeile({
   }
 
   async function rollenSpeichern() {
-    setLaeuft(true);
+    setLaeuft("rollen");
     setMeldung(null);
     const antwort = await sendeAnfrage<{ geaendert: boolean }>(`/api/personen/${person.id}/rollen`, {
       methode: "PUT",
       rumpf: { rollen: gewaehlt },
     });
-    setLaeuft(false);
+    setLaeuft(null);
     if (!antwort.ok) {
       setMeldung({ art: "fehler", text: antwort.meldung });
       return;
@@ -199,13 +199,13 @@ export function PersonZeile({
   }
 
   async function stammdatenSpeichern() {
-    setLaeuft(true);
+    setLaeuft("stammdaten");
     setMeldung(null);
     const antwort = await sendeAnfrage<{ gespeichert: boolean }>(`/api/personen/${person.id}/stammdaten`, {
       methode: "PUT",
       rumpf: stamm,
     });
-    setLaeuft(false);
+    setLaeuft(null);
     if (!antwort.ok) {
       setMeldung({ art: "fehler", text: antwort.meldung });
       return;
@@ -215,117 +215,63 @@ export function PersonZeile({
     router.refresh();
   }
 
+  const knopf = "min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium";
+  const primaer = "min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60";
+
   return (
-    <li className="rounded-lg border border-border bg-card p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-semibold">{person.name}</p>
-          <p className="break-all text-sm text-muted-foreground">{person.email}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {person.status}
-            {person.rollen && ` · ${person.rollen}`}
-          </p>
-        </div>
-      </div>
+    <div className="rounded-lg border border-border bg-card p-5">
+      <h2 className="text-sm font-semibold">Verwaltung dieser Person</h2>
 
-      {darfAendern && (
-        <>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setModus(modus === "email" ? "ruhe" : "email")}
-              aria-expanded={modus === "email"}
-              aria-controls={`adresse-${person.id}`}
-              className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium"
-            >
-              {modus === "email" ? "Abbrechen" : "Anmeldeadresse ändern"}
-            </button>
-            {!person.istAnonym && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStamm({
-                    vorname: person.vorname,
-                    nachname: person.nachname,
-                    telefon: person.telefon,
-                    strasse: person.strasse,
-                    plz: person.plz,
-                    ort: person.ort,
-                  });
-                  setModus(modus === "stammdaten" ? "ruhe" : "stammdaten");
-                  setMeldung(null);
-                }}
-                aria-expanded={modus === "stammdaten"}
-                aria-controls={`stammdaten-${person.id}`}
-                className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium"
-              >
-                {modus === "stammdaten" ? "Abbrechen" : "Stammdaten bearbeiten"}
-              </button>
-            )}
-            {/* Bei einem Endstatus wird kein Link mehr verschickt. Ein dauerhaft
-                grauer Knopf sagt das niemandem — der Satz sagt es. */}
-            {!person.istTerminal && (
-              <button
-                type="button"
-                onClick={anmeldelinkSchicken}
-                disabled={laeuft}
-                className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-              >
-                {laeuft ? "Läuft …" : "Anmeldelink schicken"}
-              </button>
-            )}
-          </div>
-
-          {person.istTerminal && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Status „{person.status}" — für dieses Konto wird kein Anmeldelink verschickt.
-            </p>
-          )}
-        </>
-      )}
-
-      {darfAuskunft && (
-        <div className="mt-3 border-t border-border pt-3">
+      <div className="mt-3 flex flex-wrap gap-3">
+        {darfAendern && (
           <button
             type="button"
-            onClick={auskunftSenden}
-            disabled={laeuft}
-            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium disabled:opacity-60"
+            onClick={() => {
+              setModus(modus === "email" ? "ruhe" : "email");
+              setMeldung(null);
+            }}
+            aria-expanded={modus === "email"}
+            aria-controls={`adresse-${person.id}`}
+            disabled={beschaeftigt}
+            className={`${knopf} disabled:opacity-60`}
           >
-            {laeuft ? "Läuft …" : "DSGVO-Auskunft senden"}
+            {modus === "email" ? "Abbrechen" : "Anmeldeadresse ändern"}
           </button>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Schickt der Person einen persönlichen Link, über den sie ihre gespeicherten Daten nach Art. 15
-            DSGVO als PDF abrufen kann.
-          </p>
-        </div>
-      )}
-
-      {darfAnonymisieren && !person.istAnonym && (
-        <div className="mt-3 border-t border-border pt-3">
+        )}
+        {darfAendern && !person.istAnonym && (
           <button
             type="button"
-            onClick={anonymisieren}
-            disabled={laeuft}
-            className="min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
+            onClick={() => {
+              setStamm({
+                vorname: person.vorname,
+                nachname: person.nachname,
+                telefon: person.telefon,
+                strasse: person.strasse,
+                plz: person.plz,
+                ort: person.ort,
+              });
+              setModus(modus === "stammdaten" ? "ruhe" : "stammdaten");
+              setMeldung(null);
+            }}
+            aria-expanded={modus === "stammdaten"}
+            aria-controls={`stammdaten-${person.id}`}
+            disabled={beschaeftigt}
+            className={`${knopf} disabled:opacity-60`}
           >
-            {laeuft ? "Läuft …" : "Anonymisieren (Art. 17 DSGVO)"}
+            {modus === "stammdaten" ? "Abbrechen" : "Stammdaten bearbeiten"}
           </button>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Löscht alle personenbezogenen Daten unwiderruflich. Protokoll und Einwilligungen bleiben ohne
-            Personenbezug als Nachweis erhalten.
-          </p>
-        </div>
-      )}
-
-      {darfAnonymisieren && person.istAnonym && (
-        <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
-          Diese Person ist anonymisiert (Art. 17 DSGVO). Die personenbezogenen Daten sind gelöscht.
-        </p>
-      )}
-
-      {darfRollenVerwalten && !person.istAnonym && (
-        <div className="mt-3 border-t border-border pt-3">
+        )}
+        {darfAendern && !person.istTerminal && (
+          <button type="button" onClick={anmeldelinkSchicken} disabled={beschaeftigt} className={primaer}>
+            {laeuft === "link" ? "Läuft …" : "Anmeldelink schicken"}
+          </button>
+        )}
+        {darfAuskunft && (
+          <button type="button" onClick={auskunftSenden} disabled={beschaeftigt} className={`${knopf} disabled:opacity-60`}>
+            {laeuft === "auskunft" ? "Läuft …" : "DSGVO-Auskunft senden"}
+          </button>
+        )}
+        {darfRollenVerwalten && !person.istAnonym && (
           <button
             type="button"
             onClick={() => {
@@ -335,43 +281,63 @@ export function PersonZeile({
             }}
             aria-expanded={modus === "rollen"}
             aria-controls={`rollen-${person.id}`}
-            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium"
+            disabled={beschaeftigt}
+            className={`${knopf} disabled:opacity-60`}
           >
             {modus === "rollen" ? "Abbrechen" : "Rollen verwalten"}
           </button>
+        )}
+        {darfAnonymisieren && !person.istAnonym && (
+          <button
+            type="button"
+            onClick={anonymisieren}
+            disabled={beschaeftigt}
+            className="min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
+          >
+            {laeuft === "anonym" ? "Läuft …" : "Anonymisieren (Art. 17 DSGVO)"}
+          </button>
+        )}
+      </div>
 
-          {modus === "rollen" && (
-            <div id={`rollen-${person.id}`} className="mt-3 rounded-lg border border-border bg-muted p-4">
-              <fieldset>
-                <legend className="mb-2 text-sm font-medium">Rollen von {person.name}</legend>
-                <div className="space-y-2">
-                  {alleRollen.map((rolle) => (
-                    <label key={rolle.code} className="flex items-center gap-2.5 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={gewaehlt.includes(rolle.code)}
-                        onChange={() => rolleUmschalten(rolle.code)}
-                        className="h-4 w-4 rounded border-input"
-                      />
-                      {rolle.bezeichnung}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Steuert, was das Konto darf. Der letzte Administrator lässt sich nicht entziehen — sonst
-                käme niemand mehr an die Rollenverwaltung.
-              </p>
-              <button
-                type="button"
-                onClick={rollenSpeichern}
-                disabled={laeuft || !rollenGeaendert}
-                className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-              >
-                {laeuft ? "Wird gespeichert …" : "Rollen speichern"}
-              </button>
-            </div>
-          )}
+      {person.istTerminal && darfAendern && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Status „{person.status}" — für dieses Konto wird kein Anmeldelink verschickt.
+        </p>
+      )}
+      {person.istAnonym && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Diese Person ist anonymisiert (Art. 17 DSGVO). Die personenbezogenen Daten sind gelöscht.
+        </p>
+      )}
+
+      {modus === "email" && (
+        <div id={`adresse-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
+          <label htmlFor={`email-${person.id}`} className="mb-1.5 block text-sm font-medium">
+            Neue Anmeldeadresse
+          </label>
+          <input
+            id={`email-${person.id}`}
+            name="email"
+            type="email"
+            value={neueEmail}
+            onChange={(e) => {
+              setNeueEmail(e.target.value);
+              setMeldung(null);
+            }}
+            className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Erst die Person erkennen — Anruf oder persönlich. Eine Meldung über das Hilfeformular allein
+            reicht nicht: Dort kann jeder jeden Namen eintragen.
+          </p>
+          <button
+            type="button"
+            onClick={adresseAendern}
+            disabled={beschaeftigt || neueEmail.trim().length === 0}
+            className={`mt-3 ${primaer}`}
+          >
+            {laeuft === "email" ? "Wird geändert …" : "Adresse ändern"}
+          </button>
         </div>
       )}
 
@@ -412,55 +378,59 @@ export function PersonZeile({
           <button
             type="button"
             onClick={stammdatenSpeichern}
-            disabled={laeuft || stamm.vorname.trim() === "" || stamm.nachname.trim() === ""}
-            className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            disabled={beschaeftigt || stamm.vorname.trim() === "" || stamm.nachname.trim() === ""}
+            className={`mt-3 ${primaer}`}
           >
-            {laeuft ? "Wird gespeichert …" : "Stammdaten speichern"}
+            {laeuft === "stammdaten" ? "Wird gespeichert …" : "Stammdaten speichern"}
           </button>
         </div>
       )}
 
-      {modus === "email" && (
-        <div id={`adresse-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
-          <label htmlFor={`email-${person.id}`} className="mb-1.5 block text-sm font-medium">
-            Neue Anmeldeadresse
-          </label>
-          <input
-            id={`email-${person.id}`}
-            name="email"
-            type="email"
-            value={neueEmail}
-            onChange={(e) => {
-              setNeueEmail(e.target.value);
-              setMeldung(null);
-            }}
-            className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Erst die Person erkennen — Anruf oder persönlich. Eine Meldung über das Hilfeformular allein
-            reicht nicht: Dort kann jeder jeden Namen eintragen.
+      {modus === "rollen" && darfRollenVerwalten && (
+        <div id={`rollen-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Rollen von {person.name}</legend>
+            <div className="space-y-2">
+              {alleRollen.map((rolle) => (
+                <label key={rolle.code} className="flex items-center gap-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={gewaehlt.includes(rolle.code)}
+                    onChange={() => rolleUmschalten(rolle.code)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  {rolle.bezeichnung}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Steuert, was das Konto darf. Der letzte Administrator lässt sich nicht entziehen — sonst käme
+            niemand mehr an die Rollenverwaltung.
           </p>
-          <button
-            type="button"
-            onClick={adresseAendern}
-            disabled={laeuft || neueEmail.trim().length === 0}
-            className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          >
-            {laeuft ? "Wird geändert …" : "Adresse ändern"}
+          <button type="button" onClick={rollenSpeichern} disabled={beschaeftigt || !rollenGeaendert} className={`mt-3 ${primaer}`}>
+            {laeuft === "rollen" ? "Wird gespeichert …" : "Rollen speichern"}
           </button>
         </div>
+      )}
+
+      {darfAuskunft && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Die DSGVO-Auskunft schickt der Person einen persönlichen Link, über den sie ihre gespeicherten Daten
+          nach Art. 15 DSGVO als PDF abrufen kann.
+        </p>
       )}
 
       {meldung && (
         <p
           role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 break-all rounded-lg px-3 py-2 text-sm ${
+          className={`mt-3 break-words rounded-lg px-3 py-2 text-sm ${
             meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"
           }`}
         >
           {meldung.text}
         </p>
       )}
-    </li>
+    </div>
   );
 }

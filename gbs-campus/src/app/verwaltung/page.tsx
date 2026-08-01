@@ -1,125 +1,216 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
+import { prisma } from "@/lib/db";
 import { ladeAngemeldeten, hatRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
+import { Kachel, type PillTon } from "@/components/ui/kachel";
+import type { IconName } from "@/components/icons";
 import { AbmeldenKnopf } from "./abmelden-knopf";
 
 export const dynamic = "force-dynamic";
+
+type KategorieCode = "schueler" | "semester" | "finanzen" | "system" | "konto";
+
+const KATEGORIEN: { code: KategorieCode; titel: string }[] = [
+  { code: "schueler", titel: "Schüler & Ausbildung" },
+  { code: "semester", titel: "Semester & Kursraster" },
+  { code: "finanzen", titel: "Finanzen" },
+  { code: "system", titel: "System & Betrieb" },
+  { code: "konto", titel: "Mein Konto" },
+];
 
 export default async function VerwaltungSeite() {
   const benutzer = await ladeAngemeldeten();
   if (!benutzer) redirect("/anmelden");
 
-  // Der Anmeldelink führt für alle auf diese Seite, die Verzweigung passiert hier.
-  // Ein reiner Dozent (eigene Termine, aber keine Verwaltungsrechte) gehört in
-  // seinen Bereich — vor der Teilnehmer-Weiche geprüft, weil er ebenfalls
-  // PERSON_LESEN_EIGENE trägt. Wer zusätzlich ein Verwaltungsrecht hat
-  // (Schulleiter, der auch Dozent ist), bleibt hier.
+  // Rollen-Weiche wie bisher: reiner Dozent in seinen Bereich, reiner Teilnehmer
+  // in die eigene Akte.
   if (hatRecht(benutzer, RECHT.EIGENE_TERMINE_LESEN) && !hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE)) {
     redirect("/dozent");
   }
-
-  // Teilnehmer haben hier nichts zu suchen und sahen bisher eine leere Seite
-  // mit dem Hinweis, dass nichts freigeschaltet ist. Sie gehören in ihre Akte.
   if (!hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE) && hatRecht(benutzer, RECHT.PERSON_LESEN_EIGENE)) {
     redirect("/meine-daten");
   }
 
-  const bereiche = [
+  const darfPersonen = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
+  const darfAnmeldungen = hatRecht(benutzer, RECHT.ANMELDUNG_LESEN);
+  const darfSystem = hatRecht(benutzer, RECHT.SYSTEM_EINSTELLUNGEN);
+  const darfAudit = hatRecht(benutzer, RECHT.AUDIT_LESEN);
+  const darfSemester = hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN);
+
+  // Echte Kennzahlen — nur laden, wozu das Konto berechtigt ist (kein Datenleck,
+  // keine unnötige Last). Das laufende Semester zuerst, weil die Teilnehmerzahl
+  // daran hängt.
+  const aktuelles = darfPersonen
+    ? await prisma.semester.findFirst({ where: { istAktuell: true }, select: { id: true, bezeichnung: true } })
+    : null;
+
+  const [gesamtPersonen, aktivePersonen, offeneAnmeldungen, emailFehler, auditAnzahl, semesterAnzahl, aktiveTeilnahmen] =
+    await Promise.all([
+      darfPersonen ? prisma.person.count() : Promise.resolve(0),
+      darfPersonen ? prisma.person.count({ where: { status: { istAktiv: true } } }) : Promise.resolve(0),
+      darfAnmeldungen ? prisma.anmeldung.count({ where: { status: "EINGEREICHT" } }) : Promise.resolve(0),
+      darfSystem ? prisma.emailVersand.count({ where: { status: { in: ["FEHLER", "BOUNCE"] } } }) : Promise.resolve(0),
+      darfAudit ? prisma.auditLog.count() : Promise.resolve(0),
+      darfSemester ? prisma.semester.count() : Promise.resolve(0),
+      aktuelles
+        ? prisma.teilnahme.count({ where: { semesterId: aktuelles.id, person: { status: { istAktiv: true } } } })
+        : Promise.resolve(0),
+    ]);
+
+  type Bereich = {
+    titel: string;
+    text: string;
+    pfad: string;
+    icon: IconName;
+    kategorie: KategorieCode;
+    sichtbar: boolean;
+    metric?: ReactNode;
+    pill?: { text: string; ton: PillTon };
+  };
+
+  const alleBereiche: Bereich[] = [
     {
-      titel: "Meine Daten",
-      text: "Die eigene Akte ansehen, Kontakt und Bankverbindung pflegen.",
-      pfad: "/meine-daten",
-      sichtbar: hatRecht(benutzer, RECHT.PERSON_LESEN_EIGENE),
-    },
-    {
-      titel: "Anmeldungen",
-      text: "Eingegangene Anmeldungen ansehen, aufnehmen oder ablehnen.",
-      pfad: "/verwaltung/anmeldungen",
-      sichtbar: hatRecht(benutzer, RECHT.ANMELDUNG_LESEN),
+      titel: "Personen",
+      text: "Stammdaten, Detailakte mit Noten und Anwesenheit, Wiederaufnahme, Rollen.",
+      pfad: "/verwaltung/personen",
+      icon: "personen",
+      kategorie: "schueler",
+      sichtbar: darfPersonen,
+      metric: darfPersonen ? `${gesamtPersonen} Personen · ${aktivePersonen} aktiv` : undefined,
     },
     {
       titel: "Aktive dieses Semester",
       text: "Die Teilnehmerliste des laufenden Semesters, auch als Excel-Datei.",
       pfad: "/verwaltung/teilnehmer",
-      sichtbar: hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE),
+      icon: "teilnehmer",
+      kategorie: "schueler",
+      sichtbar: darfPersonen,
+      metric: aktuelles ? `${aktiveTeilnahmen} Teilnehmer · ${aktuelles.bezeichnung}` : undefined,
     },
     {
-      titel: "Personen",
-      text: "Jemanden wieder hereinlassen (Adresse, Anmeldelink) und — als Administrator — Rollen verwalten.",
-      pfad: "/verwaltung/personen",
-      sichtbar: hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE),
+      titel: "Anmeldungen",
+      text: "Eingegangene Anmeldungen ansehen, aufnehmen oder ablehnen.",
+      pfad: "/verwaltung/anmeldungen",
+      icon: "anmeldungen",
+      kategorie: "schueler",
+      sichtbar: darfAnmeldungen,
+      metric: darfAnmeldungen ? `${offeneAnmeldungen} offen` : undefined,
+      pill: darfAnmeldungen && offeneAnmeldungen > 0 ? { text: `${offeneAnmeldungen} neu`, ton: "blau" } : undefined,
+    },
+    {
+      titel: "Noten",
+      text: "Bewertung je Fach — teilgenommen, bestanden, optional mit Punkten und Note.",
+      pfad: "/verwaltung/noten",
+      icon: "noten",
+      kategorie: "schueler",
+      sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
+    },
+    {
+      titel: "Zeugnisse",
+      text: "Semester- und Abschlusszeugnisse, Seriendruck, Korrektur per Neuausstellung.",
+      pfad: "/verwaltung/zeugnisse",
+      icon: "zeugnisse",
+      kategorie: "schueler",
+      sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
     },
     {
       titel: "Semester",
       text: "Semester anlegen und festlegen, welches gerade läuft.",
       pfad: "/verwaltung/semester",
-      sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
+      icon: "semester",
+      kategorie: "semester",
+      sichtbar: darfSemester,
+      metric: darfSemester ? `${aktuelles?.bezeichnung ?? "keines aktiv"} · ${semesterAnzahl} gesamt` : undefined,
     },
     {
       titel: "Semesterüberleitung",
       text: "Den Jahrgang ins Folgesemester einladen und Rückmeldungen verfolgen.",
       pfad: "/verwaltung/semesterueberleitung",
-      sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
+      icon: "ueberleitung",
+      kategorie: "semester",
+      sichtbar: darfSemester,
     },
     {
       titel: "Fächer & Kursraster",
       text: "Das 3-Jahres-Kursraster der Schule — Grundstein für den Stundenplan.",
       pfad: "/verwaltung/faecher",
-      sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
+      icon: "faecher",
+      kategorie: "semester",
+      sichtbar: darfSemester,
     },
     {
       titel: "Stundenplan",
       text: "Unterrichtsabende je Semester, Fach- und Dozentenzuordnung, Anwesenheit mit Quote.",
       pfad: "/verwaltung/stundenplan",
-      sichtbar: hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN),
-    },
-    {
-      titel: "Noten",
-      text: "Bewertung je Fach eines Semesters — teilgenommen, bestanden usw., optional mit Punkten/Note.",
-      pfad: "/verwaltung/noten",
-      sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
-    },
-    {
-      titel: "Zeugnisse",
-      text: "Semester- und Abschlusszeugnisse ausstellen (einzeln/gesammelt), Seriendruck, Korrektur per Neuausstellung.",
-      pfad: "/verwaltung/zeugnisse",
-      sichtbar: hatRecht(benutzer, RECHT.NOTEN_VERWALTEN),
+      icon: "stundenplan",
+      kategorie: "semester",
+      sichtbar: darfSemester,
     },
     {
       titel: "Dozentenhonorar",
-      text: "Gehaltene Abende je Dozent mit dem je Tag geltenden Satz. Sätze mit Gültig-ab genehmigen; Beleg ans DMS.",
+      text: "Gehaltene Abende je Dozent mit geltendem Satz; Sätze genehmigen, Beleg ans DMS.",
       pfad: "/verwaltung/honorar",
+      icon: "honorar",
+      kategorie: "finanzen",
       sichtbar: hatRecht(benutzer, RECHT.HONORAR_LESEN),
     },
     {
       titel: "Formulare",
       text: "Das Anmeldeformular gestalten und veröffentlichen.",
       pfad: "/verwaltung/formulare",
+      icon: "formulare",
+      kategorie: "system",
       sichtbar: hatRecht(benutzer, RECHT.FORMULAR_BEARBEITEN),
     },
     {
       titel: "Einstellungen",
       text: "Gültigkeit der Anmeldelinks, Drosselung, Sitzungsdauer.",
       pfad: "/verwaltung/einstellungen",
-      sichtbar: hatRecht(benutzer, RECHT.SYSTEM_EINSTELLUNGEN),
+      icon: "einstellungen",
+      kategorie: "system",
+      sichtbar: darfSystem,
     },
     {
       titel: "Betrieb",
-      text: "Nicht zugestellte E-Mails. Wichtig: Ohne Mail kommt niemand ins Portal.",
+      text: "Nicht zugestellte E-Mails. Ohne Mail kommt niemand ins Portal.",
       pfad: "/verwaltung/betrieb",
-      sichtbar: hatRecht(benutzer, RECHT.SYSTEM_EINSTELLUNGEN),
+      icon: "betrieb",
+      kategorie: "system",
+      sichtbar: darfSystem,
+      metric: darfSystem ? `${emailFehler} Zustellfehler` : undefined,
+      pill: darfSystem && emailFehler > 0 ? { text: `${emailFehler} Fehler`, ton: "rot" } : undefined,
     },
     {
       titel: "Protokoll",
       text: "Wer hat was geändert — das Audit-Log, das niemand löschen kann.",
       pfad: "/verwaltung/protokoll",
-      sichtbar: hatRecht(benutzer, RECHT.AUDIT_LESEN),
+      icon: "protokoll",
+      kategorie: "system",
+      sichtbar: darfAudit,
+      metric: darfAudit ? `${auditAnzahl.toLocaleString("de-DE")} Einträge` : undefined,
     },
-  ].filter((b) => b.sichtbar);
+    {
+      titel: "Meine Daten",
+      text: "Die eigene Akte ansehen, Kontakt und Bankverbindung pflegen.",
+      pfad: "/meine-daten",
+      icon: "meine-daten",
+      kategorie: "konto",
+      sichtbar: hatRecht(benutzer, RECHT.PERSON_LESEN_EIGENE),
+    },
+  ];
+
+  const bereiche = alleBereiche.filter((b) => b.sichtbar);
+
+  const kopfzeile = [
+    darfPersonen ? `${aktivePersonen} aktive Personen` : null,
+    darfAnmeldungen && offeneAnmeldungen > 0 ? `${offeneAnmeldungen} offene Anmeldungen` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
+    <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Verwaltung</p>
@@ -127,7 +218,7 @@ export default async function VerwaltungSeite() {
             Guten Tag, {benutzer.vorname} {benutzer.nachname}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Angemeldet als {benutzer.rollen.join(", ").toLowerCase() || "ohne Rolle"}.
+            {kopfzeile || `Angemeldet als ${benutzer.rollen.join(", ").toLowerCase() || "ohne Rolle"}.`}
           </p>
         </div>
         <AbmeldenKnopf />
@@ -138,17 +229,34 @@ export default async function VerwaltungSeite() {
           Für dein Konto ist noch kein Verwaltungsbereich freigeschaltet.
         </p>
       ) : (
-        <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          {bereiche.map((bereich) => (
-            <Link
-              key={bereich.pfad}
-              href={bereich.pfad}
-              className="rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary"
-            >
-              <h2 className="font-semibold">{bereich.titel}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{bereich.text}</p>
-            </Link>
-          ))}
+        <div className="mt-8 space-y-8">
+          {KATEGORIEN.map((kat) => {
+            const eintraege = bereiche.filter((b) => b.kategorie === kat.code);
+            if (eintraege.length === 0) return null;
+            return (
+              <section key={kat.code}>
+                <div className="mb-3 flex items-baseline gap-3 border-b border-border pb-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">{kat.titel}</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {eintraege.length} {eintraege.length === 1 ? "Bereich" : "Bereiche"}
+                  </span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {eintraege.map((b) => (
+                    <Kachel
+                      key={b.pfad}
+                      href={b.pfad}
+                      icon={b.icon}
+                      titel={b.titel}
+                      text={b.text}
+                      metric={b.metric}
+                      pill={b.pill}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
     </main>

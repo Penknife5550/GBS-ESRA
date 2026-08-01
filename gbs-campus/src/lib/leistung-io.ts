@@ -189,6 +189,69 @@ export async function ladeNotenUebersicht(semesterId: string): Promise<NotenKurs
 }
 
 // -----------------------------------------------------------------------------
+// Personen-Detailakte: Noten EINER Person in einem Semester
+// -----------------------------------------------------------------------------
+
+export type PersonNotenKurs = {
+  kurseinheitId: string;
+  fach: string;
+  titel: string;
+  /** Die bereits gespeicherte Bewertung dieser Person oder null (noch offen). */
+  wert: LeistungWert | null;
+};
+
+export type PersonNoten = {
+  teilnahmeId: string;
+  semesterId: string;
+  semesterBezeichnung: string;
+  kurseinheiten: PersonNotenKurs[];
+};
+
+/**
+ * Die Kurseinheiten des Semesters mit der Bewertung GENAU DIESER Person — für die
+ * Inline-Noteneingabe auf der Detailakte. Baut auf `ladeNotenUebersicht`
+ * (Schulleitungssicht) auf und projiziert daraus nur die Teilnahme der Person; das
+ * Erfassungs-Payload ist identisch zur Matrix (`/api/noten`). `null`, wenn die
+ * Person in diesem Semester keine Teilnahme hat (dann gibt es nichts zu benoten).
+ */
+export async function ladePersonNoten(personId: string, semesterId: string): Promise<PersonNoten | null> {
+  const teilnahme = await prisma.teilnahme.findUnique({
+    where: { personId_semesterId: { personId, semesterId } },
+    select: { id: true, semester: { select: { bezeichnung: true } } },
+  });
+  if (!teilnahme) return null;
+
+  // Nur die Kurseinheiten DIESES Semesters + die Leistungen DIESER einen Teilnahme
+  // laden — nicht die ganze Semester-Kohorte (das täte `ladeNotenUebersicht`).
+  const [termine, leistungen] = await Promise.all([
+    prisma.unterrichtstermin.findMany({
+      where: { semesterId, kurseinheitId: { not: null } },
+      orderBy: { beginn: "asc" },
+      select: KURS_SELECT,
+    }),
+    prisma.leistung.findMany({
+      where: { teilnahmeId: teilnahme.id },
+      select: { kurseinheitId: true, ergebnis: true, punkte: true, note: true },
+    }),
+  ]);
+
+  const wertProKurs = new Map<string, LeistungWert>(
+    leistungen.map((l) => [l.kurseinheitId, { ergebnis: l.ergebnis, punkte: l.punkte, note: l.note }]),
+  );
+
+  // Dedup: ein Termin je Abend → dieselbe Kurseinheit taucht mehrfach auf.
+  const gesehen = new Set<string>();
+  const kurseinheiten: PersonNotenKurs[] = [];
+  for (const z of zuKursZeilen(termine)) {
+    if (gesehen.has(z.kurseinheitId)) continue;
+    gesehen.add(z.kurseinheitId);
+    kurseinheiten.push({ kurseinheitId: z.kurseinheitId, fach: z.fach, titel: z.titel, wert: wertProKurs.get(z.kurseinheitId) ?? null });
+  }
+
+  return { teilnahmeId: teilnahme.id, semesterId, semesterBezeichnung: teilnahme.semester.bezeichnung, kurseinheiten };
+}
+
+// -----------------------------------------------------------------------------
 // Erfassung
 // -----------------------------------------------------------------------------
 
