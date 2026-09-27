@@ -346,8 +346,8 @@ Zusammengetragen aus [`UEBERGABE.md`](UEBERGABE.md). Der Laientest ist nur der e
 ### Offene Entscheidungen aus Code-Review 4
 - [ ] Die Liste „Offene Entscheidungen“ in [`UEBERGABE.md`](UEBERGABE.md) mit der Schulleitung durchgehen —
   vor dem Livegang mindestens: Rollenvergabe durch den Administrator, Honorar-Selbstabrechnung, Widerruf der
-  Art.-9-Einwilligung, Löschfrist für abgelehnte Bewerber, Aufbewahrung der Zeugnisse beim Löschen einer Person,
-  Du/Sie im Anmeldeformular
+  Art.-9-Einwilligung, Löschfrist für abgelehnte Bewerber, Aufbewahrung der Zeugnisse beim Löschen einer Person
+  (Du/Sie im Anmeldeformular ist entschieden: überall „Sie“, 27.09.2026)
 
 ---
 
@@ -397,7 +397,7 @@ dort seinen `__Host-`-Namen.
   Entwicklerwerkzeugen weg, und die Zurück-Taste zeigt nach dem Neuladen keine Daten.
 - [ ] Mit abgelaufener Sitzung einen Download-Link anklicken (Zeugnis-PDF, Excel): Es kommt die Anmeldeseite
   bzw. eine lesbare Fehlerseite, kein rohes JSON.
-- [ ] Mit abgelaufener Sitzung speichern: Die Meldung sagt „Deine Sitzung ist abgelaufen …“ (Anmelden im neuen
+- [ ] Mit abgelaufener Sitzung speichern: Die Meldung sagt „Ihre Sitzung ist abgelaufen …“ (Anmelden im neuen
   Tab, dann erneut versuchen).
 - [ ] Die lokale Testinstanz einmal unter einer anderen Adresse als `APP_URL` öffnen (etwa `localhost:3000`
   statt `127.0.0.1:3000`) und etwas speichern: 403 mit verständlicher Meldung, im Server-Log `[HERKUNFT]`.

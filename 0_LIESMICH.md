@@ -18,12 +18,13 @@ committet. Dazu kamen vier verbindliche Fachentscheidungen (Anonymisierung auch 
 meldet die Teilnahme ab, nicht die Person; ABSOLVENT ist kein Endzustand; die Gemeindezugehörigkeit bleibt in
 Export und Oberfläche).
 
-**Verifiziert (27.09.2026):** Typprüfung fehlerfrei, **1177 Prüfungen der Fachlogik in 19
+**Verifiziert (27.09.2026, abends):** Typprüfung fehlerfrei, **1229 Prüfungen der Fachlogik in 20
 Skripten** grün, Produktionsbuild grün, alle 24 Migrationen gegen eine echte Postgres-Engine (PGlite) fehlerfrei
 und ohne Abweichung vom Schema.
 
-> **🟢 Durchstich gegen das gebaute Image: 766/766 grün**, dazu die DB-Prüfungen (`pruefen:db`) 19 + 18 grün.
-> Die Änderungen sind auf dem Branch `fix/code-review-4` committet, noch nicht nach `main` gemergt — Befehle zum Wiederholen ganz
+> **🟢 Durchstich gegen das gebaute Image: 787/787 grün**, dazu die DB-Prüfungen (`pruefen:db`) 19 + 18 grün.
+> Code-Review 4, durchgängig „Sie“ und der Schutz vor Massenanmeldungen (Entscheidungen E-22/E-23) sind in
+> `main` — Befehle zum Wiederholen ganz
 > oben in [`gbs-campus/UEBERGABE.md`](gbs-campus/UEBERGABE.md).
 
 | | |
@@ -93,8 +94,9 @@ der Plan zum UI-Umbau ([`8_UI-Neustrukturierung-Plan.html`](8_UI-Neustrukturieru
 
 ## Was als Nächstes ansteht
 
-1. **`fix/code-review-4` nach `main` mergen** — Durchstich (766) und alle Prüfungen sind grün;
-   offene Fachentscheidungen stehen in [`gbs-campus/UEBERGABE.md`](gbs-campus/UEBERGABE.md).
+1. **Neuen Stand ausrollen** — `main` enthält Code-Review 4, Anrede „Sie“ und den Schutz vor
+   Massenanmeldungen; alle Prüfungen grün (Durchstich 787). Nach dem Deploy das Anmeldeformular einmal neu
+   veröffentlichen (Sie-Form, siehe UEBERGABE). Offene Fachentscheidungen stehen in [`gbs-campus/UEBERGABE.md`](gbs-campus/UEBERGABE.md).
 2. **Den ganzen Stack auf Staging mit TLS durchspielen** — Traefik-Netz `gbs_edge`, mehrere Neustarts, keine
    502/504 (Go-Live-Checkliste in [`gbs-campus/LAIENTEST.md`](gbs-campus/LAIENTEST.md)).
 3. **Laientest** — eine projektfremde Person klickt die Anmeldung durch (die eigene Methode des Schulleiters),
@@ -109,7 +111,7 @@ der Plan zum UI-Umbau ([`8_UI-Neustrukturierung-Plan.html`](8_UI-Neustrukturieru
 | Punkt | Bei wem | Warum es drängt |
 |---|---|---|
 | **SPF/DKIM/DMARC** für die Absenderdomain `gbs-minden.de` (Absender `no-reply@gbs-minden.de` steht fest) | der IT-Dienstleister | Show-Stopper. Der Magic-Link ist für alle ohne Passwort der einzige Zugang; ohne zugestellte Mail kommt niemand ins Portal. Die Angaben gelten für die *Absender*domain, nicht für `gbs.fes-credo.de`. |
-| **Offene Entscheidungen aus Code-Review 4** (u. a. Rollenvergabe durch den Administrator, Honorar-Selbstabrechnung, Widerruf der Art.-9-Einwilligung, Löschfrist für abgelehnte Bewerber, Aufbewahrung von Zeugnissen, Du/Sie im Formular) | der Schulleiter, der Projektverantwortliche | Liste mit Optionen und Empfehlung in `gbs-campus/UEBERGABE.md`. Keine davon blockiert den Merge. |
+| **Offene Entscheidungen aus Code-Review 4** (u. a. Rollenvergabe durch den Administrator, Honorar-Selbstabrechnung, Widerruf der Art.-9-Einwilligung, Löschfrist für abgelehnte Bewerber, Aufbewahrung von Zeugnissen) | der Schulleiter, der Projektverantwortliche | Liste mit Optionen und Empfehlung in `gbs-campus/UEBERGABE.md`. Keine davon blockiert den Merge. |
 | **Branch-Schutz in GitHub** — Job „Typpruefung und Pruefskripte“ als Pflicht-Check für `main` | der Projektverantwortliche | Die CI läuft, gatet den Merge aber erst mit dieser Einstellung. |
 | **Off-Site-Backup** — Ziel festlegen | der Projektverantwortliche | Der Dump liegt bisher auf demselben Host wie die Datenbank. Danach einmal echten Restore-Drill durchführen. |
 | **Externer Uptime-Ping** auf `/api/health` | der Projektverantwortliche | Der Healthcheck markiert nur „unhealthy" — niemand startet neu, niemand wird alarmiert. |

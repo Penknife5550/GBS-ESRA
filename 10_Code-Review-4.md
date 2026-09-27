@@ -390,7 +390,7 @@ INFO: E-Mail-Bestätigungstoken im Query-String (`selbstpflege.ts:226`); Klartex
 Dozent ohne Rückweg aus `/meine-daten` (`meine-daten/page.tsx:94`); `/anmelden`: Adresse nach dem Senden nicht
 korrigierbar, Fehler sehen aus wie Erfolg (`anmelde-formular.tsx:49`); Art.-9-Einwilligung schaltet Abschnitte weiter oben
 ohne Hinweis frei (`oeffentliches-formular.tsx:215`); Pflichtangaben bei Auswahlgruppen nicht programmatisch markiert
-(`:471`); grüne IBAN-Bestätigung Kontrast 2,84:1 (`:430`); Du/Sie gemischt (`anmeldeformular-definition.ts:38`);
+(`:471`); grüne IBAN-Bestätigung Kontrast 2,84:1 (`:430`); Du/Sie gemischt (`anmeldeformular-definition.ts:38`) — **erledigt 27.09.: überall „Sie“ (E-22)**;
 veraltete Hilfetexte (`person-anlegen.tsx:34`); Semesterwahl navigiert bei onChange, ungespeicherte Noten gehen verloren
 (`noten/semesterwahl.tsx:23`); Anwesenheitsspalte der Personenliste widerspricht der Detailakte (`personen/page.tsx:111`);
 23 von 31 Seiten ohne eigenen Seitentitel (`layout.tsx:21`); „Freigeben“ auch ohne hinterlegte IBAN klickbar
@@ -442,7 +442,7 @@ INFO: uneinheitliche Signaturen der Geschwisterfunktionen (`leistung-io.ts:330`)
 **Lückenprüfer** — MINOR: Hörer-Bescheinigung bestätigt „teilgenommen“ unabhängig von der Anwesenheit
 (`zeugnis-io.ts:98`); Art.-9-Kennzeichnung im Builder frei abwählbar, auch für Gemeinde (`formular.ts:128`); Widerruf der
 Art.-9-Einwilligung modelliert, aber nicht umsetzbar (`schema.prisma:977`); Einladung und T-14-Erinnerung fallen zusammen,
-vier statt drei Mails (`ueberleitung.ts:297`); öffentliche Anmeldung ohne Gesamtdrossel (`api/anmeldung/route.ts:56`);
+vier statt drei Mails (`ueberleitung.ts:297`); öffentliche Anmeldung ohne Gesamtdrossel (`api/anmeldung/route.ts:56`) — **erledigt 27.09.: Gesamtgrenze, Mindestdauer, Warnung (E-23)**;
 Adressänderung nach Postfachverlust entwertet den Auskunftslink nicht (`api/personen/[id]/email/route.ts:104`);
 Zeichen außerhalb Latin-1 im Zeugnis-PDF als „?“ eingefroren (`pdf.ts:61`); keine Löschfrist für abgelehnte Bewerber
 (`aufraeumen.ts:60`); **ABSOLVENT ist terminal** — Absolventen kämen weder an ihr Abschlusszeugnis noch in `/meine-daten`
@@ -479,7 +479,7 @@ Widerruf der Art.-9-Einwilligung · Löschfrist für abgelehnte Bewerber.
 
 ## Stand der Behebung (27.09.2026)
 
-**Branch:** `fix/code-review-4` (committet, noch nicht nach `main` gemergt). Behoben in drei Fix-Runden:
+**Branch:** `fix/code-review-4` (committet und in `main` gemergt). Behoben in drei Fix-Runden:
 Runde 1 (Betrieb, Anmeldung/Sitzung, Honorar, Zeugnis, Formular-Builder, Anmeldung/Noten), Runde 2
 (Personen-Lebenszyklus, Semesterüberleitung, Nachbesserungen aus der Gegenprüfung), Runde 3 (MINOR/INFO,
 Durchstich, CI, Doku). Jede Runde wurde von einem unabhängigen Prüfer gegengelesen und zentral in einer
@@ -552,18 +552,18 @@ werden angelegt; ihr Verhalten prüft erst der Durchstich (Abschnitt 29b, Trigge
 **Teilweise erledigt, Rest ist Entscheidung:** Eigentümer-Passwort nur aus dem Serverprozess entfernt
 (E-betrieb-migrationsdienst) · PDF bildet lateinische Sonderzeichen ab, nicht-lateinische Schrift bleibt „?“
 (E-betrieb-pdf-nichtlateinische-schrift) · Dozenten-Startseite lädt weniger, aber weiter die ganze Historie
-(E-SEM-dozent-semesterfenster) · Missbrauchsschutz der Anmeldung: Fangfeld ja, Gesamtdrossel offen
-(E-ANM-missbrauchsschutz) · IBAN-Änderung: Hinweis-Mail ja, Freigabesperre offen (E1-iban-freigabesperre) ·
+(E-SEM-dozent-semesterfenster) · Missbrauchsschutz der Anmeldung: seit 27.09. abends vollständig (Gesamtgrenze,
+Mindestdauer, Warnung; E-23) · IBAN-Änderung: Hinweis-Mail ja, Freigabesperre offen (E1-iban-freigabesperre) ·
 Nachweisdaten: Leistung `RESTRICT` ja, Zeugnis ↔ Person weiter Cascade (E-betrieb-zeugnis-person-cascade).
 
 **Offene Entscheidungen** (Liste mit Optionen und Empfehlung in `gbs-campus/UEBERGABE.md`):
 Admin-Selbstvergabe und Rollen-Obergrenze · Honorar-Selbstabrechnung · Umfang des Satz-Belegs · Seed überschreibt
-Konfiguration · tote Status-Schalter · Du/Sie im Formular · Versionsnummer · IP-Drossel beim Anmeldelink der
+Konfiguration · tote Status-Schalter · ~~Du/Sie im Formular~~ (erledigt: „Sie“, E-22) · Versionsnummer · IP-Drossel beim Anmeldelink der
 Verwaltung · Bescheinigung ohne Anwesenheit · Widerruf der Art.-9-Einwilligung · Löschfrist für abgelehnte
 Bewerber · serverseitiger Sitzungswiderruf · ABGEBROCHEN ohne Rückweg · Reichweite eines Formwechsels ·
 Nachholen nach Worker-Ausfall · „bin raus“ in der Sammelübernahme · Zusage von Hand · Einladung erneut senden ·
 Zahlweise im Excel-Export · Zeugnis-Storno ohne Ersatz · DMS-Nachversand für Anonymisierte · IBAN-Abgleich beim
-Nachversand · Art.-9-Antworten nach der Entscheidung · Tippfehler in Einwilligungstext v1 · Restfenster
+Nachversand · Art.-9-Antworten nach der Entscheidung · ~~Tippfehler in Einwilligungstext v1~~ (erledigt: Fassung 2) · Restfenster
 Erst-/Nachversand · Auskunft (DMS als Empfänger, Protokolldaten, Speicherdauer, Art. 22) · Semesterbeginn
 vorziehen · rückwirkender Honorarsatz · Nachversand von Einladungen · Personenname im Tab-Titel · Rechte ohne
 Funktion · Begriff „Angenommen“ · IPv6-Präfix.

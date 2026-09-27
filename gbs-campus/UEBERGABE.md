@@ -13,11 +13,53 @@ Fachliche Fragen beantwortet [`../1_Bauplan.html`](../1_Bauplan.html), technisch
 
 ---
 
-## Neuester Stand (27.09.2026): Code-Review 4 ist behoben
+## Neuester Stand (27.09.2026, abends): Anrede „Sie“ und Schutz vor Massenanmeldungen
+
+Auf dem Branch **`feat/anmeldung-sie-massenschutz`** (in `main` gemergt) sind zwei Wünsche des
+Projektverantwortlichen umgesetzt.
+Verifiziert mit Docker: Build mit **1229 Prüfungen in 20 Skripten** grün (inkl. Produktionsbuild),
+**Durchstich 787/787** gegen das gebaute Image, `pruefen:db` 19 + 18.
+
+**1. Durchgängig „Sie“ (Entscheidung E-22).** Alle Texte, die Menschen lesen — öffentliches Formular, Portal,
+Mails, Meldungen, Verwaltungstexte — sprechen mit „Sie“ an (78 Dateien). Die Einwilligungstexte standen schon in
+der Ich-Form („Ich willige ein …“) und bleiben so; die neue **Fassung 2** von DATENSCHUTZ und GLAUBENSANGABEN
+korrigiert nur die Tippfehler („fuer“, „ausdruecklich“). Der Seed legt Fassung 2 an und setzt bei der älteren
+Fassung `aktivBis` — das Einzige, was der Trigger erlaubt. Wer Fassung 1 bestätigt hat, bleibt wirksam eingewilligt
+(ausgewertet wird je Code über alle Fassungen). Mailvorlagen und Einwilligungstexte stellen sich beim nächsten
+Containerstart selbst um. **Das Anmeldeformular einer bestehenden Installation nicht:** Die veröffentlichte
+Fassung in der Datenbank behält ihre Du-Einleitung. Zwei Wege: `scripts/anmeldeformular-bewerbung.ts`
+veröffentlicht eine neue Fassung aus der aktualisierten Definition (überschreibt Änderungen aus dem Cockpit) —
+oder im Formular-Builder die Einleitung und die Beschreibung „Persönlich-Geistlicher Werdegang“ ändern und neu
+veröffentlichen. Offen: Mails beginnen mit „Hallo {{vorname}},“ und siezen danach; für „Guten Tag Frau/Herr …“
+müsste jede Versandstelle Anrede und Nachnamen mitgeben.
+
+**2. Schutz vor Massenanmeldungen (Entscheidung E-23).** Jede Einreichung legt eine nicht löschbare Akte an und
+schreibt an die eingegebene Adresse — eine Flut automatisierter Anmeldungen hinterließe Datenmüll und ruinierte den
+Ruf der Absenderdomain, an der der Anmeldelink hängt. Die Schichten (`src/lib/anmelde-schutz.ts`, angewendet in
+`src/app/api/anmeldung/route.ts`):
+
+- **Drossel je Anschluss** und **Fangfeld** — wie bisher.
+- **Mindestdauer:** Die Seite liefert einen signierten Zeitstempel aus. Wer schneller absendet als
+  `ANMELDUNG_MINDESTDAUER_SEKUNDEN` (Standard 3, 0 = aus), bekommt eine sichtbare Meldung und kann erneut absenden.
+- **Gesamtgrenze über alle Anschlüsse:** `ANMELDUNG_MAX_GESAMT_STUNDE` (Standard 10) und
+  `ANMELDUNG_MAX_GESAMT_TAG` (30). Gezählt werden nur angenommene Einreichungen — ein Pflichtfeld-Fehler gibt den
+  reservierten Platz wieder frei. Zwischenstände dürfen das Dreifache und werden über neu angelegte Anmeldezeilen
+  gezählt, damit ein erfundener Fortsetzen-Token nicht an der Grenze vorbeiführt.
+- **Warnung** an Schulleitung und Verwaltung (Vorlage `ANMELDUNG_GEDROSSELT`), höchstens einmal pro Stunde.
+- **Betriebsansicht:** neue Kachel mit den angenommenen Anmeldungen gegen die Grenzen und den Abweisungen der
+  letzten 24 Stunden je Schicht.
+
+Die drei Werte stehen unter Verwaltung → Einstellungen im Bereich „Anmeldung“. Die Schule erwartet 20–60
+Anmeldungen im Jahr; die Standardwerte fangen Roboter ab, nicht Bewerber. Der Durchstich lockert sie zu Beginn des
+Laufs (500/2000/0) und prüft sie in Abschnitt 50 einzeln; Prüfskript: `scripts/pruefe-anmelde-schutz.ts` (52).
+
+---
+
+## Stand 27.09.2026: Code-Review 4 ist behoben
 
 Alle 19 MAJOR-Befunde aus [`../10_Code-Review-4.md`](../10_Code-Review-4.md) und der größte Teil der
 MINOR-Befunde sind behoben — in drei Fix-Runden, jede gegengeprüft. Die Änderungen liegen auf dem Branch
-**`fix/code-review-4`** und sind **committet, aber noch nicht nach `main` gemergt**. Verifiziert (27.09.2026):
+**`fix/code-review-4`** und sind **committet und in `main` gemergt**. Verifiziert (27.09.2026):
 `tsc` 0 Fehler, **1177 DB-freie Prüfungen in 19 Skripten** grün, `next build` grün (41 Seiten), alle
 **24 Migrationen** gegen PGlite fehlerfrei und ohne Drift zum Schema — und mit Docker: **Durchstich
 766/766 grün** gegen das gebaute Image und eine frische Datenbank, **`pruefen:db` 19 + 18 grün**.
@@ -47,7 +89,7 @@ rotes Prüfskript bricht ihn also ab.
 bash scripts/durchstich.sh > /tmp/durchstich.log 2>&1; echo "Exit: $?"
 ```
 
-Soll: **766 Prüfungen, 0 fehlgeschlagen.** Voraussetzungen: die Dev-Datenbank auf Port 5434 **ohne eigene
+Soll: **787 Prüfungen, 0 fehlgeschlagen** (seit dem Schutz vor Massenanmeldungen; davor 766). Voraussetzungen: die Dev-Datenbank auf Port 5434 **ohne eigene
 Zeitzone** (sie rechnet in UTC wie die Produktion; Abschnitt 0 prüft das zusammen mit der Container-Zeitzone
 und legt alle Daten relativ zum heutigen Berliner Kalendertag an) und das Image `gbs-campus-test:local`.
 Rote Zeilen erst verstehen, dann beheben — und die Grenzen der drei maschinenabhängigen Laufzeitprüfungen
@@ -185,7 +227,8 @@ Container-Start von selbst; der Altbestand im Versandprotokoll ist durch die Mig
 `einwilligungs_text_nur_aktiv_bis`, `…_kein_delete`, `…_kein_truncate`). Nur `aktivBis` ist änderbar, `gbs_app`
 hat kein UPDATE, DELETE oder TRUNCATE. **Ein geänderter Text ist eine neue Fassung mit `version + 1`**, nie
 eine Korrektur der alten — sonst änderte sich rückwirkend der Text aller erteilten Einwilligungen (Art. 7
-Abs. 1). Die Tippfehler in Fassung 1 („fuer“, „ausdruecklich“) sind deshalb eine offene Entscheidung.
+Abs. 1). Die Tippfehler in Fassung 1 („fuer“, „ausdruecklich“) sind deshalb in **Fassung 2** korrigiert
+(27.09.2026, abends); der Seed setzt beim Anlegen einer neuen Fassung `aktivBis` der älteren.
 
 **Belege sind auf DB-Ebene eingefroren** (Migration `20260927160000_belege_unveraenderlich`, 14 Trigger):
 `honorar_saetze` — nur `dmsBelegNr`/`dmsGesendetAm` nachtragen, kein DELETE; `honorar_abrechnungen` — Status
@@ -226,7 +269,7 @@ Exit 1 bei einem roten Skript. Ein `scripts/pruefe-*.ts`, das dort nicht eingetr
 GitHub unter Branch-Schutz als Pflicht-Check für `main` eintragen — eine Einstellung im Repo, nicht im Code.
 `npm run pruefen:db` und der Durchstich laufen weiter von Hand vor jedem Release.
 
-**API-Konventionen.** 401 heißt „nicht oder nicht mehr angemeldet“ (die Oberfläche sagt „Deine Sitzung ist
+**API-Konventionen.** 401 heißt „nicht oder nicht mehr angemeldet“ (die Oberfläche sagt „Ihre Sitzung ist
 abgelaufen …“ und leitet bewusst nicht um — man meldet sich im neuen Tab an, damit Eingaben nicht verloren
 gehen). 403 heißt „angemeldet, aber ohne Recht“. Routen prüfen über `pruefeZugriff(RECHT.X)`, `ladeMitRecht`
 nur noch in Seiten; beide nehmen nur noch `RechtCode`. Download-Routen (Zeugnis-PDF, Seriendruck,
@@ -545,9 +588,10 @@ ins Image wandert).
 | beitrag | 16 | herkunft | 42 |
 | faecher | 17 | anmeldung-antworten | 58 |
 | stundenplan | 45 | betrieb | 110 |
-| quote-schueler | 53 | **`npm run pruefen` gesamt** | **1177 in 19 Skripten** |
+| quote-schueler | 53 | anmelde-schutz | 52 |
+| | | **`npm run pruefen` gesamt** | **1229 in 20 Skripten** |
 | leistung | 67 | `npm run pruefen:db` (einstellungen + auskunft-db) | 19 + 18 |
-| zeugnis | 119 | `bash scripts/durchstich.sh` | **766** (grün 27.09.) |
+| zeugnis | 119 | `bash scripts/durchstich.sh` | **787** (grün 27.09.) |
 
 `pruefe-stundenplan.ts` muss in Europe/Berlin laufen (Abschnitt 8 prüft feste UTC-Zeitpunkte über die
 Zeitumstellung) und wird in UTC absichtlich rot; `pruefe-alle.ts` setzt die Zeitzone je Skript selbst. Jedes
@@ -579,7 +623,7 @@ Fix-Runden; die Empfehlung ist ein Vorschlag, keine Festlegung.
 | E-auskunft-protokolldaten | Protokolldaten in die Auskunft? | Versandprotokoll und eine Zusammenfassung der Audit-Einträge aufnehmen |
 | E-auskunft-speicherdauer | Konkrete Aufbewahrungsfristen nennen? | ja, nachdem der Träger sie festgelegt hat (z. B. Honorarabrechnungen 10 Jahre nach § 147 AO) |
 | E-auskunft-art22 | Widerspricht „keine automatisierte Entscheidung“ der automatischen Abmeldung ohne Rückmeldung? | Satz präzisieren (regelbasiert, jederzeit durch die Schulleitung umkehrbar) |
-| BETR-einwilligung-tippfehler | Einwilligungstexte v1 mit „fuer“/„ausdruecklich“ | nach Freigabe als Fassung 2 korrigieren |
+| BETR-einwilligung-tippfehler | Einwilligungstexte v1 mit „fuer“/„ausdruecklich“ | **erledigt 27.09.:** Fassung 2 korrigiert, Fassung 1 abgelöst |
 | E2-personenname-im-seitentitel | Name der Person im Tab-Titel? | nein, feste Titel beibehalten (umgesetzt) |
 | **Betrieb und Architektur** | | |
 | ARCH-seed-ueberschreibt-konfiguration | Seed überschreibt Statusschalter, Rechtematrix, Vorlagen, Raster; Kommentare versprechen Änderbarkeit. | jetzt Kommentare korrigieren (Code-Konfiguration offiziell), mit einem Editor „Seed nur anlegen“ |
@@ -604,8 +648,8 @@ Fix-Runden; die Empfehlung ist ein Vorschlag, keine Festlegung.
 | LUECKE-bescheinigung-ohne-anwesenheit | Teilnahmebescheinigung bestätigt alle Fächer auch ohne Anwesenheit. | nur Fächer mit mindestens einer Anwesenheit; Sammellauf überspringt Personen ohne Anwesenheit |
 | ZEUG-storno-ohne-ersatz | Kein Zeugnis-Storno ohne Ersatz | Status STORNIERT mit Pflichtgrund, nach Abstimmung zur Aufbewahrung |
 | ZEUG-dms-erstversand-vs-nachversand | Doppelte Archivkopie möglich, wenn der Nachversand in den Erstversand fällt | hinnehmen |
-| LUECKE-anmeldung-gesamtdrossel, E-ANM-missbrauchsschutz | Reicht Fangfeld plus IP-Drossel? | Gesamtdrossel `ANMELDUNG_MAX_GESAMT` als Einstellung (Wert offen, z. B. 30/h) |
-| ANM-du-sie, E-ANM-anrede | Das Formular mischt Du und Sie. | durchgängig „du“; Bestand im Builder angleichen |
+| LUECKE-anmeldung-gesamtdrossel, E-ANM-missbrauchsschutz | Reicht Fangfeld plus IP-Drossel? | **entschieden und umgesetzt 27.09. (E-23):** Gesamtgrenze 10/Stunde und 30/Tag, Mindestdauer 3 s, Warnung an die Verwaltung — siehe ganz oben |
+| ANM-du-sie, E-ANM-anrede | Das Formular mischt Du und Sie. | **entschieden und umgesetzt 27.09. (E-22):** überall „Sie“; Bestand im Builder angleichen (siehe ganz oben) |
 | E4-anmeldestatus-begriff | Stand einer angenommenen Anmeldung heißt überall „Angenommen“. | so belassen (umgesetzt) |
 
 ---
@@ -671,7 +715,7 @@ siehe unten) — und ohne `prisma generate` prüft es ohnehin keine Prisma-Feldn
 docker run --rm gbs-campus-builder:local npm run pruefen
 ```
 
-Soll (Stand 27.09.2026): **1177 Prüfungen in 19 Skripten** — die Liste steht oben unter „Prüfzahlen“.
+Soll (Stand 27.09.2026, abends): **1229 Prüfungen in 20 Skripten** — die Liste steht oben unter „Prüfzahlen“.
 `npm run pruefen` startet `scripts/pruefe-alle.ts`, das jedes Skript in `TZ=Europe/Berlin` laufen lässt und
 am Ende die Gesamtsumme nennt. Jedes Skript meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft
 eine eigene Soll-Zahl. Seit Code-Review 4 führt schon `docker build --target builder` diese Prüfungen aus.
@@ -680,9 +724,9 @@ eine eigene Soll-Zahl. Seit Code-Review 4 führt schon `docker build --target bu
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1 && bash scripts/durchstich.sh
 ```
 
-Soll (Stand 27.09.2026): **766 Prüfungen** (grün). Der Durchstich braucht die Dev-Datenbank auf Port 5434
+Soll (Stand 27.09.2026, abends): **787 Prüfungen** (grün). Der Durchstich braucht die Dev-Datenbank auf Port 5434
 (`docker start gbs-campus-db-dev`, ohne eigene Zeitzone, also UTC) und legt sich darin eine eigene Datenbank
-`gbs_durchstich` an. Auch er zählt gegen eine Soll-Zahl (`SOLL=766` am Skriptende) — beim Ergänzen einer
+`gbs_durchstich` an. Auch er zählt gegen eine Soll-Zahl (`SOLL=787` am Skriptende) — beim Ergänzen einer
 Prüfung mit anheben. Seit M19 ist er kalenderunabhängig und läuft an jedem Tag gleich.
 
 Drei Prüfungen sind maschinenabhängig und können auf einer belasteten Maschine ausschlagen: die
@@ -976,8 +1020,8 @@ Aus Code-Review 4 kommen drei weitere dazu:
 npm run pruefen
 ```
 
-1177 Prüfungen der Fachlogik in 19 Skripten (Stand 27.09.2026), ohne Datenbank, jedes Skript in
-Europe/Berlin. Dann der vollständige Durchstich mit 766 Prüfungen (`bash scripts/durchstich.sh` nach dem
+1229 Prüfungen der Fachlogik in 20 Skripten (Stand 27.09.2026, abends), ohne Datenbank, jedes Skript in
+Europe/Berlin. Dann der vollständige Durchstich mit 787 Prüfungen (`bash scripts/durchstich.sh` nach dem
 Build):
 
 ```bash

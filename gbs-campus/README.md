@@ -98,12 +98,14 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
 - **Honorar (Release 0.2/0.3)**, **Dozenten- und Schülerbereich (0.3)**, **Noten und Zeugnisse (0.4)** —
   siehe die Abschnitte weiter unten.
 
-> ### 🟡 Stand 27.09.2026: Code-Review 4 behoben, Durchstich steht aus
+> ### 🟢 Stand 27.09.2026: Code-Review 4 behoben, dazu Anrede „Sie“ und Schutz vor Massenanmeldungen
 >
 > Alle 19 MAJOR-Befunde aus [`../10_Code-Review-4.md`](../10_Code-Review-4.md) und der größte Teil der
-> MINOR-Befunde sind auf dem Branch `fix/code-review-4` behoben (committet, noch nicht nach `main` gemergt). Verifiziert: `tsc` 0 Fehler, **1177 DB-freie Prüfungen in 19 Skripten**, `next build` grün (41 Seiten), alle
-> 24 Migrationen gegen PGlite fehlerfrei und ohne Drift, **Durchstich 766/766 grün** gegen das gebaute
-> Image, `pruefen:db` 19 + 18 grün (alles am 27.09.2026). Einzelheiten, Fachentscheidungen vom
+> MINOR-Befunde sind behoben (Branch `fix/code-review-4`, in `main` gemergt). Am Abend kamen durchgängig „Sie“
+> und der Schutz vor Massenanmeldungen dazu (Branch `feat/anmeldung-sie-massenschutz`, in `main` gemergt). Verifiziert: `tsc` 0
+> Fehler, **1229 DB-freie Prüfungen in 20 Skripten**, `next build` grün, alle 24 Migrationen gegen PGlite
+> fehlerfrei und ohne Drift, **Durchstich 787/787 grün** gegen das gebaute Image, `pruefen:db` 19 + 18 grün
+> (alles am 27.09.2026). Einzelheiten, Fachentscheidungen vom
 > 27.09. und offene Entscheidungen in [`UEBERGABE.md`](UEBERGABE.md).
 
 > ### ✅ Der Stand vom 27.07. ist verifiziert (28.07.2026)
@@ -155,11 +157,11 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run typecheck` | TypeScript ohne Emit prüfen |
 | `npm run db:migrate` | Migration erzeugen und einspielen |
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
-| `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar. Semester nur bei leerer Tabelle, Einwilligungstexte nur anlegen (bei Abweichung WARNUNG), Statusschalter, Rechte, Vorlagen und Kursraster werden nachgezogen |
+| `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar. Semester nur bei leerer Tabelle, Einwilligungstexte nur anlegen (bei Abweichung WARNUNG; bei einer neuen Fassung setzt er `aktivBis` der älteren), Statusschalter, Rechte, Vorlagen und Kursraster werden nachgezogen |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | **1177 Prüfungen in 19 DB-freien Skripten** (Stand 27.09.2026): startet `scripts/pruefe-alle.ts`, jedes Skript in eigenem Prozess mit `TZ=Europe/Berlin`, am Ende Zusammenfassung und Gesamtsumme, Exit 1 bei einem roten Skript. Ein nicht eingetragenes `scripts/pruefe-*.ts` macht den Lauf rot. Läuft auch im Docker-Build vor `next build` und in der CI |
+| `npm run pruefen` | **1229 Prüfungen in 20 DB-freien Skripten** (Stand 27.09.2026, abends): startet `scripts/pruefe-alle.ts`, jedes Skript in eigenem Prozess mit `TZ=Europe/Berlin`, am Ende Zusammenfassung und Gesamtsumme, Exit 1 bei einem roten Skript. Ein nicht eingetragenes `scripts/pruefe-*.ts` macht den Lauf rot. Läuft auch im Docker-Build vor `next build` und in der CI |
 | `npm test` | dasselbe wie `npm run pruefen` |
-| `bash scripts/durchstich.sh` | **766 Prüfungen** gegen das gebaute Image und eine frische Datenbank, kalenderunabhängig (braucht Docker) |
+| `bash scripts/durchstich.sh` | **787 Prüfungen** gegen das gebaute Image und eine frische Datenbank, kalenderunabhängig (braucht Docker) |
 | `npm run pruefen:db` | 19 + 18 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine örtliche Datenbank |
 
 Die Soll-Zahlen je Skript stehen in [`UEBERGABE.md`](UEBERGABE.md) unter „Prüfzahlen“; jedes Skript prüft
@@ -381,7 +383,18 @@ ungesicherten Eingaben warnt der Browser; Art.-9-Freitexte und IBAN gelten dabei
 antwortet der Server wie bei Erfolg, legt aber keine Akte an und schickt keine Mail; das Audit schreibt
 `ANMELDUNG_VERWORFEN_FANGFELD` ohne Werte. Das Feld hieß anfangs `website` — das füllten Passwortmanager aus.
 Jeder Eintrag im Protokoll ist ein Roboter oder eine still verworfene echte Anmeldung; die Verwaltung sollte
-ihn beobachten. Eine Gesamtdrossel gibt es noch nicht (offene Entscheidung).
+ihn beobachten.
+
+**Schutz vor Massenanmeldungen (27.09.2026, Entscheidung E-23).** Jede Einreichung legt eine nicht löschbare Akte
+an und schreibt an die eingegebene Adresse. Zu Drossel je Anschluss und Fangfeld kommen deshalb drei Schichten
+(`src/lib/anmelde-schutz.ts`, DB-Teil in `anmelde-schutz-io.ts`, Prüfskript `pruefe-anmelde-schutz.ts`):
+eine **Mindestdauer** — die Seite liefert einen mit `SESSION_SECRET` signierten Zeitstempel aus, wer schneller
+absendet als `ANMELDUNG_MINDESTDAUER_SEKUNDEN` (3, 0 = aus), bekommt eine sichtbare Meldung —; eine
+**Gesamtgrenze** über alle Anschlüsse (`ANMELDUNG_MAX_GESAMT_STUNDE` 10, `ANMELDUNG_MAX_GESAMT_TAG` 30), gezählt
+werden nur angenommene Einreichungen (ein reservierter Platz wird bei einem Pflichtfeld-Fehler wieder frei),
+Zwischenstände dürfen das Dreifache und zählen über neu angelegte Anmeldezeilen; und eine **Warnung** an
+Schulleitung und Verwaltung (Vorlage `ANMELDUNG_GEDROSSELT`), höchstens einmal pro Stunde. Die Betriebsansicht
+zeigt die angenommenen Anmeldungen gegen die Grenzen und die Abweisungen der letzten 24 Stunden je Schicht.
 
 **Barrierefreiheit.** Pflichtangaben sind für Vorlesesoftware als „(Pflichtangabe)“ markiert, auch bei
 Auswahlgruppen. Die Art.-9-Einwilligung steht zusätzlich im Platzhalter der verborgenen Abschnitte; beim
@@ -667,7 +680,7 @@ in `scripts/pruefe-herkunft.ts` und im Durchstich (Abschnitt 37).
 ### API-Konventionen
 
 - **401 heißt „nicht oder nicht mehr angemeldet“**, 403 „angemeldet, aber ohne Recht“. Bei 401 sagt die
-  Oberfläche „Deine Sitzung ist abgelaufen …“ und leitet bewusst nicht um; man meldet sich in einem neuen Tab an
+  Oberfläche „Ihre Sitzung ist abgelaufen …“ und leitet bewusst nicht um; man meldet sich in einem neuen Tab an
   und versucht es dann noch einmal.
 - Routen prüfen in dieser Reihenfolge: Anmeldung → Recht über `pruefeZugriff(RECHT.X)` → Zod. `ladeMitRecht`
   nur noch in Seiten. Antworten über `erfolg()`/`fehler()`, unerwartete Fehler über `mitFehlerbehandlung`
@@ -935,13 +948,13 @@ Verifiziert in einer Sandbox-Kopie außerhalb des Sync-Ordners (Befehle in [`UEB
 | Prüfung | Ergebnis |
 |---|---|
 | `tsc --noEmit` | 0 Fehler |
-| `npm run pruefen` | **1177 Prüfungen in 19 Skripten, 0 fehlgeschlagen** — auch in leerer Umgebung mit `TZ=Europe/Berlin` wie in der Docker-Stufe `builder` |
+| `npm run pruefen` | **1229 Prüfungen in 20 Skripten, 0 fehlgeschlagen** — auch in leerer Umgebung mit `TZ=Europe/Berlin` wie in der Docker-Stufe `builder` |
 | `next build` in leerer Umgebung | grün, 41/41 Seiten, keine Warnungen |
 | esbuild-Bundles (Seed, Worker, `setup-app-nutzer`) | grün |
 | Migrationen gegen PGlite | alle 24 fehlerfrei, 65 SQL-Prüfungen (Trigger, Append-only, CHECK, partieller Index, Nachtragen, Idempotenz) |
 | `prisma migrate diff` Migrationen ↔ Schema | leer, kein Drift |
-| `bash -n scripts/durchstich.sh` | Syntax ok, `SOLL=766` |
-| **Durchstich gegen das Image** | **766/766 grün** (27.09.2026) |
+| `bash -n scripts/durchstich.sh` | Syntax ok, `SOLL=787` |
+| **Durchstich gegen das Image** | **787/787 grün** (27.09.2026, abends) |
 | `npm run pruefen:db` | 19 + 18 grün |
 
 Der Durchstich deckt seit Code-Review 4 zusätzlich ab (Abschnitte 0 und 37–50 sowie Ergänzungen in älteren
@@ -1027,7 +1040,7 @@ mehr mit Namen.
 ### Formular-Builder und Anmeldung
 
 `npm run pruefen` — damals **41 Prüfungen** der Fachlogik (heute läuft darüber `scripts/pruefe-alle.ts`
-mit 1177 Prüfungen in 19 Skripten), alle bestanden (IBAN-Prüfsumme, Felddefinition,
+mit 1229 Prüfungen in 20 Skripten), alle bestanden (IBAN-Prüfsumme, Felddefinition,
 Veröffentlichungsreife, Antwortprüfung, Art.-9-Sperre, IBAN nicht im Antwort-JSON, Entwurfs-Bereinigung,
 Datums-Plausibilität).
 
@@ -1207,7 +1220,7 @@ die Dev-Datenbanken anderer Projekte.
 | Prüfung | Ergebnis |
 |---|---|
 | `docker build --target builder` | Exit 0 — und damit die Typprüfung des gesamten Standes, den sechs Agenten ohne mitlesenden Compiler geschrieben hatten. Kein einziger Typfehler. |
-| `npm run pruefen` im Image | **179 Prüfungen, 0 fehlgeschlagen** (43 Formular + 54 Semester + 46 Selbstpflege + 36 Passwort; Stand 28.07., heute 1177 in 19 Skripten) |
+| `npm run pruefen` im Image | **179 Prüfungen, 0 fehlgeschlagen** (43 Formular + 54 Semester + 46 Selbstpflege + 36 Passwort; Stand 28.07., heute 1229 in 20 Skripten) |
 | Mutationstests `src/lib/passwort.ts` | **14 Mutationen, 14 wie erwartet** — siehe unten |
 | `docker build` (Produktions-Image) | Exit 0 |
 | `bash scripts/durchstich.sh` | **150 Prüfungen, 0 fehlgeschlagen** |
