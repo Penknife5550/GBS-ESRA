@@ -4,7 +4,9 @@
  * (`zeugnis-beleg.ts`, auch der Vermerk ersetzter Zeugnisse), der Seitenumbruch
  * des PDF-Erzeugers, die Regeln des Sammellaufs (`zeugnis-sammellauf.ts`:
  * Abschluss-Sperre, Rückfrage, Meldung) und — im Quelltext — Download-Sperre,
- * DMS-Versand nach der Antwort und der gesperrte Nachversand.
+ * DMS-Versand nach der Antwort und der gesperrte Nachversand. Abschnitt 15: die
+ * Hörer-Bescheinigung nennt nur besuchte Fächer (ohne besuchten Abend keine),
+ * Abschnitt 16: der Storno ohne Ersatz (Grund, Vermerke, Sammellauf, Route).
  *
  * ACHTUNG beim Erweitern: Eine Prüfung beweist erst dann etwas, wenn sie ROT
  * wird, sobald man die geprüfte Regel entfernt. Auf den konkreten Wert prüfen,
@@ -15,24 +17,43 @@ import { readFileSync } from "fs";
 import {
   baueZeugnisSnapshot,
   belegNrPraefix,
+  bescheinigungsFaecher,
   istGewaehlterTyp,
+  MELDUNG_OHNE_ANWESENHEIT,
   neueBelegNr,
+  ohneBesuchtenAbend,
+  pruefeStornoGrund,
+  STORNO_GRUND_MAX_LAENGE,
+  stornoRueckfrage,
+  ungueltigMeldung,
+  zeugnisDateiname,
+  zeugnisStatusName,
   zeugnisTitel,
   zeugnistypFuer,
+  type ErfassterAbend,
   type SnapshotEingabe,
 } from "../src/lib/zeugnis";
-import { baueSeriendruckBloecke, baueZeugnisBloecke, ungueltigVermerkText } from "../src/lib/zeugnis-beleg";
+import {
+  baueSeriendruckBloecke,
+  baueStornoVermerk,
+  baueZeugnisBloecke,
+  stornoVermerkText,
+  ungueltigVermerkText,
+} from "../src/lib/zeugnis-beleg";
 import {
   ABSCHLUSS_SAMMELLAUF_GESPERRT,
   ABSCHLUSS_SAMMELLAUF_UNVERORTET,
   baueSammelVorschau,
   istLetztesRasterSemester,
+  nichtsAuszustellenHinweis,
   RASTER_SEMESTER,
   sammellaufMeldung,
   sammellaufRueckfrage,
   sammellaufSperre,
+  stornoSperreFuerPerson,
   zaehleOffeneFaecher,
   zeugnisSperreFuerPerson,
+  type VorschauZeile,
 } from "../src/lib/zeugnis-sammellauf";
 import { erzeugePdf } from "../src/lib/pdf";
 import { downloadFehler } from "../src/lib/api";
@@ -221,11 +242,11 @@ pruefe("offene Fächer: doppelte Kurseinheit zählt einmal", zaehleOffeneFaecher
 pruefe("offene Fächer: fremde Bewertungen ziehen nichts ab", zaehleOffeneFaecher(["a"], ["a", "x"]) === 0);
 {
   const v = baueSammelVorschau([
-    { typ: "SEMESTER", ausgestellt: false, offeneFaecher: 2, bewertet: 3, schuelerSemester: 1 },
+    { typ: "SEMESTER", ausgestellt: false, storniert: false, besuchteFaecher: 0, offeneFaecher: 2, bewertet: 3, schuelerSemester: 1 },
     // Semester ohne Unterrichtsabende mit Fach: nichts offen, aber auch nichts bewertet.
-    { typ: "SEMESTER", ausgestellt: false, offeneFaecher: 0, bewertet: 0, schuelerSemester: 1 },
-    { typ: "SEMESTER", ausgestellt: true, offeneFaecher: 3, bewertet: 0, schuelerSemester: 1 },
-    { typ: "BESCHEINIGUNG", ausgestellt: false, offeneFaecher: 5, bewertet: 0, schuelerSemester: 0 },
+    { typ: "SEMESTER", ausgestellt: false, storniert: false, besuchteFaecher: 0, offeneFaecher: 0, bewertet: 0, schuelerSemester: 1 },
+    { typ: "SEMESTER", ausgestellt: true, storniert: false, besuchteFaecher: 0, offeneFaecher: 3, bewertet: 0, schuelerSemester: 1 },
+    { typ: "BESCHEINIGUNG", ausgestellt: false, storniert: false, besuchteFaecher: 2, offeneFaecher: 5, bewertet: 0, schuelerSemester: 0 },
   ]);
   pruefe("Vorschau: 2 neue Zeugnisse", v.zeugnisse === 2, v);
   pruefe("Vorschau: 1 neue Bescheinigung (Hörer)", v.bescheinigungen === 1, v);
@@ -256,9 +277,9 @@ pruefe("offene Fächer: fremde Bewertungen ziehen nichts ab", zaehleOffeneFaeche
   // Abschluss: Ein Quereinsteiger mit nur einem Schüler-Semester hat „0 unbewertete
   // Fächer“ — die Rückfrage muss ihn trotzdem nennen.
   const a = baueSammelVorschau([
-    { typ: "ABSCHLUSS", ausgestellt: false, offeneFaecher: 0, bewertet: 8, schuelerSemester: 1 },
-    { typ: "ABSCHLUSS", ausgestellt: false, offeneFaecher: 0, bewertet: 40, schuelerSemester: RASTER_SEMESTER },
-    { typ: "ABSCHLUSS", ausgestellt: true, offeneFaecher: 0, bewertet: 3, schuelerSemester: 2 },
+    { typ: "ABSCHLUSS", ausgestellt: false, storniert: false, besuchteFaecher: 0, offeneFaecher: 0, bewertet: 8, schuelerSemester: 1 },
+    { typ: "ABSCHLUSS", ausgestellt: false, storniert: false, besuchteFaecher: 0, offeneFaecher: 0, bewertet: 40, schuelerSemester: RASTER_SEMESTER },
+    { typ: "ABSCHLUSS", ausgestellt: true, storniert: false, besuchteFaecher: 0, offeneFaecher: 0, bewertet: 3, schuelerSemester: 2 },
   ]);
   pruefe("das Raster hat 6 Semester (3 Lehrjahre zu je 2 Halbjahren)", RASTER_SEMESTER === 6, RASTER_SEMESTER);
   pruefe("Abschluss: weniger Semester als das Raster zählt nur bei Auszustellenden", a.wenigerSemesterAlsRaster === 1, a);
@@ -274,18 +295,18 @@ pruefe("offene Fächer: fremde Bewertungen ziehen nichts ab", zaehleOffeneFaeche
 
 console.log("\n10. Meldung nach dem Sammellauf (Fehlschläge sind kein Erfolg)");
 {
-  const teil = sammellaufMeldung({ ausgestellt: 3, vorhanden: 0, fehlgeschlagen: 2, gesamt: 5 });
+  const teil = sammellaufMeldung({ ausgestellt: 3, vorhanden: 0, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 2, gesamt: 5 });
   pruefe("teilweise fehlgeschlagen → Fehlermeldung", teil.art === "fehler", teil);
   pruefe("die Fehlermeldung nennt die Zahl der Fehlschläge", teil.text.startsWith("2 Zeugnisse konnten nicht ausgestellt werden"), teil);
-  const alle = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, fehlgeschlagen: 3, gesamt: 3 });
+  const alle = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 3, gesamt: 3 });
   pruefe("alle fehlgeschlagen → Fehler, NICHT „waren bereits ausgestellt“", alle.art === "fehler" && !alle.text.includes("waren bereits ausgestellt"), alle);
-  const eins = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, fehlgeschlagen: 1, gesamt: 1 });
+  const eins = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 1, gesamt: 1 });
   pruefe("ein Fehlschlag: Einzahl", eins.text.startsWith("1 Zeugnis konnte nicht"), eins);
-  const vorhanden = sammellaufMeldung({ ausgestellt: 0, vorhanden: 4, fehlgeschlagen: 0, gesamt: 4 });
+  const vorhanden = sammellaufMeldung({ ausgestellt: 0, vorhanden: 4, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 0, gesamt: 4 });
   pruefe("alles vorhanden → „bereits ausgestellt“", vorhanden.art === "ok" && vorhanden.text === "Alle Zeugnisse waren bereits ausgestellt.", vorhanden);
-  const gemischt = sammellaufMeldung({ ausgestellt: 3, vorhanden: 1, fehlgeschlagen: 0, gesamt: 4 });
+  const gemischt = sammellaufMeldung({ ausgestellt: 3, vorhanden: 1, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 0, gesamt: 4 });
   pruefe("Erfolg nennt Ausgestellte und Vorhandene", gemischt.art === "ok" && gemischt.text === "3 Zeugnisse ausgestellt, 1 bereits vorhanden.", gemischt);
-  const leer = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, fehlgeschlagen: 0, gesamt: 0 });
+  const leer = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 0, gesamt: 0 });
   pruefe("ohne Teilnehmer → Hinweis statt „bereits ausgestellt“", leer.art === "fehler" && leer.text.includes("keine aktiven Teilnehmer"), leer);
 }
 
@@ -524,8 +545,409 @@ console.log("\n14. Fehlerbehandlung: Ausstellung und Downloads (Code-Review 4)")
   );
 }
 
+/** Quelltext lesen — leer, wenn die Datei fehlt (die Prüfungen werden dann rot). */
+function quelle(pfad: string): string {
+  try {
+    return readFileSync(pfad, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+/** Der Quelltext einer exportierten Funktion bis zum nächsten Export. */
+function rumpfVon(text: string, name: string): string {
+  const start = text.indexOf(`export async function ${name}(`);
+  if (start < 0) return "";
+  const ende = text.indexOf("\nexport ", start + 1);
+  return text.slice(start, ende < 0 ? undefined : ende);
+}
+
+console.log("\n15. Teilnahmebescheinigung nur mit besuchtem Abend (Hörer)");
+{
+  const ke = (id: string, titel: string, sortierung: number, fach = "Bibelkunde") => ({ id, titel, sortierung, fach });
+  const AT = ke("k-at", "AT-Bibelkunde", 1);
+  const NT = ke("k-nt", "NT-Bibelkunde", 2);
+  const DOG = ke("k-dog", "Dogmatik I", 3, "Dogmatik");
+  const KG = ke("k-kg", "Alte Kirche", 4, "Kirchengeschichte");
+  // Bewusst ungeordnet: Die Reihenfolge im Snapshot kommt aus der Sortierung.
+  const abende: ErfassterAbend[] = [
+    { status: "NACHGEARBEITET", kurseinheit: NT },
+    { status: "ENTSCHULDIGT", kurseinheit: DOG },
+    { status: "ANWESEND", kurseinheit: AT },
+    { status: "GEFEHLT", kurseinheit: KG },
+    { status: "ANWESEND", kurseinheit: AT },
+    { status: "ANWESEND", kurseinheit: null }, // ein Abend ohne Fach
+  ];
+  const faecher = bescheinigungsFaecher(abende);
+  pruefe(
+    "nur Fächer mit einem besuchten Abend, je Kurseinheit einmal, nach Sortierung",
+    JSON.stringify(faecher.map((f) => f.titel)) === JSON.stringify(["AT-Bibelkunde", "NT-Bibelkunde"]),
+    faecher,
+  );
+  pruefe("nachgearbeitet zählt als besucht", bescheinigungsFaecher([{ status: "NACHGEARBEITET", kurseinheit: NT }]).length === 1);
+  pruefe(
+    "entschuldigt und gefehlt zählen nicht",
+    bescheinigungsFaecher([
+      { status: "ENTSCHULDIGT", kurseinheit: DOG },
+      { status: "GEFEHLT", kurseinheit: KG },
+    ]).length === 0,
+  );
+  pruefe("ein Abend ohne Fach bringt kein Fach", bescheinigungsFaecher([{ status: "ANWESEND", kurseinheit: null }]).length === 0);
+  pruefe(
+    "jedes Fach als „teilgenommen“, ohne Punkte und Note",
+    faecher.length === 2 && faecher.every((f) => f.ergebnis === "TEILGENOMMEN" && f.punkte === null && f.note === null),
+    faecher,
+  );
+  pruefe(
+    "bei gleicher Sortierung nach Fach (deutsch) geordnet",
+    JSON.stringify(
+      bescheinigungsFaecher([
+        { status: "ANWESEND", kurseinheit: ke("b", "B", 1, "Übungen") },
+        { status: "ANWESEND", kurseinheit: ke("a", "A", 1, "Andacht") },
+      ]).map((f) => f.fach),
+    ) === JSON.stringify(["Andacht", "Übungen"]),
+  );
+  pruefe(
+    "ein besuchter Abend genügt — keine Quote (1 von 10 Abenden)",
+    bescheinigungsFaecher([
+      { status: "ANWESEND", kurseinheit: DOG },
+      ...Array.from({ length: 9 }, () => ({ status: "GEFEHLT", kurseinheit: DOG })),
+    ]).length === 1,
+  );
+  const nichtsBesucht = bescheinigungsFaecher([
+    { status: "GEFEHLT", kurseinheit: AT },
+    { status: "ENTSCHULDIGT", kurseinheit: NT },
+    { status: "ANWESEND", kurseinheit: null },
+  ]);
+  pruefe("ohne besuchten Abend in einem Fach gibt es keine Bescheinigung", ohneBesuchtenAbend("BESCHEINIGUNG", nichtsBesucht) === true);
+  pruefe("mit einem besuchten Fach gibt es eine", ohneBesuchtenAbend("BESCHEINIGUNG", faecher) === false);
+  pruefe(
+    "Zeugnisse der Schüler betrifft die Regel nicht (auch ohne Fächer)",
+    ohneBesuchtenAbend("SEMESTER", []) === false && ohneBesuchtenAbend("ABSCHLUSS", []) === false,
+  );
+  const s = snap({ typ: "BESCHEINIGUNG", leistungen: faecher });
+  pruefe(
+    "der Snapshot friert die besuchten Fächer als „teilgenommen“ ein",
+    s.leistungen.length === 2 && s.leistungen.every((l) => l.ergebnisText === "teilgenommen"),
+    s.leistungen,
+  );
+  pruefe(
+    "die 409-Meldung ist klar und in der Sie-Form",
+    MELDUNG_OHNE_ANWESENHEIT.includes("kein besuchter Abend in einem Fach") &&
+      MELDUNG_OHNE_ANWESENHEIT.includes("keine Teilnahmebescheinigung") &&
+      MELDUNG_OHNE_ANWESENHEIT.includes("tragen Sie bitte") &&
+      !/\b(du|dein|deine|dich)\b/i.test(MELDUNG_OHNE_ANWESENHEIT),
+    MELDUNG_OHNE_ANWESENHEIT,
+  );
+}
+{
+  const zeile = (x: Partial<VorschauZeile>): VorschauZeile => ({
+    typ: "BESCHEINIGUNG",
+    ausgestellt: false,
+    storniert: false,
+    besuchteFaecher: 0,
+    offeneFaecher: 0,
+    bewertet: 0,
+    schuelerSemester: 0,
+    ...x,
+  });
+  const v = baueSammelVorschau([zeile({}), zeile({ besuchteFaecher: 3 }), zeile({ ausgestellt: true })]);
+  pruefe(
+    "Vorschau: Hörer ohne besuchten Abend zählen getrennt, nicht als Bescheinigung",
+    v.ohneAnwesenheit === 1 && v.bescheinigungen === 1 && v.vorhanden === 1,
+    v,
+  );
+  const text = sammellaufRueckfrage(v, "SEMESTER", "Herbstsemester 2026");
+  pruefe(
+    "Rückfrage nennt die Zahl der Hörer ohne besuchten Abend",
+    text.includes("1 Hörer hat in diesem Semester keinen besuchten Abend in einem Fach") &&
+      text.includes("dafür wird keine Teilnahmebescheinigung ausgestellt"),
+    text,
+  );
+  const m = sammellaufMeldung({ ausgestellt: 1, vorhanden: 1, storniert: 0, ohneAnwesenheit: 2, fehlgeschlagen: 0, gesamt: 4 });
+  pruefe(
+    "Meldung nach dem Lauf: Hörer ohne Anwesenheit sind kein Fehler, werden aber genannt",
+    m.art === "ok" &&
+      m.text.startsWith("1 Zeugnis ausgestellt, 1 bereits vorhanden.") &&
+      m.text.includes("2 Hörer haben in diesem Semester keinen besuchten Abend"),
+    m,
+  );
+  const nurOhne = sammellaufMeldung({ ausgestellt: 0, vorhanden: 0, storniert: 0, ohneAnwesenheit: 1, fehlgeschlagen: 0, gesamt: 1 });
+  pruefe(
+    "nichts ausgestellt, nur Hörer ohne Anwesenheit: nicht „bereits ausgestellt“",
+    nurOhne.art === "ok" && nurOhne.text.startsWith("Es wurde nichts neu ausgestellt.") && !nurOhne.text.includes("bereits ausgestellt"),
+    nurOhne,
+  );
+}
+{
+  const io = quelle("src/lib/zeugnis-io.ts");
+  const route = quelle("src/app/api/zeugnisse/ausstellen/route.ts");
+  pruefe(
+    "die Bescheinigung lädt die besuchten Fächer der Person (nicht mehr alle Fächer des Semesters)",
+    /if \(typ === "BESCHEINIGUNG"\) \{\s*return \{ abschnitt: semesterBezeichnung, leistungen: await ladeBesuchteFaecher\(personId, semesterId\) \};/.test(
+      io,
+    ) && !/ladeSemesterFaecher/.test(io),
+  );
+  pruefe(
+    "geladen werden die Abende der Teilnahme an Terminen DIESES Semesters, gezählt über bescheinigungsFaecher",
+    /prisma\.anwesenheit\.findMany\(\{\s*where: \{ teilnahme: \{ personId, semesterId \}, termin: \{ semesterId \} \},/.test(io) &&
+      /return bescheinigungsFaecher\(abende\.map\(alsErfassterAbend\)\);/.test(io),
+  );
+  pruefe(
+    "ohne besuchten Abend bricht die Ausstellung VOR der Transaktion ab (auch die Neuausstellung)",
+    /const inhalt = await sammleInhalt\([^)]*\);\s*(?:\/\/[^\n]*\n\s*)*if \(ohneBesuchtenAbend\(typ, inhalt\.leistungen\)\) return \{ fehler: "ohne_anwesenheit" \};/.test(
+      io,
+    ) && io.indexOf("ohneBesuchtenAbend(typ, inhalt.leistungen)") < io.indexOf("await prisma.$transaction(async (tx): Promise<{ id: string }"),
+  );
+  pruefe(
+    "der Sammellauf zählt Hörer ohne Anwesenheit getrennt (kein Fehlschlag)",
+    /else if \(ergebnis\.fehler === "ohne_anwesenheit"\) ohneAnwesenheit\+\+;/.test(io) &&
+      /return \{ ausgestellt: neu\.length, vorhanden, storniert, ohneAnwesenheit, fehlgeschlagen, gesamt: teilnahmen\.length, neu \};/.test(io),
+  );
+  pruefe("die Einzel-Ausstellung antwortet 409 mit der Meldung", /case "ohne_anwesenheit":\s*return fehler\(MELDUNG_OHNE_ANWESENHEIT, 409\);/.test(route));
+  pruefe(
+    "Übersicht und Vorschau zählen die besuchten Fächer nach derselben Regel",
+    /return new Map\(personIds\.map\(\(id\) => \[id, bescheinigungsFaecher\(jePerson\.get\(id\) \?\? \[\]\)\.length\]\)\);/.test(io) &&
+      /zaehleBesuchteFaecher\(semesterId, hoererOhneDokument\)/.test(io) &&
+      /besuchteFaecher: z\.besuchteFaecher \?\? 0,/.test(io),
+  );
+}
+
+console.log("\n16. Storno ohne Ersatz (Grund, Vermerke, Sammellauf, Route)");
+pruefe(
+  "ohne Grund kein Storno",
+  !pruefeStornoGrund(undefined).ok && !pruefeStornoGrund(null).ok && !pruefeStornoGrund("").ok,
+);
+{
+  const leer = pruefeStornoGrund("   \n ");
+  pruefe(
+    "ein Grund nur aus Leerzeichen gilt als leer (Meldung in der Sie-Form)",
+    !leer.ok && leer.meldung === "Bitte geben Sie einen Grund für den Storno an.",
+    leer,
+  );
+  const getrimmt = pruefeStornoGrund("  falsches Semester  ");
+  pruefe("der Grund wird getrimmt übernommen", getrimmt.ok && getrimmt.grund === "falsches Semester", getrimmt);
+  pruefe(
+    "500 Zeichen (nach dem Trimmen) sind erlaubt",
+    STORNO_GRUND_MAX_LAENGE === 500 && pruefeStornoGrund(` ${"a".repeat(500)} `).ok,
+  );
+  const zuLang = pruefeStornoGrund("a".repeat(501));
+  pruefe("501 Zeichen sind zu lang", !zuLang.ok && zuLang.meldung.includes("höchstens 500 Zeichen"), zuLang);
+}
+pruefe(
+  "Status-Klartext: gültig / ersetzt / storniert",
+  zeugnisStatusName("GUELTIG") === "gültig" && zeugnisStatusName("ERSETZT") === "ersetzt" && zeugnisStatusName("STORNIERT") === "storniert",
+);
+{
+  const r = stornoRueckfrage({ typ: "SEMESTER", belegNr: "ZEU-2026-09-28-AAAA0000", name: "Muster, Max" });
+  pruefe(
+    "Rückfrage: „Das Zeugnis … wird ungültig und für die Person nicht mehr abrufbar. Es bleibt als Nachweis gespeichert.“",
+    r.startsWith(
+      "Das Zeugnis ZEU-2026-09-28-AAAA0000 von Muster, Max wird ungültig und für die Person nicht mehr abrufbar. Es bleibt als Nachweis gespeichert.",
+    ),
+    r,
+  );
+  const b = stornoRueckfrage({ typ: "BESCHEINIGUNG", belegNr: "BESCH-X", name: "Hörer, Hanna" });
+  pruefe(
+    "Rückfrage für eine Bescheinigung mit passendem Artikel",
+    b.startsWith("Die Teilnahmebescheinigung BESCH-X von Hörer, Hanna wird ungültig") && b.includes("Sie bleibt als Nachweis gespeichert."),
+    b,
+  );
+}
+pruefe(
+  "410-Text für ein storniertes Zeugnis (Sie-Form); der für ersetzte bleibt",
+  ungueltigMeldung("STORNIERT").startsWith("Dieses Zeugnis wurde storniert und ist nicht mehr gültig.") &&
+    ungueltigMeldung("STORNIERT").includes("wenden Sie sich") &&
+    ungueltigMeldung("ERSETZT").startsWith("Dieses Zeugnis wurde durch eine neue Ausfertigung ersetzt"),
+);
+pruefe(
+  "der Dateiname trägt den Stand (…-UNGUELTIG bzw. …-STORNIERT)",
+  zeugnisDateiname("Z", "GUELTIG") === "Z.pdf" &&
+    zeugnisDateiname("Z", "ERSETZT") === "Z-UNGUELTIG.pdf" &&
+    zeugnisDateiname("Z", "STORNIERT") === "Z-STORNIERT.pdf",
+);
+{
+  const s = snap();
+  const mit = baueZeugnisBloecke(s, { storniertAm: "28.09.2026" });
+  const kopf = mit[0];
+  pruefe(
+    "Nachdruck eines stornierten: Kopfvermerk „STORNIERT am … — ungültig“ vor allem anderen",
+    kopf.art === "h2" && kopf.text === "STORNIERT am 28.09.2026 — ungültig" && stornoVermerkText({ storniertAm: "28.09.2026" }) === kopf.text,
+    kopf,
+  );
+  const hinweis = mit[1];
+  pruefe(
+    "… mit neutralem Hinweis ohne Grund; dahinter der unveränderte Snapshot, kein „ersetzt“-Vermerk",
+    hinweis.art === "absatz" &&
+      hinweis.text.includes("ohne Ersatz zurückgezogen") &&
+      JSON.stringify(mit.slice(2)) === JSON.stringify(baueZeugnisBloecke(s)) &&
+      !JSON.stringify(mit).includes("UNGÜLTIG – ersetzt"),
+    hinweis,
+  );
+  const v = baueStornoVermerk({ belegNr: "ZEU-2026-09-28-AAAA0000", titel: "Zeugnis", abschnitt: "Herbstsemester 2026", storniertAm: "28.09.2026" });
+  pruefe("Storno-Vermerk ans DMS: Betreff nur mit Beleg-Nr. und „ungültig“", v.betreff === "Storno-Vermerk ZEU-2026-09-28-AAAA0000 — ungültig", v.betreff);
+  pruefe(
+    "Storno-Vermerk: Text und PDF nennen Beleg-Nr., Datum und „ungültig“",
+    v.text.includes("Beleg-Nr.: ZEU-2026-09-28-AAAA0000") &&
+      v.text.includes("Storniert am: 28.09.2026") &&
+      v.text.includes("Status: ungültig") &&
+      v.bloecke.some((b) => b.art === "h2" && b.text === "STORNIERT am 28.09.2026 — ungültig") &&
+      v.dateiname === "ZEU-2026-09-28-AAAA0000-STORNO.pdf",
+    v,
+  );
+  pruefe("Storno-Vermerk: das PDF entsteht (eine Seite)", seitenzahl(erzeugePdf(v.bloecke)) === 1);
+}
+pruefe(
+  "Storno-Sperre: anonymisiert gesperrt, Endzustand und aktiv nicht",
+  (stornoSperreFuerPerson("ANONYMISIERT") ?? "").includes("anonymisiert") &&
+    stornoSperreFuerPerson("VERSTORBEN") === null &&
+    stornoSperreFuerPerson("AKTIV") === null,
+);
+{
+  const zeile = (x: Partial<VorschauZeile>): VorschauZeile => ({
+    typ: "SEMESTER",
+    ausgestellt: false,
+    storniert: false,
+    besuchteFaecher: 0,
+    offeneFaecher: 0,
+    bewertet: 1,
+    schuelerSemester: 1,
+    ...x,
+  });
+  const v = baueSammelVorschau([
+    zeile({ storniert: true }),
+    zeile({ typ: "BESCHEINIGUNG", storniert: true }), // storniert geht vor „ohne Anwesenheit“
+    zeile({ ausgestellt: true, storniert: true }), // ein gültiges geht vor dem stornierten
+    zeile({}),
+  ]);
+  pruefe(
+    "Vorschau: Stornierte zählen getrennt und nicht als neue Dokumente; gültig geht vor storniert",
+    v.storniert === 2 && v.zeugnisse === 1 && v.vorhanden === 1 && v.ohneAnwesenheit === 0 && v.bescheinigungen === 0,
+    v,
+  );
+  const text = sammellaufRueckfrage(v, "SEMESTER", "Herbstsemester 2026");
+  pruefe(
+    "Rückfrage nennt die Stornierten — der Sammellauf stellt für sie nichts neu aus",
+    text.includes("2 Teilnehmer haben ein storniertes Dokument — dafür stellt der Sammellauf nichts neu aus"),
+    text,
+  );
+  pruefe(
+    "Rückfrage nennt „Stornieren“ als Weg zum Zurückziehen (nicht mehr „lässt sich nicht zurücknehmen“)",
+    text.includes("zurückziehen über „Stornieren“") && !text.includes("nicht zurücknehmen"),
+    text,
+  );
+  pruefe(
+    "Hinweis unter „Alle ausstellen“: nur Vorhandene → „bereits ein Dokument ausgestellt“",
+    nichtsAuszustellenHinweis({ ...v, zeugnisse: 0, storniert: 0 }) === "Für alle Teilnehmer ist bereits ein Dokument ausgestellt.",
+  );
+  const hinweis = nichtsAuszustellenHinweis({ ...v, zeugnisse: 0 });
+  pruefe(
+    "Hinweis unter „Alle ausstellen“: nennt Stornierte statt „alle ausgestellt“",
+    (hinweis ?? "").startsWith("Gesammelt ist nichts mehr auszustellen.") && (hinweis ?? "").includes("storniertes Dokument"),
+    hinweis,
+  );
+  pruefe(
+    "kein Hinweis, solange es etwas auszustellen gibt oder niemand da ist",
+    nichtsAuszustellenHinweis(v) === null && nichtsAuszustellenHinweis(baueSammelVorschau([])) === null,
+  );
+  const m = sammellaufMeldung({ ausgestellt: 0, vorhanden: 2, storniert: 1, ohneAnwesenheit: 0, fehlgeschlagen: 0, gesamt: 3 });
+  pruefe(
+    "Meldung: nichts ausgestellt wegen eines Stornos ist nicht „alle bereits ausgestellt“",
+    m.art === "ok" &&
+      m.text ===
+        "Es wurde nichts neu ausgestellt (2 bereits vorhanden). 1 Teilnehmer hat ein storniertes Dokument — dafür stellt der Sammellauf nichts neu aus (einzeln weiterhin über „Ausstellen“ möglich).",
+    m,
+  );
+}
+{
+  const io = quelle("src/lib/zeugnis-io.ts");
+  const route = quelle("src/app/api/zeugnisse/[id]/stornieren/route.ts");
+  const pdfRoute = quelle("src/app/api/zeugnisse/[id]/pdf/route.ts");
+  const client = quelle("src/app/verwaltung/zeugnisse/zeugnis-client.tsx");
+  const akte = quelle("src/app/verwaltung/personen/[id]/page.tsx");
+  const storno = rumpfVon(io, "storniereZeugnis");
+  const sammel = rumpfVon(io, "stelleSemesterZeugnisseAus");
+  pruefe(
+    "Storno-Route: Recht NOTEN_VERWALTEN vor Zod und Grund-Prüfung (400 mit Meldung)",
+    /const benutzer = await pruefeZugriff\(RECHT\.NOTEN_VERWALTEN\);[\s\S]{0,200}schema\.safeParse\([\s\S]{0,200}pruefeStornoGrund\(geprueft\.data\.grund\);\s*if \(!grund\.ok\) return fehler\(grund\.meldung, 400\);/.test(
+      route,
+    ),
+  );
+  pruefe(
+    "Storno-Route: 404 unbekannt, 409 nicht (mehr) gültig bzw. Person anonymisiert",
+    /case "fehlt":\s*return fehler\("Dieses Zeugnis gibt es nicht\.", 404\);/.test(route) &&
+      /case "nicht_gueltig":\s*return fehler\([\s\S]{0,200}?,\s*409,?\s*\)/.test(route) &&
+      /ergebnis\.fehler === "person_gesperrt"\) return fehler\(ergebnis\.meldung, 409\)/.test(route),
+  );
+  pruefe(
+    "Storno-Route: der Vermerk geht NACH der Antwort ans DMS, die Antwort trägt keinen Grund",
+    /after\(\(\) => sendeStornoVermerkAnDms\(\{ belegNr, titel, abschnitt, storniertAm \}\)\);/.test(route) &&
+      !/return erfolg\([^)]*grund/.test(route),
+  );
+  pruefe(
+    "Storno atomar: bedingtes updateMany auf GUELTIG setzt Status, Zeitpunkt, Akteur und Grund",
+    /tx\.zeugnis\.updateMany\(\{\s*where: \{ id: z\.id, status: "GUELTIG" \},\s*data: \{ status: "STORNIERT", storniertAm: jetzt, storniertVonId: akteurId, stornoGrund: grund \},/.test(
+      storno,
+    ) && /return count === 1 \? "ok" : "nicht_gueltig";/.test(storno),
+  );
+  pruefe(
+    "Storno sperrt die Personenzeile (FOR SHARE) und prüft die Anonymisierung VOR dem Schreiben",
+    /SELECT "statusCode" FROM "personen" WHERE "id" = \$\{z\.personId\} FOR SHARE[\s\S]{0,200}stornoSperreFuerPerson\(zeile\.statusCode\)[\s\S]{0,120}tx\.zeugnis\.updateMany\(/.test(
+      storno,
+    ),
+  );
+  const auditStart = storno.indexOf("protokolliere({");
+  const audit = auditStart < 0 ? "" : storno.slice(auditStart, storno.indexOf("});", auditStart));
+  pruefe(
+    "Audit ZEUGNIS_STORNIERT mit Beleg-Nr., Typ und grundAngegeben — ohne den Grundtext",
+    /aktion: "ZEUGNIS_STORNIERT"/.test(audit) &&
+      /nachher: \{ status: "STORNIERT", belegNr: z\.belegNr, typ: z\.typ, grundAngegeben: true \}/.test(audit) &&
+      !/\bgrund\b(?!Angegeben)|stornoGrund/.test(audit),
+    audit,
+  );
+  pruefe(
+    "Storno-Vermerk: nur mit DMS-Adresse, über sendeBelegAnDms, best effort (fängt selbst)",
+    /const an = dmsAdresse\(\);\s*if \(!an\) return;\s*try \{\s*const vermerk = baueStornoVermerk\(/.test(rumpfVon(io, "sendeStornoVermerkAnDms")) &&
+      /await sendeBelegAnDms\(an, \{/.test(rumpfVon(io, "sendeStornoVermerkAnDms")) &&
+      /\} catch \(fehler\) \{/.test(rumpfVon(io, "sendeStornoVermerkAnDms")),
+  );
+  pruefe(
+    "PDF-Route: ein storniertes ohne NOTEN_VERWALTEN → 410 mit eigenem Text, Datei mit Stand",
+    /if \(!gueltig && !darfAlle\) \{\s*return downloadFehler\(request, ungueltigMeldung\(dokument\.status\), 410\);/.test(pdfRoute) &&
+      /filename="\$\{zeugnisDateiname\(dokument\.belegNr, dokument\.status\)\}"/.test(pdfRoute),
+  );
+  pruefe(
+    "Nachdruck: STORNIERT bekommt den Storno-Vermerk, ERSETZT den Ersetzt-Vermerk",
+    /if \(dokument\.status === "STORNIERT"\) \{\s*vermerk = \{ storniertAm: datum\(dokument\.storniertAm\) \};\s*\} else if \(dokument\.status === "ERSETZT"\) \{/.test(io),
+  );
+  pruefe(
+    "Sammellauf: lädt gültige UND stornierte und überspringt Stornierte vor der Ausstellung",
+    /status: \{ in: \["GUELTIG", "STORNIERT"\] \}/.test(sammel) &&
+      /if \(stornierte\.has\(schluessel\)\) \{\s*storniert\+\+;\s*continue;\s*\}/.test(sammel) &&
+      sammel.indexOf("stornierte.has(schluessel)") < sammel.indexOf("fuehreAusstellungAus("),
+  );
+  pruefe(
+    "Neuausstellung: das bisherige wird nur bedingt (noch GUELTIG) ersetzt — ein zeitgleicher Storno gewinnt",
+    /const entwertet = await tx\.zeugnis\.updateMany\(\{ where: \{ id: alt\.id, status: "GUELTIG" \}, data: \{ status: "ERSETZT" \} \}\);\s*if \(entwertet\.count !== 1\) return \{ geaendert: true \};/.test(
+      io,
+    ) && !/tx\.zeugnis\.update\(\{ where: \{ id: alt\.id \}/.test(io),
+  );
+  pruefe(
+    "Seriendruck, /meine-daten und DMS-Nachversand erfassen nur GUELTIG",
+    /prisma\.zeugnis\.findMany\(\{ where: \{ id: \{ in: ids \}, status: "GUELTIG" \}, select: \{ snapshot: true \} \}\)/.test(rumpfVon(io, "erzeugeSeriendruckPdf")) &&
+      /where: \{ personId, status: "GUELTIG" \}/.test(rumpfVon(io, "ladeEigeneZeugnisse")) &&
+      (io.match(/return \{\s*status: "GUELTIG",\s*dmsGesendetAm: null,/g) ?? []).length === 1,
+  );
+  pruefe(
+    "Oberfläche: „Stornieren“ nur an gültigen — Zeugnisseite im Zweig des gültigen Zeugnisses, Detailakte über stornierbar",
+    /<ZeugnisStorno\s+zeugnisId=\{z\.zeugnis\.id\}\s+stornierbar\s/.test(client) &&
+      /stornierbar=\{z\.status === "GUELTIG" && !istAnonym\}/.test(akte) &&
+      /ladeZeugnisseDerPerson\(person\.id\)/.test(akte),
+  );
+}
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 119;
+const ERWARTET = 177;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

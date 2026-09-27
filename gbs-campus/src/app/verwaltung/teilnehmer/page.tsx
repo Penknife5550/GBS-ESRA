@@ -3,14 +3,26 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { hatRecht, ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
-import { EXPORT_SPALTEN, deutscherTag } from "@/lib/semester";
-import { ladeTeilnehmer, zaehleAbgemeldete, zaehleOhneTeilnahme, type TeilnehmerZeile } from "@/lib/teilnehmerliste";
+import { EXPORT_SPALTEN, abmeldegrundText, deutscherTag } from "@/lib/semester";
+import {
+  ladeTeilnehmer,
+  teileNochNichtZugeordnete,
+  zaehleAbgemeldete,
+  type TeilnehmerZeile,
+  type UebernahmeKandidat,
+} from "@/lib/teilnehmerliste";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { LadeHinweis } from "@/components/ui/lade-hinweis";
 import { UebernehmenKnopf } from "./uebernehmen-knopf";
+import { EinzelnUebernehmenKnopf } from "./einzeln-uebernehmen-knopf";
 
 export const metadata = { title: "Teilnehmerliste" };
 export const dynamic = "force-dynamic";
+
+const NIEMAND_OFFEN: { uebernehmbar: UebernahmeKandidat[]; zuletztAbgemeldet: UebernahmeKandidat[] } = {
+  uebernehmbar: [],
+  zuletztAbgemeldet: [],
+};
 
 export default async function TeilnehmerSeite() {
   const benutzer = await ladeMitRecht(RECHT.PERSON_LESEN_ALLE);
@@ -18,14 +30,19 @@ export default async function TeilnehmerSeite() {
 
   const semester = await prisma.semester.findFirst({ where: { istAktuell: true } });
 
-  const [zeilen, ohneTeilnahme, abgemeldet] = await Promise.all([
-    semester ? ladeTeilnehmer(semester.id) : Promise.resolve([] as TeilnehmerZeile[]),
-    semester ? zaehleOhneTeilnahme(semester.id) : Promise.resolve(0),
-    semester ? zaehleAbgemeldete(semester.id) : Promise.resolve(0),
-  ]);
-
   const darfExportieren = hatRecht(benutzer, RECHT.PERSON_EXPORTIEREN);
   const darfSemesterVerwalten = hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN);
+
+  // Wer noch fehlt, braucht nur, wer übernehmen darf. Dieselbe Abfrage wie die
+  // Sammelübernahme (`teileNochNichtZugeordnete`) — die Zahl ist genau die, die
+  // der Knopf einlöst; die zuletzt Abgemeldeten stehen getrennt.
+  const [zeilen, offen, abgemeldet] = await Promise.all([
+    semester ? ladeTeilnehmer(semester.id) : Promise.resolve([] as TeilnehmerZeile[]),
+    semester && darfSemesterVerwalten ? teileNochNichtZugeordnete(prisma, semester) : Promise.resolve(NIEMAND_OFFEN),
+    semester ? zaehleAbgemeldete(semester.id) : Promise.resolve(0),
+  ]);
+  const ohneTeilnahme = offen.uebernehmbar.length;
+  const zuletzt = offen.zuletztAbgemeldet;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -68,6 +85,51 @@ export default async function TeilnehmerSeite() {
         <>
           {ohneTeilnahme > 0 && darfSemesterVerwalten && (
             <UebernehmenKnopf semesterId={semester.id} anzahl={ohneTeilnahme} />
+          )}
+
+          {zuletzt.length > 0 && darfSemesterVerwalten && (
+            <section aria-labelledby="zuletzt-abgemeldet" className="mt-6 rounded-lg border border-border px-4 py-4 text-sm">
+              <h2 id="zuletzt-abgemeldet" className="font-medium">
+                {`Zuletzt abgemeldet (bin raus / keine Rückmeldung): ${zuletzt.length} — einzeln übernehmen`}
+              </h2>
+              <p className="mt-1 max-w-prose text-xs text-muted-foreground">
+                {zuletzt.length === 1 ? "Diese Person hat" : "Diese Personen haben"} für ihr letztes Semester
+                abgesagt oder nicht geantwortet. Die Sammelübernahme lässt sie deshalb aus — übernehmen Sie
+                einzeln, wer wieder dabei sein will.
+              </p>
+              <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
+                {zuletzt.map((k) => {
+                  // „Herbstsemester 2026: hat abgesagt („Ich bin raus“)"
+                  const warum = `${k.zuletztAbgemeldet?.semester ?? ""}: ${abmeldegrundText(k.zuletztAbgemeldet?.grund)}`;
+                  return (
+                    <li key={k.personId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/verwaltung/personen/${k.personId}`}
+                          className="font-medium text-foreground underline-offset-4 hover:underline"
+                        >
+                          {k.name}
+                        </Link>
+                        <span className="block text-xs text-muted-foreground">{warum}</span>
+                      </div>
+                      {k.teilnahmeform ? (
+                        <EinzelnUebernehmenKnopf
+                          semesterId={semester.id}
+                          personId={k.personId}
+                          name={k.name}
+                          semester={semester.bezeichnung}
+                          warum={warum}
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Keine Teilnahmeform hinterlegt — bitte zuerst in der Akte nachtragen.
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           )}
 
           {abgemeldet > 0 && (

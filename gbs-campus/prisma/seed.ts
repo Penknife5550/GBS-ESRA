@@ -88,9 +88,16 @@ const STATUS = [
   {
     code: "ABGEBROCHEN",
     bezeichnung: "Abgebrochen",
-    beschreibung: "Freiwillig ausgestiegen. Der Beitragslauf stoppt.",
+    beschreibung:
+      "Freiwillig ausgestiegen. Der Beitragslauf stoppt, es gehen keine automatischen Mails mehr. " +
+      "Kein Endzustand: Die Schulleitung kann die Person mit Grund wieder aufnehmen.",
+    // Kein Endzustand (Empfehlung Semesterbetrieb, 27.09.2026): Wer eine Pause
+    // einlegt oder später zurückkommt, soll wieder aufgenommen werden können —
+    // der Bauplan sieht den Wiedereinstieg ausdrücklich vor. Wie ABSOLVENT:
+    // nicht aktiv, keine Automatik-Mails, der Portalzugang bleibt. Endzustände
+    // bleiben AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT.
     istAktiv: false,
-    istTerminal: true,
+    istTerminal: false,
     beitragLaeuft: false,
     anwesenheitZaehlt: false,
     automatikMails: false,

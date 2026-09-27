@@ -19,13 +19,16 @@ const schema = z.object({
 /**
  * Wechselt den Status einer Person von Hand (Code-Review 4, M9) — Recht
  * PERSON_STATUS_WECHSELN, laut Seed nur die Schulleitung. Damit greift der
- * „Not-Aus": VERSTORBEN, AUSGESCHLOSSEN und ABGEBROCHEN schalten Beitrag,
- * Automatik-Mails, Listen und den Zugang ab.
+ * „Not-Aus": VERSTORBEN und AUSGESCHLOSSEN schalten Beitrag, Automatik-Mails,
+ * Listen und den Zugang ab. ABGEBROCHEN schaltet Beitrag, Automatik-Mails und
+ * Listen ab, ist aber seit dem 27.09.2026 kein Endzustand mehr: Der Zugang
+ * bleibt, und die Schulleitung kann die Person wieder aufnehmen.
  *
  * Regeln (`status.ts`): kein Weg aus einem Endzustand (409), INTERESSENT und
  * ANONYMISIERT sind keine Ziele (400 — Anonymisieren hat seine eigene Route),
  * derselbe Status ist kein Wechsel (400), ein Grund ist Pflicht bei
- * ABGEBROCHEN/AUSGESCHLOSSEN/VERSTORBEN (400). Solange über eine eingereichte
+ * ABGEBROCHEN/AUSGESCHLOSSEN/VERSTORBEN und beim Verlassen von ABGEBROCHEN
+ * (Wiederaufnahme) (400). Solange über eine eingereichte
  * Anmeldung nicht entschieden ist, gibt es keinen Wechsel von Hand (409) — er
  * ginge an der Aufnahme vorbei. Den letzten Administrator setzt niemand in einen
  * Endzustand (409, dieselbe Wache wie beim Rollenentzug). Geschrieben wird

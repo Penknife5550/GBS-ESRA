@@ -8,6 +8,11 @@
  *
  * Für den Seriendruck werden mehrere Snapshots mit einem Seitenumbruch
  * aneinandergehängt, damit jede Person auf einem eigenen Blatt beginnt.
+ *
+ * Ein nicht mehr gültiges Dokument (ERSETZT oder STORNIERT) bekommt im Nachdruck
+ * der Schulleitung einen Kopfvermerk; für den Storno gibt es zusätzlich einen
+ * kurzen Vermerk an das DMS (Beleg-Nr., Datum, „ungültig" — ohne Namen und ohne
+ * den Grund).
  */
 
 import type { PdfBlock } from "@/lib/pdf";
@@ -47,16 +52,36 @@ export function ungueltigVermerkText(v: UngueltigVermerk): string {
   return `UNGÜLTIG – ersetzt durch Beleg ${v.durchBelegNr}${v.am ? ` am ${v.am}` : ""}.`;
 }
 
+/** Vermerk für ein STORNIERTES Zeugnis: der Tag des Stornos (bereits formatiert). */
+export type StornoVermerk = { storniertAm: string };
+
+/** Der Kopfvermerk eines stornierten Zeugnisses, z. B. „STORNIERT am 28.09.2026 — ungültig“. */
+export function stornoVermerkText(v: StornoVermerk): string {
+  return `STORNIERT am ${v.storniertAm} — ungültig`;
+}
+
 /**
  * Baut die PDF-Bausteine EINES Zeugnisses aus seinem Snapshot. Rein, ohne
- * Datenbank. Mit `ungueltig` (nur für ein ERSETZTES Zeugnis, Nachdruck durch die
- * Schulleitung) steht vor allem anderen ein Kopfvermerk — der Snapshot selbst
- * bleibt unverändert, sonst sähe der Nachdruck wie ein gültiges Zeugnis aus.
+ * Datenbank. Mit `ungueltig` (für ein ERSETZTES oder STORNIERTES Zeugnis,
+ * Nachdruck durch die Schulleitung) steht vor allem anderen ein Kopfvermerk —
+ * der Snapshot selbst bleibt unverändert, sonst sähe der Nachdruck wie ein
+ * gültiges Zeugnis aus.
  */
-export function baueZeugnisBloecke(snapshot: ZeugnisSnapshot, ungueltig: UngueltigVermerk | null = null): PdfBlock[] {
+export function baueZeugnisBloecke(
+  snapshot: ZeugnisSnapshot,
+  ungueltig: UngueltigVermerk | StornoVermerk | null = null,
+): PdfBlock[] {
   const b: PdfBlock[] = [];
 
-  if (ungueltig) {
+  if (ungueltig && "storniertAm" in ungueltig) {
+    b.push({ art: "h2", text: stornoVermerkText(ungueltig) });
+    b.push({
+      art: "absatz",
+      // Ohne den Grund: Er ist Freitext der Schulleitung und gehört nicht auf
+      // ein Blatt, das das Haus verlassen kann.
+      text: "Dieses Dokument wurde ohne Ersatz zurückgezogen und ist nicht mehr gültig. Es bleibt nur als Nachweis gespeichert.",
+    });
+  } else if (ungueltig) {
     b.push({ art: "h2", text: ungueltigVermerkText(ungueltig) });
     b.push({
       art: "absatz",
@@ -74,7 +99,7 @@ export function baueZeugnisBloecke(snapshot: ZeugnisSnapshot, ungueltig: Unguelt
     }`,
   });
 
-  // Storno-Vermerk: diese Ausfertigung ersetzt einen früheren Beleg — der alte,
+  // Ersetzt-Vermerk: diese Ausfertigung ersetzt einen früheren Beleg — der alte,
   // bereits gedruckte, ist damit entwertet.
   if (snapshot.ersetztBelegNr) {
     b.push({
@@ -130,4 +155,44 @@ export function baueSeriendruckBloecke(snapshots: ZeugnisSnapshot[]): PdfBlock[]
     bloecke.push(...baueZeugnisBloecke(snapshot));
   });
   return bloecke;
+}
+
+/** Was der Storno-Vermerk an das DMS nennt (Datum bereits formatiert). */
+export type StornoVermerkDaten = { belegNr: string; titel: string; abschnitt: string; storniertAm: string };
+
+/**
+ * Der kurze Storno-Vermerk an das DMS: Beleg-Nr., Dokument, Datum und
+ * „ungültig". Kein Name — die Archivkopie mit Namen liegt dort schon, und der
+ * Betreff bliebe im Versandprotokoll stehen — und kein Grund (Freitext der
+ * Schulleitung).
+ */
+export function baueStornoVermerk(v: StornoVermerkDaten): {
+  betreff: string;
+  text: string;
+  dateiname: string;
+  bloecke: PdfBlock[];
+} {
+  const dokument = `${v.titel} · ${v.abschnitt}`;
+  const hinweis =
+    "Das Dokument mit dieser Beleg-Nummer wurde ohne Ersatz storniert und ist ungültig. " +
+    "Die archivierte Kopie bleibt als Nachweis bestehen.";
+  return {
+    betreff: `Storno-Vermerk ${v.belegNr} — ungültig`,
+    text:
+      `Storno-Vermerk der ${EINRICHTUNG.name}.\n\n` +
+      `Beleg-Nr.: ${v.belegNr}\nDokument: ${dokument}\nStorniert am: ${v.storniertAm}\nStatus: ungültig\n\n` +
+      `${hinweis} Der Vermerk liegt als PDF bei.`,
+    dateiname: `${v.belegNr}-STORNO.pdf`,
+    bloecke: [
+      { art: "titel", text: "Storno-Vermerk" },
+      { art: "klein", text: `${EINRICHTUNG.name} · ${EINRICHTUNG.traeger}` },
+      { art: "h2", text: stornoVermerkText({ storniertAm: v.storniertAm }) },
+      { art: "kv", label: "Beleg-Nr.", wert: v.belegNr },
+      { art: "kv", label: "Dokument", wert: dokument },
+      { art: "kv", label: "Storniert am", wert: v.storniertAm },
+      { art: "kv", label: "Status", wert: "ungültig" },
+      { art: "leer" },
+      { art: "absatz", text: hinweis },
+    ],
+  };
 }

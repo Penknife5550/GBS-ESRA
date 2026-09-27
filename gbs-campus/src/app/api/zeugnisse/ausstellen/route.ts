@@ -3,12 +3,13 @@ import { z } from "zod";
 import { pruefeZugriff } from "@/lib/berechtigung";
 import { erfolg, fehler, mitFehlerbehandlung, nieErreicht } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
-import { GEWAEHLTE_TYPEN } from "@/lib/zeugnis";
+import { GEWAEHLTE_TYPEN, MELDUNG_OHNE_ANWESENHEIT } from "@/lib/zeugnis";
 import { archiviereNeueImDms, stelleSemesterZeugnisseAus, stelleZeugnisAus } from "@/lib/zeugnis-io";
 
-// Mit personId = Einzel-Ausstellung/Neuausstellung (mit Storno des bestehenden),
-// ohne = Sammellauf für alle aktiven Teilnehmer des Semesters (idempotent; für
-// Abschlusszeugnisse nur im letzten Semester des Rasters).
+// Mit personId = Einzel-Ausstellung/Neuausstellung (das bestehende wird ERSETZT;
+// auch nach einem Storno möglich), ohne = Sammellauf für alle aktiven Teilnehmer
+// des Semesters (idempotent, überspringt stornierte und Hörer ohne besuchten
+// Abend; für Abschlusszeugnisse nur im letzten Semester des Rasters).
 const schema = z.object({
   semesterId: z.string().uuid(),
   typ: z.enum(GEWAEHLTE_TYPEN),
@@ -18,7 +19,9 @@ const schema = z.object({
 /**
  * Stellt Zeugnisse aus (Schulleitung, Recht NOTEN_VERWALTEN) — einzeln oder als
  * Sammellauf je Semester. Die Ausstellung friert den aktuellen Notenstand als
- * Snapshot ein; eine Neuausstellung storniert das vorige Zeugnis.
+ * Snapshot ein; eine Neuausstellung ersetzt das vorige Zeugnis. Ein Hörer ohne
+ * besuchten Abend bekommt keine Teilnahmebescheinigung (einzeln 409, im
+ * Sammellauf als `ohneAnwesenheit` gezählt).
  *
  * Die DMS-Archivkopie geht NACH der Antwort raus (`after`): Vorher wartete die
  * Route auf die Mail, und bei hakendem SMTP meldete die Oberfläche eine
@@ -55,6 +58,13 @@ export async function POST(request: NextRequest) {
             return fehler("Diese Person ist für dieses Semester abgemeldet — dafür wird kein Zeugnis ausgestellt.", 409);
           case "gleichzeitig":
             return fehler("Es wurde zeitgleich schon ein Zeugnis ausgestellt. Bitte neu laden.", 409);
+          case "vorgaenger_geaendert":
+            return fehler(
+              "Das bisherige Zeugnis wurde zeitgleich geändert (etwa storniert oder neu ausgestellt). Bitte laden Sie die Seite neu und prüfen Sie den Stand.",
+              409,
+            );
+          case "ohne_anwesenheit":
+            return fehler(MELDUNG_OHNE_ANWESENHEIT, 409);
           default:
             return nieErreicht(ergebnis);
         }

@@ -3,6 +3,7 @@ import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
 import { downloadFehler } from "@/lib/api";
 import { SITZUNG_ABGELAUFEN } from "@/lib/api-client";
 import { RECHT } from "@/lib/constants";
+import { ungueltigMeldung, zeugnisDateiname } from "@/lib/zeugnis";
 import { erzeugeZeugnisPdf, ladeZeugnisFuerDownload } from "@/lib/zeugnis-io";
 
 /**
@@ -11,10 +12,11 @@ import { erzeugeZeugnisPdf, ladeZeugnisFuerDownload } from "@/lib/zeugnis-io";
  * auf die eigene personId) ODER NOTEN_VERWALTEN (Schulleitung, alle). Die
  * Zugriffsprüfung läuft VOR der PDF-Erzeugung.
  *
- * Ein durch Neuausstellung ERSETZTES Zeugnis ist kein gültiges Dokument mehr: Der
- * Schüler kennt seine Id noch von vor der Korrektur und bekäme sonst ein gültig
- * aussehendes PDF — für ihn 410. Die Schulleitung (Nachweis) bekommt es mit dem
- * Kopfvermerk „UNGÜLTIG – ersetzt durch … am …“.
+ * Ein durch Neuausstellung ERSETZTES oder ohne Ersatz STORNIERTES Zeugnis ist
+ * kein gültiges Dokument mehr: Der Schüler kennt seine Id noch von vorher und
+ * bekäme sonst ein gültig aussehendes PDF — für ihn 410. Die Schulleitung
+ * (Nachweis) bekommt es mit Kopfvermerk: „UNGÜLTIG – ersetzt durch … am …“ bzw.
+ * „STORNIERT am … — ungültig“, und der Dateiname trägt den Stand.
  *
  * Fehler gehen über `downloadFehler`: Der Link wird im Browser geöffnet, dort
  * gibt es statt rohem JSON eine Fehlerseite bzw. bei abgelaufener Sitzung die
@@ -36,11 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const gueltig = dokument.status === "GUELTIG";
     if (!gueltig && !darfAlle) {
-      return downloadFehler(
-        request,
-        "Dieses Zeugnis wurde durch eine neue Ausfertigung ersetzt und ist nicht mehr gültig. Die gültige Ausfertigung steht unter „Meine Daten“.",
-        410,
-      );
+      return downloadFehler(request, ungueltigMeldung(dokument.status), 410);
     }
 
     const pdf = erzeugeZeugnisPdf(dokument);
@@ -48,7 +46,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${dokument.belegNr}${gueltig ? "" : "-UNGUELTIG"}.pdf"`,
+        "Content-Disposition": `attachment; filename="${zeugnisDateiname(dokument.belegNr, dokument.status)}"`,
         "Cache-Control": "no-store",
       },
     });

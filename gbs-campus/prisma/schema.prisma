@@ -565,14 +565,18 @@ model Leistung {
 // Abschluss: der Jahrgang/Ausloeser) — so laesst sich ein Seriendruck je Semester
 // jederzeit reproduzieren.
 //
-// Korrektur = Neuausstellung mit Storno: das falsche Zeugnis wird ERSETZT (bleibt
-// als Nachweis), ein neues mit hoeherer `version` und neuer Beleg-Nr tritt an
-// seine Stelle; `ersetztId` zeigt auf den Vorgaenger, der „ersetzt Beleg …"-
-// Vermerk steht im Snapshot.
+// Korrektur = Neuausstellung: das falsche Zeugnis wird ERSETZT (bleibt als
+// Nachweis), ein neues mit hoeherer `version` und neuer Beleg-Nr tritt an seine
+// Stelle; `ersetztId` zeigt auf den Vorgaenger, der „ersetzt Beleg …"-Vermerk
+// steht im Snapshot. Eine Fehlausstellung ohne Ersatz wird STORNIERT (Migration
+// 20260928100000_zeugnis_storno): ungueltig, fuer die Person nicht mehr abrufbar,
+// als Nachweis gespeichert — mit Zeitpunkt, Akteur und Pflicht-Grund.
 //
-// Eingefroren auf DB-Ebene (Trigger, Migration 20260927160000_belege_unveraenderlich):
-// Aenderbar sind nur status GUELTIG -> ERSETZT, dmsGesendetAm (leer -> Wert) und
-// im Snapshot der Schluessel `person` durch den Anonymisierungs-Scrub. gbs_app
+// Eingefroren auf DB-Ebene (Trigger, Migration 20260927160000_belege_unveraenderlich,
+// Funktion erweitert in 20260928100000_zeugnis_storno): Aenderbar sind nur status
+// GUELTIG -> ERSETZT bzw. GUELTIG -> STORNIERT (nur mit storniertAm und
+// nicht-leerem stornoGrund), dmsGesendetAm (leer -> Wert), im Snapshot der
+// Schluessel `person` und der stornoGrund durch den Anonymisierungs-Scrub. gbs_app
 // hat kein direktes DELETE (prisma/setup-app-nutzer.ts). Das REVOKE sperrt aber
 // nur das direkte DELETE: Ueber das Loeschen der Person (auch als gbs_app, das
 // DELETE auf personen hat) verschwinden Zeugnisse per Cascade — Fremdschluessel-
@@ -595,6 +599,7 @@ enum Zeugnistyp {
 enum Zeugnisstatus {
   GUELTIG
   ERSETZT // durch eine Neuausstellung abgeloest, bleibt als Nachweis
+  STORNIERT // ohne Ersatz zurueckgezogen (Fehlausstellung), bleibt als Nachweis
 }
 
 model Zeugnis {
@@ -626,6 +631,14 @@ model Zeugnis {
   ausgestelltVonId String? // Akteur-Id (keine Relation, wie erfasstVonId)
   ausgestelltAm    DateTime  @default(now())
   dmsGesendetAm    DateTime?
+
+  /// Storno ohne Ersatz (Status STORNIERT). Gesetzt genau dann, wenn storniert
+  /// (CHECK `zeugnisse_storno_konsistent`), danach fest. `stornoGrund` ist
+  /// Freitext der Schulleitung — nie ins Audit-Log; die Anonymisierung ersetzt
+  /// ihn durch den Platzhalter.
+  storniertAm    DateTime?
+  storniertVonId String? // Akteur-Id (keine Relation, wie ausgestelltVonId)
+  stornoGrund    String?   @db.Text
 
   @@index([semesterId, typ, status])
   @@index([personId, status])

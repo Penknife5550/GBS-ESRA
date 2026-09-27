@@ -5,7 +5,8 @@
  * Personendaten), die Trigger, die Einwilligungstexte einfrieren, und die
  * Bereinigung alter Betreffs im Versandprotokoll (Code-Review 4, M1, M2, M3,
  * M6b, M8). Ab Abschnitt 9 die MINOR/INFO-Punkte des Betriebs: Eigentümer-
- * Passwort, Rechtematrix im Seed, eingefrorene Belege, Leistung -> Kurseinheit,
+ * Passwort, Rechtematrix im Seed, eingefrorene Belege (11b: Zeugnis-Storno ohne
+ * Ersatz), Leistung -> Kurseinheit,
  * PDF-Zeichensatz, Log ohne Adressen, Traefik-Default-Router, Prüf-Gate im
  * Build und die Betriebsansicht; Abschnitt 18 der Worker (Healthcheck,
  * Lebenszeichen, Antwortfrist in den Mails), Abschnitt 19 die gemeinsamen
@@ -22,7 +23,7 @@
 
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
-import { scrubbeZeugnisSnapshot } from "../src/lib/anonymisierung";
+import { ANONYM_PLATZHALTER, scrubbeZeugnisSnapshot } from "../src/lib/anonymisierung";
 import { pruefeAppDbPasswort } from "../src/lib/konfiguration";
 import { erzeugePdf, pdfText } from "../src/lib/pdf";
 
@@ -320,10 +321,27 @@ function funktion(name: string): string {
   const ende = start >= 0 ? belege.indexOf("$$ LANGUAGE plpgsql;", start) : -1;
   return start >= 0 && ende > start ? belege.slice(start, ende) : "";
 }
+/**
+ * Die GÜLTIGE Fassung einer Trigger-Funktion: die aus der jüngsten Migration, die
+ * sie anlegt — ein CREATE OR REPLACE in einer späteren Migration ersetzt die
+ * frühere (so erweitert 20260928100000_zeugnis_storno zeugnis_ist_eingefroren).
+ * Geprüft wird, was in der Datenbank wirkt, nicht die erste Fassung.
+ */
+function letzteFassung(name: string): { pfad: string; rumpf: string } {
+  let treffer = { pfad: "", rumpf: "" };
+  for (const pfad of migrationsDateien().concat(join(ORDNER, "migration.sql")).sort()) {
+    const text = lies(pfad);
+    const start = text.indexOf(`CREATE OR REPLACE FUNCTION ${name}()`);
+    const ende = start >= 0 ? text.indexOf("$$ LANGUAGE plpgsql;", start) : -1;
+    if (start >= 0 && ende > start) treffer = { pfad, rumpf: text.slice(start, ende) };
+  }
+  return treffer;
+}
 const fSatz = funktion("honorar_satz_ist_eingefroren");
 const fAbrechnung = funktion("honorar_abrechnung_ist_eingefroren");
 const fPosten = funktion("honorar_posten_ist_eingefroren");
-const fZeugnis = funktion("zeugnis_ist_eingefroren");
+const zeugnisFassung = letzteFassung("zeugnis_ist_eingefroren");
+const fZeugnis = zeugnisFassung.rumpf;
 pruefe(
   "alle vier Trigger-Funktionen weisen mit insufficient_privilege ab",
   [fSatz, fAbrechnung, fPosten, fZeugnis].every((f) => f.includes("USING ERRCODE = 'insufficient_privilege'")),
@@ -389,7 +407,7 @@ const AUSNAHMEN: [string, string, string[]][] = [
     fAbrechnung,
     ["status", "belegNr", "dmsGesendetAm", "freigegebenVonId", "freigegebenAm", "ausgezahltVonId", "ausgezahltAm"],
   ],
-  ["Zeugnis", fZeugnis, ["status", "dmsGesendetAm", "snapshot"]],
+  ["Zeugnis", fZeugnis, ["status", "dmsGesendetAm", "snapshot", "storniertAm", "storniertVonId", "stornoGrund"]],
 ];
 for (const [name, f, erwartet] of AUSNAHMEN) {
   const neu = ausnahmen(f, "NEW");
@@ -422,9 +440,10 @@ pruefe(
     (fAbrechnung.match(/NEW\.status = '/g) ?? []).length === 2,
 );
 pruefe(
-  "Zeugnis: Status nur GUELTIG -> ERSETZT",
-  fZeugnis.includes("(OLD.status = 'GUELTIG' AND NEW.status = 'ERSETZT')") &&
-    (fZeugnis.match(/NEW\.status = '/g) ?? []).length === 1,
+  "Zeugnis: Status nur GUELTIG -> ERSETZT und GUELTIG -> STORNIERT (keine weiteren Übergänge)",
+  fZeugnis.includes("(OLD.status = 'GUELTIG' AND NEW.status = 'ERSETZT'") &&
+    fZeugnis.includes("(OLD.status = 'GUELTIG' AND NEW.status = 'STORNIERT'") &&
+    (fZeugnis.match(/NEW\.status = '/g) ?? []).length === 2,
 );
 pruefe(
   "Abrechnung: DELETE (Storno) nur für OFFEN",
@@ -488,6 +507,72 @@ const REVOKES = [
 const posGrant = setup.indexOf("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gbs_app");
 const ohneRevoke = REVOKES.filter((r) => setup.indexOf(r) <= posGrant);
 pruefe("das Setup entzieht gbs_app DELETE auf Sätzen, Posten und Zeugnissen (nach dem GRANT)", posGrant >= 0 && ohneRevoke.length === 0, ohneRevoke);
+
+console.log("\n11b. Migration: Zeugnis-Storno ohne Ersatz (20260928100000)");
+// Die Prüfungen oben laufen gegen die GÜLTIGE Fassung von zeugnis_ist_eingefroren
+// (letzteFassung) — hier, dass es die der Storno-Migration ist und was sie neu erlaubt.
+const STORNO_ORDNER = "prisma/migrations/20260928100000_zeugnis_storno";
+const stornoMigration = lies(`${STORNO_ORDNER}/migration.sql`);
+pruefe("die Migration ist lesbar", stornoMigration.length > 0);
+pruefe(
+  "die gültige Fassung von zeugnis_ist_eingefroren stammt aus der Storno-Migration",
+  zeugnisFassung.pfad.startsWith(STORNO_ORDNER),
+  zeugnisFassung.pfad,
+);
+{
+  const schemaText = lies("prisma/schema.prisma");
+  const zeugnisModell = schemaText.slice(schemaText.indexOf("model Zeugnis {"), schemaText.indexOf('@@map("zeugnisse")'));
+  pruefe(
+    "Enum-Wert STORNIERT und die drei Storno-Spalten — in Migration und schema.prisma",
+    stornoMigration.includes(`ALTER TYPE "Zeugnisstatus" ADD VALUE 'STORNIERT';`) &&
+      /ALTER TABLE "zeugnisse" ADD COLUMN "storniertAm" TIMESTAMP\(3\),\s*ADD COLUMN "storniertVonId" TEXT,\s*ADD COLUMN "stornoGrund" TEXT;/.test(
+        stornoMigration,
+      ) &&
+      /enum Zeugnisstatus \{[^}]*\bSTORNIERT\b[^}]*\}/.test(schemaText) &&
+      /storniertAm\s+DateTime\?/.test(zeugnisModell) &&
+      /storniertVonId String\?/.test(zeugnisModell) &&
+      /stornoGrund\s+String\?\s+@db\.Text/.test(zeugnisModell),
+  );
+}
+pruefe(
+  "CHECK zeugnisse_storno_konsistent: Zeitpunkt und Grund genau bei STORNIERT, Grund nie leer (Enum über ::text)",
+  /ADD CONSTRAINT "zeugnisse_storno_konsistent" CHECK \(\s*\("status"::text = 'STORNIERT'\) = \("storniertAm" IS NOT NULL\)\s*AND \("storniertAm" IS NULL\) = \("stornoGrund" IS NULL\)\s*AND \("stornoGrund" IS NULL OR btrim\("stornoGrund"\) <> ''\)\s*\);/.test(
+    stornoMigration,
+  ),
+);
+{
+  const ohneKommentar = stornoMigration.replace(/--.*$/gm, "");
+  pruefe(
+    "die Migration ist rein additiv: kein DROP, DELETE, TRUNCATE, INSERT oder Daten-UPDATE, kein neuer Trigger",
+    !/\b(DROP|DELETE|TRUNCATE|INSERT)\b/i.test(ohneKommentar) &&
+      !/^\s*UPDATE\b/im.test(ohneKommentar) &&
+      !/CREATE (CONSTRAINT )?TRIGGER/i.test(ohneKommentar),
+  );
+}
+pruefe(
+  "Zeugnis: GUELTIG -> STORNIERT nur mit Zeitpunkt und nicht-leerem Grund; die Storno-Felder sonst fest (ERSETZT ohne sie)",
+  /OR \(OLD\.status = 'GUELTIG' AND NEW\.status = 'STORNIERT'\s*AND OLD\."storniertAm" IS NULL AND OLD\."storniertVonId" IS NULL AND OLD\."stornoGrund" IS NULL\s*AND NEW\."storniertAm" IS NOT NULL\s*AND NEW\."stornoGrund" IS NOT NULL AND btrim\(NEW\."stornoGrund"\) <> ''\)/.test(
+    fZeugnis,
+  ) &&
+    /\(NEW\.status = OLD\.status\s*AND NEW\."storniertAm" IS NOT DISTINCT FROM OLD\."storniertAm"\s*AND NEW\."storniertVonId" IS NOT DISTINCT FROM OLD\."storniertVonId"\s*AND \(NEW\."stornoGrund" IS NOT DISTINCT FROM OLD\."stornoGrund"/.test(
+      fZeugnis,
+    ) &&
+    /OR \(OLD\.status = 'GUELTIG' AND NEW\.status = 'ERSETZT'\s*AND NEW\."storniertAm" IS NULL AND NEW\."storniertVonId" IS NULL AND NEW\."stornoGrund" IS NULL\)/.test(
+      fZeugnis,
+    ),
+);
+{
+  // Wie beim Snapshot-Scrub: Der Trigger lässt am Grund genau den Platzhalter
+  // zu, den die Anonymisierung schreibt — sonst scheiterte sie im Betrieb (42501).
+  const grundLiteral = fZeugnis.match(/OLD\."stornoGrund" IS NOT NULL AND NEW\."stornoGrund" IS NOT DISTINCT FROM '([^']*)'/);
+  pruefe(
+    "der Trigger lässt am Storno-Grund genau den Platzhalter zu, den die Anonymisierung schreibt",
+    grundLiteral !== null &&
+      grundLiteral[1] === ANONYM_PLATZHALTER &&
+      /data: \{ stornoGrund: ANONYM_PLATZHALTER \}/.test(lies("src/lib/anonymisierung-io.ts")),
+    { trigger: grundLiteral?.[1], code: ANONYM_PLATZHALTER },
+  );
+}
 
 console.log("\n12. Leistung -> Kurseinheit: RESTRICT statt CASCADE");
 const schema = lies("prisma/schema.prisma");
@@ -812,7 +897,7 @@ console.log("\n19. Oberfläche: gemeinsame Bausteine statt Kopien (Code-Review 4
 }
 
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 110;
+const ERWARTET = 117;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

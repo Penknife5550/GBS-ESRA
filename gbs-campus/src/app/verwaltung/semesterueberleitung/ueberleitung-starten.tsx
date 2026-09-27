@@ -70,8 +70,8 @@ export function UeberleitungStarten({ ziele, laufend }: { ziele: Ziel[]; laufend
         eingeladen === 0
           ? "Es war niemand neu einzuladen — alle Teilnehmer des laufenden Semesters haben im Folgesemester bereits eine Teilnahme."
           : `${eingeladen} ${eingeladen === 1 ? "Person wurde" : "Personen wurden"} eingeladen. ` +
-            "Die Einladungen gehen jetzt im Hintergrund raus; nicht zugestellte E-Mails stehen unter " +
-            "Verwaltung → Betrieb.",
+            "Die Einladungen gehen jetzt im Hintergrund raus. Nicht zugestellte Einladungen zeigt diese Seite nach " +
+            "dem Versand unter „Stand der Rückmeldungen“ — dort lassen sie sich erneut senden.",
     });
     router.refresh();
   }
@@ -97,8 +97,8 @@ export function UeberleitungStarten({ ziele, laufend }: { ziele: Ziel[]; laufend
       {ziel?.keineErinnerungMehr && (
         <p id="ueberleitung-keine-erinnerung" className="mt-3 rounded-lg bg-credo-gelb/15 px-4 py-3 text-sm">
           Für dieses Semester folgt keine Erinnerung mehr — alle Stichtage sind erreicht. Eine nicht zugestellte
-          Einladung wird deshalb nicht wiederholt: Bitte nach dem Start unter Verwaltung → Betrieb prüfen, ob alle
-          Einladungen zugestellt wurden.
+          Einladung wird deshalb nicht von selbst wiederholt: Bitte prüfen Sie nach dem Start unten unter „Stand der
+          Rückmeldungen“, ob alle Einladungen zugestellt wurden, und senden Sie sie dort bei Bedarf erneut.
         </p>
       )}
 

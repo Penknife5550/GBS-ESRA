@@ -45,6 +45,13 @@ import {
 } from "../src/lib/semester";
 import { PERSON_ZAEHLT_AKTIV, TEILNAHME_ZAEHLT } from "../src/lib/teilnahme-filter";
 import { HEARTBEAT_ABSTAND_MS, heartbeatFaellig } from "../src/lib/aufraeumen-regel";
+import {
+  einladungNichtZugestellt,
+  einladungZugestellt,
+  hatNutzungsspuren,
+  zuletztAbgemeldet,
+  type VersandSpur,
+} from "../src/lib/ueberleitung-regel";
 
 let geprueft = 0;
 let fehlgeschlagen = 0;
@@ -757,10 +764,228 @@ console.log("\n12. Aufräumlauf und Worker — Lebenszeichen ohne Audit-Flut");
   );
 }
 
+console.log("\n13. Semesterüberleitung — Rückmeldung durch Teilnahme, Nachversand, Zusage von Hand, zuletzt abgemeldet");
+{
+  // Worker-Ausfall: Wer zum Semesterstart schon am Unterricht teilnimmt, wird
+  // nicht als „keine Rückmeldung" abgemeldet. Spur ist eine Anwesenheit, die als
+  // teilgenommen zählt (anwesend/nachgearbeitet), oder eine Leistung.
+  const mit = (...status: string[]) => ({ anwesenheiten: status.map((s) => ({ status: s })), leistungen: 0 });
+  pruefe("eine Anwesenheit „anwesend“ ist eine Nutzungsspur", hatNutzungsspuren(mit("GEFEHLT", "ANWESEND")) === true);
+  pruefe("„nachgearbeitet“ ist eine Nutzungsspur", hatNutzungsspuren(mit("NACHGEARBEITET")) === true);
+  pruefe(
+    "nur „gefehlt“ und „entschuldigt“ sind keine Nutzungsspur",
+    hatNutzungsspuren(mit("GEFEHLT", "ENTSCHULDIGT", "GEFEHLT")) === false,
+  );
+  pruefe("eine Leistung ohne Anwesenheit ist eine Nutzungsspur", hatNutzungsspuren({ anwesenheiten: [], leistungen: 1 }) === true);
+  pruefe("ohne Anwesenheit und Leistung keine Nutzungsspur", hatNutzungsspuren({ anwesenheiten: [], leistungen: 0 }) === false);
+}
+{
+  // Nicht zugestellt = offene Einladung ohne GESENDET-Zeile (Einladung oder
+  // Erinnerung) seit der Einladung. Zeitpunkte in UTC — es geht um Zeitpunkte,
+  // nicht um Kalendertage.
+  const eingeladen = new Date(Date.UTC(2026, 8, 1, 10, 0));
+  const danach = new Date(eingeladen.getTime() + 60_000);
+  const davor = new Date(eingeladen.getTime() - 60_000);
+  const zeile = (vorlageCode: string | null, status: string, erstelltAm: Date): VersandSpur => ({ vorlageCode, status, erstelltAm });
+  const E = "UEBERLEITUNG_EINLADUNG";
+  pruefe(
+    "eine gesendete Einladung nach der Einladung gilt als zugestellt",
+    einladungZugestellt(eingeladen, [zeile(E, "GESENDET", danach)]) === true,
+  );
+  pruefe(
+    "eine gesendete Erinnerung gilt ebenso als Zustellung",
+    einladungZugestellt(eingeladen, [zeile("UEBERLEITUNG_ERINNERUNG", "GESENDET", danach)]) === true,
+  );
+  pruefe(
+    "gesendet genau im Moment der Einladung zählt (erstelltAm >= eingeladenAm)",
+    einladungZugestellt(eingeladen, [zeile(E, "GESENDET", eingeladen)]) === true,
+  );
+  pruefe(
+    "nur FEHLER, WARTEND und BOUNCE → nicht zugestellt",
+    einladungZugestellt(eingeladen, [zeile(E, "FEHLER", danach), zeile(E, "WARTEND", danach), zeile(E, "BOUNCE", danach)]) === false,
+  );
+  pruefe("ganz ohne Versandzeile → nicht zugestellt (Abbruch im Versand)", einladungZugestellt(eingeladen, []) === false);
+  pruefe(
+    "eine gesendete Mail VOR der Einladung (frühere Überleitung) zählt nicht",
+    einladungZugestellt(eingeladen, [zeile(E, "GESENDET", davor)]) === false,
+  );
+  pruefe(
+    "eine gesendete Mail mit anderer Vorlage (Anmeldelink, ohne Vorlage) zählt nicht",
+    einladungZugestellt(eingeladen, [zeile("MAGIC_LINK", "GESENDET", danach), zeile(null, "GESENDET", danach)]) === false,
+  );
+  const offen = { eingeladenAm: eingeladen, bestaetigtAm: null, abgemeldetAm: null };
+  pruefe(
+    "eine offene Einladung mit gescheitertem Versand ist „nicht zugestellt“",
+    einladungNichtZugestellt(offen, [zeile(E, "FEHLER", danach)]) === true,
+  );
+  pruefe(
+    "bestätigt, abgemeldet oder ohne Einladung ist nie „nicht zugestellt“",
+    einladungNichtZugestellt({ ...offen, bestaetigtAm: danach }, []) === false &&
+      einladungNichtZugestellt({ ...offen, abgemeldetAm: danach }, []) === false &&
+      einladungNichtZugestellt({ eingeladenAm: null, bestaetigtAm: null, abgemeldetAm: null }, []) === false,
+  );
+}
+{
+  // „Zuletzt abgemeldet": Die jüngste Teilnahme VOR dem Zielsemester ist
+  // abgemeldet — dann lässt die Sammelübernahme die Person aus.
+  const ziel = alsTagesdatum("2027-09-15")!;
+  const t = (start: string, abgemeldet: boolean, grund: string | null = null) => ({
+    semesterStart: alsTagesdatum(start)!,
+    abgemeldetAm: abgemeldet ? alsTagesdatum("2027-01-10") : null,
+    grund,
+    semester: start,
+  });
+  const binRaus = zuletztAbgemeldet([t("2026-09-15", false), t("2027-02-15", true, "BIN_RAUS")], ziel);
+  pruefe(
+    "jüngste frühere Teilnahme mit „bin raus“ → zuletzt abgemeldet, mit Grund",
+    binRaus?.grund === "BIN_RAUS" && binRaus.semester === "2027-02-15",
+    binRaus,
+  );
+  pruefe(
+    "jüngste frühere Teilnahme ohne Rückmeldung → zuletzt abgemeldet",
+    zuletztAbgemeldet([t("2027-02-15", true, "KEINE_RUECKMELDUNG")], ziel)?.grund === "KEINE_RUECKMELDUNG",
+  );
+  pruefe(
+    "früher abgesagt, danach wieder dabei → nicht zuletzt abgemeldet",
+    zuletztAbgemeldet([t("2026-09-15", true, "BIN_RAUS"), t("2027-02-15", false)], ziel) === null,
+  );
+  // Die jüngste steht jeweils in der MITTE — weder „erste" noch „letzte" der
+  // Liste träfe sie.
+  pruefe(
+    "die jüngste zählt nach Semesterbeginn, nicht nach Listenplatz",
+    zuletztAbgemeldet([t("2026-09-15", true, "BIN_RAUS"), t("2027-02-15", false), t("2026-03-01", true, "BIN_RAUS")], ziel) ===
+      null &&
+      zuletztAbgemeldet([t("2026-09-15", false), t("2027-02-15", true, "BIN_RAUS"), t("2026-03-01", false)], ziel) !== null,
+  );
+  pruefe(
+    "eine Absage für ein SPÄTERES Semester zählt nicht",
+    zuletztAbgemeldet([t("2027-02-15", false), t("2028-02-15", true, "BIN_RAUS")], ziel) === null,
+  );
+  pruefe(
+    "ein Semester mit demselben Beginn wie das Ziel zählt nicht als früher",
+    zuletztAbgemeldet([t("2027-02-15", false), t("2027-09-15", true, "BIN_RAUS")], ziel) === null,
+  );
+  pruefe("ohne frühere Teilnahme ist niemand zuletzt abgemeldet", zuletztAbgemeldet([], ziel) === null);
+  pruefe(
+    "zwei Semester mit gleichem jüngstem Beginn: Zählt eines, ist die Person dabei",
+    zuletztAbgemeldet([t("2027-02-15", true, "BIN_RAUS"), t("2027-02-15", false)], ziel) === null,
+  );
+}
+{
+  // Die Verdrahtung: Jede dieser Stellen könnte wegfallen, ohne dass eine reine
+  // Funktion rot würde — deshalb Quelltextprüfungen.
+  const ueb = lies("src/lib/ueberleitung.ts");
+  const schliessen = rumpf(ueb, "export async function schliesseRueckmeldungen");
+  pruefe(
+    "der Lauf zum Semesterstart wertet Nutzungsspuren als Rückmeldung — bestätigt statt abgemeldet, eigener Audit-Eintrag",
+    /if \(hatNutzungsspuren\(/.test(schliessen) &&
+      schliessen.indexOf("hatNutzungsspuren(") < schliessen.indexOf("abmeldeGrund: ABMELDEGRUND.KEINE_RUECKMELDUNG") &&
+      /where: \{ id: t\.id, \.\.\.OFFENE_EINLADUNG \},\s*data: \{ bestaetigtAm: jetzt \}/.test(schliessen) &&
+      schliessen.includes('aktion: "TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME"') &&
+      /durchTeilnahme: durchTeilnahme\.length/.test(schliessen),
+  );
+  // Worker und Cron geben den Bericht weiter (Log bzw. Antwort) — das bisherige
+  // Feld muss bleiben, das neue kommt dazu.
+  pruefe(
+    "AbmeldeBericht behält „abgemeldet“ (Worker-Log, Cron-Antwort) und zählt „durchTeilnahme“ getrennt",
+    /export type AbmeldeBericht = \{[^}]*abgemeldet: number;[^}]*durchTeilnahme: number;[^}]*\};/.test(ueb),
+  );
+
+  const zusage = rumpf(ueb, "export async function trageZusageEin");
+  const zusageRoute = lies("src/app/api/semesterueberleitung/zusage/route.ts");
+  pruefe(
+    "die Zusage von Hand setzt bestaetigtAm nur auf eine offene Einladung (bedingtes updateMany), nur mit SEMESTER_VERWALTEN",
+    /where: \{ id: teilnahmeId, \.\.\.OFFENE_EINLADUNG \},\s*data: \{ bestaetigtAm: jetzt \}/.test(zusage) &&
+      zusage.includes('aktion: "TEILNAHME_ZUSAGE_EINGETRAGEN"') &&
+      zusageRoute.includes("pruefeZugriff(RECHT.SEMESTER_VERWALTEN)") &&
+      zusageRoute.includes("trageZusageEin("),
+  );
+  pruefe(
+    "die Zusage von Hand verweist eine abgemeldete Teilnahme auf „Wieder aufnehmen“ und sperrt inaktive Personen",
+    /if \(stand === "abgemeldet"\) return \{ status: "abgemeldet" \};/.test(zusage) &&
+      /if \(!teilnahme\.person\.status\.istAktiv\)/.test(zusage) &&
+      zusageRoute.includes("„Wieder aufnehmen“"),
+  );
+
+  const nachversand = rumpf(ueb, "export async function bereiteNachversandVor");
+  const nachversandRoute = lies("src/app/api/semesterueberleitung/erneut-senden/route.ts");
+  const versenden = rumpf(ueb, "export async function versendeEinladungen");
+  pruefe(
+    "„Erneut senden“: nur vor Semesterstart, frischer Link nur auf offene Einladungen, Versand nach der Antwort",
+    /if \(semesterHatBegonnen\(ziel\.start, new Date\(\)\)\) return \{ status: "ziel_begonnen" \};/.test(nachversand) &&
+      /where: \{ id: t\.id, \.\.\.OFFENE_EINLADUNG, bestaetigungTokenHash: t\.bestaetigungTokenHash \}/.test(nachversand) &&
+      /bestaetigungLaeuftAb: ziel\.start/.test(nachversand) &&
+      nachversandRoute.includes("pruefeZugriff(RECHT.SEMESTER_VERWALTEN)") &&
+      /if \(ergebnis\.versand\) after\(ergebnis\.versand\);/.test(nachversandRoute),
+  );
+  pruefe(
+    "ein laufender Versand (Start oder Nachversand) sperrt den Nachversand desselben Semesters",
+    /if \(versandLaeuft\(ziel\.id\)\) return \{ status: "versand_laeuft" \};\s*versandBeginnt\(ziel\.id\);/.test(nachversand) &&
+      /versandBeginnt\(ziel\.id\);\s*try \{/.test(versenden) &&
+      /finally \{\s*versandEndet\(ziel\.id\);/.test(versenden),
+  );
+  pruefe(
+    "die Zahl „nicht zugestellt“ und „Erneut senden“ kommen aus derselben Abfrage (ladeNichtZugestellte)",
+    nachversand.includes("await ladeNichtZugestellte(ziel.id)") &&
+      lies("src/app/verwaltung/semesterueberleitung/page.tsx").includes("await ladeNichtZugestellte(s.id)") &&
+      /einladungNichtZugestellt\(t, /.test(rumpf(ueb, "export async function ladeNichtZugestellte")),
+  );
+  // Der Anker `schliesseRueckmeldungen(` stellt sicher, dass wirklich die beiden
+  // Zeitgeber gelesen wurden — eine fehlende Datei soll rot werden, nicht grün.
+  const zeitgeber = [lies("scripts/worker.ts"), lies("src/app/api/cron/erinnerungen/route.ts")];
+  pruefe(
+    "kein automatischer Nachversand: weder Worker noch Cron senden Einladungen erneut",
+    ueb.includes("export async function bereiteNachversandVor") &&
+      zeitgeber.every((q) => q.includes("schliesseRueckmeldungen(")) &&
+      !zeitgeber.some((q) => q.includes("bereiteNachversandVor") || q.includes("versendeEinladungen")),
+  );
+
+  const liste = lies("src/lib/teilnehmerliste.ts");
+  const uebernahme = lies("src/app/api/semester/[id]/teilnehmer/route.ts");
+  const teilnehmerSeite = lies("src/app/verwaltung/teilnehmer/page.tsx");
+  pruefe(
+    "Zählung und Sammelübernahme teilen dieselbe Abfrage — angelegt wird nur, wer nicht zuletzt abgemeldet ist",
+    /where: nochNichtImSemester\(semester\.id\)/.test(rumpf(liste, "export async function teileNochNichtZugeordnete")) &&
+      /uebernehmbar: kandidaten\.filter\(\(k\) => k\.zuletztAbgemeldet === null\)/.test(liste) &&
+      uebernahme.includes("await teileNochNichtZugeordnete(tx, semester)") &&
+      /offen\.uebernehmbar\.flatMap\(/.test(uebernahme) &&
+      !/offen\.zuletztAbgemeldet\.(?:flatMap|map|filter|forEach)\(|\.\.\.offen\.zuletztAbgemeldet/.test(uebernahme) &&
+      teilnehmerSeite.includes("teileNochNichtZugeordnete(prisma, semester)"),
+  );
+  pruefe(
+    "„zuletzt abgemeldet“ entscheidet die DB-freie Regel, gemessen am Beginn des Zielsemesters",
+    /zuletztAbgemeldet\(\s*person\.teilnahmen\.map\(/.test(liste) &&
+      /semesterStart: t\.semester\.start,/.test(liste) &&
+      /\}\)\),\s*zielStart,\s*\);/.test(rumpf(liste, "function alsKandidat")),
+  );
+  pruefe(
+    "die Einzelübernahme prüft nochNichtImSemester in ihrer Transaktion, verlangt die Teilnahmeform und protokolliert",
+    /where: \{ id: personId, \.\.\.nochNichtImSemester\(semester\.id\) \}/.test(
+      rumpf(liste, "export async function ladeUebernahmeKandidat"),
+    ) &&
+      uebernahme.includes("await ladeUebernahmeKandidat(tx, semester, personId)") &&
+      /if \(!kandidat\.teilnahmeform\) return \{ status: "ohne_form" as const \};/.test(uebernahme) &&
+      uebernahme.includes('aktion: "SEMESTER_TEILNEHMER_EINZELN_UEBERNOMMEN"'),
+  );
+  pruefe(
+    "die Teilnehmerseite nennt die zuletzt Abgemeldeten getrennt, mit einem Knopf je Person",
+    teilnehmerSeite.includes("Zuletzt abgemeldet (bin raus / keine Rückmeldung): ${zuletzt.length} — einzeln übernehmen") &&
+      teilnehmerSeite.includes("<EinzelnUebernehmenKnopf"),
+  );
+  const ueberleitungsSeite = lies("src/app/verwaltung/semesterueberleitung/page.tsx");
+  pruefe(
+    "die Überleitungsseite hat „Zusage eintragen“ je offene Einladung, markiert nicht zugestellte und bietet „Erneut senden“",
+    ueberleitungsSeite.includes("<ZusageKnopf") &&
+      ueberleitungsSeite.includes("zustand?.nichtZugestellt.has(p.teilnahmeId)") &&
+      ueberleitungsSeite.includes("<Nachversand") &&
+      /\{`Einladung nicht zugestellt: \$\{anzahl\}`\}/.test(lies("src/app/verwaltung/semesterueberleitung/nachversand.tsx")),
+  );
+}
+
 // Soll-Anzahl: Nur so fällt auf, wenn eine Prüfung beim Umbauen herausfällt.
 // Ein nicht gelaufener Test schlägt nicht fehl — er fehlt einfach, und die
 // Schlusszeile meldet trotzdem „0 fehlgeschlagen". Beim Ergänzen mit anheben.
-const ERWARTET = 149;
+const ERWARTET = 184;
 // `geprueft` steht beim Auswerten der Bedingung noch auf dem Stand VOR dieser
 // Zeile — `pruefe` zählt erst im Rumpf hoch. Deshalb hier um eins vorgegriffen,
 // damit sich die Prüfung selbst mitzählt.

@@ -25,6 +25,16 @@ export const NICHT_WAEHLBAR: readonly string[] = [STATUS.INTERESSENT, STATUS.ANO
 /** Wechsel in diese Zustände brauchen einen Grund — sie beenden die Ausbildung. */
 export const GRUND_PFLICHT: readonly string[] = [STATUS.ABGEBROCHEN, STATUS.AUSGESCHLOSSEN, STATUS.VERSTORBEN];
 
+/**
+ * Wechsel AUS diesen Zuständen brauchen ebenfalls einen Grund. ABGEBROCHEN ist
+ * seit dem 27.09.2026 kein Endzustand mehr (Wiedereinstieg nach einer Pause,
+ * wie im Bauplan vorgesehen) — eine Wiederaufnahme ist aber eine bewusste
+ * Entscheidung der Schulleitung und soll im Verlauf begründet stehen.
+ */
+export const GRUND_PFLICHT_BEIM_VERLASSEN: readonly string[] = [STATUS.ABGEBROCHEN];
+
+export const MELDUNG_WIEDERAUFNAHME_GRUND = "Eine Wiederaufnahme nach einem Abbruch braucht einen Grund.";
+
 export const GRUND_MAX_LAENGE = 500;
 
 /**
@@ -49,8 +59,9 @@ export function darfAusEndzustand(nachCode: string): boolean {
   return nachCode === STATUS.ANONYMISIERT;
 }
 
-export function brauchtGrund(nachCode: string): boolean {
-  return GRUND_PFLICHT.includes(nachCode);
+/** Braucht der Wechsel nach `nachCode` (aus `vonCode`, falls bekannt) einen Grund? */
+export function brauchtGrund(nachCode: string, vonCode?: string): boolean {
+  return GRUND_PFLICHT.includes(nachCode) || (vonCode !== undefined && GRUND_PFLICHT_BEIM_VERLASSEN.includes(vonCode));
 }
 
 export type StatusRegelErgebnis =
@@ -108,6 +119,9 @@ export function pruefeStatuswechsel(eingabe: {
   }
   if (!grund && brauchtGrund(eingabe.nachCode)) {
     return { ok: false, status: 400, meldung: "Für diesen Status ist ein Grund erforderlich." };
+  }
+  if (!grund && brauchtGrund(eingabe.nachCode, eingabe.vonCode)) {
+    return { ok: false, status: 400, meldung: MELDUNG_WIEDERAUFNAHME_GRUND };
   }
   return { ok: true, grund };
 }

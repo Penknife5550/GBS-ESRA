@@ -271,6 +271,9 @@ export async function sammleAuskunft(personId: string): Promise<AuskunftDaten | 
       semester: z.semester.bezeichnung,
       ausgestelltAm: z.ausgestelltAm,
       dmsGesendetAm: z.dmsGesendetAm,
+      storniertAm: z.storniertAm,
+      // Freitext der Schulleitung — wie der interne Vermerk nur benannt.
+      stornoGrundVorhanden: Boolean(z.stornoGrund && z.stornoGrund.trim().length > 0),
     })),
     unterrichtsabende: person.dozentTermine.map((u) => ({
       beginn: u.beginn,

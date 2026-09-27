@@ -17,6 +17,7 @@ import {
   baueAuskunftBloecke,
   teilnahmeText,
   anwesenheitText,
+  zeugnisText,
   type AuskunftDaten,
   type FeldInfo,
 } from "../src/lib/auskunft-inhalt";
@@ -151,6 +152,8 @@ const daten: AuskunftDaten = {
       semester: "Herbstsemester 2026",
       ausgestelltAm: new Date("2026-12-01T10:00:00Z"),
       dmsGesendetAm: null,
+      storniertAm: null,
+      stornoGrundVorhanden: false,
     },
     {
       belegNr: "ZEU-2026-12-05-BBBB2222",
@@ -160,6 +163,19 @@ const daten: AuskunftDaten = {
       semester: "Herbstsemester 2026",
       ausgestelltAm: new Date("2026-12-05T10:00:00Z"),
       dmsGesendetAm: new Date("2026-12-05T10:05:00Z"),
+      storniertAm: null,
+      stornoGrundVorhanden: false,
+    },
+    {
+      belegNr: "BESCH-2027-03-01-DDDD4444",
+      typ: "BESCHEINIGUNG",
+      status: "STORNIERT",
+      version: 1,
+      semester: "Frühlingssemester 2027",
+      ausgestelltAm: new Date("2027-03-01T10:00:00Z"),
+      dmsGesendetAm: null,
+      storniertAm: new Date("2027-03-02T23:30:00Z"),
+      stornoGrundVorhanden: true,
     },
   ],
   unterrichtsabende: [{ beginn: new Date("2026-10-06T17:00:00Z"), semester: "Herbstsemester 2026", fach: "Dogmatik I" }],
@@ -277,6 +293,28 @@ pruefe(
   [ersetzt, gueltig],
 );
 pruefe("die Übermittlung eines Zeugnisses an das DMS wird mit Datum ausgewiesen", gueltig.includes("DMS") && !ersetzt.includes("DMS"));
+const storniert = kvWerte("Beleg-Nr. BESCH-2027-03-01-DDDD4444")[0] ?? "";
+pruefe(
+  "ein storniertes Dokument steht mit „storniert“, Berliner Datum des Stornos und „ungültig“ in der Auskunft",
+  storniert.startsWith("Teilnahmebescheinigung") &&
+    storniert.includes("Fassung 1, storniert am 03.03.2027 und damit ungültig") &&
+    !storniert.includes("Fassung 1, gültig") &&
+    !gueltig.includes("storniert"),
+  storniert,
+);
+pruefe(
+  "der Storno-Grund (Freitext der Schule) wird nur benannt, nicht abgedruckt — und nur, wenn es einen gibt",
+  storniert.includes("gesondert herausgegeben") &&
+    !zeugnisText({ ...daten.zeugnisse[2], stornoGrundVorhanden: false }).includes("gesondert"),
+  storniert,
+);
+pruefe(
+  "zu stornierten Dokumenten steht der Hinweis „ohne Ersatz zurückgezogen … ungültig“ (nur dann)",
+  bloecke.some((b) => b.art === "klein" && b.text.includes("storniertes Dokument wurde ohne Ersatz zurückgezogen")) &&
+    !baueAuskunftBloecke({ ...daten, zeugnisse: daten.zeugnisse.slice(0, 2) }).some(
+      (b) => b.art === "klein" && b.text.includes("storniertes Dokument"),
+    ),
+);
 pruefe(
   "ein Unterrichtsabend als Dozent steht mit Semester und Fach in der Auskunft",
   bloecke.some((b) => b.art === "kv" && b.label.includes("06.10.2026") && b.wert === "Herbstsemester 2026 · Dogmatik I"),
@@ -372,7 +410,7 @@ pruefe("nicht abbildbare Zeichen (Emoji) lassen den Erzeuger nicht abstürzen", 
 // ---------------------------------------------------------------------------
 // Soll-Anzahl — beim Ergänzen einer Prüfung mit anheben. `geprueft` steht hier
 // noch auf dem Stand VOR dieser Zeile, deshalb +1.
-const ERWARTET = 52;
+const ERWARTET = 55;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

@@ -2,6 +2,8 @@
  * Die eigenen Zeugnisse/Bescheinigungen des Schülers — rein lesend
  * (Recht PERSON_LESEN_EIGENE). Ausgestellt werden sie von der Schulleitung; hier
  * lädt der Schüler sein Exemplar als PDF herunter. Serverkomponente ohne Interaktion.
+ * Nur gültige (`ladeEigeneZeugnisse`): Ersetzte und stornierte sind für die
+ * Person nicht mehr abrufbar (PDF-Route 410).
  */
 export function MeineZeugnisseAbschnitt({
   zeugnisse,

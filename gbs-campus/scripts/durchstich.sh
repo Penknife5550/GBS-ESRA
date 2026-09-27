@@ -79,6 +79,14 @@ anmelden_als() { # $1 = personId
     | grep -i '^set-cookie:' | head -1 | sed 's/^[^:]*: //' | cut -d';' -f1
 }
 
+# Legt eine Person ohne Rolle an und gibt ihre Id aus. Die Adresse entsteht aus
+# dem Namen (vorname.nachname@beispiel.de) — Namen deshalb eindeutig waehlen.
+person_anlegen() { # $1 Vorname, $2 Nachname, $3 Status, $4 Teilnahmeform (leer = keine)
+  local form="null"
+  [ -n "${4:-}" ] && form="'$4'"
+  $PSQL "insert into personen (id, vorname, nachname, email, \"statusCode\", teilnahmeform, \"erstelltAm\", \"aktualisiertAm\") values (gen_random_uuid(), '$1', '$2', '$(printf '%s.%s@beispiel.de' "$1" "$2" | tr 'A-Z' 'a-z')', '$3', ${form}, now(), now()) returning id;"
+}
+
 # Nur der Statuscode; bzw. der Statuscode mit dem Rumpf in /tmp/gbs-rumpf.txt.
 status_von() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 rumpf_und_status() { curl -s -o /tmp/gbs-rumpf.txt -w '%{http_code}' "$@"; }
@@ -564,7 +572,7 @@ pruefe "der oeffentliche Weg antwortet gleichbleibend und ohne Versandangabe" \
 
 # Endzustand: kein Anmeldelink, und das wird gesagt statt still geschluckt.
 OHNE_ID=$($PSQL "select id from personen where email='ohne@beispiel.de';")
-$PSQL "update personen set \"statusCode\"='ABGEBROCHEN' where id='${OHNE_ID}';" > /dev/null
+$PSQL "update personen set \"statusCode\"='AUSGESCHLOSSEN' where id='${OHNE_ID}';" > /dev/null
 TERMINAL=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/personen/${OHNE_ID}/anmeldelink" -H "Cookie: ${KEKS}")
 pruefe "fuer ein abgeschlossenes Konto gibt es keinen Link (409)" "$(gleich "$TERMINAL" "409")" "$TERMINAL"
 
@@ -734,7 +742,7 @@ pruefe "zweites Konto kann sich mit Passwort anmelden" "$(gleich "$VORHER_OK" "2
 # Endzustand: Wer das System verlassen hat, kommt auch mit RICHTIGEM Passwort
 # nicht mehr herein. Sonst behielte ein ausgeschlossener Zugang genau den
 # zweiten Anmeldeweg, den ihm niemand mehr wegnimmt.
-$PSQL "update personen set \"statusCode\"='ABGEBROCHEN' where id='${HOERER_ID}';" > /dev/null
+$PSQL "update personen set \"statusCode\"='AUSGESCHLOSSEN' where id='${HOERER_ID}';" > /dev/null
 ENDZUSTAND=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/auth/passwort" -H 'Content-Type: application/json' \
   -H "X-Real-Ip: ${IP_HANS}" -d '{"email":"hans@beispiel.de","passwort":"Sein Stecken und Stab"}')
 pruefe "ein Konto im Endzustand kommt auch mit richtigem Passwort nicht herein (401)" "$(gleich "$ENDZUSTAND" "401")" "$ENDZUSTAND"
@@ -1132,6 +1140,54 @@ CRON=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/cron/erinner
 pruefe "der Erinnerungs-Cron ohne CRON_SECRET antwortet 503" "$(gleich "$CRON" "503")" "$CRON"
 
 echo
+echo "=== 23b. Semesterueberleitung: Zusage von Hand (Anruf statt Link) ==="
+# Empfehlung Semesterbetrieb (27.09.2026): Wer am Telefon zusagte, fiel am
+# Starttag als „keine Rueckmeldung“ heraus. Die Schulleitung traegt die Zusage
+# jetzt selbst ein (POST /api/semesterueberleitung/zusage, SEMESTER_VERWALTEN).
+# Eigenes Zielsemester in 30 Tagen (keine Erinnerungsstufe faellig) und Personen
+# ohne Rolle — sie tauchen in keiner Liste von 2099-H auf.
+ZU_SEM=$($PSQL "insert into semester (id, code, bezeichnung, start, ende, \"erstelltAm\") values (gen_random_uuid(), 'UEB-ZUSAGE', 'Zusage von Hand', '$(tag 30)', '$(tag 120)', now()) returning id;")
+zusage_einladung() { # $1 personId -> Id einer offenen Einladung in UEB-ZUSAGE
+  $PSQL "insert into teilnahmen (id, \"personId\", \"semesterId\", teilnahmeform, \"eingeladenAm\", \"bestaetigungTokenHash\", \"bestaetigungLaeuftAb\", \"erstelltAm\") values (gen_random_uuid(), '$1', '${ZU_SEM}', 'SCHUELER', now(), '$(hash_von "$(neuer_token)")', '$(tag 30)', now()) returning id;"
+}
+zusage() { rumpf_und_status -X POST "${BASIS}/api/semesterueberleitung/zusage" -H 'Content-Type: application/json' "$@"; }
+
+ZU_T1=$(zusage_einladung "$(person_anlegen Konrad Anruf AKTIV)")
+ZU_TN=$(zusage -H "Cookie: ${KEKS_TN}" -d "{\"teilnahmeId\":\"${ZU_T1}\"}")
+ZU_OHNE=$(zusage -d "{\"teilnahmeId\":\"${ZU_T1}\"}")
+pruefe "Zusage von Hand: Teilnehmer 403, ohne Sitzung 401 — die Einladung bleibt offen" \
+  "$([ "$ZU_TN" = "403" ] && [ "$ZU_OHNE" = "401" ] && [ "$($PSQL "select \"bestaetigtAm\" is null from teilnahmen where id='${ZU_T1}';")" = "t" ] && echo 1 || echo 0)" "${ZU_TN}/${ZU_OHNE}"
+ZU_OK=$(zusage -H "Cookie: ${KEKS}" -d "{\"teilnahmeId\":\"${ZU_T1}\"}")
+pruefe "die Schulleitung traegt die Zusage ein (200, genau {\"data\":{\"bestaetigt\":true}})" \
+  "$([ "$ZU_OK" = "200" ] && [ "$(cat /tmp/gbs-rumpf.txt)" = '{"data":{"bestaetigt":true}}' ] && echo 1 || echo 0)" "$ZU_OK $(cat /tmp/gbs-rumpf.txt)"
+pruefe "die Teilnahme gilt damit als bestaetigt, nicht als abgemeldet" \
+  "$(gleich "$($PSQL "select \"bestaetigtAm\" is not null and \"abgemeldetAm\" is null from teilnahmen where id='${ZU_T1}';")" "t")"
+pruefe "das Protokoll haelt die Zusage fest (TEILNAHME_ZUSAGE_EINGETRAGEN: Teilnahme, Akteur, Semesterkuerzel, Zeitpunkt)" \
+  "$(gleich "$($PSQL "select count(*) from audit_log where aktion='TEILNAHME_ZUSAGE_EINGETRAGEN' and \"objektTyp\"='Teilnahme' and \"objektId\"='${ZU_T1}' and \"akteurId\"='${SCHULLEITER_ID}' and nachher->>'semester'='UEB-ZUSAGE' and nachher->>'bestaetigtAm' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T';")" "1")"
+ZU_2=$(zusage -H "Cookie: ${KEKS}" -d "{\"teilnahmeId\":\"${ZU_T1}\"}")
+pruefe "ein zweites Mal: 409 „bereits bestätigt“ — ohne zweiten Protokolleintrag" \
+  "$([ "$ZU_2" = "409" ] && grep -q 'bereits bestätigt' /tmp/gbs-rumpf.txt && [ "$($PSQL "select count(*) from audit_log where aktion='TEILNAHME_ZUSAGE_EINGETRAGEN' and \"objektId\"='${ZU_T1}';")" = "1" ] && echo 1 || echo 0)" "$ZU_2 $(cat /tmp/gbs-rumpf.txt)"
+# „Ich bin raus“ — per SQL gesetzt, wie es die Antwort ueber den Link tut.
+ZU_T2=$(zusage_einladung "$(person_anlegen Rosa Raus AKTIV)")
+$PSQL "update teilnahmen set \"abgemeldetAm\" = now(), \"abmeldeGrund\" = 'BIN_RAUS' where id='${ZU_T2}';" > /dev/null
+ZU_RAUS=$(zusage -H "Cookie: ${KEKS}" -d "{\"teilnahmeId\":\"${ZU_T2}\"}")
+pruefe "nach „Ich bin raus“: 409 mit dem Weg „Wieder aufnehmen“ — keine Zusage" \
+  "$([ "$ZU_RAUS" = "409" ] && grep -q 'Wieder aufnehmen' /tmp/gbs-rumpf.txt && [ "$($PSQL "select \"bestaetigtAm\" is null and \"abgemeldetAm\" is not null from teilnahmen where id='${ZU_T2}';")" = "t" ] && echo 1 || echo 0)" "$ZU_RAUS $(cat /tmp/gbs-rumpf.txt)"
+ZU_T3=$($PSQL "insert into teilnahmen (id, \"personId\", \"semesterId\", teilnahmeform, \"erstelltAm\") values (gen_random_uuid(), '$(person_anlegen Dirk Direkt AKTIV)', '${ZU_SEM}', 'SCHUELER', now()) returning id;")
+ZU_DIREKT=$(zusage -H "Cookie: ${KEKS}" -d "{\"teilnahmeId\":\"${ZU_T3}\"}")
+pruefe "eine direkt aufgenommene Teilnahme (ohne Einladung): 409 „keine offene Einladung“" \
+  "$([ "$ZU_DIREKT" = "409" ] && grep -q 'keine offene Einladung' /tmp/gbs-rumpf.txt && [ "$($PSQL "select \"bestaetigtAm\" is null from teilnahmen where id='${ZU_T3}';")" = "t" ] && echo 1 || echo 0)" "$ZU_DIREKT $(cat /tmp/gbs-rumpf.txt)"
+ZU_T4=$(zusage_einladung "$(person_anlegen Anja Abbruch ABGEBROCHEN)")
+ZU_INAKTIV=$(zusage -H "Cookie: ${KEKS}" -d "{\"teilnahmeId\":\"${ZU_T4}\"}")
+pruefe "eine nicht aktive Person (abgebrochen): 409 „nicht aktiv“ — die Einladung bleibt offen" \
+  "$([ "$ZU_INAKTIV" = "409" ] && grep -q 'nicht aktiv (Status' /tmp/gbs-rumpf.txt && [ "$($PSQL "select \"bestaetigtAm\" is null and \"abgemeldetAm\" is null from teilnahmen where id='${ZU_T4}';")" = "t" ] && echo 1 || echo 0)" "$ZU_INAKTIV $(cat /tmp/gbs-rumpf.txt)"
+ZU_404=$(zusage -H "Cookie: ${KEKS}" -d "{\"teilnahmeId\":\"$(neuer_token)\"}")
+ZU_404_TEXT=$(cat /tmp/gbs-rumpf.txt)
+ZU_400=$(zusage -H "Cookie: ${KEKS}" -d '{"teilnahmeId":"x"}')
+pruefe "eine unbekannte Teilnahme: 404, eine ungueltige Id: 400" \
+  "$([ "$ZU_404" = "404" ] && echo "$ZU_404_TEXT" | grep -q 'Diese Teilnahme gibt es nicht' && [ "$ZU_400" = "400" ] && grep -q 'Ungültige Anfrage' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "${ZU_404}/${ZU_400}"
+
+echo
 echo "=== 24. Stundenplan: Schema und Seed ==="
 pruefe "Tabelle unterrichtstermine existiert" \
   "$(gleich "$($PSQL "select count(*) from information_schema.tables where table_name='unterrichtstermine';")" "1")"
@@ -1234,6 +1290,25 @@ $PSQL "insert into datenauskuenfte (id, \"personId\", \"tokenHash\", \"laeuftAb\
 $PSQL "insert into email_aenderungen (id, \"personId\", \"neueEmail\", \"tokenHash\", \"laeuftAb\", \"erstelltAm\") values (gen_random_uuid(), '${SCHULLEITER_ID}', 'aufraeum.alt@beispiel.de', '${AR_EMAIL_ALT}', now() - interval '8 days', now() - interval '9 days');" > /dev/null
 $PSQL "insert into rate_limit (id, schluessel, zeitpunkt) values (gen_random_uuid(), 'AUFRAEUM-TEST:alt', now() - interval '2 days'), (gen_random_uuid(), 'AUFRAEUM-TEST:neu', now());" > /dev/null
 
+# Rueckmeldung durch Teilnahme (Empfehlung Semesterbetrieb, 27.09.2026): Wer zum
+# Semesterstart ohne Antwort schon am Unterricht teilnimmt, gilt als
+# zurueckgemeldet, statt als „keine Rueckmeldung“ abgemeldet zu werden — sonst
+# fiele er nach einem laengeren Worker-Ausfall mitten im Semester aus allen
+# Listen. Eigenes Semester, das heute beginnt, damit die Zahlen von UEB-ALT
+# bleiben: Tim war an einem Abend anwesend, Tom hat gefehlt, und fuer Tina traegt
+# die Schulleitung am ersten Tag die telefonische Zusage ein.
+UEB_RT=$($PSQL "insert into semester (id, code, bezeichnung, start, ende, \"erstelltAm\") values (gen_random_uuid(), 'UEB-TEILNAHME', 'Rueckmeldung durch Teilnahme', '${HEUTE}', '$(tag 60)', now()) returning id;")
+rt_einladung() { # $1 personId -> Id einer offenen Einladung in UEB-TEILNAHME
+  $PSQL "insert into teilnahmen (id, \"personId\", \"semesterId\", teilnahmeform, \"eingeladenAm\", \"bestaetigungTokenHash\", \"bestaetigungLaeuftAb\", \"erstelltAm\") values (gen_random_uuid(), '$1', '${UEB_RT}', 'SCHUELER', now() - interval '3 days', '$(hash_von "$(neuer_token)")', now() + interval '1 day', now()) returning id;"
+}
+RT_TIM=$(rt_einladung "$(person_anlegen Tim Teilnahme AKTIV)")
+RT_TOM=$(rt_einladung "$(person_anlegen Tom Teilnahme AKTIV)")
+RT_TINA=$(rt_einladung "$(person_anlegen Tina Telefon AKTIV)")
+RT_ABEND=$($PSQL "insert into unterrichtstermine (id, \"semesterId\", beginn, reihenfolge, \"erstelltAm\") values (gen_random_uuid(), '${UEB_RT}', now(), 1, now()) returning id;")
+$PSQL "insert into anwesenheiten (id, \"terminId\", \"teilnahmeId\", status, \"erfasstAm\") values (gen_random_uuid(), '${RT_ABEND}', '${RT_TIM}', 'ANWESEND', now()), (gen_random_uuid(), '${RT_ABEND}', '${RT_TOM}', 'GEFEHLT', now());" > /dev/null
+RT_ZUSAGE=$(status_von -X POST "${BASIS}/api/semesterueberleitung/zusage" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"teilnahmeId\":\"${RT_TINA}\"}")
+pruefe "am ersten Tag nimmt die Schulleitung noch eine Zusage von Hand an (200)" "$(gleich "$RT_ZUSAGE" "200")" "$RT_ZUSAGE"
+
 docker exec -e WORKER_EINMAL=1 gbs-durchstich node worker.js > /tmp/gbs-worker.log 2>&1
 WEXIT=$?
 pruefe "der Worker-Einzellauf laeuft ohne Fehler durch (exit 0)" "$(gleich "$WEXIT" "0")" "$(tail -3 /tmp/gbs-worker.log)"
@@ -1278,14 +1353,84 @@ pruefe "alte Drosselzeilen geloescht, frische bleiben" \
 pruefe "abgelaufener Ueberleitungs-Link entwertet — Einladung und Zusage bleiben stehen" \
   "$(gleich "$($PSQL "select \"bestaetigungTokenHash\" is null and \"eingeladenAm\" is not null and \"bestaetigtAm\" is not null from teilnahmen where id='${UEB_D}';")" "t")"
 
+# Rueckmeldung durch Teilnahme (UEB-TEILNAHME, siehe oben).
+pruefe "wer schon am Unterricht teilnahm, gilt als zurueckgemeldet (bestaetigt, nicht abgemeldet)" \
+  "$(gleich "$($PSQL "select \"bestaetigtAm\" is not null and \"abgemeldetAm\" is null from teilnahmen where id='${RT_TIM}';")" "t")"
+pruefe "wer nur gefehlt hat, wird abgemeldet (KEINE_RUECKMELDUNG, als Einziger dieses Semesters)" \
+  "$([ "$($PSQL "select \"abmeldeGrund\" from teilnahmen where id='${RT_TOM}' and \"abgemeldetAm\" is not null;")" = "KEINE_RUECKMELDUNG" ] && [ "$($PSQL "select nachher->>'anzahl' from audit_log where aktion='TEILNAHME_OHNE_RUECKMELDUNG_ABGEMELDET' and \"objektId\"='${UEB_RT}';")" = "1" ] && echo 1 || echo 0)"
+pruefe "das Protokoll nennt die Rueckmeldung durch Teilnahme als Systemlauf (Anzahl 1, Tims Teilnahme)" \
+  "$(gleich "$($PSQL "select count(*) from audit_log where aktion='TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME' and \"objektId\"='${UEB_RT}' and quelle='SYSTEM' and nachher->>'anzahl'='1' and nachher->'teilnahmeIds' ? '${RT_TIM}';")" "1")"
+pruefe "die von Hand eingetragene Zusage uebersteht den Lauf zum Semesterstart (nicht abgemeldet)" \
+  "$(gleich "$($PSQL "select \"bestaetigtAm\" is not null and \"abgemeldetAm\" is null from teilnahmen where id='${RT_TINA}';")" "t")"
+
 # Zweiter Lauf: idempotent — keine zweite Abmeldung, kein zweiter Zustellversuch.
 docker exec -e WORKER_EINMAL=1 gbs-durchstich node worker.js > /tmp/gbs-worker-2.log 2>&1
 pruefe "ein zweiter Lauf meldet niemanden ein zweites Mal ab" \
   "$(gleich "$($PSQL "select count(*) from audit_log where aktion='TEILNAHME_OHNE_RUECKMELDUNG_ABGEMELDET' and \"objektId\"='${UEB_ALT}';")" "1")"
 pruefe "und wiederholt die gescheiterte Erinnerung nicht" \
   "$(gleich "$($PSQL "select count(*) from email_versand where \"personId\"='${UEB_P3}' and \"vorlageCode\"='UEBERLEITUNG_ERINNERUNG';")" "1")"
+pruefe "und wertet niemanden ein zweites Mal als zurueckgemeldet (ein Eintrag, Tim weiter dabei)" \
+  "$(gleich "$($PSQL "select (select count(*) from audit_log where aktion='TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME' and \"objektId\"='${UEB_RT}') || '/' || (select (\"abgemeldetAm\" is null)::text from teilnahmen where id='${RT_TIM}');")" "1/true")"
 DABEI_T14=$(curl -s -X POST "${BASIS}/api/ueberleitung/bestaetigen" -H 'Content-Type: application/json' -d "{\"token\":\"${T14}\"}")
 pruefe "mit dem Link der Einladung laesst sich weiter zusagen (ok)" "$(enthaelt "$DABEI_T14" '"status":"ok"')" "$DABEI_T14"
+
+echo
+echo "=== 26b. Semesterueberleitung: nie zugestellte Einladungen erneut senden ==="
+# Empfehlung Semesterbetrieb (27.09.2026): Kam eine Einladung nie an (keine
+# GESENDET-Zeile fuer Einladung oder Erinnerung seit der Einladung), bekommt sie
+# auf Knopfdruck einen frischen Link und geht noch einmal raus — nur vor
+# Semesterbeginn, nie automatisch. Nina hat ihre Einladung nie bekommen, Nils
+# schon. Beide ohne Rolle und ohne Teilnahme in 2099-H.
+nachversand_kaesten() { # wie viele Kaesten „Einladung nicht zugestellt: N“ die Ueberleitungsseite zeigt
+  curl -s "${BASIS}/verwaltung/semesterueberleitung" -H "Cookie: ${KEKS}" | grep -o 'Einladung nicht zugestellt: [0-9][0-9]*' | wc -l | tr -d ' '
+}
+nachversand() { rumpf_und_status -X POST "${BASIS}/api/semesterueberleitung/erneut-senden" -H 'Content-Type: application/json' "$@"; }
+NV_KAESTEN_VORHER=$(nachversand_kaesten)
+NV=$(curl -s -X POST "${BASIS}/api/semester" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' \
+  -d "{\"code\":\"UEB-NACHVERSAND\",\"bezeichnung\":\"Nachversand Test\",\"start\":\"$(tag 45)\",\"ende\":\"$(tag 135)\"}")
+NV_ID=$(echo "$NV" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+NV_NINA=$(person_anlegen Nina Nachversand AKTIV)
+NV_NILS=$(person_anlegen Nils Nachversand AKTIV)
+NV_TOKEN_NINA=$(neuer_token); NV_TOKEN_NILS=$(neuer_token)
+# Ninas Link galt nur zehn Tage (etwa vor einer Verschiebung) — der neue muss bis
+# zum Semesterbeginn gelten. Nils' Einladung ist zugestellt (GESENDET danach).
+NV_T_NINA=$($PSQL "insert into teilnahmen (id, \"personId\", \"semesterId\", teilnahmeform, \"eingeladenAm\", \"bestaetigungTokenHash\", \"bestaetigungLaeuftAb\", \"erstelltAm\") values (gen_random_uuid(), '${NV_NINA}', '${NV_ID}', 'SCHUELER', now() - interval '1 hour', '$(hash_von "$NV_TOKEN_NINA")', now() + interval '10 days', now()) returning id;")
+NV_T_NILS=$($PSQL "insert into teilnahmen (id, \"personId\", \"semesterId\", teilnahmeform, \"eingeladenAm\", \"bestaetigungTokenHash\", \"bestaetigungLaeuftAb\", \"erstelltAm\") values (gen_random_uuid(), '${NV_NILS}', '${NV_ID}', 'SCHUELER', now() - interval '1 hour', '$(hash_von "$NV_TOKEN_NILS")', '$(tag 45)', now()) returning id;")
+$PSQL "insert into email_versand (id, \"personId\", empfaenger, betreff, \"vorlageCode\", status, \"erstelltAm\") values (gen_random_uuid(), '${NV_NILS}', 'nils.nachversand@beispiel.de', 'Einladung zum Folgesemester', 'UEBERLEITUNG_EINLADUNG', 'GESENDET', now());" > /dev/null
+NV_EINGELADEN=$($PSQL "select \"eingeladenAm\" from teilnahmen where id='${NV_T_NINA}';")
+NV_SEITE=$(curl -s "${BASIS}/verwaltung/semesterueberleitung" -H "Cookie: ${KEKS}")
+NV_KAESTEN=$(echo "$NV_SEITE" | grep -o 'Einladung nicht zugestellt: [0-9][0-9]*' | wc -l | tr -d ' ')
+pruefe "die Ueberleitungsseite meldet die nie zugestellte Einladung (ein Kasten mehr) mit „Erneut senden“ und „Zusage eintragen“" \
+  "$([ -n "$NV_ID" ] && [ "$NV_KAESTEN" -eq $((NV_KAESTEN_VORHER + 1)) ] && [ "$(enthaelt "$NV_SEITE" 'Erneut senden')" = "1" ] && [ "$(enthaelt "$NV_SEITE" 'Zusage eintragen')" = "1" ] && echo 1 || echo 0)" "Kaesten ${NV_KAESTEN_VORHER} -> ${NV_KAESTEN}, ${NV}"
+NV_LINKS="select string_agg(\"bestaetigungTokenHash\", ',' order by id) from teilnahmen where \"semesterId\"='${NV_ID}';"
+NV_LINKS_VORHER=$($PSQL "$NV_LINKS")
+NV_TN=$(nachversand -H "Cookie: ${KEKS_TN}" -d "{\"semesterId\":\"${NV_ID}\"}")
+NV_LEER=$(nachversand -H "Cookie: ${KEKS}" -d '{}')
+pruefe "Erneut senden: Teilnehmer 403, ohne Semester 400 — dabei wird kein Link getauscht" \
+  "$([ "$NV_TN" = "403" ] && [ "$NV_LEER" = "400" ] && [ -n "$NV_LINKS_VORHER" ] && [ "$($PSQL "$NV_LINKS")" = "$NV_LINKS_VORHER" ] && echo 1 || echo 0)" "${NV_TN}/${NV_LEER}"
+NV_404=$(nachversand -H "Cookie: ${KEKS}" -d "{\"semesterId\":\"$(neuer_token)\"}")
+NV_404_TEXT=$(cat /tmp/gbs-rumpf.txt)
+NV_BEGONNEN=$(nachversand -H "Cookie: ${KEKS}" -d "{\"semesterId\":\"${UEB_ALT}\"}")
+pruefe "ein unbekanntes Semester 404, ein schon begonnenes 409 („bereits begonnen“)" \
+  "$([ "$NV_404" = "404" ] && echo "$NV_404_TEXT" | grep -q 'Dieses Semester gibt es nicht' && [ "$NV_BEGONNEN" = "409" ] && grep -q 'bereits begonnen' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "${NV_404}/${NV_BEGONNEN} $(cat /tmp/gbs-rumpf.txt)"
+NV_OK=$(nachversand -H "Cookie: ${KEKS}" -d "{\"semesterId\":\"${NV_ID}\"}")
+pruefe "die Schulleitung sendet erneut (200, genau {\"data\":{\"erneutEingeladen\":1}})" \
+  "$([ "$NV_OK" = "200" ] && [ "$(cat /tmp/gbs-rumpf.txt)" = '{"data":{"erneutEingeladen":1}}' ] && echo 1 || echo 0)" "$NV_OK $(cat /tmp/gbs-rumpf.txt)"
+pruefe "Nina hat einen neuen Link bis Semesterbeginn, ihre Einladung bleibt datiert — Nils' Link bleibt" \
+  "$(gleich "$($PSQL "select (select t.\"bestaetigungTokenHash\" <> '$(hash_von "$NV_TOKEN_NINA")' and t.\"bestaetigungTokenHash\" ~ '^[0-9a-f]{64}\$' and t.\"bestaetigungLaeuftAb\" = s.start and t.\"eingeladenAm\" = '${NV_EINGELADEN}'::timestamp from teilnahmen t join semester s on s.id = t.\"semesterId\" where t.id='${NV_T_NINA}') and (select \"bestaetigungTokenHash\" = '$(hash_von "$NV_TOKEN_NILS")' from teilnahmen where id='${NV_T_NILS}');")" "t")"
+NV_ALT=$(status_von -X POST "${BASIS}/api/ueberleitung/bestaetigen" -H 'Content-Type: application/json' -d "{\"token\":\"${NV_TOKEN_NINA}\"}")
+pruefe "Ninas alter Link ist damit ungueltig (401)" "$(gleich "$NV_ALT" "401")" "$NV_ALT"
+pruefe "das Protokoll nennt Anzahl und Teilnahme (SEMESTER_EINLADUNG_ERNEUT_GESENDET) — ohne Adresse" \
+  "$(gleich "$($PSQL "select count(*) from audit_log where aktion='SEMESTER_EINLADUNG_ERNEUT_GESENDET' and \"objektId\"='${NV_ID}' and nachher->>'code'='UEB-NACHVERSAND' and nachher->>'anzahl'='1' and nachher->'teilnahmeIds' ? '${NV_T_NINA}' and not (nachher->'teilnahmeIds' ? '${NV_T_NILS}') and nachher::text not like '%@%';")" "1")"
+# Der Versand laeuft nach der Antwort (after()) und traegt seinen Stand nach.
+for i in $(seq 1 10); do
+  NV_VERSENDET=$($PSQL "select count(*) from audit_log where aktion='SEMESTER_UEBERLEITUNG_VERSENDET' and \"objektId\"='${NV_ID}' and nachher->>'erneut'='true' and nachher->>'eingeladen'='1';")
+  [ "$NV_VERSENDET" != "0" ] && break
+  sleep 1
+done
+pruefe "der Versandstand ist nachgetragen (SEMESTER_UEBERLEITUNG_VERSENDET, erneut, 1 Einladung)" "$(gleich "$NV_VERSENDET" "1")" "$NV_VERSENDET"
+pruefe "ohne SMTP steht Ninas neue Einladung als FEHLER im Versandprotokoll — Nils bekam nichts Neues" \
+  "$(gleich "$($PSQL "select (select count(*) from email_versand where \"personId\"='${NV_NINA}' and \"vorlageCode\"='UEBERLEITUNG_EINLADUNG' and status='FEHLER') || '/' || (select count(*) from email_versand where \"personId\"='${NV_NILS}');")" "1/1")"
 
 echo
 echo "=== 27. Anonymisierung nach Art. 17 DSGVO ==="
@@ -2213,6 +2358,10 @@ pruefe "ein Audit-Eintrag ZEUGNIS_AUSGESTELLT entsteht (auf das Zeugnis bezogen)
 # Hoerer bekommt eine Bescheinigung (kein Zeugnis) — ueber den Sammellauf.
 ZH_PID=$($PSQL "insert into personen (id,vorname,nachname,email,\"statusCode\",teilnahmeform,\"erstelltAm\",\"aktualisiertAm\") values (gen_random_uuid(),'Hanna','Hoerer','hoerer-zeugnis@example.org','AKTIV','HOERER',now(),now()) returning id;")
 $PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${ZH_PID}','${SEMESTER_ID}','HOERER',now());" > /dev/null
+# Seit dem Semesterbetrieb (27.09.2026) gibt es die Bescheinigung nur mit einem
+# besuchten Abend, und sie nennt nur die besuchten Faecher: Hanna war am Abend
+# der Dozentin (NT_TERMIN, Kurseinheit KURSEINHEIT_ID) anwesend.
+$PSQL "insert into anwesenheiten (id,\"terminId\",\"teilnahmeId\",status,\"erfasstAm\") select gen_random_uuid(),'${NT_TERMIN}',id,'ANWESEND',now() from teilnahmen where \"personId\"='${ZH_PID}' and \"semesterId\"='${SEMESTER_ID}';" > /dev/null
 # Die Rueckfrage vor „Alle ausstellen" nennt serverseitig ermittelte Zahlen
 # (ladeSammelVorschau: neue Bescheinigungen der Hoerer, schon vorhandene
 # Zeugnisse). Sie steht als Client-Prop sammellauf.rueckfrage im HTML (RSC).
@@ -2308,6 +2457,10 @@ pruefe "die Bescheinigung friert die Faecher als 'teilgenommen' ein" \
   "$(gleich "$($PSQL "select snapshot->'leistungen'->0->>'ergebnisText' from zeugnisse where \"personId\"='${ZH_PID}' and status='GUELTIG';")" "teilgenommen")"
 pruefe "die Bescheinigung traegt keine Punkte (Hoerer, ohne Pruefung)" \
   "$(gleich "$($PSQL "select ((snapshot->'leistungen'->0->>'punkte') is null) from zeugnisse where \"personId\"='${ZH_PID}' and status='GUELTIG';")" "t")"
+# Frueher standen alle im Semester unterrichteten Faecher darauf (hier mindestens
+# KURSEINHEIT_ID und FREMD_KURS), jetzt nur die mit besuchtem Abend.
+pruefe "die Bescheinigung nennt nur das besuchte Fach, nicht alle unterrichteten" \
+  "$(gleich "$($PSQL "select jsonb_array_length(z.snapshot->'leistungen') = 1 and z.snapshot->'leistungen'->0->>'titel' = (select titel from kurseinheiten where id='${KURSEINHEIT_ID}') and (select count(distinct \"kurseinheitId\") from unterrichtstermine where \"semesterId\"='${SEMESTER_ID}') >= 2 from zeugnisse z where z.\"personId\"='${ZH_PID}' and z.status='GUELTIG';")" "t")"
 
 # --- Abschluss-Sammellauf nur im letzten Semester des Rasters (Code-Review 4) ---
 # Sonst bekaeme mit einem Klick jeder Aktive — auch ein Erstsemester — ein
@@ -2339,6 +2492,105 @@ pruefe "ohne DMS-Adresse: 409 mit Hinweis auf DMS_EMAIL" \
 ZS_DMS=$(curl -s "${BASIS}/verwaltung/zeugnisse" -H "Cookie: ${KEKS}")
 pruefe "die Zeugnisseite zeigt die offenen Archivkopien samt Grund (DMS_EMAIL)" \
   "$([ "$(enthaelt "$ZS_DMS" 'noch nicht im DMS archiviert')" = "1" ] && [ "$(enthaelt "$ZS_DMS" 'DMS_EMAIL')" = "1" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 36b. Zeugnisse: Hoerer ohne besuchten Abend, Storno ohne Ersatz ==="
+# Empfehlung Semesterbetrieb (27.09.2026), zwei Regeln:
+#  - Eine Teilnahmebescheinigung gibt es nur mit mindestens einem besuchten Abend
+#    (anwesend oder nachgearbeitet) in einem Fach.
+#  - Eine Fehlausstellung laesst sich ohne Ersatz stornieren (Status STORNIERT,
+#    Migration 20260928100000): ungueltig, fuer die Person nicht mehr abrufbar,
+#    als Nachweis mit Zeitpunkt, Akteur und Pflicht-Grund gespeichert.
+# Eigene Personen in 2099-H: Hugo (Hoerer) und Stella (Schuelerin, am Ende
+# anonymisiert — sie faellt damit aus allen spaeteren Listen).
+pruefe "die Storno-Migration ist eingespielt (Enum-Wert STORNIERT, CHECK zeugnisse_storno_konsistent)" \
+  "$(gleich "$($PSQL "select (select count(*) from _prisma_migrations where migration_name='20260928100000_zeugnis_storno' and finished_at is not null) || '/' || (select count(*) from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname='Zeugnisstatus' and e.enumlabel='STORNIERT') || '/' || (select count(*) from pg_constraint where conname='zeugnisse_storno_konsistent');")" "1/1/1")"
+
+# --- Hoerer ohne besuchten Abend: fuer Hugo ist nur ENTSCHULDIGT erfasst.
+HUGO_ID=$(person_anlegen Hugo Hoerlos AKTIV HOERER)
+HUGO_TEILNAHME=$($PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${HUGO_ID}','${SEMESTER_ID}','HOERER',now()) returning id;")
+$PSQL "insert into anwesenheiten (id,\"terminId\",\"teilnahmeId\",status,\"erfasstAm\") values (gen_random_uuid(),'${NT_TERMIN}','${HUGO_TEILNAHME}','ENTSCHULDIGT',now());" > /dev/null
+HUGO_EINZELN=$(rumpf_und_status -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\",\"personId\":\"${HUGO_ID}\"}")
+pruefe "ein Hoerer ohne besuchten Abend (nur entschuldigt) bekommt keine Bescheinigung (409)" \
+  "$([ "$HUGO_EINZELN" = "409" ] && grep -q 'kein besuchter Abend in einem Fach' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$HUGO_EINZELN $(cat /tmp/gbs-rumpf.txt)"
+HUGO_SAMMEL=$(rumpf_und_status -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\"}")
+HUGO_SAMMEL_RUMPF=$(cat /tmp/gbs-rumpf.txt)
+pruefe "der Sammellauf uebergeht ihn als „ohne Anwesenheit“ — kein Fehlschlag, kein Dokument" \
+  "$([ "$HUGO_SAMMEL" = "200" ] && echo "$HUGO_SAMMEL_RUMPF" | grep -qE '"ohneAnwesenheit":[1-9]' && [ "$(enthaelt "$HUGO_SAMMEL_RUMPF" '"fehlgeschlagen":0')" = "1" ] && [ "$($PSQL "select count(*) from zeugnisse where \"personId\"='${HUGO_ID}';")" = "0" ] && echo 1 || echo 0)" "$HUGO_SAMMEL $HUGO_SAMMEL_RUMPF"
+pruefe "die Zeugnisseite sagt, warum (kein besuchter Abend in einem Fach erfasst)" \
+  "$(enthaelt "$(curl -s "${BASIS}/verwaltung/zeugnisse?semester=${SEMESTER_ID}&typ=SEMESTER" -H "Cookie: ${KEKS}")" 'kein besuchter Abend in einem Fach erfasst')"
+$PSQL "update anwesenheiten set status='ANWESEND' where \"teilnahmeId\"='${HUGO_TEILNAHME}';" > /dev/null
+HUGO_NACH=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\",\"personId\":\"${HUGO_ID}\"}")
+pruefe "mit einem besuchten Abend bekommt er die Bescheinigung (BESCH-, ein Fach)" \
+  "$([ "$(enthaelt "$HUGO_NACH" '"belegNr":"BESCH-')" = "1" ] && [ "$($PSQL "select jsonb_array_length(snapshot->'leistungen') from zeugnisse where \"personId\"='${HUGO_ID}' and status='GUELTIG';")" = "1" ] && echo 1 || echo 0)" "$HUGO_NACH"
+
+# --- Storno ohne Ersatz: Stella ist Schuelerin in 2099-H und sieht ihr Zeugnis selbst.
+STELLA_ID=$(person_anlegen Stella Storno AKTIV SCHUELER)
+$PSQL "insert into person_rolle (\"personId\", \"rolleCode\") values ('${STELLA_ID}', 'TEILNEHMER');" > /dev/null
+$PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${STELLA_ID}','${SEMESTER_ID}','SCHUELER',now());" > /dev/null
+KEKS_STELLA=$(anmelden_als "$STELLA_ID")
+curl -s -o /dev/null -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\",\"personId\":\"${STELLA_ID}\"}"
+ZST=$($PSQL "select id from zeugnisse where \"personId\"='${STELLA_ID}' and status='GUELTIG';")
+ZST_BELEG=$($PSQL "select \"belegNr\" from zeugnisse where id='${ZST}';")
+pruefe "Vorbedingung: Stella hat ein gueltiges Zeugnis und sieht es unter „Meine Daten“" \
+  "$([ -n "$ZST" ] && [ -n "$ZST_BELEG" ] && [ "$(enthaelt "$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS_STELLA}")" "$ZST_BELEG")" = "1" ] && echo 1 || echo 0)"
+storniere() { # $1 = Zeugnis-Id, danach curl-Argumente (Cookie, Rumpf)
+  local id="$1"; shift
+  rumpf_und_status -X POST "${BASIS}/api/zeugnisse/${id}/stornieren" -H 'Content-Type: application/json' "$@"
+}
+SN_SELBST=$(storniere "$ZST" -H "Cookie: ${KEKS_STELLA}" -d '{"grund":"Ich will nicht mehr"}')
+SN_OHNE=$(storniere "$ZST" -d '{"grund":"ohne Sitzung"}')
+pruefe "Storno: die Schuelerin selbst darf nicht (403), ohne Sitzung 401" \
+  "$([ "$SN_SELBST" = "403" ] && [ "$SN_OHNE" = "401" ] && echo 1 || echo 0)" "${SN_SELBST}/${SN_OHNE}"
+SN_LEER=$(storniere "$ZST" -H "Cookie: ${KEKS}" -d '{}'); SN_LEER_TEXT=$(cat /tmp/gbs-rumpf.txt)
+SN_BLANK=$(storniere "$ZST" -H "Cookie: ${KEKS}" -d '{"grund":"   "}'); SN_BLANK_TEXT=$(cat /tmp/gbs-rumpf.txt)
+SN_LANG=$(storniere "$ZST" -H "Cookie: ${KEKS}" -d "{\"grund\":\"$(printf 'x%.0s' $(seq 1 501))\"}")
+pruefe "ohne Grund, nur mit Leerzeichen, mit 501 Zeichen: 400 — das Zeugnis bleibt gueltig" \
+  "$([ "$SN_LEER" = "400" ] && echo "$SN_LEER_TEXT" | grep -q 'Bitte geben Sie einen Grund' && [ "$SN_BLANK" = "400" ] && echo "$SN_BLANK_TEXT" | grep -q 'Bitte geben Sie einen Grund' && [ "$SN_LANG" = "400" ] && grep -q 'höchstens 500 Zeichen' /tmp/gbs-rumpf.txt && [ "$($PSQL "select status from zeugnisse where id='${ZST}';")" = "GUELTIG" ] && echo 1 || echo 0)" "${SN_LEER}/${SN_BLANK}/${SN_LANG}"
+SN_404=$(storniere "$(neuer_token)" -H "Cookie: ${KEKS}" -d '{"grund":"Test"}'); SN_404_TEXT=$(cat /tmp/gbs-rumpf.txt)
+SN_ERSETZT=$(storniere "$Z1" -H "Cookie: ${KEKS}" -d '{"grund":"Test"}')
+pruefe "ein unbekanntes Zeugnis 404, ein ersetztes 409 (es bleibt ERSETZT)" \
+  "$([ "$SN_404" = "404" ] && echo "$SN_404_TEXT" | grep -q 'Dieses Zeugnis gibt es nicht' && [ "$SN_ERSETZT" = "409" ] && grep -q 'bereits ersetzt oder storniert' /tmp/gbs-rumpf.txt && [ "$($PSQL "select status from zeugnisse where id='${Z1}';")" = "ERSETZT" ] && echo 1 || echo 0)" "${SN_404}/${SN_ERSETZT}"
+SN_OK=$(storniere "$ZST" -H "Cookie: ${KEKS}" -d '{"grund":"Durchstich: falsches Semester"}'); SN_OK_RUMPF=$(cat /tmp/gbs-rumpf.txt)
+pruefe "die Schulleitung storniert ohne Ersatz (200, STORNIERT, Beleg-Nr)" \
+  "$([ "$SN_OK" = "200" ] && [ "$(enthaelt "$SN_OK_RUMPF" '"status":"STORNIERT"')" = "1" ] && [ "$(enthaelt "$SN_OK_RUMPF" "\"belegNr\":\"${ZST_BELEG}\"")" = "1" ] && echo 1 || echo 0)" "$SN_OK $SN_OK_RUMPF"
+pruefe "am Zeugnis stehen Zeitpunkt, Akteur und Grund" \
+  "$(gleich "$($PSQL "select status || '|' || (\"storniertAm\" is not null) || '|' || \"storniertVonId\" || '|' || \"stornoGrund\" from zeugnisse where id='${ZST}';")" "STORNIERT|true|${SCHULLEITER_ID}|Durchstich: falsches Semester")"
+SN_2=$(storniere "$ZST" -H "Cookie: ${KEKS}" -d '{"grund":"Noch einmal"}')
+pruefe "ein zweiter Storno: 409 — der erste Grund bleibt" \
+  "$([ "$SN_2" = "409" ] && [ "$($PSQL "select \"stornoGrund\" from zeugnisse where id='${ZST}';")" = "Durchstich: falsches Semester" ] && echo 1 || echo 0)" "$SN_2 $(cat /tmp/gbs-rumpf.txt)"
+pruefe "das Protokoll haelt nur fest, DASS es einen Grund gab (ZEUGNIS_STORNIERT) — ohne DMS kein Storno-Vermerk" \
+  "$([ "$($PSQL "select count(*) from audit_log where aktion='ZEUGNIS_STORNIERT' and \"objektId\"='${ZST}' and (nachher->>'grundAngegeben')='true' and (coalesce(vorher::text,'') || nachher::text) not like '%falsches Semester%';")" = "1" ] && [ "$($PSQL "select count(*) from email_versand where betreff like 'Storno-Vermerk%';")" = "0" ] && echo 1 || echo 0)"
+SN_PDF=$(curl -s -D /tmp/gbs-kopf-storno.txt -o /tmp/gbs-storno.pdf -w '%{http_code}' "${BASIS}/api/zeugnisse/${ZST}/pdf" -H "Cookie: ${KEKS}")
+pruefe "die Schulleitung laedt es als Nachweis (200, …-STORNIERT.pdf, Vermerk „STORNIERT am …“)" \
+  "$([ "$SN_PDF" = "200" ] && grep -qi "filename=\"${ZST_BELEG}-STORNIERT.pdf\"" /tmp/gbs-kopf-storno.txt && grep -aqE 'STORNIERT am [0-9]{2}\.[0-9]{2}\.[0-9]{4}' /tmp/gbs-storno.pdf && echo 1 || echo 0)" "$SN_PDF"
+SN_PDF_SELBST=$(rumpf_und_status "${BASIS}/api/zeugnisse/${ZST}/pdf" -H "Cookie: ${KEKS_STELLA}")
+pruefe "Stella selbst bekommt es nicht mehr (410, „wurde storniert“)" \
+  "$([ "$SN_PDF_SELBST" = "410" ] && grep -q 'wurde storniert' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$SN_PDF_SELBST $(cat /tmp/gbs-rumpf.txt)"
+SN_AKTE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS_STELLA}")
+pruefe "und „Meine Daten“ fuehrt die Beleg-Nr nicht mehr (die Akte selbst laedt)" \
+  "$([ "$(enthaelt "$SN_AKTE" 'Meine Akte')" = "1" ] && [ "$(fehlt_in "$SN_AKTE" "$ZST_BELEG")" = "1" ] && echo 1 || echo 0)"
+SN_SAMMEL=$(rumpf_und_status -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\"}")
+pruefe "der Sammellauf stellt die stornierte Fehlausstellung nicht still neu aus (storniert gezaehlt)" \
+  "$([ "$SN_SAMMEL" = "200" ] && grep -qE '"storniert":[1-9]' /tmp/gbs-rumpf.txt && grep -q '"fehlgeschlagen":0' /tmp/gbs-rumpf.txt && [ "$($PSQL "select count(*) from zeugnisse where \"personId\"='${STELLA_ID}' and status='GUELTIG';")" = "0" ] && echo 1 || echo 0)" "$SN_SAMMEL $(cat /tmp/gbs-rumpf.txt)"
+pruefe "die Zeugnisseite zeigt statt eines gueltigen das stornierte Dokument (Beleg-Nr, „storniert am“)" \
+  "$(enthaelt "$(curl -s "${BASIS}/verwaltung/zeugnisse?semester=${SEMESTER_ID}&typ=SEMESTER" -H "Cookie: ${KEKS}")" "Beleg-Nr. ${ZST_BELEG} · storniert am")"
+# Wie die uebrigen Belege auch fuer den Eigentuemer eingefroren (Trigger, CHECK).
+pruefe "Datenbank: Grund und Stand eines stornierten Zeugnisses sind fest" \
+  "$([ "$(abgewiesen "update zeugnisse set \"stornoGrund\" = 'anderer Grund' where id='${ZST}';")" = "1" ] && [ "$(abgewiesen "update zeugnisse set status = 'GUELTIG', \"storniertAm\" = null, \"storniertVonId\" = null, \"stornoGrund\" = null where id='${ZST}';")" = "1" ] && echo 1 || echo 0)"
+SN_CHECK=$($PSQL "insert into zeugnisse (id, \"belegNr\", \"personId\", \"semesterId\", typ, status, snapshot) values (gen_random_uuid(), 'ZEU-DURCHSTICH-CHECK', '${STELLA_ID}', '${SEMESTER_ID}', 'SEMESTER', 'STORNIERT', '{}'::jsonb);" 2>&1)
+pruefe "Datenbank: STORNIERT ohne Zeitpunkt und Grund scheitert am CHECK zeugnisse_storno_konsistent" \
+  "$([ "$(echo "$SN_CHECK" | grep -c 'zeugnisse_storno_konsistent')" -ge 1 ] && [ "$($PSQL "select count(*) from zeugnisse where \"belegNr\"='ZEU-DURCHSTICH-CHECK';")" = "0" ] && echo 1 || echo 0)" "$SN_CHECK"
+SN_NEU=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\",\"personId\":\"${STELLA_ID}\"}")
+ZST_NEU=$($PSQL "select id from zeugnisse where \"personId\"='${STELLA_ID}' and status='GUELTIG';")
+pruefe "einzeln laesst sich danach neu ausstellen — wieder Ausfertigung 1, das stornierte bleibt STORNIERT" \
+  "$([ "$(enthaelt "$SN_NEU" '"version":1')" = "1" ] && [ -n "$ZST_NEU" ] && [ "$($PSQL "select status from zeugnisse where id='${ZST}';")" = "STORNIERT" ] && echo 1 || echo 0)" "$SN_NEU"
+SN_ANON=$(rumpf_und_status -X POST "${BASIS}/api/personen/${STELLA_ID}/anonymisieren" -H "Cookie: ${KEKS}")
+pruefe "die Anonymisierung ersetzt den Storno-Grund durch den Platzhalter und zaehlt ihn (stornoGruendeAnonymisiert 1)" \
+  "$([ "$SN_ANON" = "200" ] && [ "$($PSQL "select \"stornoGrund\" from zeugnisse where id='${ZST}';")" = "[anonymisiert]" ] && [ "$($PSQL "select nachher->>'stornoGruendeAnonymisiert' from audit_log where aktion='PERSON_ANONYMISIERT' and \"objektId\"='${STELLA_ID}';")" = "1" ] && echo 1 || echo 0)" "$SN_ANON $(cat /tmp/gbs-rumpf.txt)"
+SN_NACH_ANON=$(storniere "$ZST_NEU" -H "Cookie: ${KEKS}" -d '{"grund":"nach der Anonymisierung"}')
+pruefe "danach ist kein Storno mehr moeglich (409, „anonymisiert“) — ihr neues Zeugnis bleibt gueltig" \
+  "$([ "$SN_NACH_ANON" = "409" ] && grep -q 'anonymisiert' /tmp/gbs-rumpf.txt && [ "$($PSQL "select status from zeugnisse where id='${ZST_NEU}';")" = "GUELTIG" ] && echo 1 || echo 0)" "$SN_NACH_ANON $(cat /tmp/gbs-rumpf.txt)"
 
 echo
 echo "=== 37. Herkunftspruefung (CSRF), Abmelden und Sitzungshinweis ==="
@@ -2556,7 +2808,7 @@ LA_ANON=$(status_von -X POST "${BASIS}/api/personen/${ADMIN_ID}/anonymisieren" -
 pruefe "und anonymisiert ihn nicht (409)" "$(gleich "$LA_ANON" "409")" "$LA_ANON"
 # Ein zweites Administratorkonto im Endzustand kommt selbst nicht mehr hinein —
 # es zaehlt nicht.
-ADMIN2_ID=$($PSQL "insert into personen (id, vorname, nachname, email, \"statusCode\", \"erstelltAm\", \"aktualisiertAm\") values (gen_random_uuid(), 'Adam', 'Ausgeschieden', 'adam.ausgeschieden@beispiel.de', 'ABGEBROCHEN', now(), now()) returning id;")
+ADMIN2_ID=$($PSQL "insert into personen (id, vorname, nachname, email, \"statusCode\", \"erstelltAm\", \"aktualisiertAm\") values (gen_random_uuid(), 'Adam', 'Ausgeschieden', 'adam.ausgeschieden@beispiel.de', 'AUSGESCHLOSSEN', now(), now()) returning id;")
 $PSQL "insert into person_rolle (\"personId\", \"rolleCode\") values ('${ADMIN2_ID}', 'ADMIN');" > /dev/null
 LA2_STATUS=$(status_von -X POST "${BASIS}/api/personen/${ADMIN_ID}/status" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"nachCode":"VERSTORBEN","grund":"Test"}')
 LA2_ANON=$(status_von -X POST "${BASIS}/api/personen/${ADMIN_ID}/anonymisieren" -H "Cookie: ${KEKS}")
@@ -2587,6 +2839,33 @@ pruefe "in der Teilnehmerliste steht sie nicht mehr (Excel, Gegenprobe: Hoerer s
 ALMA_ZEUGNIS=$(curl -s -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' \
   -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"ABSCHLUSS\",\"personId\":\"${ALMA_ID}\"}")
 pruefe "ihr Abschlusszeugnis wird ausgestellt (Beleg-Nr ZEU-)" "$(enthaelt "$ALMA_ZEUGNIS" '"belegNr":"ZEU-')" "$ALMA_ZEUGNIS"
+
+# Wiederaufnahme nach Abbruch (Empfehlung Semesterbetrieb, 27.09.2026):
+# ABGEBROCHEN ist kein Endzustand mehr — wie ABSOLVENT nicht aktiv und ohne
+# Automatik-Mails, der Zugang bleibt. Zurueck nach AKTIV nur mit Grund.
+pruefe "ABGEBROCHEN: kein Endzustand, nicht aktiv, keine Automatik-Mails (f|f|f)" \
+  "$(gleich "$($PSQL "select \"istTerminal\", \"istAktiv\", \"automatikMails\" from teilnehmer_status where code='ABGEBROCHEN';")" "f|f|f")"
+BRUNO_ID=$($PSQL "insert into personen (id, vorname, nachname, email, \"statusCode\", teilnahmeform, \"erstelltAm\", \"aktualisiertAm\") values (gen_random_uuid(), 'Bruno', 'Pause', 'bruno.pause@beispiel.de', 'AKTIV', 'SCHUELER', now(), now()) returning id;")
+$PSQL "insert into person_rolle (\"personId\", \"rolleCode\") values ('${BRUNO_ID}', 'TEILNEHMER');" > /dev/null
+# Bruno ist Schueler in 2099-H. Ohne diese Teilnahme stuende er nach der
+# Wiederaufnahme als „noch nicht zugeordnet“ da, und die Sammeluebernahme in
+# Abschnitt 41 legte ihn an — dort wird aber geprueft, dass sie niemanden anlegt.
+$PSQL "insert into teilnahmen (id,\"personId\",\"semesterId\",teilnahmeform,\"erstelltAm\") values (gen_random_uuid(),'${BRUNO_ID}','${SEMESTER_ID}','SCHUELER',now());" > /dev/null
+KEKS_BRUNO=$(anmelden_als "$BRUNO_ID")
+AB_OHNE=$(status_von -X POST "${BASIS}/api/personen/${BRUNO_ID}/status" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"nachCode":"ABGEBROCHEN"}')
+AB_MIT=$(status_von -X POST "${BASIS}/api/personen/${BRUNO_ID}/status" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"nachCode":"ABGEBROCHEN","grund":"Pause wegen Umzug"}')
+pruefe "Bruno bricht ab, nur mit Grund (400, dann 200)" \
+  "$([ "$AB_OHNE" = "400" ] && [ "$AB_MIT" = "200" ] && echo 1 || echo 0)" "${AB_OHNE}/${AB_MIT}"
+pruefe "sein Portalzugang bleibt (/meine-daten 200, kein Endzustand)" \
+  "$(gleich "$(status_von "${BASIS}/meine-daten" -H "Cookie: ${KEKS_BRUNO}")" "200")"
+WA_OHNE=$(rumpf_und_status -X POST "${BASIS}/api/personen/${BRUNO_ID}/status" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"nachCode":"AKTIV"}')
+pruefe "die Wiederaufnahme ohne Grund wird abgewiesen (400, eigene Meldung)" \
+  "$([ "$WA_OHNE" = "400" ] && grep -q 'Wiederaufnahme nach einem Abbruch braucht einen Grund' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$WA_OHNE $(cat /tmp/gbs-rumpf.txt)"
+WA_MIT=$(status_von -X POST "${BASIS}/api/personen/${BRUNO_ID}/status" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"nachCode":"AKTIV","grund":"Kommt zum Herbst zurueck"}')
+pruefe "mit Grund nimmt die Schulleitung ihn wieder auf (200, AKTIV)" \
+  "$([ "$WA_MIT" = "200" ] && [ "$($PSQL "select \"statusCode\" from personen where id='${BRUNO_ID}';")" = "AKTIV" ] && echo 1 || echo 0)" "$WA_MIT"
+pruefe "der Verlauf haelt beide Wechsel mit Grund fest, das Protokoll nur, DASS einer da war" \
+  "$([ "$($PSQL "select string_agg(\"vonCode\" || '>' || \"nachCode\", ',' order by \"erstelltAm\") from status_wechsel where \"personId\"='${BRUNO_ID}' and grund is not null;")" = "AKTIV>ABGEBROCHEN,ABGEBROCHEN>AKTIV" ] && [ "$($PSQL "select count(*) from audit_log where aktion='STATUS_GEWECHSELT' and \"objektId\"='${BRUNO_ID}' and (nachher->>'grundAngegeben')='true' and nachher::text not like '%Umzug%' and nachher::text not like '%Herbst%';")" = "2" ] && echo 1 || echo 0)"
 
 echo
 echo "=== 40. Ausbildungsdaten: Geburtsdatum, Gemeinde, Teilnahmeform (M9) ==="
@@ -2682,6 +2961,53 @@ WA2=$(status_von -X POST "${BASIS}/api/semesterueberleitung/wieder-aufnehmen" -H
 WA_404=$(status_von -X POST "${BASIS}/api/semesterueberleitung/wieder-aufnehmen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"teilnahmeId\":\"$(neuer_token)\"}")
 pruefe "ein zweites Mal 409, eine unbekannte Teilnahme 404" \
   "$([ "$WA2" = "409" ] && [ "$WA_404" = "404" ] && echo 1 || echo 0)" "${WA2}/${WA_404}"
+
+echo
+echo "=== 41b. Zuletzt abgemeldet: die Absage gilt ueber das Semester hinaus, einzeln uebernehmen ==="
+# Empfehlung Semesterbetrieb (27.09.2026): Wer fuer das Vorsemester „Ich bin
+# raus“ gesagt hat, hat im laufenden Semester keine Teilnahme — die
+# Sammeluebernahme legte ihn frueher still wieder an. Jetzt laesst sie ihn aus;
+# die Schulleitung uebernimmt einzeln, wer wieder dabei sein will. Das
+# Vorsemester beginnt VOR 2099-H (das erst in zwei Wochen beginnt).
+VOR_SEM=$($PSQL "insert into semester (id, code, bezeichnung, start, ende, \"erstelltAm\") values (gen_random_uuid(), 'UEB-VOR', 'Vorsemester Test', '$(tag -150)', '$(tag -10)', now()) returning id;")
+LOTTE_ID=$(person_anlegen Lotte Letztesmal AKTIV SCHUELER)
+$PSQL "insert into person_rolle (\"personId\", \"rolleCode\") values ('${LOTTE_ID}', 'TEILNEHMER');" > /dev/null
+$PSQL "insert into teilnahmen (id, \"personId\", \"semesterId\", teilnahmeform, \"eingeladenAm\", \"abgemeldetAm\", \"abmeldeGrund\", \"erstelltAm\") values (gen_random_uuid(), '${LOTTE_ID}', '${VOR_SEM}', 'SCHUELER', now() - interval '160 days', now() - interval '155 days', 'BIN_RAUS', now() - interval '160 days');" > /dev/null
+uebernimm() { rumpf_und_status -X POST "${BASIS}/api/semester/${SEMESTER_ID}/teilnehmer" -H 'Content-Type: application/json' "$@"; }
+LOTTE_TEILNAHMEN="select count(*) from teilnahmen where \"personId\"='${LOTTE_ID}' and \"semesterId\"='${SEMESTER_ID}';"
+LA_SEITE=$(curl -s "${BASIS}/verwaltung/teilnehmer" -H "Cookie: ${KEKS}")
+pruefe "die Teilnehmerseite fuehrt sie unter „Zuletzt abgemeldet“ — mit Namen und Grund" \
+  "$([ "$(enthaelt "$LA_SEITE" 'Zuletzt abgemeldet (bin raus / keine Rückmeldung):')" = "1" ] && [ "$(enthaelt "$LA_SEITE" 'Letztesmal, Lotte')" = "1" ] && [ "$(enthaelt "$LA_SEITE" 'Vorsemester Test: hat abgesagt')" = "1" ] && echo 1 || echo 0)"
+LA_SAMMEL=$(rumpf_und_status -X POST "${BASIS}/api/semester/${SEMESTER_ID}/teilnehmer" -H "Cookie: ${KEKS}")
+pruefe "die Sammeluebernahme laesst sie aus und zaehlt sie getrennt (zuletztAbgemeldet)" \
+  "$([ "$LA_SAMMEL" = "200" ] && grep -qE '"zuletztAbgemeldet":[1-9]' /tmp/gbs-rumpf.txt && [ "$($PSQL "$LOTTE_TEILNAHMEN")" = "0" ] && echo 1 || echo 0)" "$LA_SAMMEL $(cat /tmp/gbs-rumpf.txt)"
+LA_TN=$(uebernimm -H "Cookie: ${KEKS2}" -d "{\"personId\":\"${LOTTE_ID}\"}")
+LA_X=$(uebernimm -H "Cookie: ${KEKS}" -d '{"personId":"x"}')
+LA_KAPUTT=$(uebernimm -H "Cookie: ${KEKS}" -d '{"personId":')
+pruefe "Einzeluebernahme: Teilnehmer 403, keine UUID 400, kaputtes JSON 400 — nichts angelegt" \
+  "$([ "$LA_TN" = "403" ] && [ "$LA_X" = "400" ] && [ "$LA_KAPUTT" = "400" ] && [ "$($PSQL "$LOTTE_TEILNAHMEN")" = "0" ] && echo 1 || echo 0)" "${LA_TN}/${LA_X}/${LA_KAPUTT}"
+LA_EINZELN=$(uebernimm -H "Cookie: ${KEKS}" -d "{\"personId\":\"${LOTTE_ID}\"}")
+LOTTE_TEILNAHME=$($PSQL "select id from teilnahmen where \"personId\"='${LOTTE_ID}' and \"semesterId\"='${SEMESTER_ID}';")
+# Der erwartete Rumpf steht vorab in einer Variablen: Die Bash 3.2 von macOS
+# zerlegt ein "{\"…\"}}" innerhalb von "$( … )" in mehrere Argumente.
+LA_ERWARTET="{\"data\":{\"uebernommen\":1,\"teilnahmeId\":\"${LOTTE_TEILNAHME}\"}}"
+pruefe "die Schulleitung uebernimmt sie einzeln (200, uebernommen 1, mit der neuen Teilnahme)" \
+  "$([ "$LA_EINZELN" = "200" ] && [ -n "$LOTTE_TEILNAHME" ] && [ "$(cat /tmp/gbs-rumpf.txt)" = "$LA_ERWARTET" ] && echo 1 || echo 0)" "$LA_EINZELN $(cat /tmp/gbs-rumpf.txt)"
+pruefe "das Protokoll nennt die uebergangene Absage (Vorsemester, BIN_RAUS) — ohne Namen" \
+  "$(gleich "$($PSQL "select count(*) from audit_log where aktion='SEMESTER_TEILNEHMER_EINZELN_UEBERNOMMEN' and \"objektId\"='${LOTTE_TEILNAHME}' and nachher->>'personId'='${LOTTE_ID}' and nachher->>'teilnahmeform'='SCHUELER' and nachher->'zuletztAbgemeldet'->>'semester'='UEB-VOR' and nachher->'zuletztAbgemeldet'->>'grund'='BIN_RAUS' and nachher::text not like '%Lotte%';")" "1")"
+LA_SEITE_NACH=$(curl -s "${BASIS}/verwaltung/teilnehmer" -H "Cookie: ${KEKS}")
+pruefe "danach steht sie in der Teilnehmerliste, nicht mehr unter „Zuletzt abgemeldet“" \
+  "$([ "$(enthaelt "$LA_SEITE_NACH" 'Letztesmal')" = "1" ] && [ "$(fehlt_in "$LA_SEITE_NACH" 'Letztesmal, Lotte')" = "1" ] && echo 1 || echo 0)"
+LA_2=$(uebernimm -H "Cookie: ${KEKS}" -d "{\"personId\":\"${LOTTE_ID}\"}")
+pruefe "ein zweites Mal: 409 „bereits zugeordnet“ — weiter genau eine Teilnahme" \
+  "$([ "$LA_2" = "409" ] && grep -q 'bereits zugeordnet' /tmp/gbs-rumpf.txt && [ "$($PSQL "$LOTTE_TEILNAHMEN")" = "1" ] && echo 1 || echo 0)" "$LA_2 $(cat /tmp/gbs-rumpf.txt)"
+LA_404=$(uebernimm -H "Cookie: ${KEKS}" -d "{\"personId\":\"$(neuer_token)\"}")
+pruefe "eine unbekannte Person: 404" \
+  "$([ "$LA_404" = "404" ] && grep -q 'Diese Person gibt es nicht' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$LA_404 $(cat /tmp/gbs-rumpf.txt)"
+# Walter (Abschnitt 39) ist aktiv, hat aber keine Rolle Teilnehmer.
+LA_ROLLE=$(uebernimm -H "Cookie: ${KEKS}" -d "{\"personId\":\"${W1_ID}\"}")
+pruefe "eine aktive Person ohne Teilnehmerrolle: 409 „kein Teilnehmer“ — nichts angelegt" \
+  "$([ "$LA_ROLLE" = "409" ] && grep -q 'kein Teilnehmer' /tmp/gbs-rumpf.txt && [ "$($PSQL "select count(*) from teilnahmen where \"personId\"='${W1_ID}';")" = "0" ] && echo 1 || echo 0)" "$LA_ROLLE $(cat /tmp/gbs-rumpf.txt)"
 
 echo
 echo "=== 42. Semesterueberleitung: Antwort aendern, Semesterpflege, verschobener Beginn ==="
@@ -3372,10 +3698,10 @@ pruefe "Zeugnis-Snapshots: ebenso" \
 pruefe "Gegenprobe: alle vier Stellen sind gefuellt" \
   "$(gleich "$($PSQL "select (select count(*) from audit_log) > 0 and (select count(*) from email_versand) > 0 and (select count(*) from honorar_abrechnung_posten) > 0 and (select count(*) from zeugnisse) > 0;")" "t")"
 
-# 786 Pruefungen plus diese eine, die sich selbst mitzaehlt. Im Text stehen 771
+# 849 Pruefungen plus diese eine, die sich selbst mitzaehlt. Im Text stehen 834
 # Aufrufe; der in der Protokoll-Schleife von Abschnitt 19 laeuft 17-mal
-# (770 + 17 = 787). Kein Aufruf steht in einem if-Zweig — die Zahl ist fest.
-SOLL=787
+# (833 + 17 = 850). Kein Aufruf steht in einem if-Zweig — die Zahl ist fest.
+SOLL=850
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

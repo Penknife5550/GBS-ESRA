@@ -23,8 +23,10 @@ import {
   waereLetzterAdmin,
 } from "../src/lib/benutzerverwaltung";
 import {
+  brauchtGrund,
   darfAusEndzustand,
   MELDUNG_ANMELDUNG_OFFEN,
+  MELDUNG_WIEDERAUFNAHME_GRUND,
   pruefeAusbildungsdaten,
   pruefeStatuswechsel,
   waehlbareZiele,
@@ -140,6 +142,30 @@ console.log("\n5. Statuswechsel von Hand (M9)");
   pruefe(
     "nur die Anonymisierung führt aus einem Endzustand heraus",
     darfAusEndzustand("ANONYMISIERT") && !darfAusEndzustand("AKTIV"),
+  );
+  // Wiederaufnahme nach Abbruch (27.09.2026): ABGEBROCHEN ist kein Endzustand
+  // mehr, das Verlassen braucht aber einen Grund.
+  const wiederOhne = pruefeStatuswechsel({ vonCode: "ABGEBROCHEN", vonIstTerminal: false, nachCode: "AKTIV", grund: " " });
+  pruefe(
+    "Wiederaufnahme aus ABGEBROCHEN ohne Grund wird abgewiesen (400, eigene Meldung)",
+    !wiederOhne.ok && wiederOhne.status === 400 && wiederOhne.meldung === MELDUNG_WIEDERAUFNAHME_GRUND,
+    wiederOhne,
+  );
+  const wiederMit = pruefeStatuswechsel({ vonCode: "ABGEBROCHEN", vonIstTerminal: false, nachCode: "AKTIV", grund: " Kommt zurück " });
+  pruefe("Wiederaufnahme aus ABGEBROCHEN mit Grund geht", wiederMit.ok && wiederMit.grund === "Kommt zurück", wiederMit);
+  pruefe(
+    "brauchtGrund: das Verlassen von ABGEBROCHEN zählt, andere Herkünfte nicht",
+    brauchtGrund("AKTIV", "ABGEBROCHEN") && !brauchtGrund("AKTIV", "BEURLAUBT") && !brauchtGrund("AKTIV"),
+  );
+  const zieleAbgebrochen = waehlbareZiele(
+    ["INTERESSENT", "ANGENOMMEN", "AKTIV", "ABGEBROCHEN", "VERSTORBEN"].map((code) => ({ code })),
+    "ABGEBROCHEN",
+    false,
+  ).map((z) => z.code);
+  pruefe(
+    "aus ABGEBROCHEN bietet die Oberfläche die Wiederaufnahme an",
+    zieleAbgebrochen.join(",") === "ANGENOMMEN,AKTIV,VERSTORBEN",
+    zieleAbgebrochen,
   );
   const alle = ["INTERESSENT", "ANGENOMMEN", "AKTIV", "BEURLAUBT", "ABSOLVENT", "VERSTORBEN", "ANONYMISIERT"].map((code) => ({ code }));
   const ziele = waehlbareZiele(alle, "AKTIV", false).map((z) => z.code);
@@ -266,9 +292,15 @@ pruefe(
   /istTerminal: false,/.test(absolvent) && /istAktiv: false,/.test(absolvent) && /automatikMails: false,/.test(absolvent),
   absolvent,
 );
+const abgebrochenBlock = statusBlock("ABGEBROCHEN");
 pruefe(
-  "VERSTORBEN, AUSGESCHLOSSEN, ABGEBROCHEN und ANONYMISIERT bleiben Endzustände",
-  ["VERSTORBEN", "AUSGESCHLOSSEN", "ABGEBROCHEN", "ANONYMISIERT"].every((c) => /istTerminal: true,/.test(statusBlock(c))),
+  "ABGEBROCHEN ist KEIN Endzustand (Wiederaufnahme), zählt nicht als aktiv und bekommt keine Automatik-Mails",
+  /istTerminal: false,/.test(abgebrochenBlock) && /istAktiv: false,/.test(abgebrochenBlock) && /automatikMails: false,/.test(abgebrochenBlock),
+  abgebrochenBlock,
+);
+pruefe(
+  "VERSTORBEN, AUSGESCHLOSSEN und ANONYMISIERT bleiben Endzustände",
+  ["VERSTORBEN", "AUSGESCHLOSSEN", "ANONYMISIERT"].every((c) => /istTerminal: true,/.test(statusBlock(c))),
 );
 const rollenStart = seed.indexOf("const ROLLEN = [");
 const rollenText = rollenStart >= 0 ? seed.slice(rollenStart, seed.indexOf("\n];", rollenStart)) : "";
@@ -503,7 +535,7 @@ console.log("\n10. API-Routen: 401 (nicht angemeldet) getrennt von 403 (keine Be
 }
 
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 92;
+const ERWARTET = 97;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

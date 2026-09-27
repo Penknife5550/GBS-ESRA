@@ -10,7 +10,10 @@ import { datum } from "@/lib/datum";
 import { art9EinwilligungenWirksam } from "@/lib/anmeldung-antworten";
 import { ladeEigeneLeistungen, ladePersonNoten } from "@/lib/leistung-io";
 import { ladeEigeneUnterrichtstermine } from "@/lib/stundenplan-io";
-import { ladeEigeneZeugnisse } from "@/lib/zeugnis-io";
+import { ladeZeugnisseDerPerson } from "@/lib/zeugnis-io";
+import { stornoRueckfrage } from "@/lib/zeugnis";
+import { ZeugnisStatusBadge } from "../../zeugnisse/zeugnis-status-badge";
+import { ZeugnisStorno } from "../../zeugnisse/zeugnis-storno";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { PersonKopf } from "@/components/personen/person-kopf";
 import { StatusBadge, TeilnahmeformBadge, ErgebnisBadge } from "@/components/ui/badges";
@@ -101,7 +104,7 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
     await Promise.all([
       darfNoten ? ladeEigeneLeistungen(person.id) : Promise.resolve([]),
       ladeEigeneUnterrichtstermine(person.id, new Date()),
-      darfNoten ? ladeEigeneZeugnisse(person.id) : Promise.resolve([]),
+      darfNoten ? ladeZeugnisseDerPerson(person.id) : Promise.resolve([]),
       zeigeNotenEditor && aktuellesSemester ? ladePersonNoten(person.id, aktuellesSemester.id) : Promise.resolve(null),
       darfRollen
         ? prisma.rolle.findMany({ select: { code: true, bezeichnung: true }, orderBy: { sortierung: "asc" } })
@@ -329,7 +332,11 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
         </section>
       </div>
 
-      {/* Zeugnisse — wie Noten nur mit NOTEN_VERWALTEN */}
+      {/* Zeugnisse — wie Noten nur mit NOTEN_VERWALTEN. Alle Stände (gültig,
+          ersetzt, storniert) mit Label; stornieren lässt sich nur ein gültiges
+          einer nicht anonymisierten Person (die Route prüft beides selbst). Die
+          Storno-Komponente steht in jeder Zeile (stabiler key), damit ihre
+          Meldung das Neuladen übersteht. */}
       {darfNoten && zeugnisse.length > 0 && (
         <section className="mt-6 rounded-lg border border-border bg-card">
           <div className={panelKopf}>
@@ -344,16 +351,29 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
                 <div className="min-w-0">
                   <span className="text-sm font-medium">{z.titel}</span>
                   <span className="ml-2 text-sm text-muted-foreground">· {z.abschnitt}</span>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    Beleg-Nr. {z.belegNr} · {datum(z.ausgestelltAm)}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <ZeugnisStatusBadge status={z.status} />
+                    <span>
+                      Beleg-Nr. {z.belegNr} · {datum(z.ausgestelltAm)}
+                      {z.status === "STORNIERT" && ` · storniert am ${datum(z.storniertAm)}`}
+                    </span>
                   </div>
                 </div>
-                <a
-                  href={`/api/zeugnisse/${z.id}/pdf`}
-                  className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 py-2 text-sm font-medium"
-                >
-                  PDF öffnen
-                </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`/api/zeugnisse/${z.id}/pdf`}
+                    aria-label={`${z.titel} (${z.abschnitt}, Beleg-Nr. ${z.belegNr}) als PDF öffnen`}
+                    className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 py-2 text-sm font-medium"
+                  >
+                    {z.status === "GUELTIG" ? "PDF öffnen" : "PDF (ungültig)"}
+                  </a>
+                  <ZeugnisStorno
+                    zeugnisId={z.id}
+                    stornierbar={z.status === "GUELTIG" && !istAnonym}
+                    rueckfrage={stornoRueckfrage({ typ: z.typ, belegNr: z.belegNr, name: `${person.vorname} ${person.nachname}` })}
+                    beschriftung={`${z.titel} (${z.abschnitt}) stornieren (ohne Ersatz)`}
+                  />
+                </div>
               </li>
             ))}
           </ul>

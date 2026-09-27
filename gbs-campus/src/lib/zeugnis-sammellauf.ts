@@ -10,10 +10,11 @@
  * - die Sperre des Sammellaufs für Abschlusszeugnisse außerhalb des letzten
  *   Rastersemesters (sonst bekämen auch Erstsemester ein Abschlusszeugnis),
  * - die Zahlen und der Text der Rückfrage vor dem Sammellauf (auch: wer noch gar
- *   keine Bewertung hat, wer beim Abschluss weniger Semester als das Raster hat),
+ *   keine Bewertung hat, wer beim Abschluss weniger Semester als das Raster hat,
+ *   wer ein storniertes Dokument hat, welcher Hörer keinen besuchten Abend hat),
  * - die Meldung nach dem Lauf, die Fehlschläge NICHT als Erfolg ausgibt,
  * - die Sperre der (Neu-)Ausstellung für anonymisierte Personen und Personen in
- *   einem Endzustand.
+ *   einem Endzustand und die Sperre des Stornos für anonymisierte Personen.
  */
 
 import { KURSRASTER, type StatusCode } from "@/lib/constants";
@@ -92,6 +93,21 @@ export function zeugnisSperreFuerPerson(status: { code: string; bezeichnung: str
   return null;
 }
 
+/**
+ * Null = ein gültiges Zeugnis dieser Person darf storniert werden, sonst die
+ * Begründung. Gesperrt ist nur die anonymisierte Person: Der Storno-Grund ist
+ * Freitext, den die Anonymisierung nur in ihrem eigenen Lauf überschreibt — ein
+ * später eingetragener Grund stünde mit möglichem Personenbezug an einem
+ * anonymisierten Datensatz. Ein Endzustand sperrt NICHT: Auch die
+ * Fehlausstellung einer ausgeschiedenen Person muss sich zurückziehen lassen.
+ */
+export function stornoSperreFuerPerson(statusCode: string): string | null {
+  if (statusCode === ANONYMISIERT) {
+    return "Diese Person ist anonymisiert. Ihre Zeugnisse bleiben unverändert als Nachweis — ein Storno ist nicht mehr möglich.";
+  }
+  return null;
+}
+
 // -----------------------------------------------------------------------------
 // Vorschau + Rückfrage
 // -----------------------------------------------------------------------------
@@ -111,6 +127,12 @@ export function zaehleOffeneFaecher(erwartet: Iterable<string>, bewertet: Iterab
 export type VorschauZeile = {
   typ: Zeugnistypwert;
   ausgestellt: boolean;
+  /** Kein gültiges, aber ein STORNIERTES Dokument desselben Schlüssels — der
+   * Sammellauf stellt es nicht still neu aus (nur die Einzel-Ausstellung). */
+  storniert: boolean;
+  /** Nur Bescheinigung: Fächer mit besuchtem Abend (`bescheinigungsFaecher`);
+   * 0 = keine Bescheinigung. Bei Zeugnissen ohne Bedeutung. */
+  besuchteFaecher: number;
   offeneFaecher: number;
   /** Erfasste Bewertungen, die ins Zeugnis kämen (Semester: dieses Semester,
    * Abschluss: alle zählenden Schüler-Semester). */
@@ -127,6 +149,10 @@ export type SammelVorschau = {
   bescheinigungen: number;
   /** Bereits gültig vorhanden — der Sammellauf lässt sie unverändert. */
   vorhanden: number;
+  /** Ohne gültiges, aber mit storniertem Dokument — der Sammellauf überspringt sie. */
+  storniert: number;
+  /** Hörer ohne besuchten Abend in einem Fach — sie bekommen keine Bescheinigung. */
+  ohneAnwesenheit: number;
   /** Auszustellende Schüler mit mindestens einem unbewerteten Fach. */
   mitOffenenFaechern: number;
   /** Auszustellende Schüler ganz ohne Bewertung — ihr Zeugnis enthielte keine
@@ -142,6 +168,8 @@ export function baueSammelVorschau(zeilen: VorschauZeile[]): SammelVorschau {
     zeugnisse: 0,
     bescheinigungen: 0,
     vorhanden: 0,
+    storniert: 0,
+    ohneAnwesenheit: 0,
     mitOffenenFaechern: 0,
     ohneBewertung: 0,
     wenigerSemesterAlsRaster: 0,
@@ -149,9 +177,14 @@ export function baueSammelVorschau(zeilen: VorschauZeile[]): SammelVorschau {
   for (const z of zeilen) {
     if (z.ausgestellt) {
       vorschau.vorhanden++;
+    } else if (z.storniert) {
+      // Eine stornierte Fehlausstellung stellt der Sammellauf nicht still neu aus.
+      vorschau.storniert++;
     } else if (z.typ === "BESCHEINIGUNG") {
       // Hörer: keine Prüfungspflicht — unbewertete Fächer sind hier kein Mangel.
-      vorschau.bescheinigungen++;
+      // Ohne einen besuchten Abend gibt es aber keine Bescheinigung.
+      if (z.besuchteFaecher === 0) vorschau.ohneAnwesenheit++;
+      else vorschau.bescheinigungen++;
     } else {
       vorschau.zeugnisse++;
       if (z.offeneFaecher > 0) vorschau.mitOffenenFaechern++;
@@ -205,10 +238,44 @@ export function sammellaufRueckfrage(vorschau: SammelVorschau, gewaehlt: Gewaehl
       `${n} ${n === 1 ? "Teilnehmer hat" : "Teilnehmer haben"} schon ein gültiges Dokument — ${n === 1 ? "es bleibt" : "sie bleiben"} unverändert.`,
     );
   }
+  if (vorschau.storniert > 0) absaetze.push(`${stornierteText(vorschau.storniert)}.`);
+  if (vorschau.ohneAnwesenheit > 0) absaetze.push(`${ohneAnwesenheitText(vorschau.ohneAnwesenheit)}.`);
   absaetze.push(
-    "Ausgestellte Zeugnisse sind sofort für die Schüler sichtbar. Eine Ausstellung lässt sich nicht zurücknehmen, nur über „Neu ausstellen“ korrigieren.",
+    "Ausgestellte Zeugnisse sind sofort für die Schüler sichtbar. Korrigieren lässt sich eine Ausstellung über „Neu ausstellen“, " +
+      "zurückziehen über „Stornieren“.",
   );
   return absaetze.join("\n\n");
+}
+
+/** „N Teilnehmer … storniertes Dokument …“ — Rückfrage, Hinweis und Meldung sagen es gleich. */
+function stornierteText(n: number): string {
+  return (
+    `${n} ${n === 1 ? "Teilnehmer hat" : "Teilnehmer haben"} ein storniertes Dokument — dafür stellt der Sammellauf nichts neu aus ` +
+    "(einzeln weiterhin über „Ausstellen“ möglich)"
+  );
+}
+
+/** „N Hörer ohne besuchten Abend …“ — Rückfrage, Hinweis und Meldung sagen es gleich. */
+function ohneAnwesenheitText(n: number): string {
+  return (
+    `${n} ${n === 1 ? "Hörer hat" : "Hörer haben"} in diesem Semester keinen besuchten Abend in einem Fach (anwesend oder nachgearbeitet) — ` +
+    "dafür wird keine Teilnahmebescheinigung ausgestellt"
+  );
+}
+
+/**
+ * Warum „Alle ausstellen“ aus ist, obwohl Teilnehmer da sind — null, solange es
+ * etwas auszustellen gibt (oder niemand da ist; das sagt die leere Liste selbst).
+ */
+export function nichtsAuszustellenHinweis(vorschau: SammelVorschau): string | null {
+  if (vorschau.zeugnisse + vorschau.bescheinigungen > 0) return null;
+  if (vorschau.storniert === 0 && vorschau.ohneAnwesenheit === 0) {
+    return vorschau.vorhanden > 0 ? "Für alle Teilnehmer ist bereits ein Dokument ausgestellt." : null;
+  }
+  const absaetze = ["Gesammelt ist nichts mehr auszustellen."];
+  if (vorschau.storniert > 0) absaetze.push(`${stornierteText(vorschau.storniert)}.`);
+  if (vorschau.ohneAnwesenheit > 0) absaetze.push(`${ohneAnwesenheitText(vorschau.ohneAnwesenheit)}.`);
+  return absaetze.join(" ");
 }
 
 // -----------------------------------------------------------------------------
@@ -216,15 +283,33 @@ export function sammellaufRueckfrage(vorschau: SammelVorschau, gewaehlt: Gewaehl
 // -----------------------------------------------------------------------------
 
 /** Ergebnis des Sammellaufs. „vorhanden“ und „fehlgeschlagen“ sind bewusst
- * getrennt: ein Fehlschlag darf nie als „bereits vorhanden“ erscheinen. */
-export type SammellaufErgebnis = { ausgestellt: number; vorhanden: number; fehlgeschlagen: number; gesamt: number };
+ * getrennt: ein Fehlschlag darf nie als „bereits vorhanden“ erscheinen. Ebenso
+ * getrennt die bewusst Übersprungenen: „storniert“ (ein storniertes Dokument,
+ * kein gültiges) und „ohneAnwesenheit“ (Hörer ohne besuchten Abend). */
+export type SammellaufErgebnis = {
+  ausgestellt: number;
+  vorhanden: number;
+  storniert: number;
+  ohneAnwesenheit: number;
+  fehlgeschlagen: number;
+  gesamt: number;
+};
 
 function zeugnisWort(n: number): string {
   return n === 1 ? "Zeugnis" : "Zeugnisse";
 }
 
+/** Die bewusst Übersprungenen als Nachsatz — leer, wenn es keine gibt. */
+function uebersprungenSatz(e: SammellaufErgebnis): string {
+  const saetze: string[] = [];
+  if (e.storniert > 0) saetze.push(`${stornierteText(e.storniert)}.`);
+  if (e.ohneAnwesenheit > 0) saetze.push(`${ohneAnwesenheitText(e.ohneAnwesenheit)}.`);
+  return saetze.length > 0 ? ` ${saetze.join(" ")}` : "";
+}
+
 /** Die Meldung nach dem Lauf. Sobald etwas fehlgeschlagen ist, ist es eine
- * Fehlermeldung — auch wenn ein Teil ausgestellt wurde. */
+ * Fehlermeldung — auch wenn ein Teil ausgestellt wurde. Übersprungene
+ * (storniert, ohne Anwesenheit) sind kein Fehler, werden aber genannt. */
 export function sammellaufMeldung(e: SammellaufErgebnis): { art: "ok" | "fehler"; text: string } {
   if (e.fehlgeschlagen > 0) {
     const n = e.fehlgeschlagen;
@@ -233,17 +318,24 @@ export function sammellaufMeldung(e: SammellaufErgebnis): { art: "ok" | "fehler"
       text:
         `${n} ${zeugnisWort(n)} ${n === 1 ? "konnte" : "konnten"} nicht ausgestellt werden` +
         (e.ausgestellt > 0 ? ` (${e.ausgestellt} ausgestellt)` : "") +
-        ". Bitte „Alle ausstellen“ noch einmal starten — bereits ausgestellte werden dabei nicht doppelt erzeugt.",
+        ". Bitte „Alle ausstellen“ noch einmal starten — bereits ausgestellte werden dabei nicht doppelt erzeugt." +
+        uebersprungenSatz(e),
     };
   }
   if (e.gesamt === 0) {
     return { art: "fehler", text: "Für dieses Semester sind keine aktiven Teilnehmer eingetragen." };
   }
   if (e.ausgestellt === 0) {
-    return { art: "ok", text: "Alle Zeugnisse waren bereits ausgestellt." };
+    if (e.storniert === 0 && e.ohneAnwesenheit === 0) return { art: "ok", text: "Alle Zeugnisse waren bereits ausgestellt." };
+    return {
+      art: "ok",
+      text: `Es wurde nichts neu ausgestellt${e.vorhanden > 0 ? ` (${e.vorhanden} bereits vorhanden)` : ""}.${uebersprungenSatz(e)}`,
+    };
   }
   return {
     art: "ok",
-    text: `${e.ausgestellt} ${zeugnisWort(e.ausgestellt)} ausgestellt${e.vorhanden > 0 ? `, ${e.vorhanden} bereits vorhanden` : ""}.`,
+    text:
+      `${e.ausgestellt} ${zeugnisWort(e.ausgestellt)} ausgestellt${e.vorhanden > 0 ? `, ${e.vorhanden} bereits vorhanden` : ""}.` +
+      uebersprungenSatz(e),
   };
 }

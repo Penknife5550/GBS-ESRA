@@ -75,7 +75,9 @@ export function AusbildungStatus({
   const datenGeaendert =
     werte.geburtsdatum !== daten.geburtsdatum || werte.gemeinde !== daten.gemeinde || werte.teilnahmeform !== daten.teilnahmeform;
   const zielStatus = ziele.find((z) => z.code === ziel) ?? null;
-  const grundNoetig = zielStatus ? brauchtGrund(zielStatus.code) : false;
+  // Auch das Verlassen von „Abgebrochen“ (Wiederaufnahme) braucht einen Grund.
+  const grundNoetig = zielStatus ? brauchtGrund(zielStatus.code, status.code) : false;
+  const wiederaufnahme = status.code === STATUS.ABGEBROCHEN;
 
   async function datenSpeichern() {
     // Ein Formwechsel im laufenden Semester hat Folgen, die man der Auswahl
@@ -143,6 +145,20 @@ export function AusbildungStatus({
         "Anwesenheit, Notenliste), und es gehen keine automatischen Mails mehr an sie. Noten lassen sich dann " +
         "nur noch hier in der Akte erfassen — am besten vorher erledigen.\n\n" +
         "Zeugnisse, auch das Abschlusszeugnis, lassen sich weiter ausstellen, und der Zugang zum Portal bleibt.";
+    } else if (zielStatus.code === STATUS.ABGEBROCHEN) {
+      frage =
+        `${name} auf „${zielStatus.bezeichnung}“ setzen?\n\n` +
+        "Danach erscheint die Person nicht mehr in den Listen des laufenden Semesters (Teilnehmerliste, " +
+        "Anwesenheit, Noten, Zeugnisse), der Beitragslauf stoppt, und es gehen keine automatischen Mails mehr " +
+        "an sie. Noten und Zeugnis für dieses Semester deshalb vorher erfassen bzw. ausstellen.\n\n" +
+        "Das ist kein Endzustand: Der Zugang zum Portal bleibt, und die Schulleitung kann die Person später " +
+        "mit Grund wieder aufnehmen.";
+    } else if (wiederaufnahme && zielStatus.istAktiv) {
+      frage =
+        `${name} wieder aufnehmen (Status „${zielStatus.bezeichnung}“)?\n\n` +
+        "Die Person erscheint danach wieder in den Listen der Semester, in denen sie eine Teilnahme hat, und " +
+        "bekommt wieder automatische Mails. Hat sie im laufenden Semester noch keine Teilnahme, übernehmen Sie " +
+        "sie anschließend unter „Aktive dieses Semester“.";
     } else if (status.istAktiv && !zielStatus.istAktiv) {
       frage =
         `Den Status von ${name} von „${status.bezeichnung}“ auf „${zielStatus.bezeichnung}“ ändern?\n\n` +
@@ -266,6 +282,12 @@ export function AusbildungStatus({
           <p className="mt-2 text-xs text-muted-foreground">{MELDUNG_ANMELDUNG_OFFEN}</p>
         ) : (
           <>
+            {wiederaufnahme && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Wiederaufnahme nach einem Abbruch: Status auf „Aktiv“ setzen und den Grund angeben. Hat die Person
+                im laufenden Semester noch keine Teilnahme, übernehmen Sie sie danach unter „Aktive dieses Semester“.
+              </p>
+            )}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor={`zielstatus-${personId}`} className="mb-1.5 block text-sm font-medium">

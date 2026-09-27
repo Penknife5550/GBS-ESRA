@@ -49,7 +49,7 @@ class LetzterAdmin extends Error {}
  * Anonymisiert eine Person unwiderruflich. Erhalten bleiben (als Nachweis, ohne
  * Personenbezug): Audit-Log und Einwilligungen (beide append-only), Teilnahmen,
  * Anwesenheiten, Leistungen und die ausgestellten Zeugnisse (mit Beleg-Nr. und
- * Fächern, aber ohne Name und Geburtsdatum). Idempotent: eine bereits
+ * Fächern, aber ohne Name, Geburtsdatum und Storno-Grund). Idempotent: eine bereits
  * anonymisierte Person wird nicht erneut angefasst. Den letzten Administrator
  * anonymisiert niemand (`letzter_admin`) — die Anonymisierung entzieht die
  * Rollen, danach käme niemand mehr an Konten und Rollen.
@@ -86,7 +86,7 @@ export async function anonymisierePerson(
   const adressen = [...new Set([person.email, person.email.trim().toLowerCase()])];
   const drosselSchluessel = adressen.flatMap((adresse) => [`MAGIC_LINK:${adresse}`, `PASSWORT:${adresse}`]);
 
-  let zahlen: { anmeldungen: number; zeugnisse: number; abgeschlossen: number; rollen: number };
+  let zahlen: { anmeldungen: number; zeugnisse: number; stornoGruende: number; abgeschlossen: number; rollen: number };
   try {
     zahlen = await prisma.$transaction(async (tx) => {
       // Zuerst, vor jedem Schreiben: Ist das der letzte Administrator? Gezählt
@@ -185,6 +185,18 @@ export async function anonymisierePerson(
         });
       }
 
+      // Der Grund eines Stornos ist Freitext der Schulleitung und kann
+      // Personenbezug tragen („war gar nicht eingeschrieben, laut Ehefrau …").
+      // Der Trigger lässt an ihm genau diesen Platzhalter zu (Migration
+      // 20260928100000_zeugnis_storno). Eine Anweisung für alle Zeugnisse der
+      // Person: Ein Storno sperrt wie diese Transaktion die Personenzeile, er ist
+      // also entweder vorher committet (und hier erfasst) oder wird danach
+      // abgelehnt (`stornoSperreFuerPerson`).
+      const stornoGruende = await tx.zeugnis.updateMany({
+        where: { personId, stornoGrund: { not: null } },
+        data: { stornoGrund: ANONYM_PLATZHALTER },
+      });
+
       // Bestätigungslinks der Semesterüberleitung liegen evtl. noch im alten
       // Postfach — ein Klick darauf soll für eine anonymisierte Person nichts mehr bewirken.
       await tx.teilnahme.updateMany({
@@ -222,6 +234,7 @@ export async function anonymisierePerson(
       return {
         anmeldungen: anmeldungen.length,
         zeugnisse: zeugnisse.length,
+        stornoGruende: stornoGruende.count,
         abgeschlossen: abgeschlossen.count,
         rollen: rollen.count,
       };
@@ -252,6 +265,7 @@ export async function anonymisierePerson(
       anmeldungenGescrubbt: zahlen.anmeldungen,
       anmeldungenGeschlossen: zahlen.abgeschlossen,
       zeugnisseAnonymisiert: zahlen.zeugnisse,
+      stornoGruendeAnonymisiert: zahlen.stornoGruende,
       rollenEntfernt: zahlen.rollen,
     },
     headers,

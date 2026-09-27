@@ -62,8 +62,14 @@ export async function POST(request: NextRequest) {
     objektTyp: "Teilnahme",
     objektId: teilnahmeId,
     akteurId: benutzer.id,
-    vorher: { semester: teilnahme.semester.code, abgemeldetAm: teilnahme.abgemeldetAm, abmeldeGrund: teilnahme.abmeldeGrund },
-    nachher: { bestaetigtAm: jetzt },
+    // Zeitpunkte als ISO-Text: `protokolliere` bereinigt Objekte feldweise und
+    // machte aus einem Date-Objekt ein leeres `{}`.
+    vorher: {
+      semester: teilnahme.semester.code,
+      abgemeldetAm: teilnahme.abgemeldetAm.toISOString(),
+      abmeldeGrund: teilnahme.abmeldeGrund,
+    },
+    nachher: { bestaetigtAm: jetzt.toISOString() },
     headers: request.headers,
   });
 

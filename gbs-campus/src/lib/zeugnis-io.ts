@@ -3,15 +3,17 @@
  *
  * Der IO-Teil zur DB-freien Kernlogik (`zeugnis.ts`) und zum PDF-Bau
  * (`zeugnis-beleg.ts`): Zeugnisse ausstellen (einfrieren), korrigieren
- * (Neuausstellung mit Storno), den Seriendruck erzeugen, die eigenen Zeugnisse
- * des Schülers laden, ein einzelnes als PDF ausliefern und nicht versandte
- * DMS-Archivkopien nachsenden.
+ * (Neuausstellung), ohne Ersatz stornieren, den Seriendruck erzeugen, die
+ * eigenen Zeugnisse des Schülers laden, ein einzelnes als PDF ausliefern und
+ * nicht versandte DMS-Archivkopien nachsenden.
  *
  * Einfrieren: beim Ausstellen wird ein Snapshot der gedruckten Daten als JSON
  * festgeschrieben — eine spätere Noten-/Namensänderung verändert ein
  * ausgestelltes Zeugnis nicht mehr. Korrektur = Neuausstellung: das alte Zeugnis
  * wird ERSETZT (bleibt als Nachweis), ein neues mit höherer Version tritt an
- * seine Stelle.
+ * seine Stelle. Eine Fehlausstellung ohne Ersatz wird STORNIERT: ungültig, für
+ * die Person nicht mehr abrufbar, als Nachweis gespeichert; der Sammellauf
+ * stellt sie nicht still neu aus.
  *
  * Eindeutigkeit: Semester-Zeugnis/Bescheinigung sind je (Person, Semester)
  * eindeutig; das **Abschlusszeugnis** dagegen je **Person** (sein Inhalt
@@ -32,18 +34,28 @@ import { EINRICHTUNG, STATUS } from "@/lib/constants";
 import { TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
 import {
   baueZeugnisSnapshot,
+  bescheinigungsFaecher,
   neueBelegNr,
+  ohneBesuchtenAbend,
   zeugnistypFuer,
   ZEUGNIS_ORT,
+  type ErfassterAbend,
   type GewaehlterTyp,
   type Zeugnistypwert,
   type ZeugnisLeistungEingabe,
   type ZeugnisSnapshot,
 } from "@/lib/zeugnis";
-import { baueSeriendruckBloecke, baueZeugnisBloecke, type UngueltigVermerk } from "@/lib/zeugnis-beleg";
+import {
+  baueSeriendruckBloecke,
+  baueStornoVermerk,
+  baueZeugnisBloecke,
+  type StornoVermerk,
+  type UngueltigVermerk,
+} from "@/lib/zeugnis-beleg";
 import {
   baueSammelVorschau,
   sammellaufSperre,
+  stornoSperreFuerPerson,
   zaehleOffeneFaecher,
   zeugnisSperreFuerPerson,
   type SammellaufErgebnis,
@@ -125,22 +137,52 @@ async function ladeGesamtLeistungen(personId: string): Promise<LeistungZeile[]> 
   return teilnahmen.flatMap((t) => t.leistungen.slice().sort(nachSortierung)).map(zuLeistungZeile);
 }
 
-/** Die in einem Semester unterrichteten Fächer (Teilnahmebescheinigung des Hörers),
- * dedupliziert auf die Kurseinheit — alle als „teilgenommen". */
-async function ladeSemesterFaecher(semesterId: string): Promise<LeistungZeile[]> {
-  const termine = await prisma.unterrichtstermin.findMany({
-    where: { semesterId, kurseinheitId: { not: null } },
-    orderBy: { beginn: "asc" },
-    select: { kurseinheitId: true, kurseinheit: { select: { titel: true, sortierung: true, fach: { select: { bezeichnung: true } } } } },
+/** Was von einem erfassten Abend für die Teilnahmebescheinigung gebraucht wird. */
+const ABEND_SELECT = {
+  status: true,
+  termin: {
+    select: { kurseinheit: { select: { id: true, titel: true, sortierung: true, fach: { select: { bezeichnung: true } } } } },
+  },
+} as const;
+
+type AbendRoh = {
+  status: string;
+  termin: { kurseinheit: { id: string; titel: string; sortierung: number; fach: { bezeichnung: string } } | null };
+};
+
+function alsErfassterAbend(a: AbendRoh): ErfassterAbend {
+  const k = a.termin.kurseinheit;
+  return { status: a.status, kurseinheit: k ? { id: k.id, titel: k.titel, sortierung: k.sortierung, fach: k.fach.bezeichnung } : null };
+}
+
+/** Die Fächer der Teilnahmebescheinigung eines Hörers: nur Kurseinheiten mit
+ * mindestens einem besuchten Abend in DIESEM Semester. Geladen werden alle
+ * erfassten Abende der Teilnahme an Terminen des Semesters; welche zählen,
+ * entscheidet die DB-freie Regel `bescheinigungsFaecher`. */
+async function ladeBesuchteFaecher(personId: string, semesterId: string): Promise<LeistungZeile[]> {
+  const abende = await prisma.anwesenheit.findMany({
+    where: { teilnahme: { personId, semesterId }, termin: { semesterId } },
+    select: ABEND_SELECT,
   });
-  const gesehen = new Set<string>();
-  const zeilen: LeistungRoh[] = [];
-  for (const t of termine) {
-    if (!t.kurseinheitId || !t.kurseinheit || gesehen.has(t.kurseinheitId)) continue;
-    gesehen.add(t.kurseinheitId);
-    zeilen.push({ ergebnis: "TEILGENOMMEN", punkte: null, note: null, kurseinheit: t.kurseinheit });
+  return bescheinigungsFaecher(abende.map(alsErfassterAbend));
+}
+
+/** Je Person die Zahl der Fächer mit besuchtem Abend im Semester — gebündelt für
+ * die Hörer-Zeilen der Übersicht (und damit für die Vorschau). Dieselbe Regel
+ * wie beim Ausstellen (`bescheinigungsFaecher`). */
+async function zaehleBesuchteFaecher(semesterId: string, personIds: string[]): Promise<Map<string, number>> {
+  if (personIds.length === 0) return new Map();
+  const abende = await prisma.anwesenheit.findMany({
+    where: { teilnahme: { semesterId, personId: { in: personIds } }, termin: { semesterId } },
+    select: { ...ABEND_SELECT, teilnahme: { select: { personId: true } } },
+  });
+  const jePerson = new Map<string, ErfassterAbend[]>();
+  for (const a of abende) {
+    const liste = jePerson.get(a.teilnahme.personId) ?? [];
+    liste.push(alsErfassterAbend(a));
+    jePerson.set(a.teilnahme.personId, liste);
   }
-  return zeilen.slice().sort(nachSortierung).map(zuLeistungZeile);
+  return new Map(personIds.map((id) => [id, bescheinigungsFaecher(jePerson.get(id) ?? []).length]));
 }
 
 async function sammleInhalt(
@@ -150,7 +192,7 @@ async function sammleInhalt(
   semesterBezeichnung: string,
 ): Promise<{ abschnitt: string; leistungen: LeistungZeile[] }> {
   if (typ === "BESCHEINIGUNG") {
-    return { abschnitt: semesterBezeichnung, leistungen: await ladeSemesterFaecher(semesterId) };
+    return { abschnitt: semesterBezeichnung, leistungen: await ladeBesuchteFaecher(personId, semesterId) };
   }
   if (typ === "ABSCHLUSS") {
     return { abschnitt: "Gesamte Ausbildung", leistungen: await ladeGesamtLeistungen(personId) };
@@ -169,19 +211,28 @@ function gueltigWo(personId: string, semesterId: string, typ: Zeugnistypwert) {
     : { personId, semesterId, typ, status: "GUELTIG" as const };
 }
 
-/** Schlüssel für die Batch-Existenzprüfung — beim Abschluss semesterunabhängig,
- * sonst je (Person, Typ, Semester). */
-function gueltigSchluessel(personId: string, semesterId: string, typ: Zeugnistypwert): string {
+/** Schlüssel für die Batch-Existenzprüfung (gültige UND stornierte) — beim
+ * Abschluss semesterunabhängig, sonst je (Person, Typ, Semester). */
+function zeugnisSchluessel(personId: string, semesterId: string, typ: Zeugnistypwert): string {
   return typ === "ABSCHLUSS" ? `${personId}::ABSCHLUSS` : `${personId}::${typ}::${semesterId}`;
 }
 
 // -----------------------------------------------------------------------------
-// Ausstellen (einfrieren) — mit Storno bei Neuausstellung
+// Ausstellen (einfrieren) — das bisherige wird bei einer Neuausstellung ERSETZT
 // -----------------------------------------------------------------------------
 
 export type AusstellErgebnis =
   | { ok: true; zeugnisId: string; belegNr: string; typ: Zeugnistypwert; version: number; snapshot: ZeugnisSnapshot }
-  | { fehler: "person_fehlt" | "semester_fehlt" | "nicht_eingeschrieben" | "abgemeldet" | "gleichzeitig" }
+  | {
+      fehler:
+        | "person_fehlt"
+        | "semester_fehlt"
+        | "nicht_eingeschrieben"
+        | "abgemeldet"
+        | "gleichzeitig"
+        | "vorgaenger_geaendert"
+        | "ohne_anwesenheit";
+    }
   | { fehler: "person_gesperrt"; meldung: string };
 
 type PersonKopf = { vorname: string; nachname: string; geburtsdatum: Date | null };
@@ -207,6 +258,9 @@ async function fuehreAusstellungAus(input: {
   const { personId, semesterId, akteurId, typ, person, semesterBezeichnung, alt, ausstellerName, headers } = input;
 
   const inhalt = await sammleInhalt(personId, typ, semesterId, semesterBezeichnung);
+  // Keine Teilnahmebescheinigung ohne besuchten Abend — auch nicht als
+  // Neuausstellung (das bisherige Dokument bleibt dann unverändert gültig).
+  if (ohneBesuchtenAbend(typ, inhalt.leistungen)) return { fehler: "ohne_anwesenheit" };
   const jetzt = new Date();
   const belegNr = neueBelegNr(typ, jetzt, randomUUID().slice(0, 8));
   const version = (alt?.version ?? 0) + 1;
@@ -226,7 +280,7 @@ async function fuehreAusstellungAus(input: {
   });
 
   try {
-    const neu = await prisma.$transaction(async (tx): Promise<{ id: string } | { fehlt: true } | { sperre: string }> => {
+    const neu = await prisma.$transaction(async (tx): Promise<{ id: string } | { fehlt: true } | { sperre: string } | { geaendert: true }> => {
       // Personenzeile sperren (FOR SHARE) und den Status IN der Transaktion
       // prüfen: Name und Geburtsdatum stehen schon im Snapshot. Committet eine
       // Anonymisierung zwischen dem Lesen der Person und hier, entstünde sonst
@@ -244,8 +298,12 @@ async function fuehreAusstellungAus(input: {
       if (sperre) return { sperre };
 
       // Erst das alte entwerten, DANN das neue anlegen — so kollidiert das neue
-      // GUELTIG nicht mit dem alten am partiellen Unique-Index.
-      if (alt) await tx.zeugnis.update({ where: { id: alt.id }, data: { status: "ERSETZT" } });
+      // GUELTIG nicht mit dem alten am partiellen Unique-Index. Bedingt: Wurde
+      // es zeitgleich storniert oder ersetzt, entsteht nichts.
+      if (alt) {
+        const entwertet = await tx.zeugnis.updateMany({ where: { id: alt.id, status: "GUELTIG" }, data: { status: "ERSETZT" } });
+        if (entwertet.count !== 1) return { geaendert: true };
+      }
       return tx.zeugnis.create({
         data: {
           belegNr,
@@ -264,6 +322,7 @@ async function fuehreAusstellungAus(input: {
     });
     if ("fehlt" in neu) return { fehler: "person_fehlt" };
     if ("sperre" in neu) return { fehler: "person_gesperrt", meldung: neu.sperre };
+    if ("geaendert" in neu) return { fehler: "vorgaenger_geaendert" };
 
     await protokolliere({
       aktion: "ZEUGNIS_AUSGESTELLT",
@@ -287,9 +346,12 @@ async function fuehreAusstellungAus(input: {
 /** Einzel-Ausstellung (oder Korrektur/Neuausstellung) eines Schülers. Die
  * DMS-Archivkopie schickt die Route NACH der Antwort (`archiviereNeueImDms` in
  * `after()`). Abgelehnt für anonymisierte Personen und Personen in einem
- * Endzustand (`person_gesperrt`) sowie für eine für das Semester abgemeldete
- * Teilnahme (`abgemeldet`). Der DMS-Nachversand bereits ausgestellter Zeugnisse
- * ist davon nicht betroffen. */
+ * Endzustand (`person_gesperrt`), für eine für das Semester abgemeldete
+ * Teilnahme (`abgemeldet`) und für einen Hörer ohne besuchten Abend
+ * (`ohne_anwesenheit`). Nach einem Storno bleibt sie ausdrücklich möglich: Ein
+ * storniertes Zeugnis ist kein Vorgänger (`gueltigWo` sucht nur GUELTIG), die
+ * neue Ausstellung beginnt wieder mit Ausfertigung 1. Der DMS-Nachversand
+ * bereits ausgestellter Zeugnisse ist davon nicht betroffen. */
 export async function stelleZeugnisAus(
   personId: string,
   gewaehlt: GewaehlterTyp,
@@ -353,8 +415,12 @@ export type BatchErgebnis =
  * Teilnehmer (nicht abgemeldet, kein Endzustand, nicht anonymisiert — dieselbe
  * Menge wie `ladeZeugnisUebersicht`), der noch KEIN gültiges Zeugnis dieses
  * Typs hat, eines aus — ein
- * zweiter Lauf überspringt die vorhandenen (kein Storno). Eine Korrektur läuft
- * bewusst über die Einzel-Neuausstellung. Kontext (Aussteller, Semester, Personen,
+ * zweiter Lauf überspringt die vorhandenen (nichts wird ersetzt). Eine Korrektur
+ * läuft bewusst über die Einzel-Neuausstellung. Übersprungen und getrennt
+ * gezählt werden außerdem Teilnehmer mit einem STORNIERTEN Dokument desselben
+ * Schlüssels (`storniert` — sonst stellte der nächste Lauf die zurückgezogene
+ * Fehlausstellung still neu aus; neu ausstellen geht nur einzeln) und Hörer ohne
+ * besuchten Abend (`ohneAnwesenheit`). Kontext (Aussteller, Semester, Personen,
  * bestehende Zeugnisse) wird EINMAL gebündelt geladen, nicht je Teilnehmer. Die
  * DMS-Archivkopie der neuen Zeugnisse (`neu`) schickt die Route NACH der Antwort
  * (`archiviereNeueImDms` in `after()`) — hakt der Mailserver, soll die Oberfläche
@@ -382,27 +448,45 @@ export async function stelleSemesterZeugnisseAus(
   if (!semester) return { fehler: "semester_fehlt" };
   const sperre = sammellaufSperre(gewaehlt, semester);
   if (sperre) return { fehler: "abschluss_gesperrt", meldung: sperre };
-  if (teilnahmen.length === 0) return { ausgestellt: 0, vorhanden: 0, fehlgeschlagen: 0, gesamt: 0, neu: [] };
+  if (teilnahmen.length === 0) {
+    return { ausgestellt: 0, vorhanden: 0, storniert: 0, ohneAnwesenheit: 0, fehlgeschlagen: 0, gesamt: 0, neu: [] };
+  }
 
   const personIds = teilnahmen.map((t) => t.personId);
-  const [personen, gueltige] = await Promise.all([
+  const [personen, bestehende] = await Promise.all([
     prisma.person.findMany({ where: { id: { in: personIds } }, select: { id: true, vorname: true, nachname: true, geburtsdatum: true } }),
-    // ALLE gültigen Zeugnisse dieser Personen (auch aus anderen Semestern — wichtig
-    // fürs Abschlusszeugnis, das je Person eindeutig ist).
-    prisma.zeugnis.findMany({ where: { personId: { in: personIds }, status: "GUELTIG" }, select: { personId: true, semesterId: true, typ: true } }),
+    // ALLE gültigen und stornierten Zeugnisse dieser Personen (auch aus anderen
+    // Semestern — wichtig fürs Abschlusszeugnis, das je Person eindeutig ist).
+    prisma.zeugnis.findMany({
+      where: { personId: { in: personIds }, status: { in: ["GUELTIG", "STORNIERT"] } },
+      select: { personId: true, semesterId: true, typ: true, status: true },
+    }),
   ]);
   const personVon = new Map(personen.map((p) => [p.id, p]));
-  const vorhandene = new Set(gueltige.map((z) => gueltigSchluessel(z.personId, z.semesterId, z.typ)));
+  const schluesselMit = (status: Zeugnisstatus) =>
+    new Set(bestehende.filter((z) => z.status === status).map((z) => zeugnisSchluessel(z.personId, z.semesterId, z.typ)));
+  const vorhandene = schluesselMit("GUELTIG");
+  const stornierte = schluesselMit("STORNIERT");
 
   const neu: NeuesZeugnis[] = [];
-  // „vorhanden“ und „fehlgeschlagen“ getrennt zählen — ein Fehlschlag darf in der
-  // Oberfläche nie als „bereits vorhanden“ erscheinen.
+  // „vorhanden“, „storniert“, „ohne Anwesenheit“ und „fehlgeschlagen“ getrennt
+  // zählen — ein Fehlschlag darf in der Oberfläche nie als „bereits vorhanden“
+  // erscheinen, ein bewusst Übersprungener nie als Fehlschlag.
   let vorhanden = 0;
+  let storniert = 0;
+  let ohneAnwesenheit = 0;
   let fehlgeschlagen = 0;
   for (const t of teilnahmen) {
     const typ = zeugnistypFuer(t.teilnahmeform, gewaehlt);
-    if (vorhandene.has(gueltigSchluessel(t.personId, semesterId, typ))) {
+    const schluessel = zeugnisSchluessel(t.personId, semesterId, typ);
+    if (vorhandene.has(schluessel)) {
       vorhanden++;
+      continue;
+    }
+    // Eine stornierte Fehlausstellung stellt der Sammellauf nicht still neu aus —
+    // eine neue Ausstellung ist eine bewusste Einzelentscheidung.
+    if (stornierte.has(schluessel)) {
+      storniert++;
       continue;
     }
     const person = personVon.get(t.personId);
@@ -427,6 +511,8 @@ export async function stelleSemesterZeugnisseAus(
       // P2002 am partiellen Unique-Index: eine gleichzeitige Ausstellung war
       // schneller — das gültige Zeugnis EXISTIERT jetzt, also „vorhanden“.
       else if (ergebnis.fehler === "gleichzeitig") vorhanden++;
+      // Hörer ohne besuchten Abend: bewusst keine Bescheinigung, kein Fehler.
+      else if (ergebnis.fehler === "ohne_anwesenheit") ohneAnwesenheit++;
       else fehlgeschlagen++;
     } catch (fehler) {
       // Ein einzelner Fehler darf den Sammellauf nicht abbrechen — der Rest wird
@@ -436,7 +522,7 @@ export async function stelleSemesterZeugnisseAus(
     }
   }
 
-  return { ausgestellt: neu.length, vorhanden, fehlgeschlagen, gesamt: teilnahmen.length, neu };
+  return { ausgestellt: neu.length, vorhanden, storniert, ohneAnwesenheit, fehlgeschlagen, gesamt: teilnahmen.length, neu };
 }
 
 // -----------------------------------------------------------------------------
@@ -446,16 +532,18 @@ export async function stelleSemesterZeugnisseAus(
 /**
  * Die Zahlen für die Rückfrage vor „Alle ausstellen“, aus der Übersicht und den
  * erfassten Noten ermittelt (nicht geschätzt): wie viele Zeugnisse bzw.
- * Bescheinigungen neu entstünden, wie viele schon vorhanden sind, wie viele
- * der Auszustellenden noch unbewertete Fächer oder gar keine Bewertung haben und
- * — beim Abschluss — wie viele weniger Schüler-Semester als das Raster haben.
+ * Bescheinigungen neu entstünden, wie viele schon vorhanden sind, wie viele der
+ * Sammellauf wegen eines Stornos oder mangels besuchten Abends (Hörer)
+ * überspringt, wie viele der Auszustellenden noch unbewertete Fächer oder gar
+ * keine Bewertung haben und — beim Abschluss — wie viele weniger
+ * Schüler-Semester als das Raster haben.
  */
 export async function ladeSammelVorschau(
   semester: { id: string; start: Date },
   gewaehlt: GewaehlterTyp,
   zeilen: ZeugnisPersonZeile[],
 ): Promise<SammelVorschau> {
-  const kandidaten = zeilen.filter((z) => !z.zeugnis && z.typ !== "BESCHEINIGUNG").map((z) => z.personId);
+  const kandidaten = zeilen.filter((z) => !z.zeugnis && !z.storniert && z.typ !== "BESCHEINIGUNG").map((z) => z.personId);
   const stand = await ladeBewertungsstand(semester, gewaehlt, kandidaten);
   return baueSammelVorschau(
     zeilen.map((z) => {
@@ -463,6 +551,8 @@ export async function ladeSammelVorschau(
       return {
         typ: z.typ,
         ausgestellt: z.zeugnis !== null,
+        storniert: z.storniert !== null,
+        besuchteFaecher: z.besuchteFaecher ?? 0,
         offeneFaecher: s?.offen ?? 0,
         bewertet: s?.bewertet ?? 0,
         schuelerSemester: s?.schuelerSemester ?? 0,
@@ -794,14 +884,17 @@ export type SeriendruckErgebnis = { pdf: Buffer; anzahl: number } | { leer: true
  * (`ladeZeugnisUebersicht`) als ausgestellt zeigt — inklusive des
  * semesterunabhängigen Abschlusszeugnisses. So passt der Seriendruck exakt zu dem,
  * was die Übersicht anbietet (kein „Link ins Leere", wenn nur fremdsemestrige
- * Abschlüsse existieren).
+ * Abschlüsse existieren). Nur GÜLTIGE: Stornierte und ersetzte zeigt die
+ * Übersicht nicht als Zeugnis; die Bedingung beim Laden fängt zusätzlich einen
+ * Storno zwischen Übersicht und Druck ab.
  */
 export async function erzeugeSeriendruckPdf(semesterId: string, gewaehlt: GewaehlterTyp): Promise<SeriendruckErgebnis> {
   const zeilen = await ladeZeugnisUebersicht(semesterId, gewaehlt);
   const ids = zeilen.map((z) => z.zeugnis?.id).filter((x): x is string => Boolean(x));
   if (ids.length === 0) return { leer: true };
 
-  const zeugnisse = await prisma.zeugnis.findMany({ where: { id: { in: ids } }, select: { snapshot: true } });
+  const zeugnisse = await prisma.zeugnis.findMany({ where: { id: { in: ids }, status: "GUELTIG" }, select: { snapshot: true } });
+  if (zeugnisse.length === 0) return { leer: true };
   // Nach Namen sortieren, damit der Stapel alphabetisch liegt (defensiv gegen einen
   // theoretisch fehlenden Namen in einem Altsnapshot).
   const snapshots = zeugnisse
@@ -818,6 +911,8 @@ export type ZeugnisDokument = {
   /** Nur bei ERSETZT: die Ausfertigung, die an seine Stelle trat (null, wenn
    * gültig oder der Nachfolger nicht auffindbar ist). */
   ersetztDurch: { belegNr: string; ausgestelltAm: Date } | null;
+  /** Nur bei STORNIERT: der Zeitpunkt des Stornos. */
+  storniertAm: Date | null;
 };
 
 /** Lädt ein Zeugnis für den Download (personId, belegNr, Status, Snapshot und —
@@ -827,32 +922,151 @@ export type ZeugnisDokument = {
 export async function ladeZeugnisFuerDownload(zeugnisId: string): Promise<ZeugnisDokument | null> {
   const z = await prisma.zeugnis.findUnique({
     where: { id: zeugnisId },
-    select: { id: true, personId: true, belegNr: true, status: true, snapshot: true },
+    select: { id: true, personId: true, belegNr: true, status: true, snapshot: true, storniertAm: true },
   });
   if (!z) return null;
   // Der Nachfolger verweist auf seinen Vorgänger (`ersetztId`, bewusst ohne
   // Relation) — nachgeschlagen wird nur für ein ersetztes Zeugnis.
   const ersetztDurch =
-    z.status === "GUELTIG"
+    z.status !== "ERSETZT"
       ? null
       : await prisma.zeugnis.findFirst({ where: { ersetztId: z.id }, select: { belegNr: true, ausgestelltAm: true } });
-  return { personId: z.personId, belegNr: z.belegNr, status: z.status, snapshot: alsSnapshot(z.snapshot), ersetztDurch };
+  return {
+    personId: z.personId,
+    belegNr: z.belegNr,
+    status: z.status,
+    snapshot: alsSnapshot(z.snapshot),
+    ersetztDurch,
+    storniertAm: z.storniertAm,
+  };
 }
 
 /**
  * Erzeugt das PDF eines geladenen Zeugnisses (nach der Zugriffsprüfung). Ein
  * ERSETZTES bekommt vor allem anderen den Vermerk „UNGÜLTIG – ersetzt durch …
- * am …“; der eingefrorene Snapshot bleibt dabei unverändert.
+ * am …“, ein STORNIERTES „STORNIERT am … — ungültig“; der eingefrorene Snapshot
+ * bleibt dabei unverändert.
  */
 export function erzeugeZeugnisPdf(dokument: ZeugnisDokument): Buffer {
-  const ungueltig: UngueltigVermerk | null =
-    dokument.status === "GUELTIG"
-      ? null
-      : {
-          durchBelegNr: dokument.ersetztDurch?.belegNr ?? null,
-          am: dokument.ersetztDurch ? datum(dokument.ersetztDurch.ausgestelltAm) : null,
-        };
-  return erzeugePdf(baueZeugnisBloecke(dokument.snapshot, ungueltig));
+  let vermerk: UngueltigVermerk | StornoVermerk | null = null;
+  if (dokument.status === "STORNIERT") {
+    vermerk = { storniertAm: datum(dokument.storniertAm) };
+  } else if (dokument.status === "ERSETZT") {
+    vermerk = {
+      durchBelegNr: dokument.ersetztDurch?.belegNr ?? null,
+      am: dokument.ersetztDurch ? datum(dokument.ersetztDurch.ausgestelltAm) : null,
+    };
+  }
+  return erzeugePdf(baueZeugnisBloecke(dokument.snapshot, vermerk));
+}
+
+// -----------------------------------------------------------------------------
+// Storno ohne Ersatz
+// -----------------------------------------------------------------------------
+
+export type StornoErgebnis =
+  | { ok: true; zeugnisId: string; belegNr: string; typ: Zeugnistypwert; storniertAm: Date; titel: string; abschnitt: string }
+  | { fehler: "fehlt" | "nicht_gueltig" }
+  | { fehler: "person_gesperrt"; meldung: string };
+
+/**
+ * Storniert ein GÜLTIGES Zeugnis ohne Ersatz (Schulleitung, Recht
+ * NOTEN_VERWALTEN): Es wird ungültig, ist für die Person nicht mehr abrufbar und
+ * bleibt als Nachweis stehen — mit Zeitpunkt, Akteur und Grund. Atomar über das
+ * bedingte `updateMany` auf `status = GUELTIG`: Wer zeitgleich storniert oder neu
+ * ausstellt, bekommt `nicht_gueltig` (409). Der Trigger
+ * `zeugnis_nur_status_dms_scrub` lässt GUELTIG -> STORNIERT nur mit Zeitpunkt und
+ * nicht-leerem Grund zu.
+ *
+ * Die Personenzeile wird wie beim Ausstellen gesperrt (FOR SHARE) und der Status
+ * IN der Transaktion geprüft: Die Anonymisierung sperrt dieselbe Zeile und
+ * überschreibt danach die Storno-Gründe der Person. So läuft ein Storno ganz vor
+ * ihr (sein Grund wird mit überschrieben) oder ganz nach ihr (dann abgelehnt,
+ * `stornoSperreFuerPerson`) — nie ein Freitext-Grund an einer anonymisierten
+ * Person.
+ *
+ * Ins Audit-Log gehen Beleg-Nr., Typ und nur, DASS ein Grund angegeben wurde —
+ * der Freitext steht allein am Zeugnis (dort erfasst ihn die Anonymisierung).
+ */
+export async function storniereZeugnis(
+  zeugnisId: string,
+  grund: string,
+  akteurId: string,
+  headers?: Headers,
+): Promise<StornoErgebnis> {
+  const z = await prisma.zeugnis.findUnique({
+    where: { id: zeugnisId },
+    select: { id: true, personId: true, belegNr: true, typ: true, snapshot: true },
+  });
+  if (!z) return { fehler: "fehlt" };
+
+  const jetzt = new Date();
+  const ergebnis = await prisma.$transaction(async (tx): Promise<"ok" | "fehlt" | "nicht_gueltig" | { sperre: string }> => {
+    const [zeile] = await tx.$queryRaw<{ statusCode: string }[]>`
+      SELECT "statusCode" FROM "personen" WHERE "id" = ${z.personId} FOR SHARE`;
+    if (!zeile) return "fehlt";
+    const sperre = stornoSperreFuerPerson(zeile.statusCode);
+    if (sperre) return { sperre };
+    const { count } = await tx.zeugnis.updateMany({
+      where: { id: z.id, status: "GUELTIG" },
+      data: { status: "STORNIERT", storniertAm: jetzt, storniertVonId: akteurId, stornoGrund: grund },
+    });
+    return count === 1 ? "ok" : "nicht_gueltig";
+  });
+  if (typeof ergebnis === "object") return { fehler: "person_gesperrt", meldung: ergebnis.sperre };
+  if (ergebnis !== "ok") return { fehler: ergebnis };
+
+  await protokolliere({
+    aktion: "ZEUGNIS_STORNIERT",
+    objektTyp: "Zeugnis",
+    objektId: z.id,
+    akteurId,
+    vorher: { status: "GUELTIG" },
+    // Der Grund ist Freitext und kann Personenbezug tragen — ins unlöschbare
+    // Protokoll gehört nur, DASS einer angegeben wurde (wie STATUS_GEWECHSELT).
+    nachher: { status: "STORNIERT", belegNr: z.belegNr, typ: z.typ, grundAngegeben: true },
+    headers,
+  });
+
+  const snapshot = alsSnapshot(z.snapshot);
+  return {
+    ok: true,
+    zeugnisId: z.id,
+    belegNr: z.belegNr,
+    typ: z.typ,
+    storniertAm: jetzt,
+    titel: snapshot.titel ?? "Zeugnis",
+    abschnitt: snapshot.abschnitt ?? "",
+  };
+}
+
+/**
+ * Kurzer Storno-Vermerk an das DMS (Beleg-Nr., Dokument, Datum, „ungültig“ —
+ * ohne Namen und ohne Grund, `baueStornoVermerk`). Läuft NACH der Antwort
+ * (`after()` in der Storno-Route), best effort: Ohne DMS-Adresse passiert nichts,
+ * ein Fehlschlag wird nur geloggt (der Versand steht wie jede Mail im
+ * Versandprotokoll). Wirft nie.
+ */
+export async function sendeStornoVermerkAnDms(storno: {
+  belegNr: string;
+  titel: string;
+  abschnitt: string;
+  storniertAm: Date;
+}): Promise<void> {
+  const an = dmsAdresse();
+  if (!an) return;
+  try {
+    const vermerk = baueStornoVermerk({ ...storno, storniertAm: datum(storno.storniertAm) });
+    const gesendet = await sendeBelegAnDms(an, {
+      betreff: vermerk.betreff,
+      text: vermerk.text,
+      dateiname: vermerk.dateiname,
+      pdf: erzeugePdf(vermerk.bloecke),
+    });
+    if (!gesendet) console.warn(`[ZEUGNIS] Storno-Vermerk nicht an das DMS gesendet (${storno.belegNr})`);
+  } catch (fehler) {
+    console.error(`[ZEUGNIS] Storno-Vermerk an das DMS fehlgeschlagen (${storno.belegNr})`, fehler);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -865,12 +1079,20 @@ export type ZeugnisPersonZeile = {
   teilnahmeform: string;
   typ: Zeugnistypwert;
   zeugnis: { id: string; belegNr: string; version: number; ausgestelltAm: Date } | null;
+  /** Nur ohne gültiges Dokument: das zuletzt stornierte desselben Schlüssels —
+   * der Grund, warum der Sammellauf die Person überspringt. */
+  storniert: { id: string; belegNr: string; storniertAm: Date | null } | null;
+  /** Nur Bescheinigung ohne gültiges Dokument: Fächer mit besuchtem Abend
+   * (0 = keine Bescheinigung). Sonst null. */
+  besuchteFaecher: number | null;
 };
 
 /**
  * Schulleitungssicht: je aktivem Teilnehmer des Semesters der Typ, den er
  * bekäme, und das aktuell gültige Zeugnis (falls schon ausgestellt) — so ist auf
- * einen Blick sichtbar, wer eins hat und wer nicht. Für das Semester
+ * einen Blick sichtbar, wer eins hat und wer nicht. Ohne gültiges steht ein
+ * storniertes Dokument desselben Schlüssels dabei (der Sammellauf überspringt
+ * die Person) und bei Hörern die Zahl der besuchten Fächer. Für das Semester
  * Abgemeldete fehlen (`TEILNAHME_ZAEHLT`), ebenso Endzustände und
  * Anonymisierte (`ZEUGNIS_PERSON`) — dieselbe Menge, die der Sammellauf
  * ausstellt und die Vorschau zählt.
@@ -883,21 +1105,45 @@ export async function ladeZeugnisUebersicht(semesterId: string, gewaehlt: Gewaeh
   });
 
   const typVon = new Map(teilnahmen.map((t) => [t.personId, zeugnistypFuer(t.teilnahmeform, gewaehlt)]));
-  // Gültige Zeugnisse dieser Personen — für das Abschlusszeugnis semesterunabhängig,
-  // deshalb ohne semesterId-Filter (matcht dann über den Typ-Schlüssel).
-  const gueltige = await prisma.zeugnis.findMany({
-    where: { status: "GUELTIG", personId: { in: teilnahmen.map((t) => t.personId) } },
-    select: { id: true, personId: true, typ: true, semesterId: true, belegNr: true, version: true, ausgestelltAm: true },
+  // Gültige und stornierte Zeugnisse dieser Personen — für das Abschlusszeugnis
+  // semesterunabhängig, deshalb ohne semesterId-Filter (matcht dann über den
+  // Typ-Schlüssel wie der Sammellauf).
+  const bestehende = await prisma.zeugnis.findMany({
+    where: { status: { in: ["GUELTIG", "STORNIERT"] }, personId: { in: teilnahmen.map((t) => t.personId) } },
+    orderBy: { ausgestelltAm: "asc" },
+    select: {
+      id: true,
+      personId: true,
+      typ: true,
+      status: true,
+      semesterId: true,
+      belegNr: true,
+      version: true,
+      ausgestelltAm: true,
+      storniertAm: true,
+    },
   });
   const zeugnisVon = new Map<string, { id: string; belegNr: string; version: number; ausgestelltAm: Date }>();
-  for (const z of gueltige) {
+  const stornoVon = new Map<string, { id: string; belegNr: string; storniertAm: Date | null }>();
+  for (const z of bestehende) {
     const erwarteterTyp = typVon.get(z.personId);
     if (erwarteterTyp !== z.typ) continue;
     // Semester-Zeugnis/Bescheinigung nur aus DIESEM Semester zählen; das
     // Abschlusszeugnis semesterunabhängig.
     if (z.typ !== "ABSCHLUSS" && z.semesterId !== semesterId) continue;
-    zeugnisVon.set(z.personId, { id: z.id, belegNr: z.belegNr, version: z.version, ausgestelltAm: z.ausgestelltAm });
+    if (z.status === "GUELTIG") {
+      zeugnisVon.set(z.personId, { id: z.id, belegNr: z.belegNr, version: z.version, ausgestelltAm: z.ausgestelltAm });
+    } else {
+      // Nach Ausstellung aufsteigend: das zuletzt ausgestellte stornierte bleibt stehen.
+      stornoVon.set(z.personId, { id: z.id, belegNr: z.belegNr, storniertAm: z.storniertAm });
+    }
   }
+
+  // Besuchte Fächer nur, wo sie etwas entscheiden: Hörer ohne gültiges Dokument.
+  const hoererOhneDokument = teilnahmen
+    .filter((t) => typVon.get(t.personId) === "BESCHEINIGUNG" && !zeugnisVon.has(t.personId))
+    .map((t) => t.personId);
+  const besucht = await zaehleBesuchteFaecher(semesterId, hoererOhneDokument);
 
   return teilnahmen.map((t) => ({
     personId: t.personId,
@@ -906,12 +1152,16 @@ export async function ladeZeugnisUebersicht(semesterId: string, gewaehlt: Gewaeh
     // ! ist sicher: typVon ist aus demselben teilnahmen-Array gebaut.
     typ: typVon.get(t.personId)!,
     zeugnis: zeugnisVon.get(t.personId) ?? null,
+    storniert: zeugnisVon.has(t.personId) ? null : (stornoVon.get(t.personId) ?? null),
+    besuchteFaecher: besucht.get(t.personId) ?? null,
   }));
 }
 
 export type EigenesZeugnis = { id: string; belegNr: string; titel: string; abschnitt: string; ausgestelltAm: Date };
 
-/** Die eigenen gültigen Zeugnisse des Schülers (für /meine-daten, read-only). */
+/** Die eigenen gültigen Zeugnisse des Schülers (für /meine-daten, read-only).
+ * Ersetzte und stornierte erscheinen hier nie — sie sind für die Person nicht
+ * mehr abrufbar (PDF-Route: 410). */
 export async function ladeEigeneZeugnisse(personId: string): Promise<EigenesZeugnis[]> {
   const zeugnisse = await prisma.zeugnis.findMany({
     where: { personId, status: "GUELTIG" },
@@ -921,5 +1171,31 @@ export async function ladeEigeneZeugnisse(personId: string): Promise<EigenesZeug
   return zeugnisse.map((z) => {
     const s = alsSnapshot(z.snapshot);
     return { id: z.id, belegNr: z.belegNr, titel: s.titel, abschnitt: s.abschnitt, ausgestelltAm: z.ausgestelltAm };
+  });
+}
+
+export type AktenZeugnis = EigenesZeugnis & { typ: Zeugnistypwert; status: Zeugnisstatus; storniertAm: Date | null };
+
+/** Alle Zeugnisse einer Person für die Detailakte der Schulleitung
+ * (NOTEN_VERWALTEN) — gültige, ersetzte und stornierte, jüngste zuerst. Der
+ * Storno-Grund bleibt außen vor: Er ist Freitext und wird nirgends angezeigt. */
+export async function ladeZeugnisseDerPerson(personId: string): Promise<AktenZeugnis[]> {
+  const zeugnisse = await prisma.zeugnis.findMany({
+    where: { personId },
+    orderBy: { ausgestelltAm: "desc" },
+    select: { id: true, belegNr: true, typ: true, ausgestelltAm: true, snapshot: true, status: true, storniertAm: true },
+  });
+  return zeugnisse.map((z) => {
+    const s = alsSnapshot(z.snapshot);
+    return {
+      id: z.id,
+      belegNr: z.belegNr,
+      typ: z.typ,
+      titel: s.titel,
+      abschnitt: s.abschnitt,
+      ausgestelltAm: z.ausgestelltAm,
+      status: z.status,
+      storniertAm: z.storniertAm,
+    };
   });
 }

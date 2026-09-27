@@ -3,13 +3,30 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { stornoRueckfrage } from "@/lib/zeugnis";
 import { sammellaufMeldung, type SammellaufErgebnis } from "@/lib/zeugnis-sammellauf";
+import { ZeugnisStatusBadge } from "./zeugnis-status-badge";
+import { ZeugnisStorno } from "./zeugnis-storno";
 
 type Zeugnis = { id: string; belegNr: string; version: number; ausgestelltAm: string };
-type Zeile = { personId: string; name: string; teilnahmeformText: string; typLabel: string; zeugnis: Zeugnis | null };
+/** Ohne gültiges Dokument: das zuletzt stornierte (der Sammellauf überspringt die Person). */
+type Storniert = { id: string; belegNr: string; storniertAm: string };
+type Zeile = {
+  personId: string;
+  name: string;
+  teilnahmeformText: string;
+  /** Roher Typ (SEMESTER/ABSCHLUSS/BESCHEINIGUNG) — für die Rückfrage vor dem Storno. */
+  typ: string;
+  typLabel: string;
+  zeugnis: Zeugnis | null;
+  storniert: Storniert | null;
+  /** Hörer ohne gültiges Dokument und ohne besuchten Abend: keine Bescheinigung. */
+  ohneAnwesenheit: boolean;
+};
 /** Vom Server ermittelt: Rückfragetext mit konkreten Zahlen, Sperrgrund (oder
- * null) und wie viele Dokumente der Lauf neu ausstellen würde. */
-type Sammellauf = { rueckfrage: string; sperre: string | null; auszustellen: number };
+ * null), wie viele Dokumente der Lauf neu ausstellen würde und — wenn es nichts
+ * auszustellen gibt — warum (`nichtsAuszustellenHinweis`). */
+type Sammellauf = { rueckfrage: string; sperre: string | null; auszustellen: number; hinweis: string | null };
 
 const selectKlasse = "min-h-11 rounded-lg border border-input bg-background px-3 py-1.5 text-sm";
 const knopfKlasse =
@@ -47,8 +64,9 @@ export function ZeugnisClient({
   const auswahlAngezeigt = auswahl.semester === gewaehltId && auswahl.typ === typ;
 
   async function alleAusstellen() {
-    // Der Sammellauf erzeugt offizielle, sofort sichtbare Dokumente, die sich nicht
-    // zurücknehmen lassen — deshalb die Rückfrage mit den Zahlen vom Server.
+    // Der Sammellauf erzeugt offizielle, sofort sichtbare Dokumente, die sich nur
+    // einzeln wieder zurückziehen lassen — deshalb die Rückfrage mit den Zahlen vom
+    // Server.
     if (!window.confirm(sammellauf.rueckfrage)) return;
     setLaeuft(true);
     setMeldung(null);
@@ -66,7 +84,17 @@ export function ZeugnisClient({
     if (
       neu &&
       !window.confirm(
-        `Das Zeugnis ${zeile.zeugnis?.belegNr ?? ""} von ${zeile.name} wird storniert und durch eine neue Ausfertigung ersetzt. Frühere Ausdrucke werden damit ungültig. Fortfahren?`,
+        `Das Zeugnis ${zeile.zeugnis?.belegNr ?? ""} von ${zeile.name} wird durch eine neue Ausfertigung ersetzt. Frühere Ausdrucke werden damit ungültig. Fortfahren?`,
+      )
+    ) {
+      return;
+    }
+    // Nach einem Storno ist die neue Ausstellung eine bewusste Einzelentscheidung.
+    if (
+      !neu &&
+      zeile.storniert &&
+      !window.confirm(
+        `Für ${zeile.name} wurde Beleg ${zeile.storniert.belegNr} storniert. Jetzt ein neues Dokument ausstellen? Es ist sofort für die Person sichtbar.`,
       )
     ) {
       return;
@@ -87,11 +115,11 @@ export function ZeugnisClient({
   const seriendruckHref = `/api/zeugnisse/seriendruck?semester=${gewaehltId}&typ=${typ}`;
   // Auswahl noch nicht angezeigt, gesperrt (Abschluss außerhalb des letzten
   // Rastersemesters) oder nichts mehr offen: der Knopf ist aus, der Grund steht
-  // darunter.
+  // darunter (auch, wenn nur noch Stornierte oder Hörer ohne besuchten Abend übrig
+  // sind — der Text kommt vom Server).
   const sammelHinweis = !auswahlAngezeigt
     ? "Die geänderte Auswahl ist noch nicht angezeigt — bitte zuerst „Anzeigen“ wählen."
-    : sammellauf.sperre ??
-      (zeilen.length > 0 && sammellauf.auszustellen === 0 ? "Für alle Teilnehmer ist bereits ein Dokument ausgestellt." : null);
+    : sammellauf.sperre ?? (sammellauf.auszustellen === 0 ? sammellauf.hinweis : null);
   const sammelAus = !auswahlAngezeigt || sammellauf.sperre !== null || sammellauf.auszustellen === 0;
 
   return (
@@ -193,9 +221,18 @@ export function ZeugnisClient({
                     {z.teilnahmeformText} · {z.typLabel}
                   </span>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    {z.zeugnis
-                      ? `Beleg-Nr. ${z.zeugnis.belegNr} · Ausfertigung ${z.zeugnis.version} · ${z.zeugnis.ausgestelltAm}`
-                      : "noch nicht ausgestellt"}
+                    {z.zeugnis ? (
+                      `Beleg-Nr. ${z.zeugnis.belegNr} · Ausfertigung ${z.zeugnis.version} · ${z.zeugnis.ausgestelltAm}`
+                    ) : z.storniert ? (
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <ZeugnisStatusBadge status="STORNIERT" />
+                        {`Beleg-Nr. ${z.storniert.belegNr} · storniert am ${z.storniert.storniertAm} — der Sammellauf stellt hier nichts neu aus`}
+                      </span>
+                    ) : z.ohneAnwesenheit ? (
+                      "noch nicht ausgestellt · kein besuchter Abend in einem Fach erfasst — ohne Anwesenheit keine Teilnahmebescheinigung"
+                    ) : (
+                      "noch nicht ausgestellt"
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -212,22 +249,40 @@ export function ZeugnisClient({
                         type="button"
                         onClick={() => ausstellen(z, true)}
                         disabled={einzeln === z.personId}
-                        aria-label={`${z.typLabel} von ${z.name} neu ausstellen (altes storniert)`}
+                        aria-label={`${z.typLabel} von ${z.name} neu ausstellen (das bisherige wird ersetzt)`}
                         className={nebenKlasse}
                       >
                         {einzeln === z.personId ? "Moment …" : "Neu ausstellen"}
                       </button>
+                      <ZeugnisStorno
+                        zeugnisId={z.zeugnis.id}
+                        stornierbar
+                        rueckfrage={stornoRueckfrage({ typ: z.typ, belegNr: z.zeugnis.belegNr, name: z.name })}
+                        beschriftung={`${z.typLabel} von ${z.name} stornieren (ohne Ersatz)`}
+                        onErledigt={(text) => setMeldung({ art: "ok", text })}
+                      />
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => ausstellen(z, false)}
-                      disabled={einzeln === z.personId}
-                      aria-label={`${z.typLabel} für ${z.name} ausstellen`}
-                      className={knopfKlasse}
-                    >
-                      {einzeln === z.personId ? "Moment …" : "Ausstellen"}
-                    </button>
+                    <>
+                      {z.storniert && (
+                        <a
+                          href={`/api/zeugnisse/${z.storniert.id}/pdf`}
+                          aria-label={`Storniertes Dokument von ${z.name} als PDF herunterladen (mit Vermerk)`}
+                          className={nebenKlasse}
+                        >
+                          PDF (storniert)
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => ausstellen(z, false)}
+                        disabled={einzeln === z.personId}
+                        aria-label={`${z.typLabel} für ${z.name} ausstellen`}
+                        className={knopfKlasse}
+                      >
+                        {einzeln === z.personId ? "Moment …" : "Ausstellen"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

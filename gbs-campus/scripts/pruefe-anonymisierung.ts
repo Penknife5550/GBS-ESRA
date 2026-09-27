@@ -4,7 +4,8 @@
  * Abschnitte 4–9 kamen mit Code-Review 4 (M6/M7) dazu: Zeugnis-Snapshots,
  * Betreffs im Versandprotokoll, Audit ohne Klardaten und — am Quelltext wie in
  * pruefe-honorar.ts — dass die Transaktion diese Stellen auch wirklich anfasst
- * und kein anderer Schreibweg eine Anonymisierung unterläuft.
+ * und kein anderer Schreibweg eine Anonymisierung unterläuft. Abschnitt 10: der
+ * Storno-Grund stornierter Zeugnisse (Freitext) wird mit anonymisiert.
  * Aufruf aus dem Anwendungsordner (relative Pfade).
  *
  * ACHTUNG beim Erweitern: Eine Prüfung beweist erst dann etwas, wenn sie ROT
@@ -315,8 +316,34 @@ pruefe(
   mitWerten.map((b) => b.pfad),
 );
 
+console.log("\n10. Storno-Grund der Zeugnisse (Freitext der Schulleitung) wird anonymisiert");
+{
+  const zeugnisIo = lies("src/lib/zeugnis-io.ts");
+  const personSperre = io.indexOf("const wechsel = await wechsleStatus(");
+  const grundScrub = io.indexOf("tx.zeugnis.updateMany({");
+  pruefe(
+    "die Transaktion ersetzt jeden vorhandenen Storno-Grund der Person durch den Platzhalter",
+    /tx\.zeugnis\.updateMany\(\{\s*where: \{ personId, stornoGrund: \{ not: null \} \},\s*data: \{ stornoGrund: ANONYM_PLATZHALTER \},\s*\}\)/.test(io),
+  );
+  pruefe(
+    "… mit einer Anweisung NACH der Sperre der Personenzeile (ein zeitgleicher Storno ist dann schon committet oder wartet)",
+    personSperre > 0 && grundScrub > personSperre,
+    { personSperre, grundScrub },
+  );
+  pruefe(
+    "der Storno sperrt dieselbe Personenzeile und lehnt Anonymisierte ab — kein Freitext-Grund nach der Anonymisierung",
+    /FOR SHARE`;\s*if \(!zeile\) return "fehlt";\s*const sperre = stornoSperreFuerPerson\(zeile\.statusCode\);\s*if \(sperre\) return \{ sperre \};/.test(
+      zeugnisIo,
+    ),
+  );
+  pruefe(
+    "das Protokoll der Anonymisierung zählt die anonymisierten Storno-Gründe nur (Zahl, kein Text)",
+    /stornoGruendeAnonymisiert: zahlen\.stornoGruende,/.test(io),
+  );
+}
+
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 43;
+const ERWARTET = 47;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

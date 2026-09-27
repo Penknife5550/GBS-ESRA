@@ -7,7 +7,7 @@ import { dmsAdresse } from "@/lib/konfiguration";
 import { teilnahmeformName } from "@/lib/semester";
 import { istGewaehlterTyp, zeugnisTitel, type GewaehlterTyp } from "@/lib/zeugnis";
 import { ladeSammelVorschau, ladeZeugnisUebersicht, zaehleOffeneDmsArchivierungen } from "@/lib/zeugnis-io";
-import { sammellaufRueckfrage, sammellaufSperre } from "@/lib/zeugnis-sammellauf";
+import { nichtsAuszustellenHinweis, sammellaufRueckfrage, sammellaufSperre } from "@/lib/zeugnis-sammellauf";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { DmsNachversand } from "./dms-nachversand";
 import { ZeugnisClient } from "./zeugnis-client";
@@ -18,10 +18,12 @@ export const dynamic = "force-dynamic";
 /**
  * Zeugnis-Verwaltung der Schulleitung (Recht NOTEN_VERWALTEN). Je Semester und
  * gewähltem Typ (Semester-Zeugnis bzw. Abschlusszeugnis) die aktiven Teilnehmer
- * mit ihrem aktuell gültigen Zeugnis. Ausstellen (einzeln/gesammelt),
- * neu ausstellen (Storno) und Serien-/Einzeldruck laufen im Client; die Zahlen
- * für die Rückfrage vor dem Sammellauf und die Zahl der noch nicht im DMS
- * archivierten Zeugnisse ermittelt die Seite serverseitig.
+ * mit ihrem aktuell gültigen Zeugnis — ohne gültiges mit einem stornierten bzw.
+ * dem Hinweis, dass ein Hörer keinen besuchten Abend hat. Ausstellen
+ * (einzeln/gesammelt), neu ausstellen (ersetzen), stornieren (ohne Ersatz) und
+ * Serien-/Einzeldruck laufen im Client; die Zahlen für die Rückfrage vor dem
+ * Sammellauf und die Zahl der noch nicht im DMS archivierten Zeugnisse ermittelt
+ * die Seite serverseitig.
  */
 export default async function ZeugnisSeite({
   searchParams,
@@ -62,8 +64,10 @@ export default async function ZeugnisSeite({
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Zeugnisse</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Ein ausgestelltes Zeugnis wird eingefroren (der Notenstand zum Zeitpunkt der Ausstellung). Eine
-        Korrektur läuft über „Neu ausstellen" — das alte Zeugnis wird storniert und durch eine neue
-        Ausfertigung ersetzt. Hörer bekommen eine Teilnahmebescheinigung, kein Zeugnis.
+        Korrektur läuft über „Neu ausstellen“ — das alte Zeugnis wird durch eine neue Ausfertigung ersetzt.
+        Eine Fehlausstellung ziehen Sie über „Stornieren“ ohne Ersatz zurück — das Dokument wird ungültig und
+        bleibt als Nachweis gespeichert. Hörer bekommen eine Teilnahmebescheinigung mit den Fächern, in denen sie
+        mindestens einen Abend besucht haben; ohne besuchten Abend gibt es keine.
       </p>
 
       <DmsNachversand offen={offenImDms} dmsEingerichtet={dmsAdresse() !== null} />
@@ -76,15 +80,21 @@ export default async function ZeugnisSeite({
           rueckfrage: sammellaufRueckfrage(vorschau, typ, semester.bezeichnung),
           sperre: sammellaufSperre(typ, semester),
           auszustellen: vorschau.zeugnisse + vorschau.bescheinigungen,
+          hinweis: nichtsAuszustellenHinweis(vorschau),
         }}
         zeilen={zeilen.map((z) => ({
           personId: z.personId,
           name: z.name,
           teilnahmeformText: teilnahmeformName(z.teilnahmeform),
+          typ: z.typ,
           typLabel: zeugnisTitel(z.typ),
           zeugnis: z.zeugnis
             ? { id: z.zeugnis.id, belegNr: z.zeugnis.belegNr, version: z.zeugnis.version, ausgestelltAm: datum(z.zeugnis.ausgestelltAm) }
             : null,
+          storniert: z.storniert
+            ? { id: z.storniert.id, belegNr: z.storniert.belegNr, storniertAm: datum(z.storniert.storniertAm) }
+            : null,
+          ohneAnwesenheit: z.besuchteFaecher === 0,
         }))}
       />
     </main>

@@ -14,9 +14,13 @@ import {
   semesterHatBegonnen,
   semesterZeitraum,
 } from "@/lib/semester";
+import { ladeNichtZugestellte, versandLaeuft } from "@/lib/ueberleitung";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { Badge } from "@/components/ui/badges";
 import { UeberleitungStarten } from "./ueberleitung-starten";
 import { WiederAufnehmenKnopf } from "./wieder-aufnehmen-knopf";
+import { ZusageKnopf } from "./zusage-knopf";
+import { Nachversand } from "./nachversand";
 
 export const metadata = { title: "Semesterüberleitung" };
 export const dynamic = "force-dynamic";
@@ -24,6 +28,8 @@ export const dynamic = "force-dynamic";
 type PersonZeile = { teilnahmeId: string; name: string; istAktiv: boolean };
 type AbgemeldetZeile = PersonZeile & { grund: string; am: string };
 type SemesterStand = { bestaetigt: number; offen: PersonZeile[]; abgemeldet: AbgemeldetZeile[] };
+/** Nachversand eines Semesters: läuft gerade ein Versand, und welche offenen Einladungen kamen nie an. */
+type Zustellstand = { laeuft: boolean; nichtZugestellt: Set<string> };
 
 export default async function SemesterueberleitungSeite() {
   const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
@@ -99,6 +105,22 @@ export default async function SemesterueberleitungSeite() {
     }))
     .reverse();
 
+  // Nicht zugestellte Einladungen — nur solange das Semester noch nicht begonnen
+  // hat (danach lässt sich nicht mehr erneut senden). Dieselbe Abfrage wie der
+  // Knopf (`ladeNichtZugestellte`). Während eines Versands fehlen die
+  // GESENDET-Zeilen noch; dann zählt die Seite nicht, sondern sagt, dass
+  // verschickt wird.
+  const zustellung = new Map<string, Zustellstand>();
+  await Promise.all(
+    staende
+      .filter((s) => !s.begonnen && s.offen.length > 0)
+      .map(async (s) => {
+        const laeuft = versandLaeuft(s.id);
+        const nichtZugestellt = laeuft ? [] : await ladeNichtZugestellte(s.id);
+        zustellung.set(s.id, { laeuft, nichtZugestellt: new Set(nichtZugestellt.map((t) => t.id)) });
+      }),
+  );
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Semesterüberleitung" />
@@ -116,6 +138,10 @@ export default async function SemesterueberleitungSeite() {
         antwortet, ist für das neue Semester abgemeldet und steht in keiner Liste dieses Semesters
         (Anwesenheit, Noten, Excel-Liste, Zeugnisse). Der Status der Person bleibt dabei unverändert.
         Einzelne Abgemeldete lassen sich unten wieder aufnehmen.
+      </p>
+      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+        Kam eine Zusage am Telefon oder persönlich, tragen Sie sie unter „Noch ohne Antwort“ ein. Ist eine
+        Einladung nie angekommen, können Sie sie bis zum Tag vor Semesterbeginn erneut senden.
       </p>
 
       {!laufend ? (
@@ -153,6 +179,8 @@ export default async function SemesterueberleitungSeite() {
         <ul className="mt-4 space-y-3">
           {staende.map((s) => {
             const gesamt = s.bestaetigt + s.offen.length + s.abgemeldet.length;
+            const zustand = zustellung.get(s.id);
+            const nichtZugestellt = zustand?.nichtZugestellt.size ?? 0;
             return (
               <li key={s.id} className="rounded-lg border border-border bg-card p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -174,19 +202,40 @@ export default async function SemesterueberleitungSeite() {
                   </span>
                 </div>
 
+                {zustand && (zustand.laeuft || nichtZugestellt > 0) && (
+                  <Nachversand
+                    semesterId={s.id}
+                    semester={s.bezeichnung}
+                    anzahl={nichtZugestellt}
+                    laeuft={zustand.laeuft}
+                  />
+                )}
+
                 {s.offen.length > 0 && (
-                  <details className="mt-4 text-sm">
+                  <details className="mt-4 text-sm" open={nichtZugestellt > 0}>
                     <summary className="cursor-pointer font-medium">
                       Noch ohne Antwort ({s.offen.length})
                     </summary>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {s.begonnen
-                        ? "Das Semester hat begonnen — beim nächsten stündlichen Lauf werden sie als „keine Rückmeldung“ abgemeldet."
-                        : `Antworten ist bis einschließlich ${s.frist} möglich — wer bis dahin nicht antwortet, wird zum Semesterstart automatisch abgemeldet.`}
+                        ? "Das Semester hat begonnen — beim nächsten stündlichen Lauf werden sie als „keine Rückmeldung“ abgemeldet. Wer schon am Unterricht teilgenommen hat (Anwesenheit oder Note), gilt dann als bestätigt."
+                        : `Antworten ist bis einschließlich ${s.frist} möglich — wer bis dahin nicht antwortet, wird zum Semesterstart automatisch abgemeldet. Hat jemand am Telefon oder persönlich zugesagt, tragen Sie die Zusage hier ein.`}
                     </p>
-                    <ul className="mt-2 space-y-1">
+                    <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
                       {s.offen.map((p) => (
-                        <li key={p.teilnahmeId}>{p.name}</li>
+                        <li key={p.teilnahmeId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="font-medium">{p.name}</span>
+                            {zustand?.nichtZugestellt.has(p.teilnahmeId) && (
+                              <Badge ton="bg-credo-rot/12 text-foreground">nicht zugestellt</Badge>
+                            )}
+                          </div>
+                          {p.istAktiv ? (
+                            <ZusageKnopf teilnahmeId={p.teilnahmeId} name={p.name} semester={s.bezeichnung} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Person nicht aktiv</span>
+                          )}
+                        </li>
                       ))}
                     </ul>
                   </details>

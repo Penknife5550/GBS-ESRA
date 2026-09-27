@@ -16,6 +16,15 @@
  * eingeladen), `bestaetigtAm` („bin dabei"), `abgemeldetAm` + `abmeldeGrund`
  * („bin raus" bzw. keine Rückmeldung bis Semesterstart). Eine abgemeldete
  * Teilnahme zählt nicht — Filter `TEILNAHME_ZAEHLT` (`teilnahme-filter.ts`).
+ *
+ * Drei Wege neben dem Link, damit niemand zu Unrecht herausfällt:
+ *  - Zusage von Hand (`trageZusageEin`): Die Schulleitung trägt eine Zusage
+ *    ein, die am Telefon oder im Gespräch kam.
+ *  - Nachversand (`bereiteNachversandVor`): Eine Einladung, die nie zugestellt
+ *    wurde, geht mit frischem Link noch einmal raus — nur auf Knopfdruck.
+ *  - Rückmeldung durch Teilnahme (`schliesseRueckmeldungen`): Wer zum
+ *    Semesterstart schon am Unterricht teilnimmt, gilt als zurückgemeldet.
+ * Die DB-freien Regeln dazu liegen in `ueberleitung-regel.ts`.
  */
 
 import { randomUUID } from "crypto";
@@ -33,12 +42,19 @@ import {
   erledigteStufenBeiEinladung,
   faelligeErinnerungsstufe,
   rueckmeldeFrist,
+  rueckmeldeStand,
   rueckmeldungsWirkung,
   semesterHatBegonnen,
   semesterZeitraum,
   type Erinnerungsstufe,
   type RueckmeldeAntwort,
 } from "@/lib/semester";
+import {
+  einladungNichtZugestellt,
+  hatNutzungsspuren,
+  UEBERLEITUNG_VORLAGEN,
+  type VersandSpur,
+} from "@/lib/ueberleitung-regel";
 
 function bestaetigungsLink(token: string): string {
   const basis = process.env.APP_URL ?? "http://localhost:3000";
@@ -50,9 +66,10 @@ function bestaetigungsLink(token: string): string {
 
 /**
  * Eingeladen und noch ohne Antwort: Nur diese Teilnahmen bekommen Erinnerungen,
- * und nur sie meldet der Worker zum Semesterstart ab. Direkt aufgenommene
- * Teilnahmen (Aufnahme, Sammelübernahme) tragen kein `eingeladenAm` und bleiben
- * davon unberührt.
+ * nur für sie gibt es „Zusage eintragen" und „Erneut senden", und nur sie
+ * schließt der Worker zum Semesterstart ab (abmelden bzw. bei Teilnahme am
+ * Unterricht als bestätigt werten). Direkt aufgenommene Teilnahmen (Aufnahme,
+ * Sammelübernahme) tragen kein `eingeladenAm` und bleiben davon unberührt.
  */
 const OFFENE_EINLADUNG = {
   eingeladenAm: { not: null },
@@ -63,6 +80,42 @@ const OFFENE_EINLADUNG = {
 /** So viele Einladungen gleichzeitig — so viele Verbindungen hält der Mail-Pool
  * offen (`maxConnections: 3` in `mailer.ts`); mehr würden dort nur warten. */
 const VERSAND_PARALLEL = 3;
+
+/**
+ * Für welche Semester gerade Einladungen rausgehen (Zähler je Semester-Id).
+ *
+ * Solange der Versand läuft, fehlen die GESENDET-Zeilen in `email_versand` noch —
+ * die Überleitungsseite zeigte jede dieser Einladungen als „nicht zugestellt".
+ * Ein Klick auf „Erneut senden" in diesem Moment tauschte die Links, während die
+ * Mails mit den alten Links noch rausgehen: jede Person bekäme zwei Mails, und
+ * der Link in der ersten wäre schon ungültig. Deshalb sperrt ein laufender
+ * Versand den Nachversand für sein Semester, und die Seite sagt „wird gerade
+ * verschickt" statt einer falschen Zahl.
+ *
+ * Bewusst im Prozess und nicht in der Datenbank: Den Versand erledigt immer
+ * dieser eine App-Prozess (`after()` nach der Antwort; der Worker verschickt
+ * keine Einladungen). Bricht der Prozess ab, ist auch die Sperre weg — und die
+ * abgebrochenen Einladungen gelten richtig als nicht zugestellt. Auf `globalThis`
+ * wie der Prisma-Client in `db.ts`, damit Route, Seite und `after()` sicher
+ * dieselbe Instanz sehen, auch wenn der Build das Modul je Einstieg bündelt.
+ */
+const imVersand: Map<string, number> = ((globalThis as { gbsUeberleitungImVersand?: Map<string, number> })
+  .gbsUeberleitungImVersand ??= new Map<string, number>());
+
+function versandBeginnt(semesterId: string): void {
+  imVersand.set(semesterId, (imVersand.get(semesterId) ?? 0) + 1);
+}
+
+function versandEndet(semesterId: string): void {
+  const rest = (imVersand.get(semesterId) ?? 1) - 1;
+  if (rest > 0) imVersand.set(semesterId, rest);
+  else imVersand.delete(semesterId);
+}
+
+/** Gehen für dieses Semester gerade Einladungen raus (Start oder Nachversand)? */
+export function versandLaeuft(semesterId: string): boolean {
+  return (imVersand.get(semesterId) ?? 0) > 0;
+}
 
 /** Die drei Erinnerungs-Offsets (Tage vor Semesterstart, Bereich SEMESTER) —
  * nebenläufig gelesen, gebraucht von der Einladung und vom Erinnerungslauf. */
@@ -235,61 +288,225 @@ export type EinladungsVersand = { eingeladen: number; gesendet: number; fehlgesc
  * sind alle Stufen schon mit der Einladung erledigt (`erledigteStufenBeiEinladung`):
  * Eine gescheiterte Einladung wird dann nie wiederholt, die Person zum Start als
  * KEINE_RUECKMELDUNG abgemeldet (zurück nur einzeln über „Wieder aufnehmen“). Die
- * Überleitungsseite weist beim Start darauf hin.
+ * Überleitungsseite weist beim Start darauf hin — und bietet für jede nicht
+ * zugestellte Einladung bis zum Vortag des Starts „Erneut senden“
+ * (`bereiteNachversandVor`, verschickt ebenfalls über diese Funktion).
+ *
+ * Während des Versands gilt das Semester als „im Versand“ (`versandLaeuft`) —
+ * so lange ist kein Nachversand möglich. `erneut` kennzeichnet den Audit-Eintrag
+ * eines Nachversands.
  */
 export async function versendeEinladungen(
   ziel: EinladungsZiel,
   einladungen: Einladung[],
   akteurId: string,
+  optionen: { erneut?: boolean } = {},
 ): Promise<EinladungsVersand> {
   if (einladungen.length === 0) return { eingeladen: 0, gesendet: 0, fehlgeschlagen: 0 };
 
-  let gesendet = 0;
+  versandBeginnt(ziel.id);
   try {
-    const vorlage = await prisma.emailVorlage.findUnique({
-      where: { code: MAIL_VORLAGE.UEBERLEITUNG_EINLADUNG },
-    });
-    const zeitraum = semesterZeitraum(ziel.start, ziel.ende);
-    const frist = fristText(ziel.start);
+    let gesendet = 0;
+    try {
+      const vorlage = await prisma.emailVorlage.findUnique({
+        where: { code: MAIL_VORLAGE.UEBERLEITUNG_EINLADUNG },
+      });
+      const zeitraum = semesterZeitraum(ziel.start, ziel.ende);
+      const frist = fristText(ziel.start);
 
-    await mitHoechstens(VERSAND_PARALLEL, einladungen, async (einladung) => {
-      const werte = {
-        vorname: einladung.person.vorname,
-        semester: ziel.bezeichnung,
-        zeitraum,
-        frist,
-        link: bestaetigungsLink(einladung.token),
-      };
-      try {
-        const { gesendet: ok } = await sendeMail({
-          an: einladung.person.email,
-          personId: einladung.person.id,
-          vorlageCode: MAIL_VORLAGE.UEBERLEITUNG_EINLADUNG,
-          betreff: fuelleVorlage(vorlage?.betreff ?? "Sind Sie im {{semester}} dabei?", werte),
-          text: fuelleVorlage(
-            vorlage?.textMd ??
-              "Hallo {{vorname}},\n\nsind Sie im {{semester}} ({{zeitraum}}) dabei? Bitte antworten Sie bis einschließlich {{frist}} über diesen Link:\n\n{{link}}",
-            werte,
-          ),
-        });
-        if (ok) gesendet++;
-      } catch (fehler) {
-        console.error("[UEBERLEITUNG] Einladung fehlgeschlagen für Person", einladung.person.id, fehler);
-      }
+      await mitHoechstens(VERSAND_PARALLEL, einladungen, async (einladung) => {
+        const werte = {
+          vorname: einladung.person.vorname,
+          semester: ziel.bezeichnung,
+          zeitraum,
+          frist,
+          link: bestaetigungsLink(einladung.token),
+        };
+        try {
+          const { gesendet: ok } = await sendeMail({
+            an: einladung.person.email,
+            personId: einladung.person.id,
+            vorlageCode: MAIL_VORLAGE.UEBERLEITUNG_EINLADUNG,
+            betreff: fuelleVorlage(vorlage?.betreff ?? "Sind Sie im {{semester}} dabei?", werte),
+            text: fuelleVorlage(
+              vorlage?.textMd ??
+                "Hallo {{vorname}},\n\nsind Sie im {{semester}} ({{zeitraum}}) dabei? Bitte antworten Sie bis einschließlich {{frist}} über diesen Link:\n\n{{link}}",
+              werte,
+            ),
+          });
+          if (ok) gesendet++;
+        } catch (fehler) {
+          console.error("[UEBERLEITUNG] Einladung fehlgeschlagen für Person", einladung.person.id, fehler);
+        }
+      });
+    } catch (fehler) {
+      console.error("[UEBERLEITUNG] Einladungsversand abgebrochen:", fehler);
+    }
+
+    const bericht = { eingeladen: einladungen.length, gesendet, fehlgeschlagen: einladungen.length - gesendet };
+    await protokolliere({
+      aktion: "SEMESTER_UEBERLEITUNG_VERSENDET",
+      objektTyp: "Semester",
+      objektId: ziel.id,
+      akteurId,
+      nachher: { nach: ziel.code, ...bericht, ...(optionen.erneut ? { erneut: true } : {}) },
     });
+    return bericht;
+  } finally {
+    versandEndet(ziel.id);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Nicht zugestellte Einladungen erneut senden (Knopf auf der Überleitungsseite)
+// -----------------------------------------------------------------------------
+
+/**
+ * Die Versandzeilen der Überleitungs-Mails je Person, frühestens ab `seit` —
+ * die Eingabe für `einladungNichtZugestellt`.
+ */
+async function ladeVersandspuren(personIds: string[], seit: Date): Promise<Map<string, VersandSpur[]>> {
+  const spuren = new Map<string, VersandSpur[]>();
+  if (personIds.length === 0) return spuren;
+  const zeilen = await prisma.emailVersand.findMany({
+    where: { personId: { in: personIds }, vorlageCode: { in: [...UEBERLEITUNG_VORLAGEN] }, erstelltAm: { gte: seit } },
+    select: { personId: true, vorlageCode: true, status: true, erstelltAm: true },
+  });
+  for (const zeile of zeilen) {
+    if (!zeile.personId) continue;
+    const liste = spuren.get(zeile.personId);
+    if (liste) liste.push(zeile);
+    else spuren.set(zeile.personId, [zeile]);
+  }
+  return spuren;
+}
+
+/**
+ * Die offenen Einladungen eines Semesters, deren Link nie zugestellt wurde
+ * (Regel: `einladungNichtZugestellt`). EINE Abfrage für die Zahl „Einladung
+ * nicht zugestellt" auf der Überleitungsseite und für „Erneut senden" — sonst
+ * zeigte die Seite eine Zahl, die der Knopf nicht einlöst.
+ *
+ * Nur aktive Personen, wie bei der Überleitung selbst: Wer seit der Einladung
+ * ausgeschieden ist, bekommt keine zweite Einladung.
+ */
+export async function ladeNichtZugestellte(semesterId: string) {
+  const offene = await prisma.teilnahme.findMany({
+    where: { semesterId, ...OFFENE_EINLADUNG, person: PERSON_ZAEHLT_AKTIV },
+    select: {
+      id: true,
+      eingeladenAm: true,
+      bestaetigtAm: true,
+      abgemeldetAm: true,
+      bestaetigungTokenHash: true,
+      person: { select: { id: true, vorname: true, email: true } },
+    },
+  });
+  if (offene.length === 0) return [];
+
+  // Ältere Zeilen gehören zu früheren Überleitungen und zählen ohnehin nicht.
+  const seit = new Date(Math.min(...offene.map((t) => t.eingeladenAm?.getTime() ?? 0)));
+  const spuren = await ladeVersandspuren(offene.map((t) => t.person.id), seit);
+  return offene.filter((t) => einladungNichtZugestellt(t, spuren.get(t.person.id) ?? []));
+}
+
+export type NachversandErgebnis =
+  | { status: "ziel_fehlt" }
+  | { status: "ziel_begonnen" }
+  | { status: "versand_laeuft" }
+  | {
+      status: "ok";
+      /** So viele Einladungen gehen erneut raus. */
+      anzahl: number;
+      /** Der Versand — die Route stößt ihn NACH der Antwort an (`after`). Null, wenn nichts zu senden ist. */
+      versand: (() => Promise<void>) | null;
+    };
+
+/**
+ * Bereitet „Erneut senden" vor: Jede offene Einladung des Semesters, die nie
+ * zugestellt wurde (`ladeNichtZugestellte`), bekommt einen frischen Link — der
+ * alte kam ja nie an. Gespeichert wird wie bei der Einladung nur der Hash; der
+ * Link gilt bis zum Semesterstart. Den Versand liefert das Ergebnis als
+ * Funktion, die die Route per `after()` nach der Antwort ausführt (derselbe Weg
+ * wie beim Start, `versendeEinladungen`). Die Zahl der Einladungen und die
+ * Teilnahmen stehen sofort im Audit (SEMESTER_EINLADUNG_ERNEUT_GESENDET), den
+ * Versandstand trägt `versendeEinladungen` nach (SEMESTER_UEBERLEITUNG_VERSENDET
+ * mit `erneut: true`).
+ *
+ * Nur vor Semesterstart — danach nimmt der Link keine Antwort mehr an. Nur auf
+ * Knopfdruck: Ein automatischer Nachversand durch den Worker schriebe eine
+ * dauerhaft abgewiesene Adresse jede Stunde erneut an.
+ *
+ * Sicher gegen Doppelklick und zwei Tabs: Das Semester wird schon hier als „im
+ * Versand" vorgemerkt (Prüfen und Vormerken ohne `await` dazwischen) und bleibt
+ * es, bis die gelieferte Versand-Funktion fertig ist — ein zweiter Aufruf
+ * bekommt `versand_laeuft`. Der Linktausch ist zusätzlich an den bisherigen Hash
+ * gebunden: Hat der Erinnerungslauf gerade erfolgreich einen Link zugestellt und
+ * getauscht, bleibt dessen Link stehen, und diese Person bekommt keine zweite Mail.
+ *
+ * WICHTIG für Aufrufer: Liefert das Ergebnis eine Versand-Funktion, MUSS sie
+ * ausgeführt werden — erst ihr Ende gibt das Semester wieder frei.
+ */
+export async function bereiteNachversandVor(
+  semesterId: string,
+  akteurId: string,
+  headers: Headers,
+): Promise<NachversandErgebnis> {
+  const ziel = await prisma.semester.findUnique({ where: { id: semesterId } });
+  if (!ziel) return { status: "ziel_fehlt" };
+  if (semesterHatBegonnen(ziel.start, new Date())) return { status: "ziel_begonnen" };
+
+  if (versandLaeuft(ziel.id)) return { status: "versand_laeuft" };
+  versandBeginnt(ziel.id);
+
+  const einladungen: (Einladung & { teilnahmeId: string })[] = [];
+  try {
+    const betroffen = await ladeNichtZugestellte(ziel.id);
+    for (const t of betroffen) {
+      const token = randomUUID();
+      const getauscht = await prisma.teilnahme.updateMany({
+        where: { id: t.id, ...OFFENE_EINLADUNG, bestaetigungTokenHash: t.bestaetigungTokenHash },
+        data: { bestaetigungTokenHash: hashToken(token), bestaetigungLaeuftAb: ziel.start },
+      });
+      if (getauscht.count === 1) einladungen.push({ person: t.person, token, teilnahmeId: t.id });
+    }
   } catch (fehler) {
-    console.error("[UEBERLEITUNG] Einladungsversand abgebrochen:", fehler);
+    versandEndet(ziel.id);
+    throw fehler;
   }
 
-  const bericht = { eingeladen: einladungen.length, gesendet, fehlgeschlagen: einladungen.length - gesendet };
   await protokolliere({
-    aktion: "SEMESTER_UEBERLEITUNG_VERSENDET",
+    aktion: "SEMESTER_EINLADUNG_ERNEUT_GESENDET",
     objektTyp: "Semester",
     objektId: ziel.id,
     akteurId,
-    nachher: { nach: ziel.code, ...bericht },
+    nachher: { code: ziel.code, anzahl: einladungen.length, teilnahmeIds: einladungen.map((e) => e.teilnahmeId) },
+    headers,
   });
-  return bericht;
+
+  if (einladungen.length === 0) {
+    versandEndet(ziel.id);
+    return { status: "ok", anzahl: 0, versand: null };
+  }
+
+  const zielDaten: EinladungsZiel = {
+    id: ziel.id,
+    code: ziel.code,
+    bezeichnung: ziel.bezeichnung,
+    start: ziel.start,
+    ende: ziel.ende,
+  };
+  return {
+    status: "ok",
+    anzahl: einladungen.length,
+    versand: async () => {
+      try {
+        await versendeEinladungen(zielDaten, einladungen, akteurId, { erneut: true });
+      } finally {
+        versandEndet(zielDaten.id);
+      }
+    },
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -404,6 +621,76 @@ export async function beantworteEinladung(
 }
 
 // -----------------------------------------------------------------------------
+// Zusage von Hand (Schulleitung, etwa nach einem Anruf)
+// -----------------------------------------------------------------------------
+
+export type ZusageErgebnis =
+  | { status: "ok" }
+  | { status: "unbekannt" }
+  | { status: "abgemeldet" }
+  | { status: "bestaetigt" }
+  | { status: "ohne_einladung" }
+  | { status: "nicht_aktiv"; statusBezeichnung: string }
+  | { status: "gerade_geaendert" };
+
+/**
+ * Trägt für eine offene Einladung die Zusage ein, die nicht über den Link kam —
+ * am Telefon, im Gespräch, auf Papier. Ohne sie meldete der Lauf zum
+ * Semesterstart die Person als „keine Rückmeldung" ab, obwohl sie zugesagt hat.
+ *
+ * Nur aus „offen" heraus (bedingtes updateMany auf `OFFENE_EINLADUNG`, atomar):
+ * Eine abgemeldete Teilnahme holt „Wieder aufnehmen" zurück, eine bestätigte ist
+ * schon dabei, eine direkt aufgenommene zählt ohnehin. Wer nicht (mehr) aktiv
+ * ist, stünde trotz Zusage in keiner Liste — das wäre ein Erfolg, der nichts
+ * bewirkt (dieselbe Sperre wie bei „Wieder aufnehmen").
+ *
+ * Der Link der Person bleibt gültig: Bis zum Vortag des Starts darf sie ihre
+ * Antwort selbst noch ändern, wie nach einer Zusage über den Link.
+ */
+export async function trageZusageEin(teilnahmeId: string, akteurId: string, headers: Headers): Promise<ZusageErgebnis> {
+  const teilnahme = await prisma.teilnahme.findUnique({
+    where: { id: teilnahmeId },
+    select: {
+      eingeladenAm: true,
+      bestaetigtAm: true,
+      abgemeldetAm: true,
+      semester: { select: { code: true } },
+      person: { select: { status: { select: { istAktiv: true, bezeichnung: true } } } },
+    },
+  });
+  if (!teilnahme) return { status: "unbekannt" };
+
+  const stand = rueckmeldeStand(teilnahme);
+  if (stand === "abgemeldet") return { status: "abgemeldet" };
+  if (stand === "bestaetigt") return { status: "bestaetigt" };
+  if (stand === "ohne_einladung") return { status: "ohne_einladung" };
+  if (!teilnahme.person.status.istAktiv) {
+    return { status: "nicht_aktiv", statusBezeichnung: teilnahme.person.status.bezeichnung };
+  }
+
+  const jetzt = new Date();
+  const gesetzt = await prisma.teilnahme.updateMany({
+    where: { id: teilnahmeId, ...OFFENE_EINLADUNG },
+    data: { bestaetigtAm: jetzt },
+  });
+  // Zwischen Lesen und Schreiben hat die Person selbst geantwortet oder der
+  // Lauf zum Semesterstart hat abgemeldet — kein zweiter Eintrag.
+  if (gesetzt.count !== 1) return { status: "gerade_geaendert" };
+
+  await protokolliere({
+    aktion: "TEILNAHME_ZUSAGE_EINGETRAGEN",
+    objektTyp: "Teilnahme",
+    objektId: teilnahmeId,
+    akteurId,
+    // Als ISO-Text: `protokolliere` bereinigt Objekte feldweise und machte aus
+    // einem Date-Objekt ein leeres `{}`.
+    nachher: { semester: teilnahme.semester.code, bestaetigtAm: jetzt.toISOString() },
+    headers,
+  });
+  return { status: "ok" };
+}
+
+// -----------------------------------------------------------------------------
 // Semesterstart verschoben (PUT /api/semester/[id])
 // -----------------------------------------------------------------------------
 
@@ -437,13 +724,29 @@ export async function ziehLinkfristNach(
 // Ab Semesterstart: Eingeladene ohne Antwort abmelden (Worker)
 // -----------------------------------------------------------------------------
 
-export type AbmeldeBericht = { semesterCode: string; abgemeldet: number };
+export type AbmeldeBericht = {
+  semesterCode: string;
+  /** Als KEINE_RUECKMELDUNG abgemeldet. */
+  abgemeldet: number;
+  /** Ohne Antwort, aber schon im Unterricht — als bestätigt gewertet. */
+  durchTeilnahme: number;
+};
 
 /**
- * Meldet ab Semesterstart jede eingeladene Teilnahme ohne Antwort ab (Grund
- * KEINE_RUECKMELDUNG) — sie fällt damit aus allen Listen dieses Semesters. Der
- * Personenstatus bleibt unverändert; die Schulleitung kann einzeln wieder
- * aufnehmen.
+ * Schließt ab Semesterstart jede eingeladene Teilnahme ohne Antwort ab:
+ *
+ *  - Hat sie im Zielsemester schon Nutzungsspuren (eine Anwesenheit „anwesend"
+ *    oder „nachgearbeitet", oder eine Leistung — `hatNutzungsspuren`), gilt die
+ *    Teilnahme am Unterricht als Rückmeldung: `bestaetigtAm` wird gesetzt, die
+ *    Person bleibt in allen Listen. Das trifft vor allem den Nachholfall nach
+ *    einem längeren Worker-Ausfall — früher fielen dabei auch Personen heraus,
+ *    die längst in der Anwesenheitsliste standen.
+ *  - Sonst wird sie abgemeldet (Grund KEINE_RUECKMELDUNG) und fällt aus allen
+ *    Listen dieses Semesters. Der Personenstatus bleibt unverändert; die
+ *    Schulleitung kann einzeln wieder aufnehmen.
+ *
+ * Bericht und Audit zählen beide Wege getrennt (TEILNAHME_OHNE_RUECKMELDUNG_ABGEMELDET
+ * bzw. TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME, je mit Anzahl und Teilnahme-Ids).
  *
  * „Ab Semesterstart" ist die Kalendertag-Grenze aus `semesterHatBegonnen`
  * (Wanduhr Europe/Berlin), dieselbe, ab der der Link keine Antwort mehr annimmt.
@@ -464,10 +767,23 @@ export async function schliesseRueckmeldungen(jetzt: Date): Promise<AbmeldeBeric
 
     const offene = await prisma.teilnahme.findMany({
       where: { semesterId: s.id, ...OFFENE_EINLADUNG },
-      select: { id: true },
+      select: {
+        id: true,
+        anwesenheiten: { select: { status: true } },
+        _count: { select: { leistungen: true } },
+      },
     });
     const abgemeldet: string[] = [];
+    const durchTeilnahme: string[] = [];
     for (const t of offene) {
+      if (hatNutzungsspuren({ anwesenheiten: t.anwesenheiten, leistungen: t._count.leistungen })) {
+        const bestaetigt = await prisma.teilnahme.updateMany({
+          where: { id: t.id, ...OFFENE_EINLADUNG },
+          data: { bestaetigtAm: jetzt },
+        });
+        if (bestaetigt.count === 1) durchTeilnahme.push(t.id);
+        continue;
+      }
       const gesetzt = await prisma.teilnahme.updateMany({
         where: { id: t.id, ...OFFENE_EINLADUNG },
         data: { abgemeldetAm: jetzt, abmeldeGrund: ABMELDEGRUND.KEINE_RUECKMELDUNG },
@@ -475,14 +791,25 @@ export async function schliesseRueckmeldungen(jetzt: Date): Promise<AbmeldeBeric
       if (gesetzt.count === 1) abgemeldet.push(t.id);
     }
 
+    if (abgemeldet.length > 0 || durchTeilnahme.length > 0) {
+      berichte.push({ semesterCode: s.code, abgemeldet: abgemeldet.length, durchTeilnahme: durchTeilnahme.length });
+    }
     if (abgemeldet.length > 0) {
-      berichte.push({ semesterCode: s.code, abgemeldet: abgemeldet.length });
       await protokolliere({
         aktion: "TEILNAHME_OHNE_RUECKMELDUNG_ABGEMELDET",
         objektTyp: "Semester",
         objektId: s.id,
         quelle: "SYSTEM",
         nachher: { code: s.code, anzahl: abgemeldet.length, teilnahmeIds: abgemeldet },
+      });
+    }
+    if (durchTeilnahme.length > 0) {
+      await protokolliere({
+        aktion: "TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME",
+        objektTyp: "Semester",
+        objektId: s.id,
+        quelle: "SYSTEM",
+        nachher: { code: s.code, anzahl: durchTeilnahme.length, teilnahmeIds: durchTeilnahme },
       });
     }
   }

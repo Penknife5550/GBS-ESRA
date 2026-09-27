@@ -15,7 +15,7 @@ import { abmeldegrundText } from "@/lib/semester";
 import { anmeldestatusName } from "@/lib/anmeldestatus";
 import { ergebnisName } from "@/lib/leistung";
 import { abendWort, anwesenheitName, terminText } from "@/lib/stundenplan";
-import { zeugnisTitel } from "@/lib/zeugnis";
+import { zeugnisStatusName, zeugnisTitel } from "@/lib/zeugnis";
 import { euro } from "@/lib/honorar";
 
 export type AntwortZeile = { label: string; wert: string; istArt9: boolean };
@@ -141,7 +141,9 @@ export type AuskunftDaten = {
   anwesenheiten: { beginn: Date; fach: string | null; status: string; selbstBestaetigt: boolean; vermerk: boolean }[];
   /** `ergebnis` roh (Leistungsergebnis). */
   leistungen: { semester: string; fach: string; titel: string; ergebnis: string; punkte: number | null; note: string | null }[];
-  /** `typ` und `status` roh (Zeugnistyp, Zeugnisstatus). */
+  /** `typ` und `status` roh (Zeugnistyp, Zeugnisstatus). Bei STORNIERT der
+   * Zeitpunkt; der Grund (Freitext der Schule) wird wie der interne Vermerk nur
+   * benannt, nicht abgedruckt. */
   zeugnisse: {
     belegNr: string;
     typ: string;
@@ -150,6 +152,8 @@ export type AuskunftDaten = {
     semester: string;
     ausgestelltAm: Date;
     dmsGesendetAm: Date | null;
+    storniertAm: Date | null;
+    stornoGrundVorhanden: boolean;
   }[];
   /** Unterrichtsabende, denen die Person als Dozent zugeordnet ist. */
   unterrichtsabende: { beginn: Date; semester: string; fach: string | null }[];
@@ -205,14 +209,21 @@ export function leistungText(l: AuskunftDaten["leistungen"][number]): string {
 }
 
 /**
- * Ein Zeugnis als Zeile: Typ, Semester, Datum, Fassung/Stand und die
+ * Ein Zeugnis als Zeile: Typ, Semester, Datum, Fassung/Stand (gültig, ersetzt
+ * oder storniert — der Storno mit Datum, sein Grund nur benannt) und die
  * Übermittlung an das DMS. Den eingefrorenen Inhalt (Name, Geburtsdatum,
  * Ergebnisse im Stand der Ausstellung) benennt der Hinweis unter dem Abschnitt.
  */
 export function zeugnisText(z: AuskunftDaten["zeugnisse"][number]): string {
+  const stand =
+    z.status === "ERSETZT"
+      ? `Fassung ${z.version}, durch eine Neuausstellung ersetzt`
+      : z.status === "STORNIERT"
+        ? `Fassung ${z.version}, ${zeugnisStatusName(z.status)} am ${datum(z.storniertAm)} und damit ungültig` +
+          (z.stornoGrundVorhanden ? ` · ${VERMERK_HINWEIS}` : "")
+        : `Fassung ${z.version}, ${zeugnisStatusName(z.status)}`;
   return (
-    `${zeugnisTitel(z.typ)} · ${z.semester} · ausgestellt am ${datum(z.ausgestelltAm)} · ` +
-    (z.status === "ERSETZT" ? `Fassung ${z.version}, durch eine Neuausstellung ersetzt` : `Fassung ${z.version}, gültig`) +
+    `${zeugnisTitel(z.typ)} · ${z.semester} · ausgestellt am ${datum(z.ausgestelltAm)} · ${stand}` +
     (z.dmsGesendetAm ? ` · an das Dokumentenarchiv (DMS) übermittelt am ${datum(z.dmsGesendetAm)}` : "")
   );
 }
@@ -331,7 +342,10 @@ export function baueAuskunftBloecke(daten: AuskunftDaten): PdfBlock[] {
       text:
         "Ein Zeugnis hält Name, Geburtsdatum und die Ergebnisse im Stand der Ausstellung fest. Eine Kopie gültiger " +
         "Zeugnisse und Bescheinigungen erhalten Sie auf Anfrage bei der Schulverwaltung; solange Ihr Portalzugang " +
-        "besteht, auch als PDF unter „Meine Daten“.",
+        "besteht, auch als PDF unter „Meine Daten“." +
+        (daten.zeugnisse.some((z) => z.status === "STORNIERT")
+          ? " Ein storniertes Dokument wurde ohne Ersatz zurückgezogen und ist ungültig; es bleibt nur als Nachweis gespeichert."
+          : ""),
     });
   }
 
