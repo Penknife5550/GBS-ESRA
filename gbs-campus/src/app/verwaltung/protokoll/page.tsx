@@ -3,13 +3,32 @@ import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { datumZeitSekunden } from "@/lib/datum";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { Icon } from "@/components/icons";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { Segment } from "@/components/ui/segment";
+import { Gruppe } from "@/components/ui/liste";
+import { LeererZustand } from "@/components/ui/hinweis";
 
 export const metadata = { title: "Protokoll" };
 export const dynamic = "force-dynamic";
 
 /** Mehr als das liest niemand am Stück — wer weiter zurück muss, filtert. */
 const HOECHSTZAHL = 200;
+
+/**
+ * Schnellfilter als Umschalter (Oberflächenplan 09/2026) — die Vorgänge, die
+ * sonst nirgends auftauchen: ZUGANG_HILFE_GEMELDET, PASSWORT_ANMELDUNG_FEHLGESCHLAGEN,
+ * EMAIL_AENDERUNG_ADRESSE_VERGEBEN, ANMELDELINK_DURCH_VERWALTUNG und
+ * EMAIL_GEAENDERT_DURCH_VERWALTUNG. Jeder Begriff ist ein Teiltreffer auf die Aktion.
+ */
+const SCHNELLFILTER = [
+  { text: "Alle", begriff: "" },
+  { text: "Fehlgeschlagen", begriff: "FEHLGESCHLAGEN" },
+  { text: "Zugangshilfe", begriff: "ZUGANG_HILFE" },
+  { text: "Passwort", begriff: "PASSWORT" },
+  { text: "E-Mail", begriff: "EMAIL" },
+  { text: "Durch die Verwaltung", begriff: "DURCH_VERWALTUNG" },
+] as const;
 
 /**
  * Das Protokoll — die Leseseite zum Audit-Log.
@@ -37,6 +56,7 @@ export default async function ProtokollSeite({
 
   const { aktion } = await searchParams;
   const begriff = aktion?.trim() ?? "";
+  const schnellfilter = SCHNELLFILTER.find((f) => f.begriff.toLowerCase() === begriff.toLowerCase());
 
   const eintraege = await prisma.auditLog.findMany({
     // Teiltreffer statt exakter Gleichheit: „PASSWORT" findet alle Vorgänge um
@@ -59,95 +79,102 @@ export default async function ProtokollSeite({
   });
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Protokoll" />
-
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Protokoll</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Wer hat wann was getan. Die letzten {HOECHSTZAHL} Einträge, neueste zuerst. Einträge lassen sich
-        weder ändern noch löschen — auch nicht vom Administrator.
-      </p>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Hier stehen auch die Vorgänge, die sonst nirgends auftauchen. Zum Nachsehen lohnen sich etwa{" "}
-        <code className="text-xs">ZUGANG_HILFE_GEMELDET</code>,{" "}
-        <code className="text-xs">PASSWORT_ANMELDUNG_FEHLGESCHLAGEN</code>,{" "}
-        <code className="text-xs">EMAIL_AENDERUNG_ADRESSE_VERGEBEN</code>,{" "}
-        <code className="text-xs">ANMELDELINK_DURCH_VERWALTUNG</code> und{" "}
-        <code className="text-xs">EMAIL_GEAENDERT_DURCH_VERWALTUNG</code>.
-      </p>
-
-      {/* Ein einfaches GET-Formular: Der Filter gehört in die Adresszeile,
-          damit sich eine Suche weitergeben und neu laden lässt. */}
-      <form method="get" className="mt-8 flex flex-wrap gap-3">
-        <label htmlFor="aktion" className="sr-only">
-          Nach einer Aktion filtern
-        </label>
-        <input
-          id="aktion"
-          name="aktion"
-          type="search"
-          defaultValue={begriff}
-          placeholder="Aktion, z. B. PASSWORT"
-          className="min-w-0 flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+    <main>
+      <Seitenkopf
+        titel="Protokoll"
+        aktionen={
+          // Ein einfaches GET-Formular: Der Filter gehört in die Adresszeile,
+          // damit sich eine Suche weitergeben und neu laden lässt. Eingabetaste sucht.
+          <form method="get" role="search" className="relative w-full lg:w-64">
+            <label htmlFor="aktion" className="sr-only">
+              Nach einer Aktion filtern
+            </label>
+            <Icon
+              name="suche"
+              className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-dezent"
+            />
+            <input
+              key={begriff}
+              id="aktion"
+              name="aktion"
+              type="search"
+              defaultValue={schnellfilter ? "" : begriff}
+              placeholder="Aktion suchen, z. B. HONORAR"
+              autoComplete="off"
+              className="h-11 w-full rounded-lg bg-feld pl-8 pr-2.5 text-sm text-foreground placeholder:text-dezent focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 lg:h-8 lg:text-[13px]"
+            />
+          </form>
+        }
+      >
+        <Segment
+          label="Protokoll filtern"
+          eintraege={SCHNELLFILTER.map((f) => ({
+            text: f.text,
+            href: f.begriff ? `/verwaltung/protokoll?aktion=${f.begriff}` : "/verwaltung/protokoll",
+            aktiv: f === schnellfilter,
+          }))}
         />
-        <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-          Filtern
-        </button>
-      </form>
+      </Seitenkopf>
 
-      {eintraege.length === 0 ? (
-        <p className="mt-8 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          {begriff ? `Zu „${begriff}" gibt es keinen Eintrag.` : "Es ist noch nichts protokolliert."}
-        </p>
-      ) : (
-        <>
-          <p className="mt-8 text-sm text-muted-foreground">
-            {eintraege.length === HOECHSTZAHL
-              ? `Die neuesten ${HOECHSTZAHL} Einträge — für ältere bitte nach der Aktion filtern.`
-              : `${eintraege.length} ${eintraege.length === 1 ? "Eintrag" : "Einträge"}`}
-          </p>
+      <Inhalt breite="mittel">
+        {eintraege.length === 0 ? (
+          <LeererZustand
+            icon="protokoll"
+            titel={begriff ? `Zu „${schnellfilter?.text ?? begriff}“ gibt es keinen Eintrag.` : "Es ist noch nichts protokolliert."}
+          />
+        ) : (
+          <>
+            <p className="mb-2 text-[13px] text-muted-foreground">
+              {eintraege.length === HOECHSTZAHL
+                ? `Die neuesten ${HOECHSTZAHL} Einträge — für ältere bitte nach der Aktion filtern.`
+                : `${eintraege.length} ${eintraege.length === 1 ? "Eintrag" : "Einträge"}, neueste zuerst`}
+            </p>
 
-          <ul className="mt-3 divide-y divide-border rounded-lg border border-border bg-card">
-            {eintraege.map((eintrag) => (
-              <li key={eintrag.id} className="px-5 py-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-medium">{eintrag.aktion}</span>
-                  <span className="text-xs text-muted-foreground">
+            <Gruppe>
+              {eintraege.map((eintrag) => (
+                <div key={eintrag.id} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:gap-4">
+                  <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground sm:w-40 sm:pt-px">
                     {datumZeitSekunden(eintrag.erstelltAm)}
                   </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-medium text-foreground">{eintrag.aktion}</p>
+                    <p className="break-words text-[13px] text-muted-foreground">
+                      {eintrag.akteur
+                        ? `${eintrag.akteur.vorname} ${eintrag.akteur.nachname}`
+                        : eintrag.quelle === "SYSTEM"
+                          ? "System"
+                          : "unbekannt"}{" "}
+                      · {eintrag.objektTyp}
+                      {eintrag.objektId ? ` ${eintrag.objektId}` : ""}
+                      {eintrag.ipAdresse ? ` · ${eintrag.ipAdresse}` : ""}
+                    </p>
+
+                    {/* Alt- und Neuwerte sind JSON und können Namen, Adressen oder
+                        E-Mail-Adressen enthalten. Deshalb eingeklappt: Wer die
+                        Liste überfliegt oder sie jemandem über die Schulter zeigt,
+                        sieht sie nicht beiläufig mit. Geheimnisse (IBAN, Hashes)
+                        entfernt bereits `lib/audit.ts` beim Schreiben. */}
+                    {(eintrag.vorher !== null || eintrag.nachher !== null) && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs font-medium text-primary">
+                          Alt- und Neuwerte anzeigen (können personenbezogene Daten enthalten)
+                        </summary>
+                        <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 text-xs">
+                          {JSON.stringify({ vorher: eintrag.vorher, nachher: eintrag.nachher }, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
                 </div>
+              ))}
+            </Gruppe>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {eintrag.akteur
-                    ? `${eintrag.akteur.vorname} ${eintrag.akteur.nachname}`
-                    : eintrag.quelle === "SYSTEM"
-                      ? "System"
-                      : "unbekannt"}{" "}
-                  · {eintrag.objektTyp}
-                  {eintrag.objektId ? ` ${eintrag.objektId}` : ""}
-                  {eintrag.ipAdresse ? ` · ${eintrag.ipAdresse}` : ""}
-                </p>
-
-                {/* Alt- und Neuwerte sind JSON und können Namen, Adressen oder
-                    E-Mail-Adressen enthalten. Deshalb eingeklappt: Wer die
-                    Liste überfliegt oder sie jemandem über die Schulter zeigt,
-                    sieht sie nicht beiläufig mit. Geheimnisse (IBAN, Hashes)
-                    entfernt bereits `lib/audit.ts` beim Schreiben. */}
-                {(eintrag.vorher !== null || eintrag.nachher !== null) && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-xs text-muted-foreground">
-                      Alt- und Neuwerte anzeigen (können personenbezogene Daten enthalten)
-                    </summary>
-                    <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 text-xs">
-                      {JSON.stringify({ vorher: eintrag.vorher, nachher: eintrag.nachher }, null, 2)}
-                    </pre>
-                  </details>
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+            <p className="mt-3 text-xs text-muted-foreground">
+              Einträge lassen sich weder ändern noch löschen — auch nicht vom Administrator.
+            </p>
+          </>
+        )}
+      </Inhalt>
     </main>
   );
 }

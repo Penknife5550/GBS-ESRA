@@ -255,8 +255,8 @@ pruefe(
     /addEventListener\("beforeunload"/.test(matrix) && /removeEventListener\("beforeunload"/.test(matrix),
   );
   pruefe(
-    "Semesterwahl der Notenseite: GET-Formular mit „Anzeigen“, kein Wechsel beim Auswählen",
-    /<form method="get"/.test(semesterwahl) && /Anzeigen/.test(semesterwahl) && !/onChange|router\.push/.test(semesterwahl),
+    "Semesterwahl der Notenseite: Menü aus Links (wirkt sofort, ohne „Anzeigen“), kein Wechsel beim Auswählen",
+    /<Menue\b/.test(semesterwahl) && /href: href\(s\.id\)/.test(semesterwahl) && !/onChange|router\.push/.test(semesterwahl),
   );
   const badges = (() => {
     try {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type OffenerEmailAntrag = {
@@ -70,7 +71,7 @@ export function EmailAendern({
   }
 
   return (
-    <form onSubmit={beantragen} className="rounded-lg border border-border bg-card p-5">
+    <form onSubmit={beantragen} className="flex flex-col">
       <p className="text-sm">
         Hinterlegt ist <span className="font-medium break-all">{bisherige}</span>. Über diese Adresse läuft
         Ihr Zugang zum Portal.
@@ -99,7 +100,7 @@ export function EmailAendern({
           setMeldung(null);
         }}
         aria-describedby="neue-email-hinweis"
-        className="mt-1.5 min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm sm:max-w-md"
+        className="mt-1.5 min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
       />
       <p id="neue-email-hinweis" className="mt-1 max-w-prose text-xs text-muted-foreground">
         Wir schicken einen Bestätigungslink an die neue Adresse. Bis Sie ihn anklicken, bleibt alles beim
@@ -109,12 +110,12 @@ export function EmailAendern({
       <button
         type="submit"
         disabled={laeuft || email.trim().length === 0}
-        className="mt-4 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+        className={`${knopf("primaer")} mt-4 w-full sm:w-auto sm:self-end`}
       >
         {laeuft ? "Wird gesendet …" : "Bestätigungslink anfordern"}
       </button>
 
-      <MeldungsBox meldung={meldung} className="mt-4 max-w-prose" />
+      <MeldungsBox meldung={meldung} className="mt-4" />
     </form>
   );
 }

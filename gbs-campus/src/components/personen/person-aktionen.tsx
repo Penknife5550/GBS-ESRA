@@ -1,21 +1,32 @@
 "use client";
 
 /**
- * GBS Campus — Verwaltungs-Aktionen auf der Personen-Detailakte
+ * GBS Campus — Kopfleiste und Aktionen der Personen-Detailakte
  *
- * Bündelt die Aktionen, die vorher in der aufklappbaren Listenzeile
- * (`person-zeile.tsx`) saßen: Anmeldeadresse ändern, Stammdaten bearbeiten,
- * Anmeldelink schicken, DSGVO-Auskunft anstoßen, anonymisieren und Rollen
- * verwalten. Dieselben APIs, dasselbe `sendeAnfrage`+`router.refresh()`-Muster,
- * dieselben Bestätigungsdialoge — nur jetzt an EINEM Ort (der Akte) statt in jeder
- * Listenzeile.
+ * Oberflächenplan 09/2026 („Lesen wie eine Visitenkarte, ändern auf
+ * Knopfdruck“): Die Akte zeigt zuerst den Stand, kein Formular steht offen.
+ * Oben rechts „Bearbeiten“ (Stammdaten im Blatt) und das Menü „…“ für Seltenes
+ * und Folgenreiches — Anmeldelink senden, Anmeldeadresse ändern, Status ändern
+ * (Ausbildungsdaten & Status im Blatt), Rollen, Datenauskunft und ganz unten,
+ * rot und abgesetzt, Anonymisieren. Vorher stand all das als Knopfreihe
+ * „Verwaltung dieser Person“ mitten in der Akte, Anonymisieren rot im Alltag.
+ *
+ * Dieselben APIs, dasselbe `sendeAnfrage`+`router.refresh()`-Muster, dieselben
+ * Rückfragen und Meldungen wie vorher; sichtbar ist nur, wofür das Konto das
+ * Recht hat. Eine gelungene Aktion schließt ihr Blatt und meldet sich oben auf
+ * der Seite, ein Fehler bleibt im Blatt neben dem Knopf.
  */
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 import { ADMIN_ROLLE, entziehtAdmin, rollenDiff } from "@/lib/benutzerverwaltung";
+import { Blatt } from "@/components/ui/blatt";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
+import { Menue, type MenuePunkt } from "@/components/ui/menue";
+import { Seitenkopf } from "@/components/ui/seitenkopf";
+import { AusbildungStatus, type AusbildungStatusDaten } from "./ausbildung-status";
 
 type Rolle = { code: string; bezeichnung: string };
 
@@ -35,6 +46,17 @@ export type PersonAktionenDaten = {
   rollenCodes: string[];
 };
 
+type BlattArt = "stammdaten" | "email" | "rollen" | "status";
+type Laeuft = null | "email" | "link" | "auskunft" | "anonym" | "rollen" | "stammdaten";
+
+const feld = "min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm";
+// Eigener Auslöser für „…“: Im Standard von `Menue` gewinnt am Rechner `lg:px-3.5`
+// aus `knopf()` gegen `lg:px-0`, und das Symbol wird auf wenige Pixel gequetscht.
+const menueKnopf =
+  "inline-flex h-11 w-11 items-center justify-center rounded-lg border border-input bg-muted text-foreground " +
+  "transition-colors hover:bg-feld lg:h-9 lg:w-9";
+const hinweis = "mt-3 text-[13px] text-muted-foreground";
+
 export function PersonAktionen({
   person,
   darfAendern,
@@ -43,6 +65,7 @@ export function PersonAktionen({
   darfRollenVerwalten,
   alleRollen,
   istEigeneAkte,
+  ausbildung,
 }: {
   person: PersonAktionenDaten;
   darfAendern: boolean;
@@ -52,9 +75,12 @@ export function PersonAktionen({
   alleRollen: Rolle[];
   /** Die Akte des Bedienenden selbst — für die Warnung beim Entzug der eigenen Rechte. */
   istEigeneAkte: boolean;
+  /** Ausbildungsdaten & Status (nur Schulleitung, nicht bei Anonymisierten) — sonst null. */
+  ausbildung: AusbildungStatusDaten | null;
 }) {
   const router = useRouter();
-  const [modus, setModus] = useState<"ruhe" | "email" | "rollen" | "stammdaten">("ruhe");
+  const formId = useId();
+  const [blatt, setBlatt] = useState<BlattArt | null>(null);
   const [neueEmail, setNeueEmail] = useState("");
   const [gewaehlt, setGewaehlt] = useState<string[]>(person.rollenCodes);
   const [stamm, setStamm] = useState({
@@ -65,17 +91,67 @@ export function PersonAktionen({
     plz: person.plz,
     ort: person.ort,
   });
-  // Welche Aktion gerade läuft (oder null). Ein gemeinsames Flag ließe sonst alle
-  // Buttons zugleich „Läuft …" zeigen; so ist nur der aktive betroffen, und die
-  // Umschalter werden währenddessen gesperrt.
-  const [laeuft, setLaeuft] = useState<null | "email" | "link" | "auskunft" | "anonym" | "rollen" | "stammdaten">(null);
+  // Welche Aktion gerade läuft (oder null) — währenddessen sind die übrigen gesperrt.
+  const [laeuft, setLaeuft] = useState<Laeuft>(null);
   const beschaeftigt = laeuft !== null;
+  // Oben auf der Seite: Ergebnis der Aktionen. Im offenen Blatt: dessen Fehler.
   const [meldung, setMeldung] = useState<Meldung | null>(null);
+  const [blattMeldung, setBlattMeldung] = useState<Meldung | null>(null);
+  // Öffnet „Status ändern …“ jedes Mal frisch (ohne Reste einer abgebrochenen Eingabe).
+  const [statusRunde, setStatusRunde] = useState(0);
+
+  // Nach dem Schließen eines Blatts zurück zu seinem Auslöser: „Bearbeiten“ bzw.
+  // der „…“-Knopf (die Menüeinträge gibt es dann nicht mehr, und nicht jeder
+  // Browser fokussiert einen angeklickten Knopf — der Fokus fiele sonst auf die Seite).
+  const bearbeitenRef = useRef<HTMLButtonElement>(null);
+  const menueRef = useRef<HTMLDivElement>(null);
+  const zuletzt = useRef<BlattArt | null>(null);
+  useEffect(() => {
+    if (blatt) {
+      zuletzt.current = blatt;
+      return;
+    }
+    if (zuletzt.current === "stammdaten") bearbeitenRef.current?.focus();
+    else if (zuletzt.current) menueRef.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.focus();
+    zuletzt.current = null;
+  }, [blatt]);
 
   // Derselbe Diff wie auf dem Server (`/api/personen/[id]/rollen`) — Grundlage
   // für den Knopf und für die Rückfrage.
   const diff = rollenDiff(gewaehlt, person.rollenCodes);
   const rollenGeaendert = diff.hinzu.length > 0 || diff.weg.length > 0;
+
+  function oeffne(art: BlattArt) {
+    setMeldung(null);
+    setBlattMeldung(null);
+    if (art === "stammdaten") {
+      setStamm({
+        vorname: person.vorname,
+        nachname: person.nachname,
+        telefon: person.telefon,
+        strasse: person.strasse,
+        plz: person.plz,
+        ort: person.ort,
+      });
+    }
+    if (art === "email") setNeueEmail("");
+    if (art === "rollen") setGewaehlt(person.rollenCodes);
+    if (art === "status") setStatusRunde((n) => n + 1);
+    setBlatt(art);
+  }
+
+  function schliessen() {
+    setBlatt(null);
+    setBlattMeldung(null);
+  }
+
+  /** Gelungen: Blatt zu, Meldung oben, Seite neu laden (lädt der Aufrufer schon, `neuLaden = false`). */
+  function erledigt(text: string, neuLaden = true) {
+    setBlatt(null);
+    setBlattMeldung(null);
+    setMeldung({ art: "ok", text });
+    if (neuLaden) router.refresh();
+  }
 
   async function adresseAendern() {
     if (
@@ -89,28 +165,24 @@ export function PersonAktionen({
       return;
     }
     setLaeuft("email");
-    setMeldung(null);
+    setBlattMeldung(null);
     const antwort = await sendeAnfrage<{ email: string; mailGesendet: boolean; passwortEntfernt: boolean }>(
       `/api/personen/${person.id}/email`,
       { methode: "PUT", rumpf: { email: neueEmail } },
     );
     setLaeuft(null);
     if (!antwort.ok) {
-      setMeldung({ art: "fehler", text: antwort.meldung });
+      setBlattMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-    setModus("ruhe");
     setNeueEmail("");
-    setMeldung({
-      art: "ok",
-      text:
-        (antwort.daten.mailGesendet
-          ? "Adresse geändert. Alte und neue Adresse wurden benachrichtigt."
-          : "Adresse geändert. Die Benachrichtigung konnte aber nicht zugestellt werden — die Ursache sieht der " +
-            "Administrator im Versandprotokoll (Verwaltung → Betrieb).") +
+    erledigt(
+      (antwort.daten.mailGesendet
+        ? "Adresse geändert. Alte und neue Adresse wurden benachrichtigt."
+        : "Adresse geändert. Die Benachrichtigung konnte aber nicht zugestellt werden — die Ursache sieht der " +
+          "Administrator im Versandprotokoll (Verwaltung → Betrieb).") +
         (antwort.daten.passwortEntfernt ? " Ein gesetztes Passwort wurde dabei entfernt." : ""),
-    });
-    router.refresh();
+    );
   }
 
   async function anmeldelinkSchicken() {
@@ -202,7 +274,7 @@ export function PersonAktionen({
   }
 
   function rolleUmschalten(code: string) {
-    setMeldung(null);
+    setBlattMeldung(null);
     setGewaehlt((r) => (r.includes(code) ? r.filter((c) => c !== code) : [...r, code]));
   }
 
@@ -224,254 +296,282 @@ export function PersonAktionen({
     if (!confirm(`Rollen von ${person.name} ändern?\n\n${zeilen.join("\n")}${selbstWarnung}`)) return;
 
     setLaeuft("rollen");
-    setMeldung(null);
+    setBlattMeldung(null);
     const antwort = await sendeAnfrage<{ geaendert: boolean }>(`/api/personen/${person.id}/rollen`, {
       methode: "PUT",
       rumpf: { rollen: gewaehlt },
     });
     setLaeuft(null);
     if (!antwort.ok) {
-      setMeldung({ art: "fehler", text: antwort.meldung });
+      setBlattMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-    setModus("ruhe");
-    setMeldung({ art: "ok", text: "Rollen gespeichert." });
-    router.refresh();
+    erledigt("Rollen gespeichert.");
   }
 
   async function stammdatenSpeichern() {
+    if (beschaeftigt || stamm.vorname.trim() === "" || stamm.nachname.trim() === "") return;
     setLaeuft("stammdaten");
-    setMeldung(null);
+    setBlattMeldung(null);
     const antwort = await sendeAnfrage<{ gespeichert: boolean }>(`/api/personen/${person.id}/stammdaten`, {
       methode: "PUT",
       rumpf: stamm,
     });
     setLaeuft(null);
     if (!antwort.ok) {
-      setMeldung({ art: "fehler", text: antwort.meldung });
+      setBlattMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-    setModus("ruhe");
-    setMeldung({ art: "ok", text: "Stammdaten gespeichert." });
-    router.refresh();
+    erledigt("Stammdaten gespeichert.");
   }
 
-  const knopf = "min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium";
-  const primaer = "min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60";
+  // Das Menü „…“: nur Einträge, für die das Konto das Recht hat (wie vorher die Knöpfe).
+  const punkte: MenuePunkt[] = [];
+  if (darfAendern && !person.istTerminal) {
+    punkte.push({ text: "Anmeldelink senden", icon: "senden", aktion: anmeldelinkSchicken, deaktiviert: beschaeftigt });
+  }
+  if (darfAendern && !person.istAnonym) {
+    punkte.push({ text: "Anmeldeadresse ändern", icon: "adresse", aktion: () => oeffne("email"), deaktiviert: beschaeftigt });
+  }
+  if (ausbildung) {
+    punkte.push({ text: "Status ändern …", icon: "wechseln", aktion: () => oeffne("status"), deaktiviert: beschaeftigt });
+  }
+  if (darfRollenVerwalten && !person.istAnonym) {
+    punkte.push({ text: "Rollen …", icon: "einstellungen", aktion: () => oeffne("rollen"), deaktiviert: beschaeftigt });
+  }
+  if (darfAuskunft && !person.istAnonym) {
+    punkte.push({ text: "Datenauskunft senden", icon: "datei-herunter", aktion: auskunftSenden, deaktiviert: beschaeftigt });
+  }
+  // Unumkehrbar — deshalb ganz unten, rot und durch eine Linie von den Alltagsaktionen getrennt.
+  if (darfAnonymisieren && !person.istAnonym) {
+    punkte.push({
+      text: "Anonymisieren …",
+      icon: "person-entfernen",
+      aktion: anonymisieren,
+      gefahr: true,
+      trenner: punkte.length > 0,
+      deaktiviert: beschaeftigt,
+    });
+  }
+  const darfStammdaten = darfAendern && !person.istAnonym;
+
+  const laeuftText =
+    laeuft === "link"
+      ? "Anmeldelink wird gesendet …"
+      : laeuft === "auskunft"
+        ? "Auskunft wird angestoßen …"
+        : laeuft === "anonym"
+          ? "Wird anonymisiert …"
+          : "";
+
+  const abbrechen = (
+    <button type="button" onClick={schliessen} className={knopf("sekundaer")}>
+      Abbrechen
+    </button>
+  );
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <h2 className="text-sm font-semibold">Verwaltung dieser Person</h2>
-
-      <div className="mt-3 flex flex-wrap gap-3">
-        {darfAendern && !person.istAnonym && (
-          <button
-            type="button"
-            onClick={() => {
-              setModus(modus === "email" ? "ruhe" : "email");
-              setMeldung(null);
-            }}
-            aria-expanded={modus === "email"}
-            aria-controls={`adresse-${person.id}`}
-            disabled={beschaeftigt}
-            className={`${knopf} disabled:opacity-60`}
-          >
-            {modus === "email" ? "Abbrechen" : "Anmeldeadresse ändern"}
-          </button>
-        )}
-        {darfAendern && !person.istAnonym && (
-          <button
-            type="button"
-            onClick={() => {
-              setStamm({
-                vorname: person.vorname,
-                nachname: person.nachname,
-                telefon: person.telefon,
-                strasse: person.strasse,
-                plz: person.plz,
-                ort: person.ort,
-              });
-              setModus(modus === "stammdaten" ? "ruhe" : "stammdaten");
-              setMeldung(null);
-            }}
-            aria-expanded={modus === "stammdaten"}
-            aria-controls={`stammdaten-${person.id}`}
-            disabled={beschaeftigt}
-            className={`${knopf} disabled:opacity-60`}
-          >
-            {modus === "stammdaten" ? "Abbrechen" : "Stammdaten bearbeiten"}
-          </button>
-        )}
-        {darfAendern && !person.istTerminal && (
-          <button type="button" onClick={anmeldelinkSchicken} disabled={beschaeftigt} className={primaer}>
-            {laeuft === "link" ? "Läuft …" : "Anmeldelink schicken"}
-          </button>
-        )}
-        {darfAuskunft && !person.istAnonym && (
-          <button type="button" onClick={auskunftSenden} disabled={beschaeftigt} className={`${knopf} disabled:opacity-60`}>
-            {laeuft === "auskunft" ? "Läuft …" : "DSGVO-Auskunft senden"}
-          </button>
-        )}
-        {darfRollenVerwalten && !person.istAnonym && (
-          <button
-            type="button"
-            onClick={() => {
-              setGewaehlt(person.rollenCodes);
-              setModus(modus === "rollen" ? "ruhe" : "rollen");
-              setMeldung(null);
-            }}
-            aria-expanded={modus === "rollen"}
-            aria-controls={`rollen-${person.id}`}
-            disabled={beschaeftigt}
-            className={`${knopf} disabled:opacity-60`}
-          >
-            {modus === "rollen" ? "Abbrechen" : "Rollen verwalten"}
-          </button>
-        )}
+    <>
+      <Seitenkopf
+        zurueck={{ href: "/verwaltung/personen", text: "Personen" }}
+        aktionen={
+          darfStammdaten || punkte.length > 0 ? (
+            // Auch am Handy rechtsbündig: Das Menü „…“ öffnet sich zum Knopf hin nach
+            // links und bliebe links ausgerichtet teilweise außerhalb des Bildschirms.
+            <div className="ml-auto flex items-center gap-2">
+              <span role="status" className={laeuftText ? "text-[13px] text-muted-foreground" : "sr-only"}>
+                {laeuftText}
+              </span>
+              {darfStammdaten && (
+                <button
+                  ref={bearbeitenRef}
+                  type="button"
+                  onClick={() => oeffne("stammdaten")}
+                  disabled={beschaeftigt}
+                  className={knopf("sekundaer")}
+                >
+                  Bearbeiten
+                </button>
+              )}
+              {punkte.length > 0 && (
+                <div ref={menueRef}>
+                  <Menue punkte={punkte} label="Weitere Aktionen" ausloeserKlasse={menueKnopf} />
+                </div>
+              )}
+            </div>
+          ) : undefined
+        }
+      />
+      {/* Die Meldung der letzten Aktion; leer bleibt nur die (unsichtbare) Live-Region. */}
+      <div className={meldung || (blatt === null && blattMeldung) ? "px-4 pt-4 sm:px-6 lg:px-8" : ""}>
+        {/* Endet eine Anfrage erst nach dem Schließen ihres Blatts, erscheint ihr Fehler hier. */}
+        <MeldungsBox meldung={meldung ?? (blatt === null ? blattMeldung : null)} className="max-w-3xl break-words" />
       </div>
 
-      {person.istTerminal && darfAendern && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Status „{person.status}" — für dieses Konto wird kein Anmeldelink verschickt.
-        </p>
-      )}
-      {person.istAnonym && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Diese Person ist anonymisiert (Art. 17 DSGVO). Die personenbezogenen Daten sind gelöscht.
-        </p>
-      )}
-
-      {modus === "email" && !person.istAnonym && (
-        <div id={`adresse-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
-          <label htmlFor={`email-${person.id}`} className="mb-1.5 block text-sm font-medium">
-            Neue Anmeldeadresse
-          </label>
-          <input
-            id={`email-${person.id}`}
-            name="email"
-            type="email"
-            value={neueEmail}
-            onChange={(e) => {
-              setNeueEmail(e.target.value);
-              setMeldung(null);
+      {darfStammdaten && (
+        <Blatt
+          offen={blatt === "stammdaten"}
+          onSchliessen={schliessen}
+          titel="Stammdaten"
+          fuss={
+            <>
+              {abbrechen}
+              <button
+                type="submit"
+                form={`${formId}-stamm`}
+                disabled={beschaeftigt || stamm.vorname.trim() === "" || stamm.nachname.trim() === ""}
+                className={knopf("primaer")}
+              >
+                {laeuft === "stammdaten" ? "Wird gespeichert …" : "Speichern"}
+              </button>
+            </>
+          }
+        >
+          <form
+            id={`${formId}-stamm`}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void stammdatenSpeichern();
             }}
-            className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Erst die Person erkennen — Anruf oder persönlich. Eine Meldung über das Hilfeformular allein
-            reicht nicht: Dort kann jeder jeden Namen eintragen.
-          </p>
-          <button
-            type="button"
-            onClick={adresseAendern}
-            disabled={beschaeftigt || neueEmail.trim().length === 0}
-            className={`mt-3 ${primaer}`}
           >
-            {laeuft === "email" ? "Wird geändert …" : "Adresse ändern"}
-          </button>
-        </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["vorname", "Vorname"],
+                  ["nachname", "Nachname"],
+                  ["telefon", "Telefon"],
+                  ["strasse", "Straße"],
+                  ["plz", "PLZ"],
+                  ["ort", "Ort"],
+                ] as const
+              ).map(([name, label]) => (
+                <div key={name}>
+                  <label htmlFor={`${name}-${person.id}`} className="mb-1.5 block text-sm font-medium">
+                    {label}
+                  </label>
+                  <input
+                    id={`${name}-${person.id}`}
+                    value={stamm[name]}
+                    onChange={(e) => {
+                      setStamm((s) => ({ ...s, [name]: e.target.value }));
+                      setBlattMeldung(null);
+                    }}
+                    className={feld}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className={hinweis}>
+              E-Mail-Adresse und Bankverbindung laufen über eigene Wege. Geburtsdatum, Gemeinde, Teilnahmeform und
+              Status ändert die Schulleitung im Menü „…“ unter „Status ändern …“.
+            </p>
+            <MeldungsBox meldung={blatt === "stammdaten" ? blattMeldung : null} className="mt-3 break-words" />
+          </form>
+        </Blatt>
       )}
 
-      {modus === "stammdaten" && (
-        <div id={`stammdaten-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
-          <p className="mb-3 text-sm font-medium">Stammdaten von {person.name}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(
-              [
-                ["vorname", "Vorname"],
-                ["nachname", "Nachname"],
-                ["telefon", "Telefon"],
-                ["strasse", "Straße"],
-                ["plz", "PLZ"],
-                ["ort", "Ort"],
-              ] as const
-            ).map(([feld, label]) => (
-              <div key={feld}>
-                <label htmlFor={`${feld}-${person.id}`} className="mb-1.5 block text-sm font-medium">
-                  {label}
-                </label>
-                <input
-                  id={`${feld}-${person.id}`}
-                  value={stamm[feld]}
-                  onChange={(e) => {
-                    setStamm((s) => ({ ...s, [feld]: e.target.value }));
-                    setMeldung(null);
-                  }}
-                  className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
-                />
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            E-Mail-Adresse und Bankverbindung laufen über eigene Wege. Geburtsdatum, Gemeinde, Teilnahmeform und
-            Status ändert die Schulleitung im Abschnitt „Ausbildungsdaten &amp; Status“ dieser Akte.
-          </p>
-          <button
-            type="button"
-            onClick={stammdatenSpeichern}
-            disabled={beschaeftigt || stamm.vorname.trim() === "" || stamm.nachname.trim() === ""}
-            className={`mt-3 ${primaer}`}
+      {darfStammdaten && (
+        <Blatt
+          offen={blatt === "email"}
+          onSchliessen={schliessen}
+          titel="Anmeldeadresse ändern"
+          fuss={
+            <>
+              {abbrechen}
+              <button
+                type="submit"
+                form={`${formId}-adresse`}
+                disabled={beschaeftigt || neueEmail.trim().length === 0}
+                className={knopf("primaer")}
+              >
+                {laeuft === "email" ? "Wird geändert …" : "Adresse ändern"}
+              </button>
+            </>
+          }
+        >
+          <form
+            id={`${formId}-adresse`}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!beschaeftigt && neueEmail.trim().length > 0) void adresseAendern();
+            }}
           >
-            {laeuft === "stammdaten" ? "Wird gespeichert …" : "Stammdaten speichern"}
-          </button>
-        </div>
+            <p className="text-sm text-muted-foreground">
+              Bisher: <span className="break-all text-foreground">{person.email}</span>
+            </p>
+            <label htmlFor={`email-${person.id}`} className="mb-1.5 mt-4 block text-sm font-medium">
+              Neue Anmeldeadresse
+            </label>
+            <input
+              id={`email-${person.id}`}
+              name="email"
+              type="email"
+              value={neueEmail}
+              onChange={(e) => {
+                setNeueEmail(e.target.value);
+                setBlattMeldung(null);
+              }}
+              className={feld}
+            />
+            <p className={hinweis}>
+              Erst die Person erkennen — Anruf oder persönlich. Eine Meldung über das Hilfeformular allein reicht nicht:
+              Dort kann jeder jeden Namen eintragen.
+            </p>
+            <MeldungsBox meldung={blatt === "email" ? blattMeldung : null} className="mt-3 break-words" />
+          </form>
+        </Blatt>
       )}
 
-      {modus === "rollen" && darfRollenVerwalten && (
-        <div id={`rollen-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
+      {ausbildung && (
+        <Blatt offen={blatt === "status"} onSchliessen={schliessen} titel="Status ändern">
+          <AusbildungStatus key={statusRunde} {...ausbildung} onErfolg={(m) => erledigt(m.text, false)} />
+        </Blatt>
+      )}
+
+      {darfRollenVerwalten && !person.istAnonym && (
+        <Blatt
+          offen={blatt === "rollen"}
+          onSchliessen={schliessen}
+          titel="Rollen"
+          fuss={
+            <>
+              {abbrechen}
+              <button
+                type="button"
+                onClick={rollenSpeichern}
+                disabled={beschaeftigt || !rollenGeaendert}
+                className={knopf("primaer")}
+              >
+                {laeuft === "rollen" ? "Wird gespeichert …" : "Rollen speichern"}
+              </button>
+            </>
+          }
+        >
           <fieldset>
-            <legend className="mb-2 text-sm font-medium">Rollen von {person.name}</legend>
-            <div className="space-y-2">
+            <legend className="text-sm font-medium">Rollen von {person.name}</legend>
+            <div className="mt-2 divide-y divide-linie overflow-hidden rounded-xl border border-linie">
               {alleRollen.map((rolle) => (
-                <label key={rolle.code} className="flex items-center gap-2.5 text-sm">
+                <label key={rolle.code} className="flex min-h-11 cursor-pointer items-center gap-3 px-4 text-sm hover:bg-muted/60">
                   <input
                     type="checkbox"
                     checked={gewaehlt.includes(rolle.code)}
                     onChange={() => rolleUmschalten(rolle.code)}
-                    className="h-4 w-4 rounded border-input"
+                    className="h-4 w-4 rounded border-input accent-primary"
                   />
                   {rolle.bezeichnung}
                 </label>
               ))}
             </div>
           </fieldset>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Steuert, was das Konto darf. Der letzte Administrator lässt sich nicht entziehen — sonst käme
-            niemand mehr an die Rollenverwaltung.
+          <p className={hinweis}>
+            Steuert, was das Konto darf. Der letzte Administrator lässt sich nicht entziehen — sonst käme niemand mehr
+            an die Rollenverwaltung.
           </p>
-          <button type="button" onClick={rollenSpeichern} disabled={beschaeftigt || !rollenGeaendert} className={`mt-3 ${primaer}`}>
-            {laeuft === "rollen" ? "Wird gespeichert …" : "Rollen speichern"}
-          </button>
-        </div>
+          <MeldungsBox meldung={blatt === "rollen" ? blattMeldung : null} className="mt-3 break-words" />
+        </Blatt>
       )}
-
-      {darfAuskunft && !person.istAnonym && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Die DSGVO-Auskunft schickt der Person einen persönlichen Link, über den sie ihre gespeicherten Daten
-          nach Art. 15 DSGVO als PDF abrufen kann.
-        </p>
-      )}
-
-      {/* Unumkehrbar — deshalb abgesetzt von den Alltagsaktionen oben, nicht in derselben Knopfreihe. */}
-      {darfAnonymisieren && !person.istAnonym && (
-        <div className="mt-5 border-t border-border pt-4">
-          <h3 className="text-sm font-medium">Löschung nach Art. 17 DSGVO</h3>
-          <p id={`anonym-hinweis-${person.id}`} className="mt-1 text-xs text-muted-foreground">
-            Überschreibt alle personenbezogenen Daten dieser Person. Das lässt sich nicht rückgängig machen.
-          </p>
-          <button
-            type="button"
-            onClick={anonymisieren}
-            disabled={beschaeftigt}
-            aria-describedby={`anonym-hinweis-${person.id}`}
-            className="mt-3 min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
-          >
-            {laeuft === "anonym" ? "Läuft …" : "Anonymisieren (Art. 17 DSGVO)"}
-          </button>
-        </div>
-      )}
-
-      <MeldungsBox meldung={meldung} className="mt-3 break-words" />
-    </div>
+    </>
   );
 }

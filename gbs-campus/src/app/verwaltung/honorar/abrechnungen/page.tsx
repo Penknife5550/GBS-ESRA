@@ -5,9 +5,11 @@ import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeAbrechnungsUebersicht, abrechnungStatusText } from "@/lib/honorar-abrechnung-io";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
-import { ABRECHNUNG_TON } from "@/components/ui/badges";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { LeererZustand } from "@/components/ui/hinweis";
 import { LadeHinweis } from "@/components/ui/lade-hinweis";
+import { AbrechnungStatusPunkt } from "../abrechnungs-status";
+import { SemesterWahl } from "../semester-wahl";
 import { AbrechnenKnopf } from "./abrechnen-knopf";
 
 export const metadata = { title: "Honorar-Abrechnungen" };
@@ -19,15 +21,15 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
 
   const sp = await searchParams;
   const semesters = await prisma.semester.findMany({ orderBy: { start: "desc" } });
+  const zurueck = { href: "/verwaltung/honorar", text: "Honorar" };
 
   if (semesters.length === 0) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-12">
-        <ZurueckLeiste href="/verwaltung/honorar" label="Dozentenhonorar" breadcrumb="Verwaltung · Dozentenhonorar · Abrechnungen" />
-        <h1 className="mt-6 text-2xl font-bold tracking-tight">Honorar-Abrechnungen</h1>
-        <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Noch ist kein Semester angelegt.
-        </p>
+      <main>
+        <Seitenkopf zurueck={zurueck} titel="Abrechnungen" />
+        <Inhalt breite="lesen">
+          <LeererZustand icon="semester" titel="Noch ist kein Semester angelegt." />
+        </Inhalt>
       </main>
     );
   }
@@ -39,81 +41,74 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
   const zeilen = await ladeAbrechnungsUebersicht(semester.id);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung/honorar" label="Dozentenhonorar" breadcrumb="Verwaltung · Dozentenhonorar · Abrechnungen" />
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Honorar-Abrechnungen</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Je Dozent die gehaltenen Abende, davon die noch offenen (nicht abgerechneten), und die bestehenden
-        Abrechnungen mit Status. „Abrechnen" fasst alle offenen Abende des Dozenten in diesem Semester zu
-        einer Abrechnung zusammen und friert die Beträge ein.
-      </p>
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        {semesters.map((s) => (
-          <Link
-            key={s.id}
-            href={`/verwaltung/honorar/abrechnungen?semester=${s.id}`}
-            aria-current={s.id === semester.id ? "page" : undefined}
-            className={`rounded-full px-3 py-1 text-sm ${
-              s.id === semester.id
-                ? "bg-primary text-primary-foreground"
-                : "border border-border text-muted-foreground hover:border-primary"
-            }`}
-          >
-            {s.bezeichnung}
-          </Link>
-        ))}
-      </div>
-
-      {zeilen.length === 0 ? (
-        <p className="mt-8 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          In diesem Semester hat noch kein Dozent einen Abend gehalten.
-        </p>
-      ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-[0.08em] text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Dozent</th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Gehalten</th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Offen</th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Abrechnungen</th>
-                <th scope="col" className="px-4 py-2.5 font-semibold" />
+    <main>
+      <Seitenkopf zurueck={zurueck} titel="Abrechnungen">
+        <SemesterWahl semesters={semesters} gewaehltId={semester.id} pfad="/verwaltung/honorar/abrechnungen" />
+      </Seitenkopf>
+      <Inhalt breite="mittel">
+        {zeilen.length === 0 ? (
+          <LeererZustand icon="honorar" titel="Noch kein gehaltener Abend">
+            In diesem Semester hat noch kein Dozent einen Abend gehalten.
+          </LeererZustand>
+        ) : (
+          // Am Rechner eine Tabelle, am Handy wird jede Zeile ein Block mit Beschriftungen — so bleibt
+          // „Abrechnen …“ im Bild, statt seitlich aus der Tabelle zu scrollen.
+          <table className="block w-full text-sm lg:table">
+            <thead className="hidden lg:table-header-group">
+              <tr className="border-b border-linie text-left text-[11.5px] uppercase tracking-[0.06em] text-dezent">
+                <th scope="col" className="pb-2 pr-3 font-semibold">Dozent</th>
+                <th scope="col" className="px-3 pb-2 text-right font-semibold">Gehalten</th>
+                <th scope="col" className="px-3 pb-2 font-semibold">Offen</th>
+                <th scope="col" className="px-3 pb-2 font-semibold">Abrechnungen</th>
+                <th scope="col" className="pb-2 pl-3 font-semibold">
+                  <span className="sr-only">Aktion</span>
+                </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block lg:table-row-group">
               {zeilen.map((z) => (
-                <tr key={z.dozentId} className="border-t border-border align-top">
-                  <td className="px-4 py-2.5 font-medium">{z.name}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{z.gehalten}</td>
-                  <td className="px-4 py-2.5">
+                <tr
+                  key={z.dozentId}
+                  className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 border-b border-linie py-3 first:pt-0 lg:table-row lg:py-0"
+                >
+                  <td className="w-full font-semibold lg:w-auto lg:py-3 lg:pr-3 lg:font-medium">{z.name}</td>
+                  <td className="text-muted-foreground lg:px-3 lg:py-3 lg:text-right lg:tabular-nums">
+                    {z.gehalten}
+                    <span className="lg:hidden"> gehalten</span>
+                  </td>
+                  <td className="lg:px-3 lg:py-3">
+                    <span className="text-muted-foreground lg:hidden">· offen: </span>
                     {z.offenAbende > 0 ? (
-                      <span>
-                        {z.offenAbende} Abende · <span className="font-medium">{euro(z.offenBetrag)}</span>
+                      <span className="whitespace-nowrap">
+                        {z.offenAbende === 1 ? "1 Abend" : `${z.offenAbende} Abende`} ·{" "}
+                        <span className="font-medium tabular-nums">{euro(z.offenBetrag)}</span>
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className={`w-full lg:w-auto lg:px-3 lg:py-3 ${z.abrechnungen.length === 0 ? "hidden lg:table-cell" : ""}`}>
                     {z.abrechnungen.length === 0 ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1.5">
+                      <ul className="flex flex-col gap-1.5">
                         {z.abrechnungen.map((a) => (
-                          <Link
-                            key={a.id}
-                            href={`/verwaltung/honorar/abrechnungen/${a.id}`}
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium hover:underline ${ABRECHNUNG_TON[a.status]}`}
-                          >
-                            {abrechnungStatusText(a.status)} · {euro(a.summe)}
-                            <LadeHinweis className="ml-1" />
-                          </Link>
+                          <li key={a.id}>
+                            <Link
+                              href={`/verwaltung/honorar/abrechnungen/${a.id}`}
+                              className="rounded-md hover:underline hover:underline-offset-4"
+                            >
+                              <AbrechnungStatusPunkt status={a.status}>
+                                {abrechnungStatusText(a.status)} · {euro(a.summe)}
+                              </AbrechnungStatusPunkt>
+                              <LadeHinweis className="ml-2" />
+                            </Link>
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className={`w-full lg:w-auto lg:py-2 lg:pl-3 lg:text-right ${z.offenAbende > 0 ? "" : "hidden lg:table-cell"}`}>
                     {z.offenAbende > 0 && (
                       <AbrechnenKnopf
                         dozentId={z.dozentId}
@@ -129,8 +124,8 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </Inhalt>
     </main>
   );
 }

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
+import { FELD, FELD_TITEL } from "../oeffentlich";
 
 export function PasswortAnmeldung() {
   const router = useRouter();
@@ -34,9 +36,9 @@ export function PasswortAnmeldung() {
   }
 
   return (
-    <form onSubmit={absenden} className="mt-8 space-y-4">
+    <form onSubmit={absenden} className="mt-7 space-y-4">
       <div>
-        <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
+        <label htmlFor="email" className={FELD_TITEL}>
           E-Mail-Adresse
         </label>
         <input
@@ -47,12 +49,12 @@ export function PasswortAnmeldung() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={laeuft}
-          className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm disabled:opacity-60"
+          className={`${FELD} h-12 border-input`}
         />
       </div>
 
       <div>
-        <label htmlFor="passwort" className="mb-1.5 block text-sm font-medium">
+        <label htmlFor="passwort" className={FELD_TITEL}>
           Passwort
         </label>
         <input
@@ -63,20 +65,16 @@ export function PasswortAnmeldung() {
           value={passwort}
           onChange={(e) => setPasswort(e.target.value)}
           disabled={laeuft}
-          className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm disabled:opacity-60"
+          className={`${FELD} h-12 border-input`}
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={laeuft}
-        className="min-h-11 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
+      <button type="submit" disabled={laeuft} className={knopf("primaer", "gross")}>
         {laeuft ? "Wird geprüft …" : "Anmelden"}
       </button>
 
       {fehler && (
-        <p role="alert" className="rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
+        <p role="alert" className="rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
           {fehler}
         </p>
       )}

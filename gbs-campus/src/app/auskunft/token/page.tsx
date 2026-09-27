@@ -1,3 +1,5 @@
+import { Hinweis } from "@/components/ui/hinweis";
+import { OeffentlicheSeite } from "@/app/anmelden/oeffentlich";
 import { AuskunftAbrufen } from "./abrufen";
 
 /**
@@ -14,14 +16,14 @@ export const metadata = { title: "Datenauskunft abrufen" };
 
 export default function AuskunftSeite() {
   return (
-    <main className="mx-auto max-w-md px-6 py-24">
-      <h1 className="text-2xl font-bold tracking-tight">Ihre Datenauskunft</h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Hier können Sie die Auskunft über die zu Ihnen gespeicherten Daten nach Art. 15 DSGVO als PDF
-        herunterladen. Die Auskunft enthält persönliche Angaben — laden Sie sie an einem Ort herunter, zu dem
-        nur Sie Zugang haben.
-      </p>
+    <OeffentlicheSeite
+      titel="Ihre Datenauskunft"
+      satz="Hier können Sie die Auskunft über die zu Ihnen gespeicherten Daten nach Art. 15 DSGVO als PDF herunterladen."
+    >
+      <Hinweis className="mt-6">
+        Die Auskunft enthält persönliche Angaben — laden Sie sie an einem Ort herunter, zu dem nur Sie Zugang haben.
+      </Hinweis>
       <AuskunftAbrufen />
-    </main>
+    </OeffentlicheSeite>
   );
 }

@@ -6,37 +6,60 @@ import { prisma } from "@/lib/db";
 import { hatRecht, ladeMitRecht } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
 import { RECHT } from "@/lib/constants";
-import { datum } from "@/lib/datum";
+import { alsTagesdatum, datum, uhrzeit } from "@/lib/datum";
 import { art9EinwilligungenWirksam, art9Freigabe, baueAntwortAnsicht, type AnsichtZeile } from "@/lib/anmeldung-antworten";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import {
+  alterInJahren,
+  beitragTeile,
+  deutschesDatum,
+  formalien,
+  leseAbschnitte,
+  sichtbareAntworten,
+  teilnahmeLang,
+} from "@/lib/anmeldung-lesen";
+import { wartetSeit } from "@/lib/heute";
+import { Icon } from "@/components/icons";
 import { AnmeldungStatusBadge } from "@/components/ui/badges";
+import { Hinweis } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
+import { Gruppe } from "@/components/ui/liste";
 import { Bankverbindung } from "../bankverbindung";
 import { Entscheidung } from "../entscheidung";
+import { AnmeldungsListe, alsListenZeile, anmeldungsAnsicht, ladeAnmeldungsListe } from "../anmeldungs-liste";
 
 export const metadata = { title: "Anmeldung" };
 export const dynamic = "force-dynamic";
 
 /**
- * Die Antworten einer Anmeldung — damit die Schulleitung die Bewerbung lesen
- * kann, bevor sie aufnimmt, und die Verwaltung Zahlweise und Einzug erfährt.
- * Vorher waren nicht in die Akte übernommene Antworten in keiner Oberfläche
- * lesbar (Code-Review 4, M13).
+ * Eine Anmeldung zum Lesen (Oberflächenplan 09/2026): links die Liste, rechts
+ * der „Brief“ — Name und Eckdaten, dann Motivation, Ziel, Glaube, Gemeinde und
+ * Dienst, die Formalien kompakt, leere Antworten ausgeblendet; darunter
+ * aufklappbar alle Angaben wie eingereicht. „Aufnehmen“ und „Ablehnen …“ stehen
+ * immer oben. Am Handy steht nur die Anmeldung, mit dem Weg zurück zur Liste.
  *
- * Schutzregeln:
+ * Schutzregeln (unverändert):
  *  - Seite nur mit ANMELDUNG_LESEN.
  *  - Art.-9-Antworten nur mit ANMELDUNG_ENTSCHEIDEN UND wirksamen Einwilligungen
  *    in ALLE Art.-9-Texte der Person; sonst kommen ihre Werte gar nicht erst in
- *    die Ansicht (lib/anmeldung-antworten.ts).
+ *    die Ansicht (lib/anmeldung-antworten.ts) — und damit auch nicht in die
+ *    Lesefassung (lib/anmeldung-lesen.ts).
  *  - Die IBAN nie im Klartext: Sie steht nicht im Antwortbogen, sondern
  *    verschlüsselt an der Person — erreichbar nur über den bestehenden,
  *    protokollierten Weg (BANKVERBINDUNG_LESEN, „vollständig anzeigen").
  *  - Jeder Abruf steht im Audit-Log — ohne Antwortinhalte.
  */
-export default async function AnmeldungAntwortenSeite({ params }: { params: Promise<{ id: string }> }) {
+export default async function AnmeldungAntwortenSeite({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ansicht?: string }>;
+}) {
   const benutzer = await ladeMitRecht(RECHT.ANMELDUNG_LESEN);
   if (!benutzer) redirect("/anmelden");
 
   const { id } = await params;
+  const listenAnsicht = anmeldungsAnsicht((await searchParams).ansicht);
 
   const darfEntscheiden = hatRecht(benutzer, RECHT.ANMELDUNG_ENTSCHEIDEN);
   const darfAkteOeffnen = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
@@ -48,10 +71,22 @@ export default async function AnmeldungAntwortenSeite({ params }: { params: Prom
       id: true,
       status: true,
       eingereichtAm: true,
+      entschiedenAm: true,
+      ablehnungsgrund: true,
+      teilnahmeform: true,
       antworten: true,
       personId: true,
       person: {
-        select: { id: true, vorname: true, nachname: true, email: true, ibanVerschluesselt: true },
+        select: {
+          id: true,
+          vorname: true,
+          nachname: true,
+          email: true,
+          ort: true,
+          geburtsdatum: true,
+          teilnahmeform: true,
+          ibanVerschluesselt: true,
+        },
       },
       semester: { select: { bezeichnung: true } },
       formularVersion: {
@@ -112,25 +147,67 @@ export default async function AnmeldungAntwortenSeite({ params }: { params: Prom
     headers: await headers(),
   });
 
+  const { anzahlOffen, anmeldungen } = await ladeAnmeldungsListe(listenAnsicht);
+  const jetzt = new Date();
+  const zeilen = anmeldungen.map((eintrag) =>
+    alsListenZeile(eintrag, listenAnsicht, jetzt, <AnmeldungStatusBadge status={eintrag.status} />),
+  );
+
   const person = anmeldung.person;
   const name = person ? `${person.vorname} ${person.nachname}` : null;
+  const felder = anmeldung.formularVersion.abschnitte.flatMap((a) => a.felder);
+
+  // --- Lesefassung ----------------------------------------------------------
+  const werte = sichtbareAntworten(ansicht);
+  const abschnitte = leseAbschnitte(werte, new Set(felder.filter((f) => f.istArt9).map((f) => f.code)));
+  const geburt = alsTagesdatum(werte.get("geburtsdatum")?.wert) ?? person?.geburtsdatum ?? null;
+  const eckdaten = [
+    { label: "Teilnahme", wert: teilnahmeLang(anmeldung.teilnahmeform ?? person?.teilnahmeform) },
+    { label: "Semester", wert: anmeldung.semester?.bezeichnung ?? "nicht zugeordnet" },
+    { label: "Alter", wert: geburt ? `${alterInJahren(geburt, jetzt)} Jahre` : "" },
+    { label: "Wohnort", wert: werte.get("ort")?.wert ?? person?.ort ?? "" },
+  ].filter((e) => e.wert);
+  const formal = formalien(werte);
+  const beitrag = beitragTeile(werte, name);
+  // Die IBAN nur als „hinterlegt“ — den Klartext holt allein die Verwaltung über den protokollierten Weg.
+  const iban = !person ? null : !person.ibanVerschluesselt ? (
+    "keine IBAN"
+  ) : darfBankSehen ? (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1">
+      IBAN <Bankverbindung personId={person.id} hinterlegt />
+    </span>
+  ) : (
+    "IBAN hinterlegt"
+  );
+
+  const eingang = anmeldung.eingereichtAm;
+  const offen = anmeldung.status === "EINGEREICHT";
+  const stand = offen
+    ? eingang
+      ? `Eingegangen am ${datum(eingang)} um ${uhrzeit(eingang)} · ${wartetSeit(eingang, jetzt)}`
+      : "Wartet auf Entscheidung"
+    : [eingang ? `Eingegangen am ${datum(eingang)}` : null, anmeldung.entschiedenAm ? `entschieden am ${datum(anmeldung.entschiedenAm)}` : null]
+        .filter(Boolean)
+        .join(" · ");
 
   const hatArt9Fragen =
-    anmeldung.formularVersion.abschnitte.some((a) => a.felder.some((f) => f.istArt9)) ||
-    ansicht.weitere.some((z) => z.art === "art9_verborgen");
-  const art9Hinweis = !hatArt9Fragen
-    ? null
-    : freigabe === "SICHTBAR"
-      ? "Diese Anmeldung enthält Angaben zu Glaube und Gemeinde (Art. 9 DSGVO). Die Einwilligung liegt vor; " +
-        "die Angaben sind allein für die Aufnahmeentscheidung bestimmt."
+    felder.some((f) => f.istArt9) || ansicht.weitere.some((z) => z.art === "art9_verborgen");
+  const art9Hinweis =
+    !hatArt9Fragen || freigabe === "SICHTBAR"
+      ? null
       : freigabe === "KEIN_RECHT"
         ? "Angaben zu Glaube und Gemeinde (Art. 9 DSGVO) sind ausgeblendet. Sie sieht nur, wer über die Aufnahme " +
           "entscheidet."
         : "Angaben zu Glaube und Gemeinde (Art. 9 DSGVO) sind ausgeblendet, weil dafür keine wirksame Einwilligung " +
           "vorliegt.";
+  const fussnote =
+    hatArt9Fragen && freigabe === "SICHTBAR"
+      ? "Glaube und Gemeinde mit Einwilligung nach Art. 9 DSGVO, allein für die Aufnahmeentscheidung · jeder Abruf wird protokolliert"
+      : "Jeder Abruf dieser Seite wird protokolliert";
 
+  const datumsfelder = new Set(felder.filter((f) => f.typ === "DATUM").map((f) => f.code));
   function wertAnzeige(zeile: AnsichtZeile) {
-    if (zeile.art === "wert") return zeile.wert;
+    if (zeile.art === "wert") return datumsfelder.has(zeile.code) ? deutschesDatum(zeile.wert) : zeile.wert;
     if (zeile.art === "art9_verborgen") {
       return <span className="text-muted-foreground">ausgeblendet (Angabe zu Glaube und Gemeinde)</span>;
     }
@@ -155,93 +232,159 @@ export default async function AnmeldungAntwortenSeite({ params }: { params: Prom
     );
   }
 
+  const zurueck = `/verwaltung/anmeldungen${listenAnsicht === "entschieden" ? "?ansicht=entschieden" : ""}`;
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste
-        href="/verwaltung/anmeldungen"
-        label="Anmeldungen"
-        breadcrumb={
-          <>
-            Verwaltung · Anmeldungen · <b className="font-semibold text-foreground">{name ?? "Ohne Akte"}</b>
-          </>
-        }
+    <main className="lg:grid lg:h-[calc(100dvh-6px)] lg:grid-cols-[340px_minmax(0,1fr)]">
+      <AnmeldungsListe
+        ansicht={listenAnsicht}
+        anzahlOffen={anzahlOffen}
+        zeilen={zeilen}
+        gewaehlt={anmeldung.id}
+        ueberschrift="h2"
+        className="hidden lg:flex"
       />
 
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">
-        {name ? `Anmeldung von ${name}` : "Anmeldung ohne Akte"}
-      </h1>
-      {person && <p className="mt-1 break-all text-sm text-muted-foreground">{person.email}</p>}
-
-      <dl className="mt-4 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground">Stand:</dt>
-          <dd>
-            {/* Derselbe Badge wie in der Liste — die Einzelansicht soll denselben Stand nicht anders benennen. */}
-            <AnmeldungStatusBadge status={anmeldung.status} />
-          </dd>
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <div className="border-b border-linie bg-background px-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3 lg:min-h-14 lg:flex-nowrap lg:py-2.5">
+            <Link
+              href={zurueck}
+              className="-ml-1 inline-flex items-center gap-0.5 rounded-md px-1 text-sm font-medium text-primary hover:bg-muted lg:hidden"
+            >
+              <Icon name="zurueck" className="h-4 w-4" />
+              Anmeldungen
+            </Link>
+            <p title={stand} className="hidden min-w-0 flex-1 truncate text-[13px] text-muted-foreground lg:block">{stand}</p>
+            {!offen && (
+              <span className="ml-auto lg:ml-0">
+                <AnmeldungStatusBadge status={anmeldung.status} />
+              </span>
+            )}
+            {offen && darfEntscheiden && person && (
+              <div className="w-full lg:ml-auto lg:w-auto">
+                <Entscheidung anmeldungId={anmeldung.id} name={`${person.vorname} ${person.nachname}`} />
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground">Eingegangen:</dt>
-          <dd>{datum(anmeldung.eingereichtAm)}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground">Formularfassung:</dt>
-          <dd>{anmeldung.formularVersion.version}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground">Semester:</dt>
-          <dd>{anmeldung.semester?.bezeichnung ?? "nicht zugeordnet"}</dd>
-        </div>
-      </dl>
 
-      {person && darfAkteOeffnen && (
-        <p className="mt-4 text-sm">
-          <Link href={`/verwaltung/personen/${person.id}`} className="underline underline-offset-4">
-            Akte öffnen
-          </Link>
-        </p>
-      )}
+        <article className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-7">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-foreground">
+                <span className="sr-only">Anmeldung von </span>
+                {name ?? "Anmeldung ohne Akte"}
+              </h1>
+              {person && darfAkteOeffnen && (
+                <Link href={`/verwaltung/personen/${person.id}`} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Akte öffnen
+                </Link>
+              )}
+            </div>
+            <p className="mt-1 text-[13px] text-muted-foreground lg:hidden">{stand}</p>
 
-      <p className="mt-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-        {art9Hinweis && <>{art9Hinweis} </>}
-        Jeder Abruf dieser Seite wird protokolliert.
-      </p>
+            {eckdaten.length > 0 && (
+              <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+                {eckdaten.map((e) => (
+                  <div key={e.label}>
+                    <dt className="text-[13px] text-muted-foreground">{e.label}</dt>
+                    <dd className="text-[15px] font-medium text-foreground">{e.wert}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
 
-      {ansicht.abschnitte.length === 0 && ansicht.weitere.length === 0 ? (
-        <p className="mt-8 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Zu dieser Anmeldung sind keine Antworten gespeichert.
-        </p>
-      ) : (
-        <>
-          {ansicht.abschnitte.map((block, i) => (
-            <AntwortBlock
-              key={`${i}-${block.titel}`}
-              titel={block.titel}
-              zeilen={block.zeilen}
-              wertAnzeige={wertAnzeige}
-            />
-          ))}
-          {ansicht.weitere.length > 0 && (
-            <AntwortBlock
-              titel="Weitere gespeicherte Antworten"
-              beschreibung="Antworten zu Fragen, die diese Formularfassung nicht (mehr) kennt."
-              verborgenGrund="nicht einer Frage zuzuordnen"
-              // Hier gibt es jede Zeile nur, weil eine Antwort gespeichert ist.
-              zaehlt="antworten"
-              zeilen={ansicht.weitere}
-              wertAnzeige={wertAnzeige}
-            />
-          )}
-        </>
-      )}
+            {anmeldung.status === "ABGELEHNT" && anmeldung.ablehnungsgrund && (
+              <Hinweis className="mt-5" icon="hinweis" titel="Abgelehnt:">
+                {anmeldung.ablehnungsgrund}
+              </Hinweis>
+            )}
+            {art9Hinweis && (
+              <Hinweis className="mt-5" icon="hinweis">
+                {art9Hinweis}
+              </Hinweis>
+            )}
 
-      {anmeldung.status === "EINGEREICHT" && darfEntscheiden && person && (
-        <section className="mt-10 border-t border-border pt-6">
-          <h2 className="text-lg font-semibold">Entscheidung</h2>
-          <Entscheidung anmeldungId={anmeldung.id} name={`${person.vorname} ${person.nachname}`} />
-        </section>
-      )}
+            {abschnitte.length > 0 && (
+              <div className="mt-6 space-y-5">
+                {abschnitte.map((abschnitt) => (
+                  <section key={abschnitt.titel}>
+                    <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-dezent">{abschnitt.titel}</h2>
+                    <div className="mt-1 space-y-1.5 text-[15px] leading-relaxed text-foreground">
+                      {abschnitt.eintraege.map((eintrag, i) => (
+                        <p key={i} className="whitespace-pre-wrap break-words">
+                          {eintrag.vorsatz && <span className="text-muted-foreground">{eintrag.vorsatz}: </span>}
+                          {eintrag.text}
+                        </p>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {(formal.length > 0 || beitrag.length > 0 || iban) && (
+              <Gruppe className="mt-6">
+                {formal.map((f) => (
+                  <Formalie key={f.label} label={f.label}>
+                    {f.wert}
+                  </Formalie>
+                ))}
+                {(beitrag.length > 0 || iban) && (
+                  <Formalie label="Beitrag">
+                    {beitrag.join(" · ")}
+                    {beitrag.length > 0 && iban && " · "}
+                    {iban}
+                  </Formalie>
+                )}
+              </Gruppe>
+            )}
+
+            <details className="group mt-4">
+              <summary className={`${knopf("leise")} -ml-3.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+                Alle Angaben wie eingereicht
+                <Icon name="aufklappen" className="h-4 w-4 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="pb-2">
+                {ansicht.abschnitte.length === 0 && ansicht.weitere.length === 0 ? (
+                  <p className="mt-3 text-sm text-muted-foreground">Zu dieser Anmeldung sind keine Antworten gespeichert.</p>
+                ) : (
+                  <>
+                    {ansicht.abschnitte.map((block, i) => (
+                      <AntwortBlock key={`${i}-${block.titel}`} titel={block.titel} zeilen={block.zeilen} wertAnzeige={wertAnzeige} />
+                    ))}
+                    {ansicht.weitere.length > 0 && (
+                      <AntwortBlock
+                        titel="Weitere gespeicherte Antworten"
+                        beschreibung="Antworten zu Fragen, die diese Formularfassung nicht (mehr) kennt."
+                        verborgenGrund="nicht einer Frage zuzuordnen"
+                        // Hier gibt es jede Zeile nur, weil eine Antwort gespeichert ist.
+                        zaehlt="antworten"
+                        zeilen={ansicht.weitere}
+                        wertAnzeige={wertAnzeige}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </details>
+
+            <p className="mt-4 text-xs text-dezent">{fussnote}</p>
+          </div>
+        </article>
+      </div>
     </main>
+  );
+}
+
+/** Beschriftung links, Wert rechts (wie `WertZeile`, aber linksbündig in der Zeile). */
+function Formalie({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-h-11 flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-center sm:gap-4">
+      <div className="shrink-0 text-[13px] text-muted-foreground sm:w-32">{label}</div>
+      <div className="min-w-0 text-sm text-foreground">{children}</div>
+    </div>
   );
 }
 
@@ -281,19 +424,17 @@ function AntwortBlock({
         : `Die ${n} Fragen dieses Abschnitts sind ausgeblendet (${verborgenGrund}).`;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold">{titel}</h2>
-      {beschreibung && <p className="mt-1 text-sm text-muted-foreground">{beschreibung}</p>}
+    <section className="mt-5">
+      <h3 className="text-sm font-semibold text-foreground">{titel}</h3>
+      {beschreibung && <p className="mt-0.5 text-[13px] text-muted-foreground">{beschreibung}</p>}
       {allesVerborgen ? (
-        <p className="mt-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-          {verborgenSatz}
-        </p>
+        <p className="mt-2 rounded-xl border border-dashed border-linie px-4 py-3 text-sm text-muted-foreground">{verborgenSatz}</p>
       ) : (
-        <dl className="mt-3 divide-y divide-border rounded-lg border border-border bg-card">
+        <dl className="mt-2 divide-y divide-linie rounded-xl border border-linie bg-card">
           {zeilen.map((zeile) => (
-            <div key={zeile.code} className="px-4 py-3">
-              <dt className="text-sm text-muted-foreground">{zeile.label}</dt>
-              <dd className="mt-1 whitespace-pre-wrap break-words text-sm">{wertAnzeige(zeile)}</dd>
+            <div key={zeile.code} className="px-4 py-2.5">
+              <dt className="text-[13px] text-muted-foreground">{zeile.label}</dt>
+              <dd className="mt-0.5 whitespace-pre-wrap break-words text-sm text-foreground">{wertAnzeige(zeile)}</dd>
             </div>
           ))}
         </dl>

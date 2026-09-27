@@ -44,6 +44,8 @@ const SKRIPTE = [
   "pruefe-anmeldung-antworten.ts",
   "pruefe-betrieb.ts",
   "pruefe-anmelde-schutz.ts",
+  "pruefe-navigation.ts",
+  "pruefe-heute.ts",
 ];
 
 /** Brauchen eine Datenbank — laufen über `npm run pruefen:db`, nicht hier. */

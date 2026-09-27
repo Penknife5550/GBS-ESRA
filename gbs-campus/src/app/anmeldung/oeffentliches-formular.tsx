@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
-import { istIbanGueltig } from "@/lib/pruefwerte";
 import { datum } from "@/lib/datum";
+import { Icon } from "@/components/icons";
+import { Blatt } from "@/components/ui/blatt";
+import { knopf } from "@/components/ui/knopf";
+import { Abschnitt, Gruppe, Zeile } from "@/components/ui/liste";
 import { MeldungsBox } from "@/components/ui/meldung";
+import { StatusPunkt } from "@/components/ui/status-punkt";
 import {
   art9Eingewilligt,
   beschreibeNichtImZwischenstand,
@@ -12,6 +16,9 @@ import {
   nichtImZwischenstand,
   titelListe,
 } from "@/lib/anmeldung-antworten";
+import { FELD_TITEL } from "@/app/anmelden/oeffentlich";
+import { EinwilligungsHaken, Feld } from "./formular-felder";
+import { einwilligungsId, elementId, istNurArt9, pruefeAbschnitt, zusammenfassung } from "./schritte";
 
 export type OeffentlichesFeld = {
   code: string;
@@ -49,31 +56,23 @@ type Antworten = Record<string, unknown>;
  */
 const KEINE_ANTWORTEN: Antworten = {};
 
-/** Feldtypen, die als Gruppe mehrerer Bedienelemente dargestellt werden. */
-const GRUPPENTYPEN = ["JA_NEIN", "AUSWAHL_EINFACH", "AUSWAHL_MEHRFACH"];
-
-/** Ein Abschnitt, der erst nach der Art.-9-Einwilligung erscheint. */
-function istNurArt9(abschnitt: OeffentlicherAbschnitt): boolean {
-  return abschnitt.felder.length > 0 && abschnitt.felder.every((f) => f.istArt9);
-}
+/** Runde Tippfläche in der Kopfzeile (Zurück). */
+const KOPF_KNOPF = "grid h-11 w-11 place-items-center rounded-full text-primary hover:bg-muted";
 
 /**
- * Autofill-Zuordnung. Ohne sie müssen auf dem Tablet sieben Felder von Hand
- * getippt werden, obwohl das Betriebssystem sie kennt — ein spürbarer Grund,
- * eine Anmeldung abzubrechen.
+ * Das öffentliche Anmeldeformular — Schritt für Schritt (Oberflächenplan
+ * 09/2026): Jeder Abschnitt der veröffentlichten Fassung ist ein Schritt, am
+ * Ende steht „Prüfen und absenden“ mit einer Zeile je Abschnitt und den
+ * Einwilligungen. Oben Fortschritt, Rückweg und „Später“ (das Zwischenspeichern
+ * mit Fortsetzen-Link), unten fest „Weiter“. Vor „Weiter“ prüft der Schritt
+ * seine Pflichtangaben (schritte.ts); die Prüfung auf dem Server bleibt, wie
+ * sie ist — meldet sie ein Feld, springt das Formular zu dessen Schritt.
+ *
+ * Unverändert aus der einseitigen Fassung: Fangfeld, Formularstempel,
+ * Zwischenstand im URL-Fragment, die Art.-9-Sperre (die Fragen erscheinen erst
+ * mit der Einwilligung, die dort abgefragt wird, wo diese Angaben beginnen) und
+ * die Warnung beim Verlassen mit ungesicherten Eingaben.
  */
-const AUTOCOMPLETE: Record<string, string> = {
-  VORNAME: "given-name",
-  NACHNAME: "family-name",
-  EMAIL: "email",
-  TELEFON: "tel",
-  GEBURTSDATUM: "bday",
-  STRASSE: "street-address",
-  PLZ: "postal-code",
-  ORT: "address-level2",
-  KONTOINHABER: "name",
-};
-
 export function OeffentlichesFormular({
   versionId,
   einleitung,
@@ -104,8 +103,8 @@ export function OeffentlichesFormular({
   // Identitätsprofilen gern selbst aus — dann verwürfe der Server still eine
   // echte Anmeldung.
   const [hpFeld, setHpFeld] = useState("");
-  // Dauerhafte Live-Region: sagt an, wenn der Art.-9-Haken weiter oben
-  // Abschnitte freischaltet oder wieder sperrt.
+  // Dauerhafte Live-Region: sagt an, wenn der Art.-9-Haken Schritte freischaltet
+  // oder wieder sperrt.
   const [art9Ansage, setArt9Ansage] = useState("");
   // Getrennte Zustände: Sonst wechselt der Absende-Knopf beim Zwischenspeichern
   // auf „Wird gesendet …", und der Nutzer glaubt, er hätte abgeschickt.
@@ -121,15 +120,22 @@ export function OeffentlichesFormular({
   const [kopiert, setKopiert] = useState<"ok" | "fehler" | null>(null);
   const [consentFehler, setConsentFehler] = useState(false);
 
+  // Schritte: 0 … abschnitte.length - 1 sind die Abschnitte, danach die Übersicht.
+  const [schritt, setSchritt] = useState(0);
+  // Über „Ändern“ aus der Übersicht gekommen: „Weiter“ und der Rückweg führen dorthin zurück.
+  const [vonUebersicht, setVonUebersicht] = useState(false);
+  const [spaeterOffen, setSpaeterOffen] = useState(false);
+  const [spaeterFehler, setSpaeterFehler] = useState<string | null>(null);
+  // Nach jedem Schrittwechsel (und nach „Weiter“ mit Lücken) setzt ein Effekt
+  // den Fokus — erst nach dem Zeichnen, damit Fehlertexte schon am Feld hängen.
+  const [fokusAuftrag, setFokusAuftrag] = useState(0);
+  const fokusZiel = useRef<string | null>(null);
+
   const erfolgRef = useRef<HTMLDivElement>(null);
-  const consentRef = useRef<HTMLDivElement>(null);
+  const titelRef = useRef<HTMLHeadingElement>(null);
   // Der Token, der gerade in dieser Seite steckt (geladen, ladend oder zuletzt
   // gesichert) — für den hashchange-Wächter unten.
   const aktuellerToken = useRef<string | null>(null);
-  const art9StartRef = useRef<HTMLHeadingElement>(null);
-  // Nur wer im Platzhalter-Abschnitt anhakt, wird zu den Fragen geführt — wer
-  // unten im Datenschutz-Block anhakt, bleibt dort (und hört die Ansage).
-  const art9Springen = useRef(false);
 
   // Freigeschaltet erst, wenn ALLE Art.-9-Texte erteilt sind — dieselbe Regel
   // wie auf dem Server (art9Eingewilligt in lib/anmeldung-antworten.ts). Ohne
@@ -138,6 +144,8 @@ export function OeffentlichesFormular({
   const art9Einwilligungen = einwilligungen.filter((e) => e.istArt9);
   const art9Titel = abschnitte.filter(istNurArt9).map((a) => a.titel);
   const ersterArt9Index = abschnitte.findIndex(istNurArt9);
+  const uebersicht = abschnitte.length;
+  const gesamt = abschnitte.length + 1;
 
   // Was „Später weitermachen" bewusst NICHT speichert (Art.-9-Felder und IBAN,
   // siehe bereinigeEntwurf in lib/formular.ts) — aus den Formulardaten
@@ -152,6 +160,48 @@ export function OeffentlichesFormular({
   // und immer, was ein Zwischenstand gar nicht aufnimmt (Art.-9-Freitexte,
   // IBAN): Das ginge beim Schließen des Tabs still verloren.
   const ungespeichert = !fertig && (antworten !== gesichert || hatUngesicherteEingaben(nichtGesichert, antworten));
+
+  /** Die Einwilligung nach Art. 9 fragt der erste reine Art.-9-Abschnitt selbst ab — dort, wo diese Angaben beginnen. */
+  function zustimmungenIn(index: number): EinwilligungsAngebot[] {
+    return index === ersterArt9Index ? art9Einwilligungen : [];
+  }
+
+  /** Was im Schritt `index` noch fehlt (Schlüssel → Meldung). */
+  function offenIn(index: number, stand: Antworten = antworten, zustimmungen: ReadonlySet<string> = erteilt) {
+    return pruefeAbschnitt(
+      abschnitte[index],
+      stand,
+      zustimmungen,
+      art9Eingewilligt(einwilligungen, zustimmungen),
+      zustimmungenIn(index),
+    );
+  }
+
+  /** Fokus nach dem nächsten Zeichnen: auf ein Element oder (null) auf die Überschrift des Schritts. */
+  function fokussiere(ziel: string | null) {
+    fokusZiel.current = ziel;
+    setFokusAuftrag((n) => n + 1);
+  }
+
+  function geheZu(ziel: number, ausUebersicht = false) {
+    setSchritt(ziel);
+    setVonUebersicht(ausUebersicht);
+    setFeldFehler({});
+    setFehler(null);
+    setConsentFehler(false);
+    setWiederherstellung(null);
+    fokussiere(null);
+  }
+
+  useEffect(() => {
+    if (fokusAuftrag === 0) return;
+    const id = fokusZiel.current;
+    const ziel = id ? document.getElementById(id) : titelRef.current;
+    if (!ziel) return;
+    if (id) ziel.scrollIntoView({ behavior: bewegungErlaubt() ? "smooth" : "auto", block: "center" });
+    else window.scrollTo({ top: 0 });
+    ziel.focus({ preventScroll: true });
+  }, [fokusAuftrag]);
 
   useEffect(() => {
     if (fertig) erfolgRef.current?.focus();
@@ -187,12 +237,6 @@ export function OeffentlichesFormular({
     window.addEventListener("beforeunload", warnen);
     return () => window.removeEventListener("beforeunload", warnen);
   }, [ungespeichert]);
-
-  useEffect(() => {
-    if (!art9Erteilt || !art9Springen.current) return;
-    art9Springen.current = false;
-    art9StartRef.current?.focus();
-  }, [art9Erteilt]);
 
   // Zwischenstand fortsetzen. Der Token steht im URL-FRAGMENT (#fortsetzen=…),
   // das der Browser nie an den Server schickt — als ?fortsetzen=… stand er in
@@ -238,6 +282,11 @@ export function OeffentlichesFormular({
       setAntworten(geladen);
       setGesichert(geladen);
       setToken(gefunden);
+      // Weitermachen, wo es fehlt: im ersten Schritt mit offenen Pflichtangaben
+      // (Zustimmungen, Art.-9-Antworten und IBAN liegen nie im Zwischenstand).
+      const offen = abschnitte.findIndex((_, i) => Object.keys(offenIn(i, geladen, new Set())).length > 0);
+      const start = offen === -1 ? abschnitte.length : offen;
+      if (start !== 0) geheZu(start);
       setWiederherstellung({ art: "ok" });
     });
     return () => {
@@ -246,38 +295,32 @@ export function OeffentlichesFormular({
   }, []);
 
   /**
-   * Setzt eine Einwilligung — aus dem Datenschutz-Block oder aus dem
-   * Platzhalter eines Art.-9-Abschnitts (`springen`). Schaltet der Haken die
-   * Art.-9-Abschnitte frei oder sperrt sie wieder, sagt die Live-Region das an:
-   * Die Abschnitte liegen weiter oben, außer Sicht.
+   * Setzt eine Einwilligung — im ersten Art.-9-Schritt oder in der Übersicht.
+   * Schaltet der Haken die Art.-9-Fragen frei oder sperrt sie wieder, sagt die
+   * Live-Region das an.
    */
-  function setzeEinwilligung(code: string, an: boolean, springen = false) {
+  function setzeEinwilligung(code: string, an: boolean) {
     setConsentFehler(false);
     const neu = new Set(erteilt);
     if (an) neu.add(code);
     else neu.delete(code);
     setErteilt(neu);
+    setFeldFehler((alt) => {
+      const schluessel = einwilligungsId(code);
+      if (!(schluessel in alt)) return alt;
+      const rest = { ...alt };
+      delete rest[schluessel];
+      return rest;
+    });
 
     const vorher = art9Eingewilligt(einwilligungen, erteilt);
     const nachher = art9Eingewilligt(einwilligungen, neu);
     if (vorher === nachher || art9Titel.length === 0) return;
     setArt9Ansage(
       nachher
-        ? `Freigeschaltet: die Fragen in ${titelListe(art9Titel)} weiter oben im Formular.`
+        ? `Freigeschaltet: die Fragen in ${titelListe(art9Titel)}.`
         : `Die Fragen in ${titelListe(art9Titel)} sind wieder ausgeblendet.`,
     );
-    art9Springen.current = nachher && springen;
-  }
-
-  function zurZustimmung() {
-    consentRef.current?.scrollIntoView({ behavior: bewegungErlaubt() ? "smooth" : "auto", block: "start" });
-    consentRef.current?.focus({ preventScroll: true });
-  }
-
-  function zuDenArt9Fragen() {
-    const ziel = art9StartRef.current;
-    ziel?.scrollIntoView({ behavior: bewegungErlaubt() ? "smooth" : "auto", block: "start" });
-    ziel?.focus({ preventScroll: true });
   }
 
   function setzeAntwort(code: string, wert: unknown) {
@@ -290,9 +333,34 @@ export function OeffentlichesFormular({
     });
   }
 
+  /** „Weiter“: erst die Pflichtangaben des Schritts, dann der nächste (bzw. zurück zur Übersicht). */
+  function weiter() {
+    const offen = offenIn(schritt);
+    const erstes = Object.keys(offen)[0];
+    if (erstes) {
+      setFeldFehler(offen);
+      fokussiere(elementId(erstes));
+      return;
+    }
+    geheZu(vonUebersicht ? uebersicht : schritt + 1);
+  }
+
+  function zurueck() {
+    geheZu(vonUebersicht ? uebersicht : schritt - 1);
+  }
+
+  /** „Später“: Mit Eingaben, die ein Zwischenstand nicht aufnimmt, erst fragen — sonst gleich speichern. */
+  function spaeter() {
+    setSpaeterFehler(null);
+    setHinweis(null);
+    setFortsetzenUrl(null);
+    setSpaeterOffen(true);
+    if (!warnenVorZwischenstand) void zwischenspeichern();
+  }
+
   async function zwischenspeichern() {
     setSpeichert(true);
-    setFehler(null);
+    setSpaeterFehler(null);
     // Der Stand, der jetzt gesichert wird — wer während des Speicherns weiter
     // tippt, hat danach wieder ungesicherte Eingaben.
     const stand = antworten;
@@ -304,7 +372,7 @@ export function OeffentlichesFormular({
     setSpeichert(false);
 
     if (!antwort.ok) {
-      setFehler(antwort.meldung);
+      setSpaeterFehler(antwort.meldung);
       return;
     }
 
@@ -342,20 +410,30 @@ export function OeffentlichesFormular({
     }
   }
 
-  async function absenden(ereignis: React.FormEvent) {
-    ereignis.preventDefault();
-
+  async function absenden() {
     // Pflicht-Einwilligungen vorab prüfen: Der Server lehnt sie ohnehin ab, aber
-    // ohne diese Prüfung erschiene nur eine allgemeine rote Box am Seitenende,
-    // ohne Markierung und ohne Sprung — der häufigste Abbruchgrund bliebe
-    // unerklärt.
+    // ohne diese Prüfung erschiene nur eine allgemeine Meldung, ohne Markierung
+    // und ohne Sprung — der häufigste Abbruchgrund bliebe unerklärt.
     const fehlend = einwilligungen.filter((e) => e.pflicht && !erteilt.has(e.code));
     if (fehlend.length > 0) {
       setConsentFehler(true);
       setFehler(`Bitte stimmen Sie noch zu: ${fehlend.map((e) => e.titel).join(", ")}.`);
-      consentRef.current?.scrollIntoView({ behavior: bewegungErlaubt() ? "smooth" : "auto", block: "center" });
-      consentRef.current?.focus();
+      fokussiere("einwilligungen");
       return;
+    }
+
+    // Jeder Schritt noch einmal: Über „Ändern“ oder den Rückweg lässt sich ein
+    // Pflichtfeld leeren, und ein erst hier gesetzter Art.-9-Haken schaltet
+    // Fragen frei, die noch leer sind.
+    for (let i = 0; i < abschnitte.length; i++) {
+      const offen = offenIn(i);
+      const erstes = Object.keys(offen)[0];
+      if (erstes) {
+        geheZu(i, true);
+        setFeldFehler(offen);
+        fokussiere(elementId(erstes));
+        return;
+      }
     }
 
     setSendet(true);
@@ -378,19 +456,17 @@ export function OeffentlichesFormular({
     setSendet(false);
 
     if (!antwort.ok) {
-      setFehler(antwort.meldung);
-      if (antwort.details && antwort.details.length > 0) {
-        const zuordnung: Record<string, string> = {};
-        for (const d of antwort.details) if (d.feld) zuordnung[d.feld] = d.meldung;
+      const zuordnung: Record<string, string> = {};
+      for (const d of antwort.details ?? []) if (d.feld) zuordnung[d.feld] = d.meldung;
+      const erstesFeld = Object.keys(zuordnung)[0];
+      const index = erstesFeld ? abschnitte.findIndex((a) => a.felder.some((f) => f.code === erstesFeld)) : -1;
+      if (index >= 0) {
+        // Zum Schritt des ersten beanstandeten Felds; „Weiter“ führt danach zurück hierher.
+        geheZu(index, true);
         setFeldFehler(zuordnung);
-
-        const erstesFeld = antwort.details.find((d) => d.feld)?.feld;
-        if (erstesFeld) {
-          const ziel = document.getElementById(`feld-${erstesFeld}`);
-          ziel?.scrollIntoView({ behavior: bewegungErlaubt() ? "smooth" : "auto", block: "center" });
-          ziel?.focus();
-        }
+        fokussiere(`feld-${erstesFeld}`);
       }
+      setFehler(antwort.meldung);
       return;
     }
 
@@ -403,223 +479,331 @@ export function OeffentlichesFormular({
 
   if (fertig) {
     return (
-      <div
-        ref={erfolgRef}
-        role="status"
-        tabIndex={-1}
-        className="rounded-lg border border-credo-gruen/40 bg-credo-gruen/5 p-8 outline-none"
-      >
-        <h2 className="text-xl font-semibold">Ihre Anmeldung ist eingegangen</h2>
-        <p className="mt-3 max-w-prose text-sm">
-          Wir haben Ihnen eine Bestätigung per E-Mail geschickt. Die Schulleitung sieht sich Ihre Anmeldung an und
-          meldet sich bei Ihnen.
-        </p>
+      <div className="mx-auto flex min-h-[calc(100dvh-6px)] w-full max-w-xl flex-col px-5">
+        <Kopf />
+        <div ref={erfolgRef} role="status" tabIndex={-1} className="mt-10 outline-none">
+          <Icon name="bestaetigt" className="h-11 w-11 text-credo-gruen" />
+          <h2 className="mt-5 hyphens-auto break-words text-[29px] font-bold leading-tight tracking-tight text-foreground">
+            Ihre Anmeldung ist eingegangen
+          </h2>
+          <p className="mt-2.5 text-base leading-relaxed text-muted-foreground">
+            Wir haben Ihnen eine Bestätigung per E-Mail geschickt. Die Schulleitung sieht sich Ihre Anmeldung an und
+            meldet sich bei Ihnen.
+          </p>
+        </div>
+        <div className="mt-auto pb-8 pt-10">
+          <a href="/" className={knopf("sekundaer", "gross")}>
+            Zur Startseite
+          </a>
+        </div>
       </div>
     );
   }
 
   const laeuft = sendet || speichert || laedtEntwurf;
+  const aufUebersicht = schritt === uebersicht;
+  const grund = aufUebersicht ? "bg-muted" : "bg-background";
+
+  // Rückweg: im ersten Schritt zur Startseite (ein echter Seitenwechsel, damit
+  // die Warnung vor ungesicherten Eingaben greift), sonst einen Schritt zurück.
+  const rueckweg =
+    schritt === 0 && !vonUebersicht ? (
+      <a href="/" aria-label="Zur Startseite" className={KOPF_KNOPF}>
+        <Icon name="zurueck" className="h-6 w-6" />
+      </a>
+    ) : (
+      <button
+        type="button"
+        onClick={zurueck}
+        aria-label={vonUebersicht ? "Zurück zur Übersicht" : "Zurück zum vorigen Schritt"}
+        className={KOPF_KNOPF}
+      >
+        <Icon name="zurueck" className="h-6 w-6" />
+      </button>
+    );
 
   return (
-    // data-formular-stempel: derselbe Wert wie oben — nur, damit die Ende-zu-Ende-Prüfung
-    // (scripts/durchstich.sh) ihn aus dem ausgelieferten HTML lesen kann.
-    <form onSubmit={absenden} noValidate data-formular-stempel={formularStempel}>
-      <div role="status">
-        {laedtEntwurf && (
-          <p className="mb-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-            Ihre begonnene Anmeldung wird geladen …
-          </p>
-        )}
-        {wiederherstellung?.art === "ok" && (
-          // Ehrlich sagen, was NICHT wiederhergestellt ist: Art.-9-Antworten und
-          // die IBAN liegen bewusst nie im Zwischenstand, und auch die
-          // Zustimmungen stehen wieder offen.
-          <p className="mb-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-            {nichtWiederhergestellt
-              ? `Wir haben Ihre begonnene Anmeldung wiederhergestellt. Ihre Angaben sind wieder da — außer ${nichtWiederhergestellt}. ` +
-                "Diese Angaben speichern wir erst beim Absenden; bitte tragen Sie sie noch einmal ein."
-              : "Wir haben Ihre begonnene Anmeldung wiederhergestellt. Sie können weitermachen, wo Sie aufgehört haben."}
-            {einwilligungen.length > 0 && " Die Zustimmungen unter „Datenschutz“ setzen Sie bitte noch einmal."}
-          </p>
-        )}
-        {wiederherstellung?.art === "fehler" && (
-          <p className="mb-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-            {wiederherstellung.text}
-          </p>
-        )}
-      </div>
-
-      {einleitung && <p className="mb-6 max-w-prose text-muted-foreground">{einleitung}</p>}
-      <p className="mb-10 text-sm text-muted-foreground">
-        Mit <span className="text-credo-rot">*</span> gekennzeichnete Felder sind Pflichtangaben.
-      </p>
-
-      {/* Fangfeld für Formular-Roboter (Honeypot): außerhalb des sichtbaren
-          Bereichs, nicht per Tab erreichbar und für Vorlesesoftware verborgen.
-          Ein Mensch lässt es leer; ist es gefüllt, legt der Server keine Akte an
-          und verschickt keine Mail, antwortet aber wie immer. */}
-      <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden">
-        <label htmlFor="hp_feld">Bitte leer lassen</label>
-        <input
-          id="hp_feld"
-          name="hp_feld"
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-          value={hpFeld}
-          onChange={(e) => setHpFeld(e.target.value)}
-        />
-      </div>
-
-      {/* Solange ein Zwischenstand lädt, nimmt das Formular keine Eingaben an —
-          sie würden beim Eintreffen überschrieben. */}
-      <div inert={laedtEntwurf} className={laedtEntwurf ? "opacity-60" : undefined}>
-        {abschnitte.map((abschnitt, i) => {
-          const nurArt9 = istNurArt9(abschnitt);
-          if (nurArt9 && !art9Erteilt) {
-            // Die Zustimmung auch gleich hier: Sie steht sonst nur am Seitenende,
-            // und die Fragen erschienen nach dem Haken außer Sicht.
-            const mitZustimmung = i === ersterArt9Index && art9Einwilligungen.length > 0;
-            return (
-              <section key={i} className="mb-10 rounded-lg border border-dashed border-border p-5">
-                <h2 className="text-lg font-semibold text-muted-foreground">{abschnitt.titel}</h2>
-                <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                  Diese Fragen erscheinen, sobald Sie der Verarbeitung von Angaben zu Glaube und
-                  Gemeindezugehörigkeit zugestimmt haben
-                  {mitZustimmung ? " — gleich hier oder unten unter „Datenschutz“." : "."}{" "}
-                  {!mitZustimmung && (
-                    <a
-                      href="#datenschutz"
-                      // Ohne Wechsel des Fragments: Dort steht nach dem
-                      // Zwischenspeichern der Link zum Fortsetzen (#fortsetzen=…).
-                      onClick={(ereignis) => {
-                        ereignis.preventDefault();
-                        zurZustimmung();
-                      }}
-                      className="underline underline-offset-2"
-                    >
-                      Zur Zustimmung springen
-                    </a>
-                  )}
-                </p>
-                {mitZustimmung && (
-                  <div className="mt-4 space-y-4">
-                    {art9Einwilligungen.map((e) => (
-                      <EinwilligungsHaken
-                        key={e.code}
-                        einwilligung={e}
-                        erteilt={erteilt.has(e.code)}
-                        onAendern={(an) => setzeEinwilligung(e.code, an, true)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
-            );
+    <>
+      {/* data-formular-stempel: derselbe Wert wie oben — nur, damit die Ende-zu-Ende-Prüfung
+          (scripts/durchstich.sh) ihn aus dem ausgelieferten HTML lesen kann. */}
+      <form
+        onSubmit={(ereignis) => {
+          ereignis.preventDefault();
+          if (aufUebersicht) void absenden();
+          else weiter();
+        }}
+        noValidate
+        data-formular-stempel={formularStempel}
+        className={`flex min-h-[calc(100dvh-6px)] flex-col ${grund}`}
+      >
+        <Kopf
+          links={rueckweg}
+          rechts={
+            <button
+              type="button"
+              onClick={spaeter}
+              disabled={laeuft}
+              aria-label="Später weitermachen"
+              className="h-11 rounded-lg px-3 text-base font-medium text-primary hover:bg-muted disabled:opacity-60"
+            >
+              Später
+            </button>
           }
+        />
 
-          return (
-            <section key={i} className="mb-10">
-              <h2
-                ref={i === ersterArt9Index ? art9StartRef : undefined}
-                tabIndex={i === ersterArt9Index ? -1 : undefined}
-                className="text-lg font-semibold outline-none"
-              >
-                {abschnitt.titel}
-              </h2>
-              {abschnitt.beschreibung && (
-                <p className="mt-1 max-w-prose text-sm text-muted-foreground">{abschnitt.beschreibung}</p>
-              )}
-
-              <div className="mt-5 space-y-6">
-                {abschnitt.felder.map((feld) => (
-                  <Feld
-                    key={feld.code}
-                    feld={feld}
-                    wert={antworten[feld.code]}
-                    fehler={feldFehler[feld.code]}
-                    onAendern={(wert) => setzeAntwort(feld.code, wert)}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-
-        <section
-          id="datenschutz"
-          ref={consentRef}
-          tabIndex={-1}
-          className={`mb-10 rounded-lg border p-5 outline-none ${
-            consentFehler ? "border-credo-rot bg-credo-rot/5" : "border-border bg-muted"
-          }`}
-        >
-          <h2 className="text-lg font-semibold">Datenschutz</h2>
-          <div className="mt-4 space-y-4">
-            {einwilligungen.map((e) => (
-              <EinwilligungsHaken
-                key={e.code}
-                einwilligung={e}
-                erteilt={erteilt.has(e.code)}
-                onAendern={(an) => setzeEinwilligung(e.code, an)}
-              />
+        <div className="mx-auto w-full max-w-xl px-5">
+          <div aria-hidden="true" className="flex gap-[5px]">
+            {Array.from({ length: gesamt }, (_, i) => (
+              <span key={i} className={`h-1 flex-1 rounded-full ${i <= schritt ? "bg-primary" : "bg-border"}`} />
             ))}
           </div>
-          {art9Erteilt && art9Titel.length > 0 && (
-            <p className="mt-4 text-sm">
-              Freigeschaltet: die Fragen in {titelListe(art9Titel)} weiter oben.{" "}
-              <button type="button" onClick={zuDenArt9Fragen} className="underline underline-offset-2">
-                Zu den Fragen springen
+          <p role="status" className="mt-2 text-[12.5px] font-medium text-muted-foreground">
+            Schritt {schritt + 1} von {gesamt}
+          </p>
+        </div>
+
+        {/* scroll-mb: Ein per Tab erreichtes Feld verschwindet nicht hinter der festen Leiste unten. */}
+        <div className="mx-auto w-full max-w-xl flex-1 px-5 pb-8 pt-4 [&_*]:scroll-mb-28">
+          <div role="status">
+            {laedtEntwurf && (
+              <p className="mb-5 rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+                Ihre begonnene Anmeldung wird geladen …
+              </p>
+            )}
+            {wiederherstellung?.art === "ok" && (
+              // Ehrlich sagen, was NICHT wiederhergestellt ist: Art.-9-Antworten und
+              // die IBAN liegen bewusst nie im Zwischenstand, und auch die
+              // Zustimmungen stehen wieder offen.
+              <p className="mb-5 rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+                {nichtWiederhergestellt
+                  ? `Wir haben Ihre begonnene Anmeldung wiederhergestellt. Ihre Angaben sind wieder da — außer ${nichtWiederhergestellt}. ` +
+                    "Diese Angaben speichern wir erst beim Absenden; bitte tragen Sie sie noch einmal ein."
+                  : "Wir haben Ihre begonnene Anmeldung wiederhergestellt. Sie können weitermachen, wo Sie aufgehört haben."}
+                {einwilligungen.length > 0 && " Die Zustimmungen setzen Sie bitte noch einmal."}
+              </p>
+            )}
+            {wiederherstellung?.art === "fehler" && (
+              <p className="mb-5 rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">{wiederherstellung.text}</p>
+            )}
+          </div>
+
+          {/* Fangfeld für Formular-Roboter (Honeypot): außerhalb des sichtbaren
+              Bereichs, nicht per Tab erreichbar und für Vorlesesoftware verborgen.
+              Ein Mensch lässt es leer; ist es gefüllt, legt der Server keine Akte an
+              und verschickt keine Mail, antwortet aber wie immer. */}
+          <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden">
+            <label htmlFor="hp_feld">Bitte leer lassen</label>
+            <input
+              id="hp_feld"
+              name="hp_feld"
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={hpFeld}
+              onChange={(e) => setHpFeld(e.target.value)}
+            />
+          </div>
+
+          {/* Solange ein Zwischenstand lädt, nimmt das Formular keine Eingaben an —
+              sie würden beim Eintreffen überschrieben. */}
+          <div inert={laedtEntwurf} className={laedtEntwurf ? "opacity-60" : undefined}>
+            {aufUebersicht ? (
+              <>
+                <h2
+                  ref={titelRef}
+                  tabIndex={-1}
+                  className="hyphens-auto break-words text-[29px] font-bold leading-tight tracking-tight text-foreground outline-none"
+                >
+                  Fast geschafft
+                </h2>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">Bitte prüfen Sie Ihre Angaben.</p>
+
+                <Gruppe className="mt-5">
+                  {abschnitte.map((a, i) => {
+                    const gesperrt = istNurArt9(a) && !art9Erteilt;
+                    const text = gesperrt ? null : zusammenfassung(a, antworten, art9Erteilt);
+                    const luecken = !gesperrt && Object.keys(offenIn(i)).length > 0;
+                    return (
+                      <Zeile
+                        key={i}
+                        rechts={
+                          <button
+                            type="button"
+                            onClick={() => geheZu(i, true)}
+                            className="-mr-2 inline-flex h-11 items-center rounded-lg px-2 text-[15px] font-medium text-primary hover:bg-muted"
+                          >
+                            Ändern<span className="sr-only">: {a.titel}</span>
+                          </button>
+                        }
+                      >
+                        <div className="text-[13px] text-muted-foreground">{a.titel}</div>
+                        {luecken ? (
+                          <StatusPunkt ton="gelb" className="mt-0.5">
+                            Angaben fehlen noch
+                          </StatusPunkt>
+                        ) : (
+                          <div
+                            className={`line-clamp-2 text-[15px] leading-snug ${text ? "font-medium text-foreground" : "text-muted-foreground"}`}
+                          >
+                            {gesperrt ? "Erst nach Ihrer Zustimmung unten" : (text ?? "Keine Angaben")}
+                          </div>
+                        )}
+                      </Zeile>
+                    );
+                  })}
+                </Gruppe>
+
+                {einwilligungen.length > 0 && (
+                  <>
+                    <Abschnitt titel="Einwilligungen" className="mt-7" />
+                    <div
+                      id="einwilligungen"
+                      tabIndex={-1}
+                      className={`divide-y divide-linie overflow-hidden rounded-xl border bg-card outline-none ${
+                        consentFehler ? "border-credo-rot" : "border-linie"
+                      }`}
+                    >
+                      {einwilligungen.map((e) => (
+                        <div key={e.code} className="px-4 py-3.5">
+                          <EinwilligungsHaken
+                            einwilligung={e}
+                            erteilt={erteilt.has(e.code)}
+                            onAendern={(an) => setzeEinwilligung(e.code, an)}
+                            textEingeklappt
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <SchrittInhalt
+                abschnitt={abschnitte[schritt]}
+                titelRef={titelRef}
+                vorspann={
+                  schritt === 0 ? (
+                    <>
+                      {einleitung && (
+                        <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">{einleitung}</p>
+                      )}
+                      <p className="mt-2 text-[13px] leading-snug text-muted-foreground">
+                        Mit „Später“ speichern Sie und machen ein andermal weiter. Mit{" "}
+                        <span className="text-credo-rot">*</span> gekennzeichnete Felder sind Pflichtangaben.
+                      </p>
+                    </>
+                  ) : null
+                }
+                zustimmung={
+                  schritt === ersterArt9Index && art9Einwilligungen.length > 0 ? (
+                    <div
+                      className={`mt-5 space-y-4 rounded-xl border p-4 ${
+                        art9Einwilligungen.some((e) => feldFehler[einwilligungsId(e.code)])
+                          ? "border-credo-rot bg-credo-rot/5"
+                          : "border-linie bg-muted"
+                      }`}
+                    >
+                      {art9Einwilligungen.map((e) => (
+                        <EinwilligungsHaken
+                          key={e.code}
+                          einwilligung={e}
+                          erteilt={erteilt.has(e.code)}
+                          fehler={feldFehler[einwilligungsId(e.code)]}
+                          onAendern={(an) => setzeEinwilligung(e.code, an)}
+                          // Wer schon zugestimmt hat und zurückkommt, sieht zuerst die Fragen.
+                          textEingeklappt={erteilt.has(e.code)}
+                        />
+                      ))}
+                    </div>
+                  ) : null
+                }
+                gesperrt={istNurArt9(abschnitte[schritt]) && !art9Erteilt}
+                zurZustimmung={
+                  schritt !== ersterArt9Index && art9Einwilligungen.length > 0 && ersterArt9Index >= 0
+                    ? () => geheZu(ersterArt9Index, vonUebersicht)
+                    : null
+                }
+                antworten={antworten}
+                feldFehler={feldFehler}
+                onAendern={setzeAntwort}
+              />
+            )}
+          </div>
+
+          <p role="status" className="sr-only">
+            {art9Ansage}
+          </p>
+
+          {/* Beide Live-Regionen stehen immer im DOM — eine erst mit dem Text
+              eingefügte Region sagen Screenreader oft nicht an. */}
+          <MeldungsBox meldung={fehler ? { art: "fehler", text: fehler } : null} className="mt-6" />
+        </div>
+
+        <div className={`sticky bottom-0 border-t border-linie ${grund}`}>
+          <div className="mx-auto w-full max-w-xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
+            <button type="submit" disabled={laeuft} className={knopf("primaer", "gross")}>
+              {aufUebersicht
+                ? sendet
+                  ? "Wird gesendet …"
+                  : "Anmeldung absenden"
+                : vonUebersicht
+                  ? "Zur Übersicht"
+                  : "Weiter"}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <Blatt
+        offen={spaeterOffen}
+        onSchliessen={() => setSpaeterOffen(false)}
+        titel="Später weitermachen"
+        fuss={
+          speichert ? null : hinweis ? (
+            <button type="button" onClick={() => setSpaeterOffen(false)} className={knopf("sekundaer")}>
+              Weiter ausfüllen
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={() => setSpaeterOffen(false)} className={knopf("sekundaer")}>
+                Abbrechen
               </button>
-            </p>
-          )}
-        </section>
-      </div>
-
-      <p role="status" className="sr-only">
-        {art9Ansage}
-      </p>
-
-      {/* Beide Live-Regionen stehen immer im DOM — eine erst mit dem Text
-          eingefügte Region sagen Screenreader oft nicht an. */}
-      <MeldungsBox meldung={fehler ? { art: "fehler", text: fehler } : null} className="mb-6" />
-      <div
-        className={
-          hinweis ? "mb-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground" : undefined
+              <button type="button" onClick={() => void zwischenspeichern()} className={knopf("primaer")}>
+                {spaeterFehler ? "Noch einmal versuchen" : "Zwischenstand speichern"}
+              </button>
+            </>
+          )
         }
       >
-        <p role="status" className={hinweis ? undefined : "sr-only"}>
-          {hinweis ?? ""}
+        {!speichert && !hinweis && !spaeterFehler && nichtGesichertText && (
+          <p className="text-sm leading-relaxed text-foreground">
+            Dabei bleiben {nichtGesichertText} außen vor — diese Angaben speichern wir erst beim Absenden. Was Sie dort
+            schon eingetragen haben, bleibt nur erhalten, solange diese Seite geöffnet ist.
+          </p>
+        )}
+        <p role="status" className={speichert || hinweis ? "text-sm leading-relaxed text-foreground" : "sr-only"}>
+          {speichert ? "Wird gespeichert …" : (hinweis ?? "")}
         </p>
+        <MeldungsBox meldung={spaeterFehler ? { art: "fehler", text: spaeterFehler } : null} />
         {hinweis && fortsetzenUrl && (
-          <div className="mt-3">
-            <label htmlFor="fortsetzen-link" className="mb-1 block text-xs font-medium text-foreground">
+          <div className="mt-4">
+            <label htmlFor="fortsetzen-link" className={FELD_TITEL}>
               Ihr Link zum Fortsetzen
             </label>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Nur lesbar statt als anklickbarer Link: Ein Klick darauf lüde die
-                  Seite neu — und was nicht zwischengespeichert ist, wäre weg. */}
-              <input
-                id="fortsetzen-link"
-                type="text"
-                readOnly
-                value={fortsetzenUrl}
-                onFocus={(e) => e.target.select()}
-                // Enter in einem Textfeld schickt sonst das ganze Formular ab.
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.preventDefault();
-                }}
-                className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 font-mono text-xs text-foreground"
-              />
-              <button
-                type="button"
-                onClick={linkKopieren}
-                className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground"
-              >
-                Link kopieren
-              </button>
-            </div>
-            <p role="status" className="mt-1 text-xs">
+            {/* Nur lesbar statt als anklickbarer Link: Ein Klick darauf lüde die
+                Seite neu — und was nicht zwischengespeichert ist, wäre weg. */}
+            <input
+              id="fortsetzen-link"
+              type="text"
+              readOnly
+              value={fortsetzenUrl}
+              onFocus={(e) => e.target.select()}
+              className="block h-11 w-full min-w-0 rounded-xl border border-input bg-background px-3 font-mono text-xs text-foreground"
+            />
+            <button type="button" onClick={linkKopieren} className={`${knopf("primaer", "gross")} mt-3`}>
+              Link kopieren
+            </button>
+            <p role="status" className="mt-1.5 text-[13px] text-foreground">
               {kopiert === "ok"
                 ? "Link kopiert."
                 : kopiert === "fehler"
@@ -628,391 +812,95 @@ export function OeffentlichesFormular({
             </p>
           </div>
         )}
-      </div>
+      </Blatt>
+    </>
+  );
+}
 
-      {warnenVorZwischenstand && (
-        <p id="zwischenstand-hinweis" className="mb-4 rounded-lg bg-credo-gelb/15 px-4 py-3 text-sm">
-          Hinweis zu „Später weitermachen“: Dabei bleiben {nichtGesichertText} außen vor — diese Angaben speichern wir
-          erst beim Absenden. Was Sie dort schon eingetragen haben, bleibt nur erhalten, solange diese Seite geöffnet ist.
-        </p>
+/** Kopfzeile: Rückweg links, „Anmeldung“ in der Mitte, „Später“ rechts. */
+function Kopf({ links, rechts }: { links?: ReactNode; rechts?: ReactNode }) {
+  return (
+    <header className="mx-auto grid h-14 w-full max-w-xl grid-cols-[1fr_auto_1fr] items-center px-2">
+      <div className="justify-self-start">{links}</div>
+      <h1 className="text-base font-semibold text-foreground">Anmeldung</h1>
+      <div className="justify-self-end">{rechts}</div>
+    </header>
+  );
+}
+
+/** Ein Abschnitt als Schritt: Titel, Vorspann, ggf. die Art.-9-Zustimmung, dann die Felder. */
+function SchrittInhalt({
+  abschnitt,
+  titelRef,
+  vorspann,
+  zustimmung,
+  gesperrt,
+  zurZustimmung,
+  antworten,
+  feldFehler,
+  onAendern,
+}: {
+  abschnitt: OeffentlicherAbschnitt;
+  titelRef: RefObject<HTMLHeadingElement | null>;
+  vorspann: ReactNode;
+  zustimmung: ReactNode;
+  /** Reiner Art.-9-Abschnitt ohne Einwilligung: die Fragen bleiben verborgen. */
+  gesperrt: boolean;
+  /** Sprung zum Schritt mit der Zustimmung, wenn sie nicht in diesem Schritt steht. */
+  zurZustimmung: (() => void) | null;
+  antworten: Antworten;
+  feldFehler: Record<string, string>;
+  onAendern: (code: string, wert: unknown) => void;
+}) {
+  return (
+    <>
+      <h2
+        ref={titelRef}
+        tabIndex={-1}
+        className="hyphens-auto break-words text-[29px] font-bold leading-tight tracking-tight text-foreground outline-none"
+      >
+        {abschnitt.titel}
+      </h2>
+      {vorspann}
+      {abschnitt.beschreibung && (
+        <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">{abschnitt.beschreibung}</p>
       )}
+      {zustimmung}
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="submit"
-          disabled={laeuft}
-          className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {sendet ? "Wird gesendet …" : "Anmeldung abschicken"}
-        </button>
-        <button
-          type="button"
-          onClick={zwischenspeichern}
-          disabled={laeuft}
-          aria-describedby={warnenVorZwischenstand ? "zwischenstand-hinweis" : undefined}
-          className="rounded-lg border border-input px-5 py-2.5 text-sm font-medium disabled:opacity-60"
-        >
-          {speichert ? "Wird gespeichert …" : "Später weitermachen"}
-        </button>
-      </div>
-    </form>
+      {gesperrt ? (
+        <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
+          Diese Fragen erscheinen, sobald Sie der Verarbeitung von Angaben zu Glaube und Gemeindezugehörigkeit
+          zugestimmt haben.
+          {zurZustimmung && (
+            <>
+              {" "}
+              <button
+                type="button"
+                onClick={zurZustimmung}
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                Zur Zustimmung
+              </button>
+            </>
+          )}
+        </p>
+      ) : (
+        <div className="mt-6 space-y-6">
+          {abschnitt.felder.map((feld) => (
+            <Feld
+              key={feld.code}
+              feld={feld}
+              wert={antworten[feld.code]}
+              fehler={feldFehler[feld.code]}
+              onAendern={(wert) => onAendern(feld.code, wert)}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
 function bewegungErlaubt(): boolean {
   return !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
-
-/**
- * Das rote Sternchen für Pflichtangaben. Vorlesesoftware bekommt statt „Stern"
- * den Text „(Pflichtangabe)" — ein `aria-label` auf einem schlichten `span` wird
- * nicht vorgelesen. Wichtig vor allem bei Auswahlgruppen und Einwilligungen:
- * Dort sagt kein `required` am Textfeld, dass die Frage Pflicht ist.
- */
-function Pflichtstern() {
-  return (
-    <>
-      <span className="ml-1 text-credo-rot" aria-hidden="true">
-        *
-      </span>
-      <span className="sr-only"> (Pflichtangabe)</span>
-    </>
-  );
-}
-
-/** Eine Einwilligung zum Anhaken — im Datenschutz-Block und im Art.-9-Platzhalter derselbe Zustand. */
-function EinwilligungsHaken({
-  einwilligung,
-  erteilt,
-  onAendern,
-}: {
-  einwilligung: EinwilligungsAngebot;
-  erteilt: boolean;
-  onAendern: (an: boolean) => void;
-}) {
-  return (
-    <label className="flex gap-3 text-sm">
-      <input
-        type="checkbox"
-        className="mt-1 shrink-0"
-        checked={erteilt}
-        required={einwilligung.pflicht}
-        aria-required={einwilligung.pflicht}
-        onChange={(ereignis) => onAendern(ereignis.target.checked)}
-      />
-      <span>
-        <span className="font-medium">
-          {einwilligung.titel}
-          {einwilligung.pflicht && <Pflichtstern />}
-        </span>
-        <span className="mt-1 block text-muted-foreground">{einwilligung.text}</span>
-      </span>
-    </label>
-  );
-}
-
-/** IBAN in Vierergruppen: "DE89370400440532013000" → "DE89 3704 0044 …". */
-function formatiereIban(roh: string): string {
-  const bereinigt = roh.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return bereinigt.replace(/(.{4})(?=.)/g, "$1 ");
-}
-
-/**
- * Eigene Eingabe für die IBAN: gruppiert die Ziffern während des Tippens, prüft
- * die Prüfziffer live (dieselbe Regel wie der Server) und meldet das Ergebnis
- * ruhig zurück — mit Häkchen und Hinweis, sobald sie stimmt, rot erst, wenn das
- * Feld verlassen wurde. Ein Zahlendreher fällt so beim Ausfüllen auf, nicht
- * erst, wenn die Lastschrift Wochen später zurückkommt.
- *
- * Der Cursor bleibt beim Umformatieren an der richtigen Stelle: gezählt wird
- * über die echten Zeichen vor der Einfügemarke, die eingefügten Leerzeichen
- * verschieben ihn nicht.
- */
-function IbanEingabe({
-  id,
-  text,
-  pflicht,
-  fehler,
-  hilfeId,
-  onAendern,
-}: {
-  id: string;
-  text: string;
-  pflicht: boolean;
-  fehler?: string;
-  hilfeId?: string;
-  onAendern: (wert: unknown) => void;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  const [beruehrt, setBeruehrt] = useState(false);
-
-  const bereinigt = text.replace(/\s+/g, "");
-  const gueltig = bereinigt.length >= 15 && istIbanGueltig(bereinigt);
-  const serverFehler = Boolean(fehler);
-  // Gültig hat Vorrang: sobald die Prüfziffer stimmt, ist der Zustand grün — auch wenn beim letzten
-  // Absenden noch ein Serverfehler kam. Umgekehrt zeigt ein Serverfehler auch bei LEEREM Pflichtfeld
-  // rot; sonst schluckt die Bedingung "length > 0" die Meldung, und der Nutzer sieht am IBAN-Feld
-  // gar nichts, obwohl der Server es als Pflichtfeld abgewiesen hat.
-  const liveFehler = !gueltig && (serverFehler || (beruehrt && bereinigt.length > 0));
-  const statusId = `${id}-status`;
-  const beschreibung = [hilfeId, liveFehler || gueltig ? statusId : undefined].filter(Boolean).join(" ") || undefined;
-
-  function beiEingabe(e: ChangeEvent<HTMLInputElement>) {
-    const el = e.target;
-    const echteVorCursor = el.value.slice(0, el.selectionStart ?? el.value.length).replace(/[^A-Za-z0-9]/g, "").length;
-    const formatiert = formatiereIban(el.value);
-    onAendern(formatiert);
-    requestAnimationFrame(() => {
-      const node = ref.current;
-      if (!node) return;
-      let pos = 0;
-      let echte = 0;
-      while (pos < formatiert.length && echte < echteVorCursor) {
-        if (/[A-Za-z0-9]/.test(formatiert[pos])) echte += 1;
-        pos += 1;
-      }
-      node.setSelectionRange(pos, pos);
-    });
-  }
-
-  // Grün allein trägt den Zustand nicht (Rahmen und Grün auf Weiß liegen unter
-  // 3:1): Häkchen und Hinweistext stehen in Textfarbe daneben.
-  const rahmen = liveFehler ? "border-credo-rot" : gueltig ? "border-credo-gruen" : "border-input";
-
-  return (
-    <div>
-      <div className="relative">
-        <input
-          ref={ref}
-          id={id}
-          type="text"
-          autoComplete="off"
-          spellCheck={false}
-          value={text}
-          placeholder="DE00 0000 0000 0000 0000 00"
-          required={pflicht}
-          aria-required={pflicht}
-          aria-invalid={liveFehler}
-          aria-describedby={beschreibung}
-          onChange={beiEingabe}
-          onBlur={() => setBeruehrt(true)}
-          className={`w-full rounded-lg border bg-background px-4 py-2.5 pr-10 font-mono text-sm tracking-wider ${rahmen}`}
-        />
-        {gueltig && (
-          <span
-            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-base font-semibold text-foreground"
-            aria-hidden
-          >
-            ✓
-          </span>
-        )}
-      </div>
-      {gueltig ? (
-        <p id={statusId} className="mt-1.5 inline-block rounded bg-credo-gruen/15 px-2 py-0.5 text-xs text-foreground">
-          <span aria-hidden="true">✓ </span>
-          IBAN geprüft — die Prüfziffer stimmt.
-        </p>
-      ) : liveFehler ? (
-        <p id={statusId} className="mt-1.5 text-xs text-credo-rot" role="alert">
-          {fehler ?? "Diese IBAN stimmt nicht. Bitte Länderkürzel und Ziffern prüfen."}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * Ein Feld.
- *
- * Auswahl- und Ja/Nein-Fragen werden als `fieldset` mit `legend` dargestellt.
- * Vorher zeigte ein `label htmlFor` auf eine ID, die es bei diesen Typen gar
- * nicht gab: Vorlesesoftware las nur die Antwortmöglichkeiten vor, nie die
- * Frage — auf dem Pflichtfeld „Wie möchten Sie teilnehmen?" also gar nichts
- * Verständliches. Und ein Klick auf die Beschriftung wählte nichts aus.
- */
-function Feld({
-  feld,
-  wert,
-  fehler,
-  onAendern,
-}: {
-  feld: OeffentlichesFeld;
-  wert: unknown;
-  fehler?: string;
-  onAendern: (wert: unknown) => void;
-}) {
-  if (feld.typ === "HINWEIS") {
-    return <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">{feld.label}</p>;
-  }
-
-  const id = `feld-${feld.code}`;
-  const hilfeId = feld.hilfetext ? `${id}-hilfe` : undefined;
-  const fehlerId = fehler ? `${id}-fehler` : undefined;
-  const beschreibung = [hilfeId, fehlerId].filter(Boolean).join(" ") || undefined;
-  const stil = `w-full rounded-lg border bg-background px-4 py-2.5 text-sm ${
-    fehler ? "border-credo-rot" : "border-input"
-  }`;
-  const text = typeof wert === "string" ? wert : typeof wert === "number" ? String(wert) : "";
-  const istGruppe = GRUPPENTYPEN.includes(feld.typ);
-
-  const beschriftung = (
-    <>
-      {feld.label}
-      {feld.pflicht && <Pflichtstern />}
-    </>
-  );
-
-  const hinweise = (
-    <>
-      {feld.hilfetext && (
-        <p id={hilfeId} className="mb-1.5 text-xs text-muted-foreground">
-          {feld.hilfetext}
-        </p>
-      )}
-    </>
-  );
-
-  const fehlermeldung = fehler ? (
-    <p id={fehlerId} role="alert" className="mt-1.5 text-xs text-credo-rot">
-      {fehler}
-    </p>
-  ) : null;
-
-  if (istGruppe) {
-    return (
-      // tabIndex am fieldset, damit der Sprung zum ersten Fehler auch bei
-      // Auswahlfragen ein Ziel findet. `required` steht an jedem Radio der
-      // Gruppe (gültiges HTML): So sagt Vorlesesoftware „erforderlich" auch an,
-      // wenn der Fokus nicht auf dem ersten landet. Die Mehrfachauswahl hat kein
-      // passendes Attribut — dort trägt die Legende „(Pflichtangabe)".
-      <fieldset
-        id={id}
-        tabIndex={-1}
-        aria-describedby={beschreibung}
-        aria-invalid={Boolean(fehler)}
-        className="border-0 p-0 outline-none"
-      >
-        <legend className="mb-1.5 block text-sm font-medium">{beschriftung}</legend>
-        {hinweise}
-
-        {feld.typ === "JA_NEIN" ? (
-          <div className="flex gap-6 text-sm">
-            {[
-              { wert: true, name: "Ja" },
-              { wert: false, name: "Nein" },
-            ].map((o) => (
-              <label key={o.name} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name={id}
-                  required={feld.pflicht}
-                  checked={wert === o.wert}
-                  onChange={() => onAendern(o.wert)}
-                />
-                {o.name}
-              </label>
-            ))}
-          </div>
-        ) : feld.typ === "AUSWAHL_EINFACH" ? (
-          <div className="space-y-2 text-sm">
-            {(feld.optionen ?? []).map((option) => (
-              <label key={option} className="flex items-start gap-2">
-                <input
-                  type="radio"
-                  name={id}
-                  className="mt-1"
-                  required={feld.pflicht}
-                  checked={wert === option}
-                  onChange={() => onAendern(option)}
-                />
-                {option}
-              </label>
-            ))}
-            {!feld.pflicht && wert !== undefined && wert !== null && (
-              <button
-                type="button"
-                onClick={() => onAendern(null)}
-                className="text-xs text-muted-foreground underline underline-offset-2"
-              >
-                Auswahl aufheben
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2 text-sm">
-            {(feld.optionen ?? []).map((option) => {
-              const gewaehlt = Array.isArray(wert) ? (wert as string[]) : [];
-              return (
-                <label key={option} className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={gewaehlt.includes(option)}
-                    onChange={(e) =>
-                      onAendern(e.target.checked ? [...gewaehlt, option] : gewaehlt.filter((g) => g !== option))
-                    }
-                  />
-                  {option}
-                </label>
-              );
-            })}
-          </div>
-        )}
-
-        {fehlermeldung}
-      </fieldset>
-    );
-  }
-
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
-        {beschriftung}
-      </label>
-      {hinweise}
-
-      {feld.typ === "MEHRZEILIG" ? (
-        <textarea
-          id={id}
-          rows={4}
-          value={text}
-          required={feld.pflicht}
-          aria-required={feld.pflicht}
-          aria-invalid={Boolean(fehler)}
-          aria-describedby={beschreibung}
-          onChange={(e) => onAendern(e.target.value)}
-          className={stil}
-        />
-      ) : feld.typ === "IBAN" ? (
-        <IbanEingabe
-          id={id}
-          text={text}
-          pflicht={feld.pflicht}
-          fehler={fehler}
-          hilfeId={hilfeId}
-          onAendern={onAendern}
-        />
-      ) : (
-        <input
-          id={id}
-          type={
-            feld.typ === "EMAIL" ? "email" : feld.typ === "TELEFON" ? "tel" : feld.typ === "DATUM" ? "date" : feld.typ === "ZAHL" ? "number" : "text"
-          }
-          inputMode={feld.personFeld === "PLZ" ? "numeric" : undefined}
-          autoComplete={AUTOCOMPLETE[feld.personFeld]}
-          value={text}
-          placeholder={feld.platzhalter ?? ""}
-          required={feld.pflicht}
-          aria-required={feld.pflicht}
-          aria-invalid={Boolean(fehler)}
-          aria-describedby={beschreibung}
-          onChange={(e) => onAendern(e.target.value)}
-          className={stil}
-        />
-      )}
-
-      {/* Die IBAN-Eingabe meldet Fehler selbst (grün/rot), sonst doppelt es sich. */}
-      {feld.typ !== "IBAN" && fehlermeldung}
-    </div>
-  );
 }

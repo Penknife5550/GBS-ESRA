@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "@/components/icons";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 /**
@@ -96,7 +98,7 @@ export function AuskunftAbrufen() {
 
   if (!token) {
     return (
-      <p className="mt-6 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+      <p className="mt-6 rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
         Der Link war unvollständig. Bitte öffnen Sie den Link aus der E-Mail vollständig, oder fordern Sie die
         Auskunft über die Schulverwaltung erneut an.
       </p>
@@ -105,12 +107,8 @@ export function AuskunftAbrufen() {
 
   return (
     <div className="mt-6">
-      <button
-        type="button"
-        onClick={herunterladen}
-        disabled={laeuft}
-        className="min-h-11 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
+      <button type="button" onClick={herunterladen} disabled={laeuft} className={knopf("primaer", "gross")}>
+        <Icon name="herunterladen" className="h-5 w-5" />
         {laeuft ? "Wird erstellt …" : "Auskunft als PDF herunterladen"}
       </button>
 

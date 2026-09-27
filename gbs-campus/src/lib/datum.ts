@@ -96,3 +96,57 @@ export function berlinerTag(am: Date): string {
 export function heuteBerlin(): string {
   return berlinerTag(new Date());
 }
+
+// ---------------------------------------------------------------------------
+// Anzeige im Alltag (Oberfläche seit 09/2026): „Dienstag, 29. September“ statt
+// „Di., 29.09.2026, 19:00“ — lesbar wie im Gespräch.
+// ---------------------------------------------------------------------------
+
+const TAG_LANG = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+
+/** „Dienstag, 29. September“ — für Überschriften wie „Heute“ oder „Nächster Abend“. */
+export function tagLang(d: Date): string {
+  return TAG_LANG.format(d);
+}
+
+const TAG_KURZ = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+/** „Di., 29.09.“ — für Listen, in denen das Jahr klar ist. */
+export function tagKurz(d: Date): string {
+  return TAG_KURZ.format(d);
+}
+
+const UHRZEIT = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** „19:00“ in Europe/Berlin. */
+export function uhrzeit(d: Date): string {
+  return UHRZEIT.format(d);
+}
+
+const KALENDER = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+
+/** Die drei Zeilen des Kalenderblocks: Wochentag („DI“), Tag („29“), Monat („Sept.“). */
+export function kalenderTeile(d: Date): { wochentag: string; tag: string; monat: string } {
+  const teile = KALENDER.formatToParts(d);
+  const teil = (typ: Intl.DateTimeFormatPartTypes) => teile.find((t) => t.type === typ)?.value ?? "";
+  return { wochentag: teil("weekday").replace(".", "").toUpperCase(), tag: teil("day"), monat: teil("month") };
+}

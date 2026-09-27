@@ -3,15 +3,20 @@ import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { gruppiereRaster, halbjahrName, type Kurs } from "@/lib/faecher";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { kurzTitel } from "@/lib/abendplan";
+import { Abschnitt, Gruppe, Zeile } from "@/components/ui/liste";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { NeuesSemester } from "../semester/semester-aktionen";
+import { SemesterUmschalter } from "../semester/semester-umschalter";
 
-export const metadata = { title: "Fächer & Kursraster" };
+export const metadata = { title: "Kursraster" };
 export const dynamic = "force-dynamic";
 
 /**
- * Read-only-Ansicht des Kursrasters (Fächer & Kurseinheiten) — der Grundstein
- * für den Stundenplan (M3). Die Pflege im Cockpit folgt später; hier wird der
- * Seed-Stand sichtbar gemacht.
+ * Kursraster (unter „Semester“, Umschalter „Semester · Kursraster“): das feste
+ * 3-Jahres-Raster der Schule — drei Lehrjahre mit je einem Herbst- und einem
+ * Frühlingssemester — und die Fächer mit ihren Stunden. Nur zum Lesen; die
+ * Pflege im Cockpit folgt später, hier wird der Seed-Stand sichtbar.
  */
 export default async function FaecherSeite() {
   const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
@@ -38,61 +43,68 @@ export default async function FaecherSeite() {
   const raster = gruppiereRaster(kurse);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Fächer & Kursraster" />
+    <main>
+      <Seitenkopf titel="Semester" aktionen={<NeuesSemester />}>
+        <SemesterUmschalter aktiv="kursraster" />
+      </Seitenkopf>
+      <Inhalt breite="mittel">
+        <Abschnitt titel="Kursraster" />
+        <div className="flex flex-col gap-4">
+          {raster.map((jahr) => (
+            <section
+              key={jahr.lehrjahr}
+              aria-labelledby={`lehrjahr-${jahr.lehrjahr}`}
+              className="overflow-hidden rounded-xl border border-linie bg-card"
+            >
+              <h3 id={`lehrjahr-${jahr.lehrjahr}`} className="border-b border-linie px-4 py-2.5 text-sm font-semibold">
+                {`${jahr.lehrjahr}. Lehrjahr`}
+              </h3>
+              <div className="grid divide-y divide-linie sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                {jahr.halbjahre.map((hj) => (
+                  <div key={hj.halbjahr} className="px-4 pb-1 pt-3">
+                    <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-dezent">
+                      {halbjahrName(hj.halbjahr)}
+                    </p>
+                    <ul className="divide-y divide-linie">
+                      {hj.kurse.map((k) => (
+                        <li key={k.titel} className="flex items-baseline justify-between gap-3 py-2.5">
+                          <span className="min-w-0 text-sm">
+                            <span className="font-medium text-foreground">{k.fachBezeichnung}</span>
+                            {kurzTitel(k.fachBezeichnung, k.titel) && (
+                              <span className="block text-[13px] text-muted-foreground">
+                                {kurzTitel(k.fachBezeichnung, k.titel)}
+                              </span>
+                            )}
+                          </span>
+                          {k.stunden !== null && (
+                            <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{`${k.stunden} Std.`}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
 
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Fächer &amp; Kursraster</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Das feste 3-Jahres-Raster der Gemeindebibelschule: drei Lehrjahre, je ein Herbst- und ein
-        Frühlingssemester. Grundlage für den Stundenplan — die Pflege im Cockpit folgt später.
-      </p>
-
-      <h2 className="mt-10 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-        Fächer
-      </h2>
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-        {faecher.map((f) => (
-          <li key={f.code} className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-semibold">{f.bezeichnung}</span>
-              {f.gesamtstunden !== null && (
-                <span className="text-xs text-muted-foreground">{f.gesamtstunden} Std.</span>
-              )}
-            </div>
-            {f.beschreibung && <p className="mt-1 text-sm text-muted-foreground">{f.beschreibung}</p>}
-          </li>
-        ))}
-      </ul>
-
-      <h2 className="mt-12 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-        Kursraster
-      </h2>
-      <div className="mt-4 space-y-6">
-        {raster.map((jahr) => (
-          <div key={jahr.lehrjahr} className="rounded-lg border border-border bg-card p-5">
-            <h3 className="font-semibold">{jahr.lehrjahr}. Lehrjahr</h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              {jahr.halbjahre.map((hj) => (
-                <div key={hj.halbjahr}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    {halbjahrName(hj.halbjahr)}
-                  </p>
-                  <ul className="mt-2 space-y-1.5 text-sm">
-                    {hj.kurse.map((k) => (
-                      <li key={k.titel} className="rounded-lg bg-muted px-3 py-2">
-                        <span>{k.titel}</span>
-                        {k.stunden !== null && (
-                          <span className="text-muted-foreground"> · {k.stunden} Std.</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+        <Abschnitt titel="Fächer" />
+        <Gruppe>
+          {faecher.map((f) => (
+            <Zeile
+              key={f.code}
+              titel={f.bezeichnung}
+              untertitel={f.beschreibung ?? undefined}
+              rechts={
+                f.gesamtstunden !== null ? (
+                  <span className="text-sm tabular-nums text-muted-foreground">{`${f.gesamtstunden} Std.`}</span>
+                ) : undefined
+              }
+            />
+          ))}
+        </Gruppe>
+      </Inhalt>
     </main>
   );
 }

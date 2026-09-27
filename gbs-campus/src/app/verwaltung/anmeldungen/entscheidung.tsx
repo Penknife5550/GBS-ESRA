@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Icon } from "@/components/icons";
+import { Blatt } from "@/components/ui/blatt";
+import { knopf } from "@/components/ui/knopf";
 
 /**
- * Aufnehmen oder Ablehnen — in der Anmeldeliste und auf der Detailseite.
+ * „Aufnehmen“ und „Ablehnen …“ oben in der gewählten Anmeldung (Oberflächenplan
+ * 09/2026): Aufnehmen fragt wie bisher nach (die Bestätigung geht sofort per
+ * Mail raus), der Grund einer Ablehnung steht im Blatt.
  *
  * Nach der Entscheidung bleibt eine Meldung stehen, bis der Bediener die
  * Ansicht selbst aktualisiert. Vorher lud die Seite ohne Hinweise sofort neu:
@@ -13,9 +18,9 @@ import { sendeAnfrage } from "@/lib/api-client";
  */
 export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name: string }) {
   const router = useRouter();
-  const [modus, setModus] = useState<"bereit" | "ablehnen">("bereit");
+  const [ablehnen, setAblehnen] = useState(false);
   const [grund, setGrund] = useState("");
-  const [laeuft, setLaeuft] = useState(false);
+  const [laeuft, setLaeuft] = useState<"ANNEHMEN" | "ABLEHNEN" | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   // Die Meldung nach der Entscheidung — sie muss stehen bleiben. Vorher stand
   // ein Teil davon in `alert()`, ein Fenster, das mit einem Klick verschwindet
@@ -30,10 +35,10 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
   }, [ergebnis]);
 
   /**
-   * Mit dem Aktualisieren verschwindet dieser Abschnitt (Liste und Detailseite
-   * zeigen ihn nur bei EINGEREICHT) — samt dem Knopf, auf dem der Fokus liegt.
-   * Er fiele auf die Seite zurück, und Vorlesesoftware sagte nichts. Deshalb
-   * vorher auf die Seitenüberschrift: Sie bleibt beim Aktualisieren stehen.
+   * Mit dem Aktualisieren verschwinden die Knöpfe (die Seite zeigt sie nur bei
+   * EINGEREICHT) — samt dem, auf dem der Fokus liegt. Er fiele auf die Seite
+   * zurück, und Vorlesesoftware sagte nichts. Deshalb vorher auf die
+   * Überschrift der Anmeldung: Sie bleibt beim Aktualisieren stehen.
    */
   function aktualisieren() {
     const ueberschrift = document.querySelector<HTMLElement>("main h1") ?? document.querySelector<HTMLElement>("h1");
@@ -48,7 +53,7 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
     if (entscheidung === "ANNEHMEN" && !confirm(`${name} aufnehmen? Die Aufnahmebestätigung geht sofort per E-Mail raus.`)) {
       return;
     }
-    setLaeuft(true);
+    setLaeuft(entscheidung);
     setFehler(null);
 
     const antwort = await sendeAnfrage<{
@@ -62,7 +67,7 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
     );
 
     if (!antwort.ok) {
-      setLaeuft(false);
+      setLaeuft(null);
       setFehler(antwort.meldung);
       return;
     }
@@ -97,16 +102,14 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
       hinweise.push(
         `${name} konnte keinem Semester zugeordnet werden. ` +
           "Entweder ist kein Semester als laufend gesetzt oder es fehlt die Teilnahmeform. " +
-          "Unter Verwaltung → Aktive dieses Semester lässt sich das nachholen.",
+          "Unter Personen → Dieses Semester lässt sich das nachholen.",
       );
     }
 
-    // Mit dem Aktualisieren verschwindet dieser Abschnitt (in der Liste die
-    // Karte, auf der Detailseite der Entscheidungsteil) — und mit ihm die
-    // Meldung. Deshalb bleibt sie stehen, bis der Bediener selbst aktualisiert.
-    // Die Knöpfe sind dann schon weg: Ein zweiter Klick, der eine zweite Mail
-    // auslöst, ist nicht möglich.
-    setLaeuft(false);
+    // Die Knöpfe sind jetzt weg: Ein zweiter Klick, der eine zweite Mail
+    // auslöst, ist nicht möglich. Die Meldung bleibt bis zum Aktualisieren.
+    setLaeuft(null);
+    setAblehnen(false);
     setErgebnis({
       text:
         hinweise.length > 0
@@ -120,89 +123,84 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
 
   if (ergebnis) {
     return (
-      <div className="mt-4">
+      <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
         <p
           ref={ergebnisRef}
           role="status"
           tabIndex={-1}
-          className={`rounded-lg px-3 py-2 text-sm outline-none ${ergebnis.warnung ? "bg-credo-gelb/15" : "bg-credo-gruen/15"}`}
+          className={`min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none lg:max-w-xl ${ergebnis.warnung ? "bg-credo-gelb/15" : "bg-credo-gruen/15"}`}
         >
           {ergebnis.text}
         </p>
-        <button
-          type="button"
-          onClick={aktualisieren}
-          disabled={aktualisiert}
-          className="mt-3 min-h-11 rounded-lg border border-input px-4 py-2 text-sm font-medium disabled:opacity-60"
-        >
+        <button type="button" onClick={aktualisieren} disabled={aktualisiert} className={knopf("sekundaer")}>
           {aktualisiert ? "Wird aktualisiert …" : "Ansicht aktualisieren"}
         </button>
       </div>
     );
   }
 
-  if (modus === "ablehnen") {
-    return (
-      <div className="mt-4 rounded-lg border border-border bg-muted p-4">
+  return (
+    <div className="w-full lg:w-auto">
+      <div className="grid grid-cols-2 gap-2 lg:flex">
+        <button
+          type="button"
+          onClick={() => {
+            setFehler(null);
+            setAblehnen(true);
+          }}
+          disabled={laeuft !== null}
+          className={knopf("sekundaer")}
+        >
+          Ablehnen …
+        </button>
+        <button type="button" onClick={() => entscheiden("ANNEHMEN")} disabled={laeuft !== null} className={knopf("primaer")}>
+          <Icon name="haken" className="h-4 w-4" />
+          {laeuft === "ANNEHMEN" ? "Wird aufgenommen …" : "Aufnehmen"}
+        </button>
+      </div>
+      {fehler && !ablehnen && (
+        <p role="alert" className="mt-2 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm lg:max-w-md">
+          {fehler}
+        </p>
+      )}
+
+      <Blatt
+        offen={ablehnen}
+        onSchliessen={() => setAblehnen(false)}
+        titel={`Anmeldung von ${name} ablehnen`}
+        fuss={
+          <>
+            <button type="button" onClick={() => setAblehnen(false)} className={knopf("sekundaer")}>
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={() => entscheiden("ABLEHNEN")}
+              disabled={laeuft !== null || grund.trim().length === 0}
+              className={knopf("primaer")}
+            >
+              {laeuft === "ABLEHNEN" ? "Wird festgehalten …" : "Ablehnung festhalten"}
+            </button>
+          </>
+        }
+      >
         <label htmlFor={`grund-${anmeldungId}`} className="mb-1.5 block text-sm font-medium">
-          Grund der Ablehnung — nur intern, es geht keine automatische Mail raus
+          Grund der Ablehnung
         </label>
         <textarea
           id={`grund-${anmeldungId}`}
-          rows={3}
+          rows={4}
           value={grund}
           onChange={(e) => setGrund(e.target.value)}
           className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
         />
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => entscheiden("ABLEHNEN")}
-            disabled={laeuft || grund.trim().length === 0}
-            className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          >
-            {laeuft ? "Wird festgehalten …" : "Ablehnung festhalten"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setModus("bereit")}
-            className="min-h-11 rounded-lg border border-input px-4 py-2 text-sm font-medium"
-          >
-            Abbrechen
-          </button>
-        </div>
-        {fehler && (
-          <p role="alert" className="mt-2 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm">
+        <p className="mt-2 text-xs text-muted-foreground">Nur intern — es geht keine automatische Mail raus.</p>
+        {fehler && ablehnen && (
+          <p role="alert" className="mt-3 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm">
             {fehler}
           </p>
         )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => entscheiden("ANNEHMEN")}
-        disabled={laeuft}
-        className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
-        {laeuft ? "Wird aufgenommen …" : "Aufnehmen"}
-      </button>
-      <button
-        type="button"
-        onClick={() => setModus("ablehnen")}
-        disabled={laeuft}
-        className="min-h-11 rounded-lg border border-input px-4 py-2 text-sm font-medium disabled:opacity-60"
-      >
-        Ablehnen
-      </button>
-      {fehler && (
-        <p role="alert" className="w-full rounded-lg bg-credo-rot/10 px-3 py-2 text-sm">
-          {fehler}
-        </p>
-      )}
+      </Blatt>
     </div>
   );
 }

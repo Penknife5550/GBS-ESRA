@@ -1,176 +1,94 @@
-import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
-import { RECHT } from "@/lib/constants";
-import { deutscherTag, teilnahmeformName } from "@/lib/semester";
-import { datum, datumZeit } from "@/lib/datum";
-import { zahl } from "@/lib/einstellungen";
-import { ladeEigeneUnterrichtstermine } from "@/lib/stundenplan-io";
+import { RECHT, type RechtCode } from "@/lib/constants";
+import { berlinerTag, datum, tagLang, uhrzeit } from "@/lib/datum";
+import { bereichFuer } from "@/lib/navigation";
+import { quoteHinweis, type QuoteModellA } from "@/lib/stundenplan";
 import { ladeEigeneLeistungen } from "@/lib/leistung-io";
 import { ladeEigeneZeugnisse } from "@/lib/zeugnis-io";
-import { TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
-import { PersonKopf } from "@/components/personen/person-kopf";
-import { StatusBadge, TeilnahmeformBadge } from "@/components/ui/badges";
-import { QuoteChip } from "@/components/ui/quote-ampel";
-import { AbmeldenKnopf } from "@/components/ui/abmelden-knopf";
-import { StammdatenFormular } from "./stammdaten-formular";
-import { EmailAendern } from "./email-aendern";
-import { PasswortAbschnitt } from "./passwort-abschnitt";
-import { AnwesenheitAbschnitt } from "./anwesenheit-abschnitt";
+import { KalenderBlock, Ring, type AnzeigeTon } from "@/components/ui/anzeige";
+import { LeererZustand } from "@/components/ui/hinweis";
+import { Gruppe, Symbol, Zeile } from "@/components/ui/liste";
+import { kurzThema, tagDatum, wochentag } from "./abend-text";
+import { aktuellesSemester, ladeMeineSemester, type MeinAbend, type MeinSemester } from "./daten";
+import { FrageKarte, type Frage } from "./frage-karte";
+import { HandySeite, KARTE } from "./handy-seite";
 import { MeineNotenAbschnitt } from "./meine-noten-abschnitt";
 import { MeineZeugnisseAbschnitt } from "./meine-zeugnisse-abschnitt";
 
-export const metadata = { title: "Meine Daten" };
+export const metadata = { title: "Übersicht" };
 export const dynamic = "force-dynamic";
 
 /**
- * Die eigene Akte — im Layout der Verwaltungs-Detailakte, nur aus der Selbstsicht:
- * Kopf mit unveränderlichen Ausbildungsdaten (read-only), eine Sprungnavigation
- * statt Admin-Aktionen, darunter Anwesenheit, Noten und Zeugnisse (lesend) sowie
- * die selbst pflegbaren Blöcke Kontakt/Bank, E-Mail und Passwort.
+ * Die Übersicht des Teilnehmers (Oberflächenplan 09/2026, Vorlage b2): eine
+ * Frage statt zwölf Bildschirme — „Waren Sie am Dienstag da?“ mit zwei Knöpfen,
+ * darunter die Anwesenheit als Ring mit einem Satz, der nächste Abend, Noten und
+ * Zeugnisse. Alle Abende mit Selbstbestätigung stehen unter „Abende“, Kontakt,
+ * Bank, E-Mail und Passwort unter „Ich“.
  *
- * Änderbar ist nur, was den Kontakt betrifft. Name, Geburtsdatum, Gemeinde,
- * Teilnahmeform und Status stehen nur zum Nachlesen da: An ihnen hängt die
- * Aufnahmeentscheidung, und die Gemeindezugehörigkeit ist eine Angabe nach
- * Art. 9 DSGVO.
+ * Konten ohne eigene Ausbildung (Verwaltung, Dozenten) haben hier nichts zu
+ * sehen — für sie ist „Ich“ die Seite mit den eigenen Daten.
  */
-export default async function MeineDatenSeite() {
+export default async function UebersichtSeite() {
   const benutzer = await ladeAngemeldeten();
   if (!benutzer || !hatRecht(benutzer, RECHT.PERSON_LESEN_EIGENE)) redirect("/anmelden");
 
-  const person = await prisma.person.findUnique({
-    where: { id: benutzer.id },
-    include: {
-      status: true,
-      ermaessigung: true,
-      // Nur zählende Teilnahmen: Eine abgemeldete (Semesterüberleitung) legt die
-      // Teilnahmeform im Kopf nicht fest.
-      teilnahmen: {
-        where: TEILNAHME_ZAEHLT,
-        include: { semester: true },
-        orderBy: { semester: { start: "desc" } },
-        take: 5,
-      },
-    },
-  });
-  if (!person) redirect("/anmelden");
-
-  const hatVerwaltungsbereich = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
-  // Dozenten kommen von „Mein Unterricht“ (/dozent verlinkt hierher) und
-  // brauchen denselben definierten Rückweg (Plan-Regel 7).
-  const hatDozentenbereich = hatRecht(benutzer, RECHT.EIGENE_TERMINE_LESEN);
-  const darfBearbeiten = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_EIGENE);
-
-  const [offenerEmailAntrag, anwesenheitGruppen, notenGruppen, zeugnisse, passwortMinLaenge] = await Promise.all([
-    prisma.emailAenderung.findFirst({
-      where: { personId: person.id, benutztAm: null, laeuftAb: { gt: new Date() } },
-      orderBy: { erstelltAm: "desc" },
-      select: { neueEmail: true, laeuftAb: true },
-    }),
-    ladeEigeneUnterrichtstermine(person.id, new Date()),
-    ladeEigeneLeistungen(person.id),
-    ladeEigeneZeugnisse(person.id),
-    darfBearbeiten ? zahl("AUTH_PASSWORT_MIN_LAENGE") : Promise.resolve(0),
+  const jetzt = new Date();
+  const [semester, notenGruppen, zeugnisse] = await Promise.all([
+    ladeMeineSemester(benutzer.id, jetzt),
+    ladeEigeneLeistungen(benutzer.id),
+    ladeEigeneZeugnisse(benutzer.id),
   ]);
 
-  const aktuelleForm = person.teilnahmen[0]?.teilnahmeform ?? person.teilnahmeform;
-  const aktuelleQuote = anwesenheitGruppen[0]?.quote ?? null;
-
-  const facts: { bezeichnung: string; wert: ReactNode }[] = [
-    { bezeichnung: "Geburtsdatum", wert: deutscherTag(person.geburtsdatum) || "—" },
-    { bezeichnung: "Gemeinde", wert: person.gemeinde || "—" },
-    { bezeichnung: "Teilnahme", wert: teilnahmeformName(aktuelleForm) || "—" },
-    { bezeichnung: "Status", wert: person.status.bezeichnung },
-    { bezeichnung: "Anwesenheit", wert: aktuelleQuote ? <QuoteChip quote={aktuelleQuote} /> : "—" },
-  ];
-  if (person.ermaessigung) facts.push({ bezeichnung: "Ermäßigung", wert: person.ermaessigung.bezeichnung });
-
-  // Sprungnavigation nur auf tatsächlich gerenderte Abschnitte — sonst tote Anker.
-  const sprungziele: { id: string; label: string }[] = [];
-  if (anwesenheitGruppen.length > 0) sprungziele.push({ id: "anwesenheit", label: "Anwesenheit" });
-  if (notenGruppen.length > 0) sprungziele.push({ id: "noten", label: "Noten" });
-  if (zeugnisse.length > 0) sprungziele.push({ id: "zeugnisse", label: "Zeugnisse" });
-  if (darfBearbeiten) {
-    sprungziele.push({ id: "kontakt", label: "Kontakt & Bank" });
-    sprungziele.push({ id: "email", label: "E-Mail" });
-    sprungziele.push({ id: "passwort", label: "Passwort" });
+  const bereich = bereichFuer((recht: RechtCode) => hatRecht(benutzer, recht));
+  if (bereich !== "teilnehmer" && semester.length === 0 && notenGruppen.length === 0 && zeugnisse.length === 0) {
+    redirect("/meine-daten/ich");
   }
 
-  const eyebrow = "mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+  const darfBearbeiten = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_EIGENE);
+  const aktuell = aktuellesSemester(semester);
+  const frage = darfBearbeiten ? offeneFrage(semester) : null;
+  const naechste = naechsterTag(semester);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        {hatVerwaltungsbereich ? (
-          <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Meine Daten" />
-        ) : hatDozentenbereich ? (
-          <ZurueckLeiste href="/dozent" label="Mein Unterricht" breadcrumb="Mein Unterricht · Meine Daten" />
-        ) : (
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Meine Akte</p>
+    <HandySeite ueber={aktuell?.bezeichnung} titel={`Hallo ${benutzer.vorname}`}>
+      {/* Am Handy untereinander, am Rechner Anwesenheit und nächster Abend nebeneinander. */}
+      <div className="grid gap-3.5 lg:grid-cols-2">
+        <FrageKarte frage={frage} />
+
+        {aktuell?.quote && <AnwesenheitKarte quote={aktuell.quote} />}
+
+        {naechste.length > 0 && <NaechsterAbendKarte einheiten={naechste} />}
+
+        {semester.length === 0 && (
+          <div className="lg:col-span-2">
+            <LeererZustand icon="kalender" titel="Noch kein Semester">
+              Sobald Sie einem Semester zugeordnet sind, sehen Sie hier Ihre Abende und Ihre Anwesenheit.
+            </LeererZustand>
+          </div>
         )}
-        <AbmeldenKnopf />
+
+        {zeugnisse.length === 0 && aktuell && (
+          <Gruppe className="lg:col-span-2">
+            <Zeile symbol={<Symbol icon="zeugnis" />} titel={aktuell.teilnahmeform === "HOERER" ? "Teilnahmebescheinigung" : "Zeugnisse"}>
+              <p className="text-[13px] text-muted-foreground">
+                {aktuell.teilnahmeform === "HOERER"
+                  ? `Sie gibt es nach dem ${aktuell.bezeichnung}`
+                  : `Das erste gibt es nach dem ${aktuell.bezeichnung}`}
+              </p>
+            </Zeile>
+          </Gruppe>
+        )}
       </div>
-
-      <div className="mt-4">
-        <PersonKopf
-          vorname={person.vorname}
-          nachname={person.nachname}
-          badges={
-            <>
-              <StatusBadge code={person.status.code} label={person.status.bezeichnung} />
-              <TeilnahmeformBadge form={aktuelleForm} />
-            </>
-          }
-          kontakt={
-            <>
-              {person.email}
-              {person.telefon && <span className="text-muted-foreground"> · {person.telefon}</span>}
-            </>
-          }
-          facts={facts}
-          rechts={
-            sprungziele.length > 0 ? (
-              <nav aria-label="Abschnitte dieser Seite" className="w-full sm:w-52">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.04em] text-muted-foreground">Abschnitte</p>
-                <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-                  {sprungziele.map((z) => (
-                    <li key={z.id}>
-                      <a href={`#${z.id}`} className="block px-3 py-2 text-sm hover:bg-muted">
-                        {z.label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            ) : undefined
-          }
-        />
-      </div>
-
-      <p className="mt-3 max-w-prose text-xs text-muted-foreground">
-        Stimmt oben etwas nicht, wenden Sie sich an die Schulleitung — diese Angaben gehören zur Aufnahmeentscheidung und
-        lassen sich deshalb nicht selbst ändern. Kontakt, Bankverbindung, E-Mail und Passwort pflegen Sie unten selbst.
-      </p>
-
-      {anwesenheitGruppen.length > 0 && (
-        <section id="anwesenheit" className="mt-12 scroll-mt-6">
-          <h2 className={eyebrow}>Meine Anwesenheit</h2>
-          <AnwesenheitAbschnitt gruppen={anwesenheitGruppen} darfBearbeiten={darfBearbeiten} />
-        </section>
-      )}
 
       {notenGruppen.length > 0 && (
-        <section id="noten" className="mt-12 scroll-mt-6">
-          <h2 className={eyebrow}>Meine Noten</h2>
+        <div className="mt-7">
           <MeineNotenAbschnitt gruppen={notenGruppen} />
-        </section>
+        </div>
       )}
 
       {zeugnisse.length > 0 && (
-        <section id="zeugnisse" className="mt-12 scroll-mt-6">
-          <h2 className={eyebrow}>Meine Zeugnisse</h2>
+        <div className="mt-7">
           <MeineZeugnisseAbschnitt
             zeugnisse={zeugnisse.map((z) => ({
               id: z.id,
@@ -180,55 +98,95 @@ export default async function MeineDatenSeite() {
               ausgestelltAm: datum(z.ausgestelltAm),
             }))}
           />
-        </section>
+        </div>
       )}
+    </HandySeite>
+  );
+}
 
-      {darfBearbeiten ? (
-        <>
-          <section id="kontakt" className="mt-12 scroll-mt-6">
-            <h2 className={eyebrow}>Kontakt und Bankverbindung</h2>
-            <StammdatenFormular
-              vorbelegung={{
-                telefon: person.telefon ?? "",
-                strasse: person.strasse ?? "",
-                plz: person.plz ?? "",
-                ort: person.ort ?? "",
-                kontoinhaber: person.kontoinhaber ?? "",
-              }}
-              hatBankverbindung={Boolean(person.ibanVerschluesselt)}
-              istDozent={hatDozentenbereich}
-            />
-          </section>
+/**
+ * Der jüngste gehaltene Unterrichtstag, an dem die Person einen Abend noch nicht
+ * bestätigt hat und auch die Schule nichts erfasst hat — dort die erste Einheit.
+ */
+function offeneFrage(semester: MeinSemester[]): Frage | null {
+  const offene = semester
+    .flatMap((s) => s.abende)
+    .filter((a) => a.istVergangen && a.status === null && a.darfBestaetigen)
+    .sort((a, b) => a.beginn.getTime() - b.beginn.getTime());
+  const juengster = offene.at(-1);
+  if (!juengster) return null;
+  const tag = berlinerTag(juengster.beginn);
+  const abend = offene.find((a) => berlinerTag(a.beginn) === tag) ?? juengster;
+  return {
+    terminId: abend.id,
+    frage: `Waren Sie am ${wochentag(abend.beginn)} da?`,
+    zeile: [tagDatum(abend.beginn), uhrzeit(abend.beginn), abend.fach, kurzThema(abend.thema)].filter(Boolean).join(" · "),
+  };
+}
 
-          <section id="email" className="mt-12 scroll-mt-6">
-            <h2 className={eyebrow}>E-Mail-Adresse</h2>
-            <EmailAendern
-              bisherige={person.email}
-              offenerAntrag={
-                offenerEmailAntrag
-                  ? {
-                      neueEmail: offenerEmailAntrag.neueEmail,
-                      gueltigBis: datumZeit(offenerEmailAntrag.laeuftAb),
-                    }
-                  : null
-              }
-            />
-          </section>
+/** Alle Einheiten des nächsten Unterrichtstags (über alle eigenen Semester). */
+function naechsterTag(semester: MeinSemester[]): MeinAbend[] {
+  const kommende = semester
+    .flatMap((s) => s.abende)
+    .filter((a) => !a.istVergangen)
+    .sort((a, b) => a.beginn.getTime() - b.beginn.getTime());
+  if (kommende.length === 0) return [];
+  const tag = berlinerTag(kommende[0].beginn);
+  return kommende.filter((a) => berlinerTag(a.beginn) === tag);
+}
 
-          <section id="passwort" className="mt-12 scroll-mt-6">
-            <h2 className={eyebrow}>Passwort</h2>
-            <PasswortAbschnitt
-              hatPasswort={Boolean(person.passwortHash)}
-              mindestLaenge={passwortMinLaenge}
-              gesetztAm={person.passwortGeaendertAm ? datum(person.passwortGeaendertAm) : null}
-            />
-          </section>
-        </>
-      ) : (
-        <p className="mt-10 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Ihr Konto darf die eigenen Daten zurzeit nur ansehen.
-        </p>
-      )}
-    </main>
+/**
+ * Titel, Satz und Farbe zur eigenen Quote (Modell A). Der Normalfall spricht wie
+ * im Gespräch („Sie dürfen noch 4-mal fehlen.“); die Grenzfälle nehmen den
+ * geprüften Klartext aus `quoteHinweis` (lib/stundenplan.ts).
+ */
+function anwesenheitStand(q: QuoteModellA): { titel: string; satz: string; ton: AnzeigeTon } {
+  const besucht = `${q.teilgenommen} ${q.teilgenommen === 1 ? "Einheit" : "Einheiten"} besucht, ${q.benoetigt} ${
+    q.benoetigt === 1 ? "ist" : "sind"
+  } nötig.`;
+  if (q.zustand === "ERFUELLT") return { titel: "Anwesenheit erfüllt", satz: `${besucht} ${quoteHinweis(q, "schueler")}`, ton: "gruen" };
+  if (q.zustand === "NICHT_ERREICHBAR") {
+    return { titel: "Anwesenheit nicht mehr erreichbar", satz: `${besucht} ${quoteHinweis(q, "schueler")}`, ton: "rot" };
+  }
+  if (q.darfNochFehlen <= 0) return { titel: "Anwesenheit knapp", satz: `${besucht} ${quoteHinweis(q, "schueler")}`, ton: "gelb" };
+  return { titel: "Anwesenheit im Soll", satz: `${besucht} Sie dürfen noch ${q.darfNochFehlen}-mal fehlen.`, ton: "gruen" };
+}
+
+function AnwesenheitKarte({ quote }: { quote: QuoteModellA }) {
+  const stand = anwesenheitStand(quote);
+  return (
+    <section aria-labelledby="anwesenheit-titel" className={`${KARTE} flex items-center gap-4`}>
+      <Ring
+        wert={quote.teilgenommen}
+        max={quote.gesamt}
+        ton={stand.ton}
+        label={`Anwesenheit: ${quote.teilgenommen} von ${quote.gesamt} Einheiten besucht`}
+      />
+      <div className="min-w-0">
+        <h2 id="anwesenheit-titel" className="text-base font-semibold text-foreground">
+          {stand.titel}
+        </h2>
+        <p className="text-sm text-muted-foreground">{stand.satz}</p>
+      </div>
+    </section>
+  );
+}
+
+function NaechsterAbendKarte({ einheiten }: { einheiten: MeinAbend[] }) {
+  return (
+    <section aria-labelledby="naechster-titel" className={`${KARTE} flex items-start gap-4`}>
+      <KalenderBlock datum={einheiten[0].beginn} className="pt-0.5" />
+      <div className="min-w-0">
+        <h2 id="naechster-titel" className="text-[13px] font-medium text-muted-foreground">
+          Nächster Abend<span className="sr-only">{`: ${tagLang(einheiten[0].beginn)}`}</span>
+        </h2>
+        {einheiten.map((e) => (
+          <p key={e.id} className="mt-0.5 text-[15px] text-foreground">
+            <span className="font-semibold">{uhrzeit(e.beginn)}</span>{" "}
+            {[e.fach ?? "Unterricht", kurzThema(e.thema)].filter(Boolean).join(" · ")}
+          </p>
+        ))}
+      </div>
+    </section>
   );
 }

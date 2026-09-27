@@ -1,19 +1,24 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { ladeNotenUebersicht } from "@/lib/leistung-io";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { NotenMatrix } from "@/components/noten/noten-matrix";
-import { SemesterWahl } from "./semesterwahl";
+import { LeererZustand } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { NotenZeugnisseFilter } from "./noten-kopf";
 
 export const metadata = { title: "Noten" };
 export const dynamic = "force-dynamic";
 
 /**
- * Notenverwaltung der Schulleitung (Recht NOTEN_VERWALTEN, alle Fächer). Je
- * Semester die unterrichteten Kurseinheiten mit ihren aktiven Teilnehmern und
- * den bereits erfassten Bewertungen.
+ * Notenverwaltung der Schulleitung (Recht NOTEN_VERWALTEN, alle Fächer) — mit
+ * den Zeugnissen unter einem Menüpunkt „Noten & Zeugnisse“. Je Kurseinheit des
+ * Semesters eine Zeile mit dem Stand; die Noten der aktiven Schüler trägt man im
+ * Blatt ein. Hörer und für das Semester Abgemeldete stehen nicht darin (sie
+ * werden nicht benotet).
  */
 export default async function NotenSeite({
   searchParams,
@@ -24,47 +29,42 @@ export default async function NotenSeite({
   if (!benutzer) redirect("/anmelden");
 
   const sp = await searchParams;
-  const semesters = await prisma.semester.findMany({ orderBy: { start: "desc" } });
+  const semesters = await prisma.semester.findMany({ orderBy: { start: "asc" } });
 
   if (semesters.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-12">
-        <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Noten" />
-        <h1 className="mt-6 text-2xl font-bold tracking-tight">Noten</h1>
-        <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Noch ist kein Semester angelegt.
-        </p>
+      <main>
+        <Seitenkopf titel="Noten & Zeugnisse" />
+        <Inhalt>
+          <LeererZustand
+            icon="abschluss"
+            titel="Noch ist kein Semester angelegt"
+            aktion={
+              <Link href="/verwaltung/semester" className={knopf("sekundaer")}>
+                Zu den Semestern
+              </Link>
+            }
+          />
+        </Inhalt>
       </main>
     );
   }
 
   const laufend = semesters.find((s) => s.istAktuell);
   const gewaehltId = sp.semester ?? laufend?.id ?? semesters[0].id;
-  const semester = semesters.find((s) => s.id === gewaehltId) ?? semesters[0];
+  const semester = semesters.find((s) => s.id === gewaehltId) ?? laufend ?? semesters[0];
 
   const kurseinheiten = await ladeNotenUebersicht(semester.id);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Noten" />
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Noten</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Bewertung je Fach eines Semesters. Pflicht ist nur das Ergebnis (teilgenommen, erfolgreich
-        teilgenommen, bestanden, nicht bestanden); Punkte und Note sind optional — real wird nur die
-        Bibelkunde benotet, der Rest verbal. Hörer stehen hier nicht: Sie werden nicht benotet und bekommen
-        eine Teilnahmebescheinigung. Für das Semester Abgemeldete fehlen ebenfalls.
-      </p>
-
-      <div className="mt-6">
-        <SemesterWahl
-          semesters={semesters.map((s) => ({ id: s.id, bezeichnung: s.bezeichnung }))}
-          gewaehltId={semester.id}
-        />
-      </div>
-
-      <div className="mt-8">
-        <NotenMatrix semesterId={semester.id} kurseinheiten={kurseinheiten} endpunkt="/api/noten" />
-      </div>
+    <main>
+      <Seitenkopf titel="Noten & Zeugnisse">
+        <NotenZeugnisseFilter semesters={semesters} gewaehltId={semester.id} ansicht="noten" />
+      </Seitenkopf>
+      <Inhalt breite="mittel">
+        {/* Neu je Semester: Ein Entwurf gehört zu den Schülern dieses Semesters. */}
+        <NotenMatrix key={semester.id} semesterId={semester.id} kurseinheiten={kurseinheiten} endpunkt="/api/noten" />
+      </Inhalt>
     </main>
   );
 }

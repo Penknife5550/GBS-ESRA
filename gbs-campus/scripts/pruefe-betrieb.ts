@@ -865,7 +865,7 @@ console.log("\n19. Oberfläche: gemeinsame Bausteine statt Kopien (Code-Review 4
     .filter((pfad) => /const (BADGE|STATUS_STIL|STATUS_NAME|[A-Z_]*_TON)\b/.test(text(pfad)));
   pruefe(
     "keine lokale Tint-/Klartext-Tabelle für Status in src/app und src/components (außer components/ui)",
-    lokaleTabellen.length === 0 && /<AnwesenheitBadge status=\{termin\.status\} \/>/.test(lies("src/components/personen/anwesenheit-liste.tsx")),
+    lokaleTabellen.length === 0 && /<StatusPunkt ton=\{anwesenheitTon\(einheit\.status\)\}/.test(lies("src/components/personen/anwesenheit-liste.tsx")),
     lokaleTabellen,
   );
   const querImporte = oberflaeche.filter(

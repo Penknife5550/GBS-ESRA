@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -8,7 +9,11 @@ import { dmsAdresse } from "@/lib/konfiguration";
 import { zaehleOffeneDmsArchivierungen } from "@/lib/zeugnis-io";
 import { SCHLUESSEL_EINGANG } from "@/lib/anmelde-schutz";
 import { ladeGesamtgrenzen, zaehlstand } from "@/lib/anmelde-schutz-io";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { Abschnitt, Gruppe, Zeile } from "@/components/ui/liste";
+import { StatusPunkt } from "@/components/ui/status-punkt";
+import { Hinweis } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
 
 /**
  * Die Abweisungen des öffentlichen Anmeldeformulars (lib/anmelde-schutz.ts) in
@@ -176,218 +181,242 @@ export default async function BetriebSeite() {
   const gesamtgrenzeGegriffen = (abweisungen.find((a) => a.aktion === "ANMELDUNG_GESAMT_GEDROSSELT")?.anzahl ?? 0) > 0;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Betrieb" />
+    <main>
+      <Seitenkopf titel="Betrieb" />
+      <Inhalt breite="lesen">
+        <Abschnitt titel="E-Mail" />
+        <Gruppe>
+          <LageZeile titel="Nicht zugestellte E-Mails" text="insgesamt">
+            {anzahlFehler > 0 ? <StatusPunkt ton="rot">{anzahlFehler}</StatusPunkt> : <StatusPunkt ton="gruen">keine</StatusPunkt>}
+          </LageZeile>
+          <LageZeile titel="Seit mehr als fünf Minuten wartend" text="Versand begonnen, Ausgang unbekannt">
+            {wartend.length > 0 ? (
+              <StatusPunkt ton="rot">{wartend.length}</StatusPunkt>
+            ) : (
+              <StatusPunkt ton="gruen">keine</StatusPunkt>
+            )}
+          </LageZeile>
+          <LageZeile titel="Zuletzt erfolgreich versendet">
+            <span className="text-[13px] tabular-nums text-muted-foreground">
+              {letzte?.gesendetAm ? datumZeit(letzte.gesendetAm) : "noch keine"}
+            </span>
+          </LageZeile>
+          <LageZeile
+            titel="Empfänger für Verwaltungsmeldungen"
+            text="Schulleitung oder Verwaltung, Automatik-Mails eingeschaltet"
+          >
+            {empfaengerVerwaltung === 0 ? (
+              <StatusPunkt ton="rot">niemand</StatusPunkt>
+            ) : (
+              <StatusPunkt ton="gruen">
+                {empfaengerVerwaltung === 1 ? "1 Person" : `${empfaengerVerwaltung} Personen`}
+              </StatusPunkt>
+            )}
+          </LageZeile>
+        </Gruppe>
+        {(anzahlFehler > 0 || wartend.length > 0) && (
+          <Hinweis className="mt-3">
+            Für alle ohne Passwort ist der Anmeldelink per E-Mail der einzige Weg ins Portal. Wenn hier
+            Fehler stehen, kommen die betroffenen Personen nicht hinein — und merken es selbst nicht.
+          </Hinweis>
+        )}
+        {empfaengerVerwaltung === 0 && (
+          <Hinweis className="mt-3">
+            Niemand bekommt Verwaltungsmeldungen. Wer sich über „Ich komme nicht mehr rein“ meldet, erreicht damit
+            keinen Menschen — die Meldung landet nur als Fehlerzeile unten in dieser Liste. Bitte jemandem die Rolle
+            Schulleiter oder Verwaltung geben und darauf achten, dass sein Status nicht Automatik-Mails abschaltet
+            (etwa AUSGESCHLOSSEN oder VERSTORBEN).
+          </Hinweis>
+        )}
 
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Betrieb</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Für alle ohne Passwort ist der Anmeldelink per E-Mail der einzige Weg ins Portal. Wenn hier
-        Fehler stehen, kommen die betroffenen Personen nicht hinein — und merken es selbst nicht.
-      </p>
+        <Abschnitt titel="Hintergrunddienst" />
+        <Gruppe>
+          <LageZeile titel="Worker zuletzt gelaufen" text="Erinnerungen der Semesterüberleitung und Aufräumlauf">
+            <StatusPunkt ton={workerAusgefallen ? "rot" : workerFehlerFrisch ? "gelb" : "gruen"}>
+              {letzterWorkerLauf ? datumZeit(letzterWorkerLauf.erstelltAm) : "noch nie"}
+            </StatusPunkt>
+          </LageZeile>
+          <LageZeile titel="Zuletzt aufgeräumt" text="löscht abgelaufene Anmeldeentwürfe">
+            <StatusPunkt ton={aufraeumenUeberfaellig ? "rot" : "gruen"}>
+              {letzterLauf ? datumZeit(letzterLauf.erstelltAm) : "noch nie"}
+            </StatusPunkt>
+          </LageZeile>
+        </Gruppe>
+        {workerAusgefallen && (
+          <Hinweis className="mt-3">
+            Seit über 26 Stunden kein Lebenszeichen des Workers. Ohne ihn gehen keine Erinnerungen zur
+            Semesterüberleitung raus, und abgelaufene Anmeldeentwürfe werden nicht gelöscht. Bitte den
+            Dienst „worker“ auf dem Server prüfen (Container-Log unter „[WORKER]“).
+          </Hinweis>
+        )}
+        {workerFehlerFrisch && letzterWorkerFehler && (
+          <Hinweis className="mt-3">
+            Am {datumZeit(letzterWorkerFehler.erstelltAm)} ist ein Lauf gescheitert (
+            {letzterWorkerFehler.objektId === "CRON" ? "Cron-Endpunkt" : "Worker"}
+            {fehlerTeillaeufe ? `, Teilläufe: ${fehlerTeillaeufe}` : ""}). Einzelheiten stehen im
+            Container-Log.
+          </Hinweis>
+        )}
+        {aufraeumenUeberfaellig && (
+          <Hinweis className="mt-3">
+            Der Aufräumlauf ist die einzige Stelle, die abgelaufene Anmeldeentwürfe mit ihren
+            personenbezogenen Angaben löscht (Art. 5 Abs. 1 lit. e DSGVO). Er läuft stündlich im Worker
+            und steht im Protokoll, wenn er etwas gelöscht hat, sonst spätestens alle 12 Stunden je
+            Herkunft. Fehlt der Eintrag so lange, steht der Grund im Container-Log unter „[WORKER]“
+            bzw. „[AUFRAEUMEN]“.
+          </Hinweis>
+        )}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className={`text-3xl font-bold leading-none ${anzahlFehler > 0 ? "text-credo-rot" : ""}`}>
-            {anzahlFehler}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">nicht zugestellte E-Mails insgesamt</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className="text-lg font-semibold leading-tight">
-            {letzte?.gesendetAm
-              ? datumZeit(letzte.gesendetAm)
-              : "noch keine"}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">zuletzt erfolgreich versendet</p>
-        </div>
+        <Abschnitt titel="DMS" />
+        <Gruppe>
+          <LageZeile
+            titel="Belege noch nicht im DMS"
+            text={`Zahlungsbelege (Honorar-Abrechnung): ${offeneZahlungsbelege} · Honorarsatz-Belege: ${offeneSatzBelege} · Zeugnis-Archivkopien: ${offeneZeugnisse}`}
+          >
+            {dmsOffen > 0 ? <StatusPunkt ton="rot">{dmsOffen}</StatusPunkt> : <StatusPunkt ton="gruen">keine</StatusPunkt>}
+          </LageZeile>
+          <LageZeile titel="DMS-Adresse" text="DMS_EMAIL auf dem Server">
+            {dmsEingerichtet ? (
+              <StatusPunkt ton="gruen">eingerichtet</StatusPunkt>
+            ) : (
+              <StatusPunkt ton="rot">fehlt</StatusPunkt>
+            )}
+          </LageZeile>
+        </Gruppe>
+        {!dmsEingerichtet && (
+          <Hinweis className="mt-3">
+            Es ist keine DMS-Adresse eingerichtet (DMS_EMAIL). Honorar-Belege und Zeugnis-Archivkopien
+            werden erzeugt, aber nicht zugestellt, und bleiben hier als offen stehen. Bitte DMS_EMAIL in
+            der .env auf dem Server eintragen und den Server neu starten — danach lassen sie sich
+            nachsenden.
+          </Hinweis>
+        )}
+        {dmsEingerichtet && dmsOffen > 0 && (
+          <Hinweis className="mt-3">
+            Nachsenden können die jeweils Berechtigten: Honorarsatz-Belege unter Honorar → Sätze,
+            Zahlungsbelege in der einzelnen Abrechnung (Honorar → Abrechnungen), Zeugnisse unter Noten &amp;
+            Zeugnisse („An das DMS nachsenden“). Warum der Versand gescheitert ist, steht unten unter
+            „Nicht zugestellt“.
+          </Hinweis>
+        )}
 
-        <div
-          className={`rounded-lg border bg-card p-5 ${
-            empfaengerVerwaltung === 0 ? "border-credo-rot/50" : "border-border"
-          }`}
-        >
-          <p className={`text-3xl font-bold leading-none ${empfaengerVerwaltung === 0 ? "text-credo-rot" : ""}`}>
-            {empfaengerVerwaltung}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Empfänger für Verwaltungsmeldungen (Schulleitung oder Verwaltung, Automatik-Mails
-            eingeschaltet)
-          </p>
-          {empfaengerVerwaltung === 0 && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Niemand bekommt Verwaltungsmeldungen. Wer sich über „Ich komme nicht mehr rein" meldet,
-              erreicht damit keinen Menschen — die Meldung landet nur als Fehlerzeile unten in dieser
-              Liste. Bitte jemandem die Rolle Schulleiter oder Verwaltung geben und darauf achten, dass
-              sein Status nicht Automatik-Mails abschaltet (etwa AUSGESCHLOSSEN oder VERSTORBEN).
-            </p>
-          )}
-        </div>
-
-        <div
-          className={`rounded-lg border bg-card p-5 ${
-            aufraeumenUeberfaellig ? "border-credo-rot/50" : "border-border"
-          }`}
-        >
-          <p className={`text-lg font-semibold leading-tight ${aufraeumenUeberfaellig ? "text-credo-rot" : ""}`}>
-            {letzterLauf
-              ? datumZeit(letzterLauf.erstelltAm)
-              : "noch nie"}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">zuletzt aufgeräumt</p>
-          {aufraeumenUeberfaellig && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Der Aufräumlauf ist die einzige Stelle, die abgelaufene Anmeldeentwürfe mit ihren
-              personenbezogenen Angaben löscht (Art. 5 Abs. 1 lit. e DSGVO). Er läuft stündlich im Worker
-              und steht im Protokoll, wenn er etwas gelöscht hat, sonst spätestens alle 12 Stunden je
-              Herkunft. Fehlt der Eintrag so lange, steht der Grund im Container-Log unter „[WORKER]"
-              bzw. „[AUFRAEUMEN]".
-            </p>
-          )}
-        </div>
-
-        <div
-          className={`rounded-lg border bg-card p-5 sm:col-span-2 ${
-            workerAusgefallen || workerFehlerFrisch ? "border-credo-rot/50" : "border-border"
-          }`}
-        >
-          <p className={`text-lg font-semibold leading-tight ${workerAusgefallen ? "text-credo-rot" : ""}`}>
-            {letzterWorkerLauf ? datumZeit(letzterWorkerLauf.erstelltAm) : "noch nie"}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Worker zuletzt gelaufen (Erinnerungen der Semesterüberleitung und Aufräumlauf)
-          </p>
-          {workerAusgefallen && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Seit über 26 Stunden kein Lebenszeichen des Workers. Ohne ihn gehen keine Erinnerungen zur
-              Semesterüberleitung raus, und abgelaufene Anmeldeentwürfe werden nicht gelöscht. Bitte den
-              Dienst „worker" auf dem Server prüfen (Container-Log unter „[WORKER]").
-            </p>
-          )}
-          {workerFehlerFrisch && letzterWorkerFehler && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Am {datumZeit(letzterWorkerFehler.erstelltAm)} ist ein Lauf gescheitert (
-              {letzterWorkerFehler.objektId === "CRON" ? "Cron-Endpunkt" : "Worker"}
-              {fehlerTeillaeufe ? `, Teilläufe: ${fehlerTeillaeufe}` : ""}). Einzelheiten stehen im
-              Container-Log.
-            </p>
-          )}
-        </div>
-
-        <div
-          className={`rounded-lg border bg-card p-5 sm:col-span-2 ${
-            dmsOffen > 0 || !dmsEingerichtet ? "border-credo-rot/50" : "border-border"
-          }`}
-        >
-          <p className={`text-3xl font-bold leading-none ${dmsOffen > 0 ? "text-credo-rot" : ""}`}>{dmsOffen}</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Belege noch nicht im DMS — Zahlungsbelege (Honorar-Abrechnung): {offeneZahlungsbelege} ·
-            Honorarsatz-Belege: {offeneSatzBelege} · Zeugnis-Archivkopien: {offeneZeugnisse}
-          </p>
-          {!dmsEingerichtet && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Es ist keine DMS-Adresse eingerichtet (DMS_EMAIL). Honorar-Belege und Zeugnis-Archivkopien
-              werden erzeugt, aber nicht zugestellt, und bleiben hier als offen stehen. Bitte DMS_EMAIL in
-              der .env auf dem Server eintragen und den Server neu starten — danach lassen sie sich
-              nachsenden.
-            </p>
-          )}
-          {dmsEingerichtet && dmsOffen > 0 && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Nachsenden können die jeweils Berechtigten: Honorarsatz-Belege unter Dozentenhonorar →
-              Honorarsätze, Zahlungsbelege in der einzelnen Abrechnung (Dozentenhonorar →
-              Honorar-Abrechnungen), Zeugnisse unter Zeugnisse („An das DMS nachsenden"). Warum der Versand
-              gescheitert ist, steht unten unter „Nicht zugestellt".
-            </p>
-          )}
-        </div>
-
-        <div
-          className={`rounded-lg border bg-card p-5 sm:col-span-2 ${
-            gesamtgrenzeGegriffen ? "border-credo-rot/50" : "border-border"
-          }`}
-        >
-          <p className="text-lg font-semibold leading-tight tabular-nums">
-            {anmeldeEingaenge.letzteStunde} / {anmeldeGrenzen.proStunde} in der letzten Stunde ·{" "}
-            {anmeldeEingaenge.letzterTag} / {anmeldeGrenzen.proTag} in 24 Stunden
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Anmeldeformular: angenommene Anmeldungen gegen die Gesamtgrenzen. Abgewiesen in den letzten
-            24 Stunden —{" "}
-            {abweisungen.map((a, i) => (
+        <Abschnitt titel="Schutz vor Massenanmeldungen" />
+        <Gruppe>
+          <LageZeile
+            titel="Anmeldeformular: angenommene Anmeldungen"
+            text={
+              <span className="tabular-nums">
+                {anmeldeEingaenge.letzteStunde} / {anmeldeGrenzen.proStunde} in der letzten Stunde ·{" "}
+                {anmeldeEingaenge.letzterTag} / {anmeldeGrenzen.proTag} in 24 Stunden
+              </span>
+            }
+          >
+            {gesamtgrenzeGegriffen ? (
+              <StatusPunkt ton="rot">Gesamtgrenze hat gegriffen</StatusPunkt>
+            ) : (
+              <StatusPunkt ton="gruen">unter der Grenze</StatusPunkt>
+            )}
+          </LageZeile>
+          <LageZeile
+            titel="Abgewiesen in den letzten 24 Stunden"
+            text={abweisungen.map((a, i) => (
               <span key={a.aktion}>
                 {i > 0 && " · "}
                 {a.text}: <span className="tabular-nums">{a.anzahl}</span>
               </span>
             ))}
-          </p>
-          {gesamtgrenzeGegriffen && (
-            <p className="mt-3 text-xs text-credo-rot">
-              Die Gesamtgrenze hat in den letzten 24 Stunden gegriffen: Das Formular hat Anmeldungen
-              abgewiesen, und Schulleitung und Verwaltung wurden per Mail gewarnt. Bitte die zuletzt
-              eingegangenen Anmeldungen prüfen. Sind es echte Bewerbungen, lässt sich die Grenze unter
-              Verwaltung → Einstellungen („Anmeldungen je Stunde“ bzw. „je Tag“) anheben.
-            </p>
-          )}
-        </div>
-      </div>
+          />
+        </Gruppe>
+        {gesamtgrenzeGegriffen && (
+          <Hinweis
+            className="mt-3"
+            aktion={
+              <Link href="/verwaltung/einstellungen" className={knopf("sekundaer", "klein")}>
+                Einstellungen
+              </Link>
+            }
+          >
+            Die Gesamtgrenze hat in den letzten 24 Stunden gegriffen: Das Formular hat Anmeldungen
+            abgewiesen, und Schulleitung und Verwaltung wurden per Mail gewarnt. Bitte die zuletzt
+            eingegangenen Anmeldungen prüfen. Sind es echte Bewerbungen, lässt sich die Grenze unter
+            Einstellungen („Anmeldungen je Stunde“ bzw. „je Tag“) anheben.
+          </Hinweis>
+        )}
 
-      <h2 className="mt-10 text-lg font-semibold">Seit mehr als fünf Minuten wartend</h2>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        „Wartend" heißt: Der Versand wurde begonnen, aber sein Ausgang nie festgehalten — der Prozess
-        ist dazwischen gestorben (Neustart, Deploy, Speichermangel) oder die Datenbank hat den Abschluss
-        nicht mehr angenommen. Ob die Mail draußen ist, weiß niemand. Bei einem Anmeldelink ist das der
-        unangenehmste Fall: Er kann angekommen sein — oder jemand wartet vergeblich vor der Tür.
-      </p>
-      {wartend.length === 0 ? (
-        <p className="mt-4 rounded-lg border border-credo-gruen/40 bg-credo-gruen/5 px-4 py-6 text-center text-sm">
-          Keine hängengebliebene E-Mail.
-        </p>
-      ) : (
-        <>
-          <p className="mt-4 max-w-prose text-sm">
-            Zu tun: bei den Betroffenen nachfragen, ob etwas angekommen ist. Wenn nicht, unter{" "}
-            <Link href="/verwaltung/personen" className="underline underline-offset-4">
-              Verwaltung → Personen
-            </Link>{" "}
-            einen neuen Anmeldelink schicken. Von allein wird aus diesen Zeilen nichts mehr.
-          </p>
-          <ul className="mt-4 divide-y divide-border rounded-lg border border-credo-rot/40 bg-card">
-            {wartend.map((eintrag) => (
-              <li key={eintrag.id} className="px-5 py-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-medium">{eintrag.empfaenger}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {datumZeit(eintrag.erstelltAm)}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{eintrag.betreff}</p>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+        {wartend.length > 0 && (
+          <>
+            <Abschnitt titel="Seit mehr als fünf Minuten wartend" />
+            <Hinweis
+              className="mb-3"
+              aktion={
+                <Link href="/verwaltung/personen" className={knopf("sekundaer", "klein")}>
+                  Personen
+                </Link>
+              }
+            >
+              Der Versand wurde begonnen, aber sein Ausgang nie festgehalten — ob die Mail draußen ist, weiß
+              niemand. Bitte bei den Betroffenen nachfragen und, wenn nichts ankam, unter Personen einen neuen
+              Anmeldelink schicken. Von allein wird aus diesen Zeilen nichts mehr.
+            </Hinweis>
+            <Gruppe>
+              {wartend.map((eintrag) => (
+                <VersandZeile key={eintrag.id} am={eintrag.erstelltAm} empfaenger={eintrag.empfaenger} betreff={eintrag.betreff} />
+              ))}
+            </Gruppe>
+          </>
+        )}
 
-      <h2 className="mt-10 text-lg font-semibold">Nicht zugestellt</h2>
-      {fehlgeschlagen.length === 0 ? (
-        <p className="mt-4 rounded-lg border border-credo-gruen/40 bg-credo-gruen/5 px-4 py-6 text-center text-sm">
-          Alle E-Mails wurden zugestellt.
-        </p>
-      ) : (
-        <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-card">
-          {fehlgeschlagen.map((eintrag) => (
-            <li key={eintrag.id} className="px-5 py-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-medium">{eintrag.empfaenger}</span>
-                <span className="text-xs text-muted-foreground">
-                  {datumZeit(eintrag.erstelltAm)}
-                </span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{eintrag.betreff}</p>
-              {eintrag.fehler && <p className="mt-1 text-xs text-credo-rot">{eintrag.fehler}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
+        {fehlgeschlagen.length > 0 && (
+          <>
+            <Abschnitt titel="Nicht zugestellt" />
+            <Gruppe>
+              {fehlgeschlagen.map((eintrag) => (
+                <VersandZeile
+                  key={eintrag.id}
+                  am={eintrag.erstelltAm}
+                  empfaenger={eintrag.empfaenger}
+                  betreff={eintrag.betreff}
+                  fehler={eintrag.fehler}
+                />
+              ))}
+            </Gruppe>
+          </>
+        )}
+      </Inhalt>
     </main>
+  );
+}
+
+/** Eine Zeile der Betriebslage: links was, rechts der Stand als Punkt mit Wort. */
+function LageZeile({ titel, text, children }: { titel: string; text?: ReactNode; children?: ReactNode }) {
+  return (
+    <Zeile rechts={children}>
+      <p className="text-sm font-semibold text-foreground">{titel}</p>
+      {text && <p className="text-[13px] text-muted-foreground">{text}</p>}
+    </Zeile>
+  );
+}
+
+/** Eine Mail aus dem Versandprotokoll: Zeitpunkt, Empfänger, Betreff und ggf. der Fehler. */
+function VersandZeile({
+  am,
+  empfaenger,
+  betreff,
+  fehler,
+}: {
+  am: Date;
+  empfaenger: string;
+  betreff: string;
+  fehler?: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:gap-4">
+      <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground sm:w-36 sm:pt-px">{datumZeit(am)}</span>
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-sm font-medium text-foreground">{empfaenger}</p>
+        <p className="break-words text-[13px] text-muted-foreground">{betreff}</p>
+        {fehler && <p className="break-words text-[13px] text-muted-foreground">Fehler: {fehler}</p>}
+      </div>
+    </div>
   );
 }

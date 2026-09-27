@@ -185,9 +185,16 @@ console.log("\n7. Eine Quote für alle Seiten (Modell A)");
     seite.includes("quoteJeTeilnahme(") && seite.includes("<QuoteChip") && !seite.includes("text-credo-rot"),
   );
   const client = lies("src/app/verwaltung/stundenplan/stundenplan-client.tsx");
+  // Seit dem Oberflächenplan (09/2026): Semesterwahl als Menü aus Links — wirkt
+  // sofort, ohne „Anzeigen“, und wechselt nie schon beim Auswählen (onChange).
+  const semesterwahl = lies("src/app/verwaltung/noten/semesterwahl.tsx");
   pruefe(
-    "die Semesterwahl ist ein GET-Formular und navigiert nicht schon bei onChange",
-    /<form method="get"[\s\S]{0,400}name="semester"/.test(client) && !/onChange=\{[^}]*router\.push/.test(client),
+    "die Semesterwahl besteht aus Links (Menü) und navigiert nicht per onChange",
+    /<SemesterWahl\b/.test(seite) &&
+      /<Menue\b/.test(semesterwahl) &&
+      /href: href\(s\.id\)/.test(semesterwahl) &&
+      !/onChange|router\.push/.test(semesterwahl) &&
+      !/onChange=\{[^}]*router\.push/.test(client),
   );
 }
 

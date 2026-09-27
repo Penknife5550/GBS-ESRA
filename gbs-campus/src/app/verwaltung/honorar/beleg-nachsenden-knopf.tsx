@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 
 type Antwort = { belegNr: string; dmsGesendet: boolean };
 
@@ -11,6 +12,7 @@ type Antwort = { belegNr: string; dmsGesendet: boolean };
  * erneut (M12) — für Abrechnungen (Zahlungsbeleg) und Honorarsätze. Steht neben
  * „Versand steht aus“. Mit Rückfrage, weil der Beleg das Haus verlässt (beim
  * Zahlungsbeleg samt IBAN). Nach Erfolg lädt die Seite neu und zeigt „gesendet“.
+ * Selten gebraucht, deshalb als kleiner heller Knopf (Oberflächenplan 09/2026).
  */
 export function BelegNachsendenKnopf({ pfad, rueckfrage }: { pfad: string; rueckfrage: string }) {
   const router = useRouter();
@@ -33,17 +35,12 @@ export function BelegNachsendenKnopf({ pfad, rueckfrage }: { pfad: string; rueck
   }
 
   return (
-    <span className="mt-1 block">
-      <button
-        type="button"
-        onClick={nachsenden}
-        disabled={laeuft}
-        className="min-h-10 rounded-lg border border-border px-3 py-1.5 text-sm text-foreground hover:border-primary disabled:opacity-60"
-      >
+    <span className="mt-2 flex flex-col items-start gap-1">
+      <button type="button" onClick={nachsenden} disabled={laeuft} className={knopf("sekundaer", "klein")}>
         {laeuft ? "Sende …" : "Beleg erneut senden"}
       </button>
       {fehler && (
-        <span role="alert" className="mt-1 block text-xs text-credo-rot">
+        <span role="alert" className="text-xs text-credo-rot">
           {fehler}
         </span>
       )}

@@ -4,15 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 import type { DmsVersand } from "@/lib/honorar-korrektur";
+import { knopf } from "@/components/ui/knopf";
 
 type Antwort = { belegNr: string; dmsGesendet: boolean; dmsVersand: DmsVersand };
 
 /**
  * Gibt die Abrechnung frei — dabei geht der Zahlungsbeleg mit IBAN an das DMS.
- * Bewusst mit Rückfrage, weil hier die Bankverbindung herausgegeben wird.
+ * Bewusst mit Rückfrage, weil hier die Bankverbindung herausgegeben wird. Steht
+ * als Hauptaktion oben rechts im Seitenkopf (Oberflächenplan 09/2026).
  *
  * `gesperrtGrund` (z. B. keine Bankverbindung hinterlegt) sperrt den Knopf und
- * steht sichtbar darunter — statt einer Rückfrage, deren Anfrage sicher scheitert.
+ * steht sichtbar daneben — statt einer Rückfrage, deren Anfrage sicher scheitert.
  */
 export function FreigebenKnopf({
   abrechnungId,
@@ -49,23 +51,23 @@ export function FreigebenKnopf({
   }
 
   return (
-    <div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {gesperrtGrund && (
+        <p id="freigabe-gesperrt" className="text-xs text-muted-foreground">
+          {gesperrtGrund}
+        </p>
+      )}
       <button
         type="button"
         onClick={freigeben}
         disabled={laeuft || Boolean(gesperrtGrund)}
         aria-describedby={gesperrtGrund ? "freigabe-gesperrt" : undefined}
-        className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+        className={knopf("primaer")}
       >
-        {laeuft ? "Gebe frei …" : "Freigeben (Beleg mit IBAN ans DMS)"}
+        {laeuft ? "Gebe frei …" : "Freigeben …"}
       </button>
-      {gesperrtGrund && (
-        <p id="freigabe-gesperrt" className="mt-1 text-xs text-muted-foreground">
-          {gesperrtGrund}
-        </p>
-      )}
       {fehler && (
-        <p role="alert" className="mt-3 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm text-foreground">
+        <p role="alert" className="basis-full rounded-lg bg-credo-rot/10 px-3 py-2 text-sm text-foreground lg:max-w-sm">
           {fehler}
         </p>
       )}

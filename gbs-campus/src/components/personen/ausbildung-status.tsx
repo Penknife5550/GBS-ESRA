@@ -8,6 +8,12 @@
  * Stelle" verwiesen — ein Tippfehler im Geburtsdatum stand unkorrigierbar auf
  * jedem Zeugnis, und der Not-Aus VERSTORBEN griff nie. Hier ist diese Stelle.
  *
+ * Seit dem Oberflächenplan 09/2026 steht sie nicht mehr dauerhaft offen in der
+ * Akte, sondern öffnet sich über „…“ → „Status ändern …“ im Blatt: oben der
+ * Status, darunter die Ausbildungsdaten. Gelingt eine Änderung, meldet die
+ * Komponente das über `onErfolg` (die Akte schließt dann das Blatt und zeigt
+ * die Meldung oben); Fehler bleiben hier neben dem Knopf stehen.
+ *
  * Nur mit PERSON_STATUS_WECHSELN (Schulleitung) eingeblendet; die Rechte prüft
  * der Server ohnehin. Dieselben Muster wie `person-aktionen.tsx`:
  * `sendeAnfrage` + `router.refresh()`, Rückfrage vor folgenreichen Änderungen.
@@ -19,29 +25,13 @@ import { sendeAnfrage } from "@/lib/api-client";
 import { STATUS } from "@/lib/constants";
 import { teilnahmeformName } from "@/lib/semester";
 import { brauchtGrund, GEMEINDE_MAX_LAENGE, GRUND_MAX_LAENGE, MELDUNG_ANMELDUNG_OFFEN } from "@/lib/status";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type StatusZiel = { code: string; bezeichnung: string; istTerminal: boolean; istAktiv: boolean };
 
-/** „die Teilnahme im A" bzw. „die Teilnahmen im A und im B" — für die Hinweise zu den offenen Teilnahmen. */
-function teilnahmenText(semester: string[]): string {
-  const mitIm = semester.map((s) => `im ${s}`);
-  const liste = mitIm.length <= 1 ? mitIm.join("") : `${mitIm.slice(0, -1).join(", ")} und ${mitIm[mitIm.length - 1]}`;
-  return `${mitIm.length === 1 ? "die Teilnahme" : "die Teilnahmen"} ${liste}`;
-}
-
-export function AusbildungStatus({
-  personId,
-  name,
-  status,
-  ziele,
-  eigeneAkte,
-  offeneAnmeldung,
-  daten,
-  offeneSemester,
-  laufendesSemester,
-  art9Eingewilligt,
-}: {
+/** Was die Akte für diesen Block lädt (ohne den Rückruf). */
+export type AusbildungStatusDaten = {
   personId: string;
   name: string;
   status: { code: string; bezeichnung: string; istTerminal: boolean; istAktiv: boolean };
@@ -63,13 +53,38 @@ export function AusbildungStatus({
   /** Bezeichnung des laufenden Semesters, wenn die Person dort eine zählende Teilnahme hat. */
   laufendesSemester: string | null;
   art9Eingewilligt: boolean;
+};
+
+/** „die Teilnahme im A" bzw. „die Teilnahmen im A und im B" — für die Hinweise zu den offenen Teilnahmen. */
+function teilnahmenText(semester: string[]): string {
+  const mitIm = semester.map((s) => `im ${s}`);
+  const liste = mitIm.length <= 1 ? mitIm.join("") : `${mitIm.slice(0, -1).join(", ")} und ${mitIm[mitIm.length - 1]}`;
+  return `${mitIm.length === 1 ? "die Teilnahme" : "die Teilnahmen"} ${liste}`;
+}
+
+export function AusbildungStatus({
+  personId,
+  name,
+  status,
+  ziele,
+  eigeneAkte,
+  offeneAnmeldung,
+  daten,
+  offeneSemester,
+  laufendesSemester,
+  art9Eingewilligt,
+  onErfolg,
+}: AusbildungStatusDaten & {
+  /** Erfolgsmeldung an die Akte (schließt das Blatt); ohne ihn steht sie hier. */
+  onErfolg?: (meldung: Meldung) => void;
 }) {
   const router = useRouter();
   const [werte, setWerte] = useState(daten);
   const [ziel, setZiel] = useState("");
   const [grund, setGrund] = useState("");
   const [laeuft, setLaeuft] = useState<null | "daten" | "status">(null);
-  const [meldung, setMeldung] = useState<Meldung | null>(null);
+  // Die Meldung steht neben dem Knopf, der sie ausgelöst hat.
+  const [meldung, setMeldung] = useState<{ bei: "daten" | "status"; inhalt: Meldung } | null>(null);
   const beschaeftigt = laeuft !== null;
 
   const datenGeaendert =
@@ -78,6 +93,14 @@ export function AusbildungStatus({
   // Auch das Verlassen von „Abgebrochen“ (Wiederaufnahme) braucht einen Grund.
   const grundNoetig = zielStatus ? brauchtGrund(zielStatus.code, status.code) : false;
   const wiederaufnahme = status.code === STATUS.ABGEBROCHEN;
+  // Ohne Statusformular (Endzustand, eigene Akte, offene Anmeldung) ist das
+  // Speichern der Ausbildungsdaten die einzige Aktion im Blatt.
+  const statusFormular = !status.istTerminal && !eigeneAkte && !offeneAnmeldung;
+
+  function erfolg(bei: "daten" | "status", inhalt: Meldung) {
+    if (onErfolg) onErfolg(inhalt);
+    else setMeldung({ bei, inhalt });
+  }
 
   async function datenSpeichern() {
     // Ein Formwechsel im laufenden Semester hat Folgen, die man der Auswahl
@@ -113,12 +136,13 @@ export function AusbildungStatus({
     setLaeuft(null);
     if (!antwort.ok) {
       const einzeln = antwort.details?.map((d) => d.meldung).join(" ");
-      setMeldung({ art: "fehler", text: einzeln ? `${antwort.meldung} ${einzeln}` : antwort.meldung });
+      setMeldung({ bei: "daten", inhalt: { art: "fehler", text: einzeln ? `${antwort.meldung} ${einzeln}` : antwort.meldung } });
       return;
     }
     const { geaendert, teilnahmenAngepasst } = antwort.daten;
     const angepasst = teilnahmenAngepasst === 1 ? "einer Teilnahme" : `${teilnahmenAngepasst} Teilnahmen`;
-    setMeldung({
+    router.refresh();
+    erfolg("daten", {
       art: "ok",
       text:
         geaendert.length === 0
@@ -126,7 +150,6 @@ export function AusbildungStatus({
           : "Ausbildungsdaten gespeichert." +
             (teilnahmenAngepasst > 0 ? ` Die Teilnahmeform wurde auch an ${angepasst} angepasst.` : ""),
     });
-    router.refresh();
   }
 
   async function statusWechseln() {
@@ -158,7 +181,7 @@ export function AusbildungStatus({
         `${name} wieder aufnehmen (Status „${zielStatus.bezeichnung}“)?\n\n` +
         "Die Person erscheint danach wieder in den Listen der Semester, in denen sie eine Teilnahme hat, und " +
         "bekommt wieder automatische Mails. Hat sie im laufenden Semester noch keine Teilnahme, übernehmen Sie " +
-        "sie anschließend unter „Aktive dieses Semester“.";
+        "sie anschließend unter „Personen → Dieses Semester“.";
     } else if (status.istAktiv && !zielStatus.istAktiv) {
       frage =
         `Den Status von ${name} von „${status.bezeichnung}“ auf „${zielStatus.bezeichnung}“ ändern?\n\n` +
@@ -178,174 +201,168 @@ export function AusbildungStatus({
     });
     setLaeuft(null);
     if (!antwort.ok) {
-      setMeldung({ art: "fehler", text: antwort.meldung });
+      setMeldung({ bei: "status", inhalt: { art: "fehler", text: antwort.meldung } });
       return;
     }
     setZiel("");
     setGrund("");
-    setMeldung({ art: "ok", text: `Status auf „${antwort.daten.bezeichnung}“ geändert.` });
     router.refresh();
+    erfolg("status", { art: "ok", text: `Status auf „${antwort.daten.bezeichnung}“ geändert.` });
   }
 
   const feld = "min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm";
-  const primaer = "min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60";
+  const hinweis = "mt-2 text-[13px] text-muted-foreground";
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5" aria-labelledby={`ausbildung-${personId}`}>
-      <h2 id={`ausbildung-${personId}`} className="text-sm font-semibold">
-        Ausbildungsdaten &amp; Status
-      </h2>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div>
-          <label htmlFor={`geburtsdatum-${personId}`} className="mb-1.5 block text-sm font-medium">
-            Geburtsdatum
-          </label>
-          <input
-            id={`geburtsdatum-${personId}`}
-            type="date"
-            value={werte.geburtsdatum}
-            onChange={(e) => {
-              setWerte((w) => ({ ...w, geburtsdatum: e.target.value }));
-              setMeldung(null);
-            }}
-            className={feld}
-          />
-        </div>
-        <div>
-          <label htmlFor={`gemeinde-${personId}`} className="mb-1.5 block text-sm font-medium">
-            Gemeinde
-          </label>
-          <input
-            id={`gemeinde-${personId}`}
-            value={werte.gemeinde}
-            maxLength={GEMEINDE_MAX_LAENGE}
-            onChange={(e) => {
-              setWerte((w) => ({ ...w, gemeinde: e.target.value }));
-              setMeldung(null);
-            }}
-            aria-describedby={`gemeinde-hinweis-${personId}`}
-            className={feld}
-          />
-        </div>
-        <div>
-          <label htmlFor={`teilnahmeform-${personId}`} className="mb-1.5 block text-sm font-medium">
-            Teilnahmeform
-          </label>
-          <select
-            id={`teilnahmeform-${personId}`}
-            value={werte.teilnahmeform}
-            onChange={(e) => {
-              setWerte((w) => ({ ...w, teilnahmeform: e.target.value }));
-              setMeldung(null);
-            }}
-            className={feld}
-          >
-            <option value="">nicht festgelegt</option>
-            <option value="SCHUELER">Schüler</option>
-            <option value="HOERER">Hörer</option>
-          </select>
-        </div>
-      </div>
-      <p id={`gemeinde-hinweis-${personId}`} className="mt-2 text-xs text-muted-foreground">
-        Die Gemeinde ist eine Angabe nach Art. 9 DSGVO.{" "}
-        {art9Eingewilligt
-          ? "Die Einwilligung der Person liegt vor."
-          : "Es liegt keine Einwilligung der Person vor — eintragen ist deshalb nicht möglich, leeren schon."}{" "}
-        {offeneSemester.length > 0
-          ? `Die Teilnahmeform gilt auch für ${teilnahmenText(offeneSemester)}; frühere Semester bleiben unverändert.`
-          : "Im laufenden und in kommenden Semestern hat die Person keine Teilnahme; die Teilnahmeform gilt, " +
-            "wenn sie wieder in ein Semester aufgenommen wird."}
+    <section id={`ausbildung-${personId}`} aria-label="Status und Ausbildungsdaten" className="text-sm">
+      <h3 className="font-semibold">Status</h3>
+      <p className="mt-1">
+        Aktueller Status: <span className="font-medium">{status.bezeichnung}</span>
       </p>
-      <button
-        type="button"
-        onClick={datenSpeichern}
-        disabled={beschaeftigt || !datenGeaendert}
-        className={`mt-3 ${primaer}`}
-      >
-        {laeuft === "daten" ? "Wird gespeichert …" : "Ausbildungsdaten speichern"}
-      </button>
-
-      <div className="mt-6 border-t border-border pt-4">
-        <p className="text-sm">
-          Aktueller Status: <span className="font-medium">{status.bezeichnung}</span>
-        </p>
-        {status.istTerminal ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            „{status.bezeichnung}“ ist ein Endzustand — daraus führt kein Statuswechsel mehr heraus.
-          </p>
-        ) : eigeneAkte ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Den eigenen Status ändert eine andere Person mit Schulleitungsrechten.
-          </p>
-        ) : offeneAnmeldung ? (
-          <p className="mt-2 text-xs text-muted-foreground">{MELDUNG_ANMELDUNG_OFFEN}</p>
-        ) : (
-          <>
-            {wiederaufnahme && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Wiederaufnahme nach einem Abbruch: Status auf „Aktiv“ setzen und den Grund angeben. Hat die Person
-                im laufenden Semester noch keine Teilnahme, übernehmen Sie sie danach unter „Aktive dieses Semester“.
-              </p>
-            )}
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor={`zielstatus-${personId}`} className="mb-1.5 block text-sm font-medium">
-                  Neuer Status
-                </label>
-                <select
-                  id={`zielstatus-${personId}`}
-                  value={ziel}
-                  onChange={(e) => {
-                    setZiel(e.target.value);
-                    setMeldung(null);
-                  }}
-                  className={feld}
-                >
-                  <option value="">Bitte wählen</option>
-                  {ziele.map((z) => (
-                    <option key={z.code} value={z.code}>
-                      {z.bezeichnung}
-                      {z.istTerminal ? " (Endzustand)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor={`statusgrund-${personId}`} className="mb-1.5 block text-sm font-medium">
-                  Grund {grundNoetig ? "(erforderlich)" : "(freiwillig)"}
-                </label>
-                <textarea
-                  id={`statusgrund-${personId}`}
-                  rows={2}
-                  value={grund}
-                  maxLength={GRUND_MAX_LAENGE}
-                  aria-required={grundNoetig}
-                  onChange={(e) => {
-                    setGrund(e.target.value);
-                    setMeldung(null);
-                  }}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
-                />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Ein Endzustand (in der Auswahl markiert) beendet den Zugang zum Portal und lässt sich nicht
-              zurücknehmen. Anonymisieren läuft über die eigene Aktion „Anonymisieren (Art. 17 DSGVO)“.
+      {status.istTerminal ? (
+        <p className={hinweis}>„{status.bezeichnung}“ ist ein Endzustand — daraus führt kein Statuswechsel mehr heraus.</p>
+      ) : eigeneAkte ? (
+        <p className={hinweis}>Den eigenen Status ändert eine andere Person mit Schulleitungsrechten.</p>
+      ) : offeneAnmeldung ? (
+        <p className={hinweis}>{MELDUNG_ANMELDUNG_OFFEN}</p>
+      ) : (
+        <>
+          {wiederaufnahme && (
+            <p className={hinweis}>
+              Wiederaufnahme nach einem Abbruch: Status auf „Aktiv“ setzen und den Grund angeben. Hat die Person im
+              laufenden Semester noch keine Teilnahme, übernehmen Sie sie danach unter „Personen → Dieses Semester“.
             </p>
-            <button
-              type="button"
-              onClick={statusWechseln}
-              disabled={beschaeftigt || !zielStatus || (grundNoetig && grund.trim() === "")}
-              className={`mt-3 ${primaer}`}
-            >
-              {laeuft === "status" ? "Wird geändert …" : "Status ändern"}
-            </button>
-          </>
-        )}
-      </div>
+          )}
+          <div className="mt-3 grid gap-3">
+            <div>
+              <label htmlFor={`zielstatus-${personId}`} className="mb-1.5 block font-medium">
+                Neuer Status
+              </label>
+              <select
+                id={`zielstatus-${personId}`}
+                value={ziel}
+                onChange={(e) => {
+                  setZiel(e.target.value);
+                  setMeldung(null);
+                }}
+                className={feld}
+              >
+                <option value="">Bitte wählen</option>
+                {ziele.map((z) => (
+                  <option key={z.code} value={z.code}>
+                    {z.bezeichnung}
+                    {z.istTerminal ? " (Endzustand)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor={`statusgrund-${personId}`} className="mb-1.5 block font-medium">
+                Grund {grundNoetig ? "(erforderlich)" : "(freiwillig)"}
+              </label>
+              <textarea
+                id={`statusgrund-${personId}`}
+                rows={2}
+                value={grund}
+                maxLength={GRUND_MAX_LAENGE}
+                aria-required={grundNoetig}
+                onChange={(e) => {
+                  setGrund(e.target.value);
+                  setMeldung(null);
+                }}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+              />
+            </div>
+          </div>
+          <p className={hinweis}>
+            Ein Endzustand (in der Auswahl markiert) beendet den Zugang zum Portal und lässt sich nicht zurücknehmen.
+            Anonymisieren läuft über den eigenen Eintrag „Anonymisieren …“ im Menü „…“.
+          </p>
+          <button
+            type="button"
+            onClick={statusWechseln}
+            disabled={beschaeftigt || !zielStatus || (grundNoetig && grund.trim() === "")}
+            className={`mt-3 ${knopf("primaer")}`}
+          >
+            {laeuft === "status" ? "Wird geändert …" : "Status ändern"}
+          </button>
+          <MeldungsBox meldung={meldung?.bei === "status" ? meldung.inhalt : null} className="mt-3 break-words" />
+        </>
+      )}
 
-      <MeldungsBox meldung={meldung} className="mt-3 break-words" />
+      <div className="mt-6 border-t border-linie pt-5">
+        <h3 className="font-semibold">Ausbildungsdaten</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor={`geburtsdatum-${personId}`} className="mb-1.5 block font-medium">
+              Geburtsdatum
+            </label>
+            <input
+              id={`geburtsdatum-${personId}`}
+              type="date"
+              value={werte.geburtsdatum}
+              onChange={(e) => {
+                setWerte((w) => ({ ...w, geburtsdatum: e.target.value }));
+                setMeldung(null);
+              }}
+              className={feld}
+            />
+          </div>
+          <div>
+            <label htmlFor={`teilnahmeform-${personId}`} className="mb-1.5 block font-medium">
+              Teilnahmeform
+            </label>
+            <select
+              id={`teilnahmeform-${personId}`}
+              value={werte.teilnahmeform}
+              onChange={(e) => {
+                setWerte((w) => ({ ...w, teilnahmeform: e.target.value }));
+                setMeldung(null);
+              }}
+              className={feld}
+            >
+              <option value="">nicht festgelegt</option>
+              <option value="SCHUELER">Schüler</option>
+              <option value="HOERER">Hörer</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor={`gemeinde-${personId}`} className="mb-1.5 block font-medium">
+              Gemeinde
+            </label>
+            <input
+              id={`gemeinde-${personId}`}
+              value={werte.gemeinde}
+              maxLength={GEMEINDE_MAX_LAENGE}
+              onChange={(e) => {
+                setWerte((w) => ({ ...w, gemeinde: e.target.value }));
+                setMeldung(null);
+              }}
+              aria-describedby={`gemeinde-hinweis-${personId}`}
+              className={feld}
+            />
+          </div>
+        </div>
+        <p id={`gemeinde-hinweis-${personId}`} className={hinweis}>
+          Die Gemeinde ist eine Angabe nach Art. 9 DSGVO.{" "}
+          {art9Eingewilligt
+            ? "Die Einwilligung der Person liegt vor."
+            : "Es liegt keine Einwilligung der Person vor — eintragen ist deshalb nicht möglich, leeren schon."}{" "}
+          {offeneSemester.length > 0
+            ? `Die Teilnahmeform gilt auch für ${teilnahmenText(offeneSemester)}; frühere Semester bleiben unverändert.`
+            : "Im laufenden und in kommenden Semestern hat die Person keine Teilnahme; die Teilnahmeform gilt, " +
+              "wenn sie wieder in ein Semester aufgenommen wird."}
+        </p>
+        <button
+          type="button"
+          onClick={datenSpeichern}
+          disabled={beschaeftigt || !datenGeaendert}
+          className={`mt-3 ${knopf(statusFormular ? "sekundaer" : "primaer")}`}
+        >
+          {laeuft === "daten" ? "Wird gespeichert …" : "Ausbildungsdaten speichern"}
+        </button>
+        <MeldungsBox meldung={meldung?.bei === "daten" ? meldung.inhalt : null} className="mt-3 break-words" />
+      </div>
     </section>
   );
 }

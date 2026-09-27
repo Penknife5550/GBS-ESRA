@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 /**
@@ -48,7 +49,7 @@ export function ZusageKnopf({ teilnahmeId, name, semester }: { teilnahmeId: stri
         onClick={eintragen}
         disabled={laeuft}
         aria-label={`Zusage für ${name} eintragen`}
-        className="min-h-11 rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-60"
+        className={knopf("sekundaer", "klein")}
       >
         {laeuft ? "Wird eingetragen …" : "Zusage eintragen"}
       </button>

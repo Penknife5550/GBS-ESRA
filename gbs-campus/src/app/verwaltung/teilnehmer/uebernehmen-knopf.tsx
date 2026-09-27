@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Hinweis } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Ergebnis = { uebernommen: number; ohneTeilnahmeform: number; zuletztAbgemeldet: number };
@@ -56,22 +58,20 @@ export function UebernehmenKnopf({ semesterId, anzahl }: { semesterId: string; a
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-border bg-credo-gelb/15 px-4 py-4 text-sm">
-      <p>
-        {anzahl} {anzahl === 1 ? "aufgenommene Person ist" : "aufgenommene Personen sind"} diesem Semester
-        noch nicht zugeordnet und {anzahl === 1 ? "fehlt" : "fehlen"} deshalb in der Liste.
-      </p>
-
-      <button
-        type="button"
-        onClick={uebernehmen}
-        disabled={laeuft}
-        className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+    <div className="mb-5">
+      <Hinweis
+        icon="personen"
+        titel={`${anzahl} ${anzahl === 1 ? "aufgenommene Person fehlt" : "aufgenommene Personen fehlen"} noch.`}
+        aktion={
+          <button type="button" onClick={uebernehmen} disabled={laeuft} className={knopf("sekundaer")}>
+            {laeuft ? "Wird übernommen …" : "Ins Semester übernehmen"}
+          </button>
+        }
       >
-        {laeuft ? "Wird übernommen …" : "Ins laufende Semester übernehmen"}
-      </button>
-
-      <MeldungsBox meldung={meldung} className="mt-3" />
+        {anzahl === 1 ? "Sie ist" : "Sie sind"} diesem Semester noch nicht zugeordnet und {anzahl === 1 ? "steht" : "stehen"} deshalb
+        nicht in der Liste.
+      </Hinweis>
+      <MeldungsBox meldung={meldung} className="mt-2" />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { ladeEinwilligungstexte, ladeVeroeffentlichteFassung } from "@/lib/anmel
 import { baueFormularStempel, stempelGeheimnis } from "@/lib/anmelde-schutz";
 import { EINRICHTUNG } from "@/lib/constants";
 import { aktenfeldVerlangtArt9 } from "@/lib/formular-optionen";
+import { OeffentlicheSeite } from "@/app/anmelden/oeffentlich";
 import {
   EinwilligungsAngebot,
   OeffentlicherAbschnitt,
@@ -16,7 +17,8 @@ export const metadata = {
 };
 
 /**
- * Das öffentliche Anmeldeformular.
+ * Das öffentliche Anmeldeformular — Schritt für Schritt, außerhalb des
+ * App-Rahmens (Kopfzeile, Fortschritt und „Weiter“ bringt das Formular mit).
  *
  * Eine begonnene Anmeldung lädt das Formular selbst: Der Link zum Fortsetzen
  * trägt den Token im Fragment (#fortsetzen=…), das nie beim Server ankommt —
@@ -27,12 +29,11 @@ export default async function AnmeldungSeite() {
   const version = await ladeVeroeffentlichteFassung();
   if (!version) {
     return (
-      <main className="mx-auto max-w-2xl px-6 py-24">
-        <h1 className="text-2xl font-bold tracking-tight">Anmeldung derzeit nicht möglich</h1>
-        <p className="mt-3 text-muted-foreground">
-          Zurzeit ist kein Anmeldeformular veröffentlicht. Bitte wenden Sie sich an die Schulleitung.
-        </p>
-      </main>
+      <OeffentlicheSeite
+        zurueck={{ href: "/", text: "Start" }}
+        titel="Anmeldung derzeit nicht möglich"
+        satz="Zurzeit ist kein Anmeldeformular veröffentlicht. Bitte wenden Sie sich an die Schulleitung."
+      />
     );
   }
 
@@ -65,25 +66,17 @@ export default async function AnmeldungSeite() {
   }));
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        {EINRICHTUNG.name} · {EINRICHTUNG.traeger}
-      </p>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight">Anmeldung</h1>
-
-      <div className="mt-10">
-        <OeffentlichesFormular
-          versionId={version.id}
-          einleitung={version.einleitung}
-          abschnitte={abschnitte}
-          einwilligungen={einwilligungen}
-          // Wann der Server das Formular ausgeliefert hat, signiert — gegen
-          // Roboter, die im selben Moment absenden (lib/anmelde-schutz.ts).
-          // Die Seite ist force-dynamic, der Zeitpunkt also je Aufruf neu.
-          formularStempel={baueFormularStempel(Date.now(), stempelGeheimnis())}
-        />
-      </div>
-
+    <main>
+      <OeffentlichesFormular
+        versionId={version.id}
+        einleitung={version.einleitung}
+        abschnitte={abschnitte}
+        einwilligungen={einwilligungen}
+        // Wann der Server das Formular ausgeliefert hat, signiert — gegen
+        // Roboter, die im selben Moment absenden (lib/anmelde-schutz.ts).
+        // Die Seite ist force-dynamic, der Zeitpunkt also je Aufruf neu.
+        formularStempel={baueFormularStempel(Date.now(), stempelGeheimnis())}
+      />
     </main>
   );
 }

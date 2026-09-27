@@ -1,19 +1,32 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { hatRecht, ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
+import { tagKurz } from "@/lib/datum";
 import { zahl } from "@/lib/einstellungen";
 import { quoteJeTeilnahme, terminText } from "@/lib/stundenplan";
 import { terminVergangen } from "@/lib/selbstbestaetigung";
 import { ladeDozenten } from "@/lib/honorar-io";
 import { PERSON_ZAEHLT_AKTIV, TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
+import { abendTitel, einheitStand, gruppiereAbende, pauseText, zeitspanne } from "@/lib/abendplan";
 import { QUOTE_STIL, QuoteChip } from "@/components/ui/quote-ampel";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
-import { StundenplanClient } from "./stundenplan-client";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { LeererZustand } from "@/components/ui/hinweis";
+import { Abschnitt } from "@/components/ui/liste";
+import { knopf } from "@/components/ui/knopf";
+import { SemesterWahl } from "../noten/semesterwahl";
+import { StundenplanClient, type AbendAnzeige } from "./stundenplan-client";
 
-export const metadata = { title: "Stundenplan" };
+export const metadata = { title: "Unterricht" };
 export const dynamic = "force-dynamic";
 
+/**
+ * Unterricht (früher „Stundenplan“): die Abende eines Semesters als Liste mit
+ * Uhrzeit, Fach und Thema, Dozent und dem Stand der Anwesenheit (Oberflächenplan
+ * 09/2026). Der nächste Abend ist markiert, eine offene Erfassung trägt ihren
+ * Knopf in der Zeile. Darunter die Quote je Teilnehmer (Modell A).
+ */
 export default async function StundenplanSeite({
   searchParams,
 }: {
@@ -23,26 +36,35 @@ export default async function StundenplanSeite({
   if (!benutzer) redirect("/anmelden");
 
   const sp = await searchParams;
-  const semesters = await prisma.semester.findMany({ orderBy: { start: "desc" } });
+  const semesters = await prisma.semester.findMany({ orderBy: { start: "asc" } });
 
   if (semesters.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-12">
-        <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Stundenplan" />
-        <h1 className="mt-6 text-2xl font-bold tracking-tight">Stundenplan</h1>
-        <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Noch ist kein Semester angelegt.
-        </p>
+      <main>
+        <Seitenkopf titel="Unterricht" />
+        <Inhalt>
+          <LeererZustand
+            icon="kalender"
+            titel="Noch ist kein Semester angelegt"
+            aktion={
+              <Link href="/verwaltung/semester" className={knopf("sekundaer")}>
+                Zu den Semestern
+              </Link>
+            }
+          >
+            Die Abende gehören immer zu einem Semester.
+          </LeererZustand>
+        </Inhalt>
       </main>
     );
   }
 
   const laufend = semesters.find((s) => s.istAktuell);
   const gewaehltId = sp.semester ?? laufend?.id ?? semesters[0].id;
-  const semester = semesters.find((s) => s.id === gewaehltId) ?? semesters[0];
+  const semester = semesters.find((s) => s.id === gewaehltId) ?? laufend ?? semesters[0];
 
-  // Die Quoten-Tabelle unten rechnet aus denselben Daten wie die Erfassung
-  // (Abende, Teilnehmer, Anwesenheit) — keine zweite Abfrage derselben Zeilen.
+  // Die Quoten unten rechnen aus denselben Daten wie die Erfassung (Abende,
+  // Teilnehmer, Anwesenheit) — keine zweite Abfrage derselben Zeilen.
   const [termineRoh, teilnehmerRoh, kurseinheitenRoh, dozenten, anwesenheitRoh, schwelle] = await Promise.all([
     prisma.unterrichtstermin.findMany({
       where: { semesterId: semester.id },
@@ -50,9 +72,12 @@ export default async function StundenplanSeite({
       select: {
         id: true,
         beginn: true,
+        ende: true,
+        thema: true,
         kurseinheitId: true,
-        kurseinheit: { select: { titel: true } },
+        kurseinheit: { select: { fach: { select: { bezeichnung: true } } } },
         dozentId: true,
+        dozent: { select: { vorname: true, nachname: true } },
         _count: { select: { anwesenheiten: true } },
         // Ein abgerechneter Abend ist für Dozentenwechsel und Löschen gesperrt
         // (409 in der Termin-Route) — die Seite zeigt das vorher an.
@@ -60,7 +85,7 @@ export default async function StundenplanSeite({
       },
     }),
     // Die Zeilen der Erfassung: aktive, für das Semester nicht abgemeldete
-    // Teilnehmer — dieselbe Menge wie die Quoten-Übersicht darunter.
+    // Teilnehmer — dieselbe Menge wie die Quoten darunter.
     prisma.teilnahme.findMany({
       where: { semesterId: semester.id, ...TEILNAHME_ZAEHLT, person: PERSON_ZAEHLT_AKTIV },
       orderBy: [{ person: { nachname: "asc" } }, { person: { vorname: "asc" } }],
@@ -84,17 +109,6 @@ export default async function StundenplanSeite({
     zahl("ANWESENHEIT_MINDEST_PROZENT"),
   ]);
 
-  const termine = termineRoh.map((t) => ({
-    id: t.id,
-    text: terminText(t.beginn),
-    kurseinheitId: t.kurseinheitId,
-    kurseinheitTitel: t.kurseinheit?.titel ?? null,
-    dozentId: t.dozentId,
-    anwesenheitAnzahl: t._count.anwesenheiten,
-    abrechnung: t.abrechnungPosten
-      ? { id: t.abrechnungPosten.abrechnungId, status: t.abrechnungPosten.abrechnung.status }
-      : null,
-  }));
   const teilnehmer = teilnehmerRoh.map((t) => ({
     teilnahmeId: t.id,
     name: `${t.person.nachname}, ${t.person.vorname}`,
@@ -105,9 +119,37 @@ export default async function StundenplanSeite({
     (anwesenheit[a.terminId] ??= {})[a.teilnahmeId] = a.status;
   }
 
+  const jetzt = new Date();
+  const abende: AbendAnzeige[] = gruppiereAbende(termineRoh, jetzt).map((abend) => ({
+    tag: abend.tag,
+    titel: abendTitel(abend.datum),
+    nummer: abend.nummer,
+    markierung: abend.markierung,
+    pause: abend.pauseDavor > 0 ? pauseText(abend.pauseDavor) : null,
+    einheiten: abend.einheiten.map((t) => ({
+      id: t.id,
+      text: terminText(t.beginn),
+      kurz: tagKurz(t.beginn),
+      zeit: zeitspanne(t.beginn, t.ende),
+      fach: t.kurseinheit?.fach.bezeichnung ?? null,
+      thema: t.thema,
+      kurseinheitId: t.kurseinheitId,
+      dozentId: t.dozentId,
+      dozentName: t.dozent ? `${t.dozent.vorname} ${t.dozent.nachname}` : null,
+      anwesenheitAnzahl: t._count.anwesenheiten,
+      abrechnung: t.abrechnungPosten
+        ? { id: t.abrechnungPosten.abrechnungId, status: t.abrechnungPosten.abrechnung.status }
+        : null,
+      stand: einheitStand({
+        vergangen: terminVergangen(t.beginn, jetzt),
+        erfasst: teilnehmer.filter((p) => anwesenheit[t.id]?.[p.teilnahmeId]).length,
+        gesamt: teilnehmer.length,
+      }),
+    })),
+  }));
+
   // Modell A wie in Personen- und Schüler-Akte: Teilnahmen der vergangenen
   // Abende gegen ALLE Abende des Semesters (eine Quote, nicht drei).
-  const jetzt = new Date();
   const quotenAbende = termineRoh.map((t) => ({ id: t.id, istVergangen: terminVergangen(t.beginn, jetzt) }));
   const quoten = teilnehmer.map((t) => ({
     ...t,
@@ -115,65 +157,60 @@ export default async function StundenplanSeite({
   }));
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Stundenplan" />
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Stundenplan</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Die Unterrichtsabende eines Semesters und die Anwesenheit. Die Quote rechnet wie in der Personenakte
-        über alle Abende des Semesters: Anwesend und nachgearbeitet zählen als Teilnahme, noch nicht erfasste
-        und künftige Abende als offen. Nötig sind {schwelle}&nbsp;%.
-      </p>
-
+    <main>
       <StundenplanClient
-        semesters={semesters.map((s) => ({ id: s.id, bezeichnung: s.bezeichnung }))}
-        gewaehltId={semester.id}
-        termine={termine}
+        semesterId={semester.id}
+        semesterWahl={
+          <SemesterWahl
+            semesters={semesters}
+            gewaehltId={semester.id}
+            href={(id) => `/verwaltung/stundenplan?semester=${id}`}
+          />
+        }
+        abende={abende}
         teilnehmer={teilnehmer}
         kurseinheiten={kurseinheiten}
         dozenten={dozenten}
         anwesenheit={anwesenheit}
         darfHonorar={hatRecht(benutzer, RECHT.HONORAR_ABRECHNEN)}
-      />
-
-      <h2 className="mt-12 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-        Anwesenheitsquote
-      </h2>
-      {quoten.length === 0 ? (
-        <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Für dieses Semester sind keine aktiven Teilnehmer eingetragen.
-        </p>
-      ) : (
-        <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[420px] text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-[0.08em] text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2.5 font-semibold">Teilnehmer</th>
-                <th className="px-4 py-2.5 font-semibold">Erfasst</th>
-                <th className="px-4 py-2.5 font-semibold">Quote</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quoten.map((z) => (
-                <tr key={z.teilnahmeId} className="border-t border-border">
-                  <td className="px-4 py-2.5">{z.name}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {z.quote.teilgenommen} teilgenommen · {z.quote.versaeumt} versäumt
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {/* QuoteChip: Zeichen + „X/Y" mit Tint, Text in Vordergrundfarbe
-                        (kein Rot auf Rot); das Wort dahinter wiederholt den Zustand
-                        für Sehende — der Chip nennt ihn Screenreadern schon. */}
-                    <QuoteChip quote={z.quote} />
-                    <span aria-hidden="true" className="ml-2 text-xs text-muted-foreground">
-                      {QUOTE_STIL[z.quote.zustand].label}
+      >
+        {abende.length > 0 && (
+          <section aria-labelledby="quote-titel" className="mt-10">
+            <Abschnitt titel={<span id="quote-titel">Anwesenheit je Teilnehmer</span>} />
+            <p className="mb-3 text-[13px] text-muted-foreground">
+              {`Nötig sind ${schwelle} % aller Abende. Anwesend und nachgearbeitet zählen, noch nicht erfasste und künftige Abende sind offen.`}
+            </p>
+            {quoten.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-linie px-4 py-6 text-center text-sm text-muted-foreground">
+                Für dieses Semester sind keine aktiven Teilnehmer eingetragen.
+              </p>
+            ) : (
+              <ul className="divide-y divide-linie overflow-hidden rounded-xl border border-linie bg-card">
+                {quoten.map((z) => (
+                  <li
+                    key={z.teilnahmeId}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 px-4 py-2.5 sm:grid-cols-[minmax(0,1fr)_220px_200px]"
+                  >
+                    <span className="truncate text-sm text-foreground">{z.name}</span>
+                    <span className="col-start-1 row-start-2 text-[13px] text-muted-foreground sm:col-start-2 sm:row-start-1">
+                      {`${z.quote.teilgenommen} teilgenommen · ${z.quote.versaeumt} versäumt`}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    <span className="col-start-2 row-span-2 row-start-1 flex items-center gap-2 sm:col-start-3 sm:row-span-1">
+                      {/* QuoteChip: Zeichen + „X/Y" mit Tint, Text in Vordergrundfarbe
+                          (kein Rot auf Rot); das Wort dahinter wiederholt den Zustand
+                          für Sehende — der Chip nennt ihn Screenreadern schon. */}
+                      <QuoteChip quote={z.quote} />
+                      <span aria-hidden="true" className="hidden text-xs text-muted-foreground sm:inline">
+                        {QUOTE_STIL[z.quote.zustand].label}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </StundenplanClient>
     </main>
   );
 }

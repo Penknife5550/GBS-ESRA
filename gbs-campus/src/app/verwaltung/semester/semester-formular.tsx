@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type SemesterEingabefelder = {
@@ -51,7 +52,8 @@ type Eigenschaften = {
 /**
  * Ein Formular für beide Fälle — Anlegen und Bearbeiten. Die Felder sind
  * dieselben, und zwei getrennte Formulare wären zwei Stellen, an denen eine
- * neue Angabe vergessen werden kann.
+ * neue Angabe vergessen werden kann. Seit dem Oberflächenplan (09/2026) steht es
+ * im Blatt („Neues Semester“, „Bearbeiten“), deshalb ohne eigenen Rahmen.
  */
 export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrechen }: Eigenschaften) {
   const router = useRouter();
@@ -126,7 +128,7 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
   }
 
   return (
-    <form onSubmit={speichern} className="rounded-lg border border-border bg-card p-5">
+    <form onSubmit={speichern}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Feld
           praefix={praefix}
@@ -230,24 +232,15 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
 
       <MeldungsBox meldung={meldung} className="mt-4" />
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <button
-          type="submit"
-          disabled={laeuft}
-          className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {laeuft ? "Speichert …" : id ? "Änderungen speichern" : "Semester anlegen"}
-        </button>
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
         {onAbbrechen && (
-          <button
-            type="button"
-            onClick={onAbbrechen}
-            disabled={laeuft}
-            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium disabled:opacity-60"
-          >
-            Abbrechen
+          <button type="button" onClick={onAbbrechen} disabled={laeuft} className={knopf("sekundaer")}>
+            {meldung?.art === "ok" ? "Schließen" : "Abbrechen"}
           </button>
         )}
+        <button type="submit" disabled={laeuft} className={knopf("primaer")}>
+          {laeuft ? "Speichert …" : id ? "Änderungen speichern" : "Semester anlegen"}
+        </button>
       </div>
     </form>
   );

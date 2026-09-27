@@ -9,7 +9,8 @@ import { sendeAnfrage } from "@/lib/api-client";
  * Abende sind wieder offen und lassen sich — etwa nach einer Korrektur der
  * Dozentenzuordnung im Stundenplan — neu abrechnen. Mit Rückfrage (Hausregel vor
  * destruktiven Aktionen); danach zurück zur Übersicht des Semesters, weil es die
- * Detailseite nicht mehr gibt.
+ * Detailseite nicht mehr gibt. Selten und folgenreich, deshalb ruhig am Ende der
+ * Seite statt neben der Hauptaktion (Oberflächenplan 09/2026).
  */
 export function StornierenKnopf({
   abrechnungId,
@@ -55,9 +56,9 @@ export function StornierenKnopf({
         type="button"
         onClick={stornieren}
         disabled={laeuft}
-        className="min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
+        className="-ml-3 inline-flex h-11 items-center rounded-lg px-3 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:cursor-not-allowed disabled:opacity-60 lg:h-9"
       >
-        {laeuft ? "Storniere …" : "Abrechnung stornieren"}
+        {laeuft ? "Storniere …" : "Abrechnung stornieren …"}
       </button>
       {fehler && (
         <p role="alert" className="mt-3 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm text-foreground">

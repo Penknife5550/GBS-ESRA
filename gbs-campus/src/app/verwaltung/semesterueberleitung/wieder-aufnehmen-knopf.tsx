@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 
 /**
  * Nimmt eine abgemeldete Teilnahme wieder auf. Die Person steht danach wieder
@@ -55,7 +56,7 @@ export function WiederAufnehmenKnopf({
         onClick={wiederAufnehmen}
         disabled={laeuft}
         aria-label={`${name} wieder aufnehmen`}
-        className="min-h-11 rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-60"
+        className={knopf("sekundaer", "klein")}
       >
         {laeuft ? "Wird aufgenommen …" : "Wieder aufnehmen"}
       </button>

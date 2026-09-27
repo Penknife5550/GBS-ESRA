@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { alsBuilderAbschnitte } from "@/lib/formular";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { Abschnitt, FormularBuilder } from "../formular-builder";
 
 export const metadata = { title: "Formular bearbeiten" };
@@ -33,22 +32,15 @@ export default async function BuilderSeite({ params }: { params: Promise<{ versi
   const abschnitte: Abschnitt[] = alsBuilderAbschnitte(version.abschnitte);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
-      <ZurueckLeiste
-        href="/verwaltung/formulare"
-        label="Alle Formulare"
-        breadcrumb={`Verwaltung · Formulare · Fassung ${version.version}`}
+    // Kopf mit Rückweg „‹ Formulare“ und Aktionen liefert der Builder selbst (Seitenkopf).
+    <main>
+      <FormularBuilder
+        versionId={version.id}
+        version={version.version}
+        bearbeitbar={version.status === "ENTWURF"}
+        einleitungStart={version.einleitung ?? ""}
+        abschnitteStart={abschnitte}
       />
-
-      <div className="mt-6">
-        <FormularBuilder
-          versionId={version.id}
-          version={version.version}
-          bearbeitbar={version.status === "ENTWURF"}
-          einleitungStart={version.einleitung ?? ""}
-          abschnitteStart={abschnitte}
-        />
-      </div>
     </main>
   );
 }

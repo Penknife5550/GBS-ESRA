@@ -1,25 +1,27 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ladeAngemeldeten, hatRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
-import { ladeEigeneDozentTermine } from "@/lib/stundenplan-io";
+import { tagLang } from "@/lib/datum";
 import { ladeEigeneDozentKurseinheiten } from "@/lib/leistung-io";
-import { offeneErfassung } from "@/lib/stundenplan";
-import { Icon, type IconName } from "@/components/icons";
-import { AbmeldenKnopf } from "@/components/ui/abmelden-knopf";
+import { KalenderBlock } from "@/components/ui/anzeige";
+import { LeererZustand } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
+import { Abschnitt, Gruppe, Zeile } from "@/components/ui/liste";
 import { LadeHinweis } from "@/components/ui/lade-hinweis";
-import { NotenMatrix } from "@/components/noten/noten-matrix";
+import { StatusPunkt } from "@/components/ui/status-punkt";
+import { HandySeite, KARTE } from "@/app/meine-daten/handy-seite";
+import { ladeDozentUebersicht, type DozentUebersicht, type KartenAbend } from "./daten";
 import { StundenplanDozent } from "./stundenplan-dozent";
 
 export const metadata = { title: "Mein Unterricht" };
 export const dynamic = "force-dynamic";
 
 /**
- * Die Startseite des Dozenten. Er landet nach dem Login hier (Weiche in
- * `/verwaltung`). Über einer Übersicht aus echten Kennzahlen und den offenen
- * Aufgaben sieht er read-only seinen Stundenplan; für vergangene Abende trägt er
- * die Anwesenheit an der Quelle ein (Recht `ANWESENHEIT_ERFASSEN_EIGENE`), Noten
- * seiner eigenen Fächer (Recht `NOTEN_ERFASSEN_EIGENE`).
+ * „Mein Unterricht“ — die Startseite des Dozenten (Weiche in `/verwaltung`).
+ * Oberflächenplan 09/2026, Vorlage b1: oben das Offene mit einem großen Knopf,
+ * darunter der nächste Abend mit Thema, dann alle Abende mit Stand. Erfasst wird
+ * die Anwesenheit im Blatt (Recht `ANWESENHEIT_ERFASSEN_EIGENE`), die Noten der
+ * eigenen Fächer stehen auf /dozent/noten (Recht `NOTEN_ERFASSEN_EIGENE`).
  */
 export default async function DozentSeite() {
   const benutzer = await ladeAngemeldeten();
@@ -28,129 +30,150 @@ export default async function DozentSeite() {
   const darfErfassen = hatRecht(benutzer, RECHT.ANWESENHEIT_ERFASSEN_EIGENE);
   const darfNoten = hatRecht(benutzer, RECHT.NOTEN_ERFASSEN_EIGENE);
 
-  const [gruppen, notenGruppen] = await Promise.all([
-    ladeEigeneDozentTermine(benutzer.id, new Date()),
+  const [uebersicht, notenGruppen] = await Promise.all([
+    ladeDozentUebersicht(benutzer.id, new Date()),
     darfNoten ? ladeEigeneDozentKurseinheiten(benutzer.id) : Promise.resolve([]),
   ]);
+  const { gruppen, offen, weitereOffen, naechste } = uebersicht;
+  const hatGehaltene = gruppen.some((g) => g.abende.some((a) => a.istVergangen));
 
-  // Kennzahlen aus dem geladenen Stundenplan — keine zusätzlichen Abfragen.
-  const alleTermine = gruppen.flatMap((g) => g.termine);
-  const faecher = new Set(alleTermine.map((t) => t.fach).filter(Boolean)).size;
-  const gehalten = alleTermine.filter((t) => t.istVergangen).length;
-
-  const offeneAufgaben = offeneErfassung(gruppen);
-
-  const tiles: { icon: IconName; label: string; wert: string; sub: string }[] = [
-    { icon: "faecher", label: "Meine Fächer", wert: String(faecher), sub: faecher === 1 ? "Fach" : "Fächer" },
-    { icon: "stundenplan", label: "Meine Abende", wert: String(alleTermine.length), sub: `${gehalten} gehalten` },
-    {
-      icon: "aufgabe",
-      label: "Offene Erfassung",
-      wert: String(offeneAufgaben.length),
-      sub: offeneAufgaben.length === 1 ? "Abend offen" : "Abende offen",
-    },
-  ];
+  // Am Handy untereinander, am Rechner nebeneinander.
+  const oben = (
+    <div className="grid gap-3.5 lg:grid-cols-2">
+      {darfErfassen && offen && <OffenKarte abend={offen} weitere={weitereOffen} />}
+      {darfErfassen && !offen && hatGehaltene && <ErfasstKarte />}
+      {naechste.length > 0 && <NaechsterAbendKarte einheiten={naechste} />}
+    </div>
+  );
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Mein Unterricht</h1>
-          <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-            Ihre Unterrichtsabende. Für vergangene Abende tragen Sie hier die Anwesenheit Ihrer Teilnehmer ein —
-            anwesend, gefehlt oder nachgearbeitet.
-          </p>
-          <Link href="/meine-daten" className="mt-3 inline-block text-sm text-muted-foreground underline underline-offset-4">
-            Meine persönlichen Daten (Adresse, Bankverbindung) →
-            <LadeHinweis className="ml-2" />
-          </Link>
-        </div>
-        <AbmeldenKnopf />
-      </div>
-
+    <HandySeite ueber={uebersicht.semester} titel="Unterricht">
       {gruppen.length === 0 ? (
-        <p className="mt-10 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
+        <LeererZustand icon="kalender" titel="Noch keine Abende">
           Ihnen sind noch keine Unterrichtsabende zugeordnet. Die Zuordnung nimmt die Verwaltung im Stundenplan vor.
-        </p>
+        </LeererZustand>
       ) : (
-        <>
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {tiles.map((t) => (
-              <div key={t.label} className="rounded-lg border border-border bg-card p-4">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg border border-border bg-muted text-primary">
-                    <Icon name={t.icon} className="h-4 w-4" />
-                  </span>
-                  <span className="text-xs font-medium uppercase tracking-[0.06em]">{t.label}</span>
-                </div>
-                <p className="mt-2 text-2xl font-bold tabular-nums">{t.wert}</p>
-                <p className="text-xs text-muted-foreground">{t.sub}</p>
-              </div>
-            ))}
-          </div>
-
-          {darfErfassen && offeneAufgaben.length > 0 && (
-            <section className="mt-6 rounded-lg border border-border border-l-4 border-l-credo-gelb bg-card p-4">
-              <h2 className="text-sm font-semibold">Offene Aufgaben</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Diese vergangenen Abende sind noch nicht vollständig erfasst. „Jetzt erfassen“ springt zum Abend im
-                Stundenplan und klappt die Erfassung auf.
-              </p>
-              <ul className="mt-3 space-y-2">
-                {offeneAufgaben.map((a) => (
-                  <li
-                    key={a.terminId}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background p-3"
-                  >
-                    <span className="min-w-0 text-sm">
-                      <span className="font-medium">{a.text}</span>
-                      {a.fach && <span className="text-muted-foreground"> · {a.fach}</span>}
-                      <span className="block text-xs text-muted-foreground">{a.semester}</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex rounded-full bg-credo-gelb/25 px-2.5 py-0.5 text-xs font-medium text-foreground">
-                        {a.erfasst} von {a.gesamt} erfasst
-                      </span>
-                      {/* Ein schlichter Anker (kein next/link): Nur so feuert der
-                          Browser `hashchange`, auf das der Stundenplan hört. */}
-                      <a
-                        href={`#termin-${a.terminId}`}
-                        className="inline-flex min-h-11 items-center rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-primary"
-                        aria-label={`Anwesenheit für ${a.text} jetzt erfassen`}
-                      >
-                        Jetzt erfassen
-                      </a>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <section id="stundenplan" className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Stundenplan &amp; Anwesenheit</h2>
-            <div className="mt-4">
-              <StundenplanDozent gruppen={gruppen} darfErfassen={darfErfassen} />
-            </div>
-          </section>
-        </>
+        <StundenplanDozent gruppen={gruppen} darfErfassen={darfErfassen} oben={oben} />
       )}
 
       {darfNoten && notenGruppen.length > 0 && (
-        <section id="meine-noten" className="mt-12">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Meine Noten</h2>
-          <p className="mt-2 mb-4 max-w-prose text-sm text-muted-foreground">
-            Bewerten Sie die Teilnehmer Ihrer eigenen Fächer. Pflicht ist nur das Ergebnis; Punkte und Note sind optional
-            (nur wo benotet wird, z. B. Bibelkunde). Hörer werden nicht benotet und stehen deshalb nicht in der Liste.
-          </p>
-          {notenGruppen.map((g) => (
-            <div key={g.semesterId} className="mt-6 first:mt-0">
-              <h3 className="mb-3 text-sm font-semibold">{g.semesterBezeichnung}</h3>
-              <NotenMatrix semesterId={g.semesterId} kurseinheiten={g.kurseinheiten} endpunkt="/api/dozent/note" />
-            </div>
-          ))}
+        <section className="mt-7">
+          <Abschnitt titel="Meine Noten" />
+          <Gruppe>
+            {notenGruppen.flatMap((g) =>
+              g.kurseinheiten.map((k) => {
+                const gesamt = k.teilnehmer.length;
+                const benotet = k.teilnehmer.filter((t) => k.leistungen[t.teilnahmeId]?.ergebnis).length;
+                return (
+                  <Zeile
+                    key={`${g.semesterId}-${k.kurseinheitId}`}
+                    href="/dozent/noten"
+                    titel={
+                      <>
+                        {k.fach}
+                        <LadeHinweis className="ml-2" />
+                      </>
+                    }
+                    untertitel={notenGruppen.length > 1 ? `${k.titel} · ${g.semesterBezeichnung}` : k.titel}
+                    rechts={
+                      <StatusPunkt ton={gesamt > 0 && benotet === gesamt ? "gruen" : benotet > 0 ? "gelb" : "grau"}>
+                        {benotet} von {gesamt}
+                      </StatusPunkt>
+                    }
+                  />
+                );
+              }),
+            )}
+          </Gruppe>
         </section>
       )}
-    </main>
+    </HandySeite>
+  );
+}
+
+/** Die Aufgabe oben: Anwesenheit eines gehaltenen Abends fehlt noch. */
+function OffenKarte({ abend, weitere }: { abend: KartenAbend; weitere: DozentUebersicht["weitereOffen"] }) {
+  const stand =
+    abend.erfasst === 0
+      ? "Noch niemand ist erfasst."
+      : abend.selbst === abend.erfasst
+        ? `${abend.selbst} von ${abend.gesamt} haben sich schon selbst eingetragen`
+        : abend.selbst > 0
+          ? `${abend.erfasst} von ${abend.gesamt} erfasst, ${abend.selbst} davon selbst eingetragen`
+          : `${abend.erfasst} von ${abend.gesamt} erfasst`;
+  return (
+    <section aria-labelledby="offen-titel" className={KARTE}>
+      <StatusPunkt ton="gelb" className="text-[15px] font-semibold">
+        Offen
+      </StatusPunkt>
+      <h2 id="offen-titel" className="mt-1.5 text-[17px] font-semibold leading-snug tracking-tight text-foreground">
+        {`Anwesenheit vom ${abend.tagMitName}`}
+      </h2>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        {[abend.fach, abend.kurzThema].filter(Boolean).join(" · ")}
+      </p>
+      <p className="text-sm text-muted-foreground">{stand}</p>
+      {/* Ein schlichter Anker (kein next/link) auf den Abend in der Liste: Die
+          Liste fängt den Klick ab und öffnet das Blatt (als Adresse mit
+          #termin-… auch von außen). Ohne JavaScript springt er zum Abend. */}
+      <a
+        href={`#termin-${abend.id}`}
+        className={`${knopf("primaer", "gross")} mt-3.5`}
+        aria-label={`Anwesenheit vom ${abend.tagMitName} jetzt erfassen`}
+      >
+        Jetzt erfassen
+      </a>
+      {weitere.length > 0 && (
+        <>
+          <p className="mt-3.5 text-[13px] text-muted-foreground">Außerdem noch offen:</p>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {weitere.map((w) => (
+              <a
+                key={w.id}
+                href={`#termin-${w.id}`}
+                className={knopf("sekundaer", "klein")}
+                aria-label={`Anwesenheit vom ${w.tagMitName} erfassen`}
+              >
+                {w.tag}
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Ruhige Bestätigung, wenn nichts offen ist — an der Stelle der Karte „Offen“. */
+function ErfasstKarte() {
+  return (
+    <section className={KARTE}>
+      <StatusPunkt ton="gruen" className="text-[15px] font-semibold">
+        Erfasst
+      </StatusPunkt>
+      <p className="mt-1.5 text-sm text-muted-foreground">Die Anwesenheit aller gehaltenen Abende ist vollständig.</p>
+    </section>
+  );
+}
+
+/** Der nächste eigene Unterrichtstag mit Uhrzeit, Fach, Thema und Teilnehmerzahl. */
+function NaechsterAbendKarte({ einheiten }: { einheiten: KartenAbend[] }) {
+  const erster = einheiten[0];
+  return (
+    <section aria-labelledby="naechster-titel" className={`${KARTE} flex items-start gap-4`}>
+      <KalenderBlock datum={erster.beginn} className="pt-0.5" />
+      <div className="min-w-0">
+        <h2 id="naechster-titel" className="text-[13px] font-medium text-muted-foreground">
+          Nächster Abend<span className="sr-only">{`: ${tagLang(erster.beginn)}`}</span>
+        </h2>
+        {einheiten.map((e) => (
+          <div key={e.id} className="mt-0.5">
+            <p className="text-base font-semibold text-foreground">{[e.zeit, e.fach].filter(Boolean).join(" · ")}</p>
+            {e.thema && <p className="text-[15px] text-foreground">{e.thema}</p>}
+          </div>
+        ))}
+        <p className="mt-1 text-[13px] text-muted-foreground">{`${erster.teilnehmer} Teilnehmer`}</p>
+      </div>
+    </section>
   );
 }

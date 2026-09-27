@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Hinweis } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type StammdatenFelder = {
@@ -22,17 +24,22 @@ type Antwort = {
 };
 
 /**
- * Selbstpflege der eigenen Stammdaten.
+ * Selbstpflege der eigenen Stammdaten — seit dem Oberflächenplan 09/2026 in zwei
+ * Blättern unter „Ich“: `teil="kontakt"` (Telefon und Adresse) und
+ * `teil="bank"` (Kontoinhaber und IBAN). Jedes Blatt schickt nur seine Felder;
+ * die Route lässt nicht mitgeschickte Felder unverändert („Teilangaben sind
+ * erlaubt“, api/meine-daten/route.ts).
  *
  * Das IBAN-Feld ist absichtlich immer leer: Die hinterlegte Bankverbindung wird
- * nie im Klartext angezeigt. Leer lassen heißt deshalb „unverändert" — sonst
- * hätte jede Adressänderung die Bankverbindung gelöscht.
+ * nie im Klartext angezeigt. Leer lassen heißt deshalb „unverändert".
  */
 export function StammdatenFormular({
+  teil,
   vorbelegung,
   hatBankverbindung,
   istDozent = false,
 }: {
+  teil: "kontakt" | "bank";
   vorbelegung: StammdatenFelder;
   hatBankverbindung: boolean;
   /** Dozenten brauchen die IBAN für die Überweisung des Honorars, nicht für einen Lastschrifteinzug. */
@@ -62,10 +69,11 @@ export function StammdatenFormular({
     setMeldung(null);
     setFeldFehler({});
 
-    const antwort = await sendeAnfrage<Antwort>("/api/meine-daten", {
-      methode: "PUT",
-      rumpf: { ...felder, iban: iban.trim() || null },
-    });
+    const rumpf =
+      teil === "kontakt"
+        ? { telefon: felder.telefon, strasse: felder.strasse, plz: felder.plz, ort: felder.ort }
+        : { kontoinhaber: felder.kontoinhaber, iban: iban.trim() || null };
+    const antwort = await sendeAnfrage<Antwort>("/api/meine-daten", { methode: "PUT", rumpf });
     setLaeuft(false);
 
     if (!antwort.ok) {
@@ -91,8 +99,8 @@ export function StammdatenFormular({
         : hinweisGesendet === false
           ? " Der Sicherheitshinweis an Ihre E-Mail-Adresse konnte aber nicht zugestellt werden — die Änderung gilt trotzdem."
           : "";
-    // Die Seite verspricht „Die Verwaltung wird über jede Änderung informiert".
-    // Wenn die Mail nicht rausging, darf hier nicht dasselbe stehen.
+    // Die Verwaltung wird über jede Änderung informiert. Wenn die Mail nicht
+    // rausging, darf hier nicht dasselbe stehen.
     setMeldung(
       geaendert.length === 0
         ? { art: "ok", text: "Es gab nichts zu ändern." }
@@ -113,84 +121,82 @@ export function StammdatenFormular({
   }
 
   return (
-    <form onSubmit={speichern} className="rounded-lg border border-border bg-card p-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Feld
-          name="telefon"
-          label="Telefonnummer"
-          typ="tel"
-          autoComplete="tel"
-          wert={felder.telefon}
-          fehler={feldFehler.telefon}
-          onAendern={(w) => aendere("telefon", w)}
-        />
-        <Feld
-          name="strasse"
-          label="Straße und Hausnummer"
-          autoComplete="street-address"
-          wert={felder.strasse}
-          fehler={feldFehler.strasse}
-          onAendern={(w) => aendere("strasse", w)}
-        />
-        <Feld
-          name="plz"
-          label="Postleitzahl"
-          autoComplete="postal-code"
-          wert={felder.plz}
-          fehler={feldFehler.plz}
-          onAendern={(w) => aendere("plz", w)}
-        />
-        <Feld
-          name="ort"
-          label="Ort"
-          autoComplete="address-level2"
-          wert={felder.ort}
-          fehler={feldFehler.ort}
-          onAendern={(w) => aendere("ort", w)}
-        />
-      </div>
+    <form onSubmit={speichern} className="flex flex-col gap-4">
+      {teil === "kontakt" ? (
+        <>
+          <Feld
+            name="telefon"
+            label="Telefonnummer"
+            typ="tel"
+            autoComplete="tel"
+            wert={felder.telefon}
+            fehler={feldFehler.telefon}
+            onAendern={(w) => aendere("telefon", w)}
+          />
+          <Feld
+            name="strasse"
+            label="Straße und Hausnummer"
+            autoComplete="street-address"
+            wert={felder.strasse}
+            fehler={feldFehler.strasse}
+            onAendern={(w) => aendere("strasse", w)}
+          />
+          <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3">
+            <Feld
+              name="plz"
+              label="Postleitzahl"
+              autoComplete="postal-code"
+              wert={felder.plz}
+              fehler={feldFehler.plz}
+              onAendern={(w) => aendere("plz", w)}
+            />
+            <Feld
+              name="ort"
+              label="Ort"
+              autoComplete="address-level2"
+              wert={felder.ort}
+              fehler={feldFehler.ort}
+              onAendern={(w) => aendere("ort", w)}
+            />
+          </div>
+          <p className="text-[13px] text-muted-foreground">Die Verwaltung wird über jede Änderung informiert.</p>
+        </>
+      ) : (
+        <>
+          <Hinweis>
+            {hatBankverbindung
+              ? "Es ist eine Bankverbindung hinterlegt. Sie wird aus Sicherheitsgründen nicht angezeigt. Das Feld nur ausfüllen, wenn sich die IBAN geändert hat — leer lassen ändert nichts."
+              : istDozent
+                ? "Es ist noch keine Bankverbindung hinterlegt. Sie wird für die Überweisung des Dozentenhonorars benötigt."
+                : "Es ist noch keine Bankverbindung hinterlegt. Der Semesterbeitrag wird per Lastschrift eingezogen."}
+          </Hinweis>
+          <Feld
+            name="kontoinhaber"
+            label="Kontoinhaber"
+            autoComplete="name"
+            wert={felder.kontoinhaber}
+            fehler={feldFehler.kontoinhaber}
+            onAendern={(w) => aendere("kontoinhaber", w)}
+          />
+          <Feld
+            name="iban"
+            label={hatBankverbindung ? "Neue IBAN" : "IBAN"}
+            hinweis="Wird verschlüsselt gespeichert und ist nur für die Verwaltung einsehbar."
+            wert={iban}
+            fehler={feldFehler.iban}
+            onAendern={(w) => {
+              setIban(w);
+              setMeldung(null);
+            }}
+          />
+        </>
+      )}
 
-      <h3 className="mt-8 text-sm font-medium">Bankverbindung</h3>
-      <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-        {hatBankverbindung
-          ? "Es ist eine Bankverbindung hinterlegt. Sie wird aus Sicherheitsgründen nicht angezeigt. Das Feld nur ausfüllen, wenn sich die IBAN geändert hat — leer lassen ändert nichts."
-          : istDozent
-            ? "Es ist noch keine Bankverbindung hinterlegt. Sie wird für die Überweisung des Dozentenhonorars benötigt."
-            : "Es ist noch keine Bankverbindung hinterlegt. Der Semesterbeitrag wird per Lastschrift eingezogen."}
-      </p>
+      <MeldungsBox meldung={meldung} />
 
-      <div className="mt-3 grid gap-4 sm:grid-cols-2">
-        <Feld
-          name="kontoinhaber"
-          label="Kontoinhaber"
-          wert={felder.kontoinhaber}
-          fehler={feldFehler.kontoinhaber}
-          onAendern={(w) => aendere("kontoinhaber", w)}
-        />
-        <Feld
-          name="iban"
-          label="Neue IBAN"
-          hinweis="Wird verschlüsselt gespeichert und ist nur für die Verwaltung einsehbar."
-          wert={iban}
-          fehler={feldFehler.iban}
-          onAendern={(w) => {
-            setIban(w);
-            setMeldung(null);
-          }}
-        />
-      </div>
-
-      <div className="mt-6">
-        <button
-          type="submit"
-          disabled={laeuft}
-          className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {laeuft ? "Speichert …" : "Änderungen speichern"}
-        </button>
-      </div>
-
-      <MeldungsBox meldung={meldung} className="mt-4 max-w-prose" />
+      <button type="submit" disabled={laeuft} className={`${knopf("primaer")} w-full sm:w-auto sm:self-end`}>
+        {laeuft ? "Speichert …" : "Änderungen speichern"}
+      </button>
     </form>
   );
 }
@@ -215,7 +221,7 @@ function Feld({
   autoComplete?: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <label htmlFor={name} className="block text-sm font-medium">
         {label}
       </label>

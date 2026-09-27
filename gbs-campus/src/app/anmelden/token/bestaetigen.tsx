@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 
 /**
  * Liest den Anmelde-Token aus dem URL-FRAGMENT (#token=…) und löst ihn per POST
@@ -49,9 +50,9 @@ export function AnmeldungBestaetigen() {
 
   if (!token) {
     return (
-      <p className="mt-8 rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
+      <p className="mt-8 rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
         Der Link war unvollständig.{" "}
-        <a href="/anmelden" className="underline underline-offset-2">
+        <a href="/anmelden" className="font-medium underline underline-offset-2">
           Neuen Link anfordern
         </a>
       </p>
@@ -60,19 +61,14 @@ export function AnmeldungBestaetigen() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={bestaetigen}
-        disabled={laeuft}
-        className="mt-8 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
+      <button type="button" onClick={bestaetigen} disabled={laeuft} className={`${knopf("primaer", "gross")} mt-8`}>
         {laeuft ? "Wird angemeldet …" : "Jetzt anmelden"}
       </button>
 
       {fehler && (
-        <p role="alert" className="mt-6 rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
+        <p role="alert" className="mt-4 rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
           {fehler}{" "}
-          <a href="/anmelden" className="underline underline-offset-2">
+          <a href="/anmelden" className="font-medium underline underline-offset-2">
             Neuen Link anfordern
           </a>
         </p>

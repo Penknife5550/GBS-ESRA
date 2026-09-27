@@ -1,7 +1,13 @@
 "use client";
 
 /**
- * GBS Campus — Inline-Noteneingabe auf der Personen-Detailakte
+ * GBS Campus — Noteneingabe auf der Personen-Detailakte
+ *
+ * Die Akte zeigt die Noten lesend; „Noten eintragen“ öffnet diesen Editor im
+ * Blatt (Oberflächenplan 09/2026: Lesen und Bearbeiten trennen). Vorher stand
+ * er als Tabelle in einer halben Spalte, die Spalte „Punkte“ war rechts
+ * abgeschnitten. Jetzt ist jedes Fach eine Zeile, die am Handy untereinander
+ * umbricht (Ergebnis, darunter Punkte und Note) — ohne waagrechtes Scrollen.
  *
  * Eine Zeile je Fach der laufenden Kurseinheiten, für GENAU diese Person. Anders
  * als die Matrix (viele Teilnehmer × ein Fach) ist das hier ein Teilnehmer × viele
@@ -12,6 +18,8 @@
  * zeigt wieder, was in der Datenbank steht. Vorher wurde der Entwurf nur beim
  * ersten Rendern gesetzt — nach `router.refresh()` konnte die Zeile „nicht
  * bewertet" zeigen, während die Datenbank „bestanden" hielt (Code-Review 4, M18).
+ * Wer das Blatt schließt, verliert nichts: Ungespeicherte Zeilen bleiben markiert
+ * stehen, bis sie gespeichert oder zurückgedreht sind.
  *
  * Eine gesetzte Bewertung lässt sich ändern, aber nicht entfernen — die API kennt
  * kein Leeren (`ergebnis` ist Pflicht). Die leere Option ist bei bewerteten
@@ -23,6 +31,8 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Blatt } from "@/components/ui/blatt";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 import {
   ERGEBNIS_OPTIONEN,
@@ -42,7 +52,9 @@ type Kurs = {
 
 type Entwurf = { ergebnis: string; punkte: string; note: string };
 
-const feldKlasse = "min-h-11 rounded-lg border border-input bg-background px-2 py-1.5 text-sm";
+const feldKlasse = "min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm lg:min-h-10";
+/** Spalten ab sm: Fach · Ergebnis · Punkte · Note (Kopfzeile und Zeilen teilen sie). */
+const spalten = "sm:grid-cols-[minmax(0,1fr)_12rem_5.5rem_8rem]";
 
 function ausWert(wert: LeistungWert | null): Entwurf {
   return {
@@ -78,12 +90,16 @@ export function NotenInline({
   semesterId,
   teilnahmeId,
   kurseinheiten,
+  titel,
 }: {
   semesterId: string;
   teilnahmeId: string;
   kurseinheiten: Kurs[];
+  /** Titel des Blatts, z. B. „Noten · Herbstsemester 2026“. */
+  titel: string;
 }) {
   const router = useRouter();
+  const [offen, setOffen] = useState(false);
   // kurseinheitId → Zeilen-Entwurf, nur für berührte Zeilen (Overlay).
   const [entwurf, setEntwurf] = useState<Record<string, Entwurf>>({});
   const [laeuft, setLaeuft] = useState(false);
@@ -204,46 +220,73 @@ export function NotenInline({
     });
   }
 
-  if (kurseinheiten.length === 0) {
-    return (
-      <p className="px-4 py-6 text-sm text-muted-foreground">
-        Für das laufende Semester sind noch keine Fächer (Kurseinheiten) hinterlegt.
-      </p>
-    );
-  }
+  // Ohne Fächer gibt es nichts einzutragen — den Grund nennt die Akte selbst.
+  if (kurseinheiten.length === 0) return null;
 
   return (
-    <div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] text-left text-sm">
-          <caption className="sr-only">Noten je Fach für diese Person</caption>
-          <thead className="bg-muted/60 text-xs uppercase tracking-[0.04em] text-muted-foreground">
-            <tr>
-              <th scope="col" className="px-4 py-2 font-medium">Fach</th>
-              <th scope="col" className="px-4 py-2 font-medium">Ergebnis</th>
-              <th scope="col" className="px-4 py-2 font-medium">Punkte</th>
-              <th scope="col" className="px-4 py-2 font-medium">Note</th>
-            </tr>
-          </thead>
-          <tbody>
+    <>
+      <button
+        type="button"
+        onClick={() => setOffen(true)}
+        className="-my-3 inline-flex min-h-11 items-center rounded-md px-1.5 hover:bg-muted lg:-my-1.5 lg:min-h-8"
+      >
+        Noten eintragen
+      </button>
+      <Blatt
+        offen={offen}
+        onSchliessen={() => setOffen(false)}
+        titel={titel}
+        breit
+        fuss={
+          <>
+            <button type="button" onClick={() => setOffen(false)} className={knopf("sekundaer")}>
+              Schließen
+            </button>
+            <button
+              type="button"
+              onClick={speichern}
+              disabled={laeuft || zuSichern.length === 0}
+              className={knopf("primaer")}
+            >
+              {laeuft ? "Wird gespeichert …" : "Noten speichern"}
+            </button>
+          </>
+        }
+      >
+        {/* Das Blatt steht im Kopf des Abschnitts — Schrift hier ausdrücklich zurücksetzen. */}
+        <div className="text-sm font-normal text-foreground">
+          <p id={hinweisId} className="text-[13px] text-muted-foreground">
+            Pflicht ist nur das Ergebnis; Punkte und Note sind optional (nur wo benotet wird). Eine gesetzte Bewertung
+            lässt sich ändern, aber nicht entfernen.
+          </p>
+          <div
+            aria-hidden="true"
+            className={`mt-4 hidden gap-3 border-b border-linie pb-2 text-xs font-medium text-muted-foreground sm:grid ${spalten}`}
+          >
+            <span>Fach</span>
+            <span>Ergebnis</span>
+            <span>Punkte</span>
+            <span>Note</span>
+          </div>
+          <ul className="divide-y divide-linie">
             {kurseinheiten.map((k) => {
               const jetzt = angezeigt(k, entwurf);
               const geaendert = jetzt.ergebnis !== "" && !gleich(jetzt, ausWert(k.wert));
               const bewertet = Boolean(k.wert?.ergebnis);
               return (
-                <tr key={k.kurseinheitId} className="border-t border-border align-top">
-                  <td className="px-4 py-2.5">
-                    <span className="font-medium">{k.fach}</span>
-                    <span className="block text-xs text-muted-foreground">{k.titel}</span>
+                <li key={k.kurseinheitId} className={`grid gap-3 py-3.5 sm:items-center ${spalten}`}>
+                  <div className="min-w-0">
+                    <p className="font-medium">{k.fach}</p>
+                    <p className="text-[13px] text-muted-foreground">{k.titel}</p>
                     {geaendert && (
                       <span className="mt-1 inline-flex rounded-full bg-credo-gelb/25 px-2 py-0.5 text-xs font-medium text-foreground">
                         ungespeichert
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <label className="sr-only" htmlFor={`erg-${k.kurseinheitId}`}>
-                      Ergebnis {k.fach}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground sm:sr-only" htmlFor={`erg-${k.kurseinheitId}`}>
+                      Ergebnis<span className="sr-only"> {k.fach}</span>
                     </label>
                     <select
                       id={`erg-${k.kurseinheitId}`}
@@ -263,60 +306,48 @@ export function NotenInline({
                         </option>
                       ))}
                     </select>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <label className="sr-only" htmlFor={`pkt-${k.kurseinheitId}`}>
-                      Punkte {k.fach}
-                    </label>
-                    <input
-                      id={`pkt-${k.kurseinheitId}`}
-                      type="number"
-                      inputMode="numeric"
-                      min={PUNKTE_MIN}
-                      max={PUNKTE_MAX}
-                      value={jetzt.punkte}
-                      onChange={(e) => setzen(k, { punkte: e.target.value })}
-                      disabled={jetzt.ergebnis === ""}
-                      className={`${feldKlasse} w-20 disabled:opacity-50`}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <label className="sr-only" htmlFor={`note-${k.kurseinheitId}`}>
-                      Note {k.fach}
-                    </label>
-                    <input
-                      id={`note-${k.kurseinheitId}`}
-                      type="text"
-                      maxLength={NOTE_MAX_LAENGE}
-                      value={jetzt.note}
-                      onChange={(e) => setzen(k, { note: e.target.value })}
-                      disabled={jetzt.ergebnis === ""}
-                      placeholder="z. B. gut"
-                      className={`${feldKlasse} w-28 disabled:opacity-50`}
-                    />
-                  </td>
-                </tr>
+                  </div>
+                  {/* Am Handy Punkte und Note nebeneinander, ab sm eigene Spalten. */}
+                  <div className="grid grid-cols-2 gap-3 sm:contents">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground sm:sr-only" htmlFor={`pkt-${k.kurseinheitId}`}>
+                        Punkte<span className="sr-only"> {k.fach}</span>
+                      </label>
+                      <input
+                        id={`pkt-${k.kurseinheitId}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={PUNKTE_MIN}
+                        max={PUNKTE_MAX}
+                        value={jetzt.punkte}
+                        onChange={(e) => setzen(k, { punkte: e.target.value })}
+                        disabled={jetzt.ergebnis === ""}
+                        className={`${feldKlasse} disabled:opacity-50`}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground sm:sr-only" htmlFor={`note-${k.kurseinheitId}`}>
+                        Note<span className="sr-only"> {k.fach}</span>
+                      </label>
+                      <input
+                        id={`note-${k.kurseinheitId}`}
+                        type="text"
+                        maxLength={NOTE_MAX_LAENGE}
+                        value={jetzt.note}
+                        onChange={(e) => setzen(k, { note: e.target.value })}
+                        disabled={jetzt.ergebnis === ""}
+                        placeholder="z. B. gut"
+                        className={`${feldKlasse} disabled:opacity-50`}
+                      />
+                    </div>
+                  </div>
+                </li>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-3">
-        <button
-          type="button"
-          onClick={speichern}
-          disabled={laeuft || zuSichern.length === 0}
-          className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {laeuft ? "Wird gespeichert …" : "Noten speichern"}
-        </button>
-        <span id={hinweisId} className="text-xs text-muted-foreground">
-          Pflicht ist nur das Ergebnis; Punkte und Note sind optional (nur wo benotet wird). Eine gesetzte Bewertung
-          lässt sich ändern, aber nicht entfernen.
-        </span>
-        <MeldungsBox meldung={meldung} className="w-full" />
-      </div>
-    </div>
+          </ul>
+          <MeldungsBox meldung={meldung} className="mt-3 break-words" />
+        </div>
+      </Blatt>
+    </>
   );
 }

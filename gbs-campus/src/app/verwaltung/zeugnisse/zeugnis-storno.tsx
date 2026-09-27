@@ -4,14 +4,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 import { STORNO_GRUND_MAX_LAENGE } from "@/lib/zeugnis";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Antwort = { zeugnisId: string; belegNr: string; status: string; storniertAm: string };
-
-const nebenKlasse =
-  "min-h-11 inline-flex items-center rounded-lg border border-border px-3 py-1.5 text-sm hover:border-primary disabled:opacity-60";
-const knopfKlasse =
-  "min-h-11 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60";
 
 /**
  * „Stornieren“ an einem gültigen Zeugnis (Zeugnisseite und Detailakte, Recht
@@ -94,13 +90,13 @@ export function ZeugnisStorno({
             setMeldung(null);
           }}
           aria-label={beschriftung}
-          className={nebenKlasse}
+          className={knopf("gefahr")}
         >
           Stornieren
         </button>
       )}
       {stornierbar && offen && (
-        <div className="w-full rounded-lg border border-border bg-muted p-3 sm:max-w-md">
+        <div className="w-full rounded-xl border border-linie bg-muted p-3 sm:max-w-md">
           <label htmlFor={feldId} className="block text-sm font-medium">
             Grund des Stornos (Pflicht, nur intern)
           </label>
@@ -118,7 +114,7 @@ export function ZeugnisStorno({
               type="button"
               onClick={stornieren}
               disabled={laeuft || grund.trim().length === 0}
-              className={knopfKlasse}
+              className={knopf("gefahr")}
             >
               {laeuft ? "Wird storniert …" : "Jetzt stornieren"}
             </button>
@@ -129,7 +125,7 @@ export function ZeugnisStorno({
                 setFokusZumKnopf(true);
               }}
               disabled={laeuft}
-              className={nebenKlasse}
+              className={knopf("sekundaer")}
             >
               Abbrechen
             </button>

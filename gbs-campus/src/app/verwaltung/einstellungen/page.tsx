@@ -1,8 +1,10 @@
+import { Fragment } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { Abschnitt, Gruppe } from "@/components/ui/liste";
 import { EinstellungsFeld } from "./einstellungs-feld";
 
 export const metadata = { title: "Einstellungen" };
@@ -11,9 +13,18 @@ export const dynamic = "force-dynamic";
 const BEREICH_NAME: Record<string, string> = {
   AUTH: "Anmeldung am Portal",
   ANMELDUNG: "Anmeldeformular",
+  BEITRAG: "Beitrag",
+  BETRIEB: "Betrieb",
+  SEMESTER: "Semester",
   FINANZEN: "Finanzen",
 };
 
+/**
+ * Einstellungen wie in den Systemeinstellungen (Oberflächenplan 09/2026): je
+ * Bereich eine Gruppe, jede Zeile zeigt den geltenden Wert, geändert wird im
+ * Blatt. Die Werte gelten sofort, jede Änderung steht im Protokoll, und die
+ * Grenzen prüft der Server.
+ */
 export default async function EinstellungenSeite() {
   const benutzer = await ladeMitRecht(RECHT.SYSTEM_EINSTELLUNGEN);
   if (!benutzer) redirect("/anmelden");
@@ -25,40 +36,33 @@ export default async function EinstellungenSeite() {
   const bereiche = [...new Set(einstellungen.map((e) => e.bereich))];
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Einstellungen" />
-
-      <h1 className="mt-6 text-2xl font-bold tracking-tight">Einstellungen</h1>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Diese Werte gelten sofort, ohne Neustart. Jede Änderung steht im Audit-Log. Die zulässigen Grenzen sind
-        fest hinterlegt — was außerhalb liegt, wird abgelehnt.
-      </p>
-
-      {bereiche.map((bereich) => (
-        <section key={bereich} className="mt-10">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {BEREICH_NAME[bereich] ?? bereich}
-          </h2>
-          <div className="space-y-4">
-            {einstellungen
-              .filter((e) => e.bereich === bereich)
-              .map((e) => (
-                <EinstellungsFeld
-                  key={e.schluessel}
-                  einstellung={{
-                    schluessel: e.schluessel,
-                    bezeichnung: e.bezeichnung,
-                    beschreibung: e.beschreibung,
-                    wert: e.wert,
-                    minimum: e.minimum,
-                    maximum: e.maximum,
-                    einheit: e.einheit,
-                  }}
-                />
-              ))}
-          </div>
-        </section>
-      ))}
+    <main>
+      <Seitenkopf titel="Einstellungen" />
+      <Inhalt breite="lesen">
+        {bereiche.map((bereich) => (
+          <Fragment key={bereich}>
+            <Abschnitt titel={BEREICH_NAME[bereich] ?? bereich} />
+            <Gruppe>
+              {einstellungen
+                .filter((e) => e.bereich === bereich)
+                .map((e) => (
+                  <EinstellungsFeld
+                    key={e.schluessel}
+                    einstellung={{
+                      schluessel: e.schluessel,
+                      bezeichnung: e.bezeichnung,
+                      beschreibung: e.beschreibung,
+                      wert: e.wert,
+                      minimum: e.minimum,
+                      maximum: e.maximum,
+                      einheit: e.einheit,
+                    }}
+                  />
+                ))}
+            </Gruppe>
+          </Fragment>
+        ))}
+      </Inhalt>
     </main>
   );
 }

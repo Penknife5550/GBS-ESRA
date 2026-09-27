@@ -1517,7 +1517,8 @@ pruefe "der von der Schule erfasste Status bleibt GEFEHLT" \
 # ihre Quote steht damit auf "noch offen" (nicht erfuellt, nicht verloren). Nur
 # statische Textstuecke pruefen: React-SSR trennt dynamische Werte mit Kommentar-
 # Markern, "1 von 11" waere deshalb kein verlaesslicher Treffer.
-AKTE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")
+# Seit dem Oberflächenplan (09/2026) stehen Ampel und Abende unter „Abende“.
+AKTE=$(curl -s "${BASIS}/meine-daten/abende" -H "Cookie: ${KEKS2}")
 pruefe "die eigene Akte zeigt den Anwesenheits-Abschnitt" "$(enthaelt "$AKTE" "Meine Anwesenheit")"
 pruefe "die eigene Quote nennt teilgenommen/gesamt" "$(enthaelt "$AKTE" "Teilgenommen:")"
 pruefe "die eigene Quote steht auf 'Noch offen'" "$(enthaelt "$AKTE" "Noch offen")"
@@ -1536,7 +1537,7 @@ pruefe "ohne Anmeldung keine Selbstbestaetigung (401)" "$(gleich "$SB_ANON" "401
 pruefe "die Selbstbestaetigung ist protokolliert (ANWESENHEIT_SELBST_BESTAETIGT)" \
   "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='ANWESENHEIT_SELBST_BESTAETIGT' and \"objektId\"='${SB_PAST}';")" "t")"
 # Die eigene Akte zeigt jetzt den Abschnitt „Meine Anwesenheit".
-SB_SEITE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")
+SB_SEITE=$(curl -s "${BASIS}/meine-daten/abende" -H "Cookie: ${KEKS2}")
 pruefe "die eigene Akte zeigt den Abschnitt Meine Anwesenheit" "$(enthaelt "$SB_SEITE" "Meine Anwesenheit")"
 
 echo
@@ -1928,12 +1929,12 @@ STORNO_404=$(status_von -X DELETE "${BASIS}/api/honorar/abrechnungen/$(neuer_tok
 pruefe "eine unbekannte Abrechnung zu stornieren ist 404" "$(gleich "$STORNO_404" "404")" "$STORNO_404"
 
 # Die Stundenplanseite kennzeichnet abgerechnete Abende und fuehrt zur Abrechnung;
-# die Semesterwahl ist ein GET-Formular mit „Anzeigen".
+# die Semesterwahl ist seit dem Oberflächenplan (09/2026) ein Menü aus Links (ohne „Anzeigen“).
 PLAN=$(curl -s "${BASIS}/verwaltung/stundenplan?semester=${SEMESTER_ID}" -H "Cookie: ${KEKS}")
 pruefe "Stundenplan: abgerechnete Abende sind markiert und verlinken die Abrechnung" \
   "$([ "$(enthaelt "$PLAN" 'abgerechnet')" = "1" ] && [ "$(enthaelt "$PLAN" 'Zur Abrechnung')" = "1" ] && echo 1 || echo 0)"
-pruefe "Stundenplan: Semesterwahl als Formular (name=\"semester\", Anzeigen)" \
-  "$([ "$(enthaelt "$PLAN" 'name="semester"')" = "1" ] && [ "$(enthaelt "$PLAN" 'Anzeigen')" = "1" ] && echo 1 || echo 0)"
+pruefe "Stundenplan: Semesterwahl als Links (wirkt sofort, kein „Anzeigen“)" \
+  "$([ "$(enthaelt "$PLAN" '/verwaltung/stundenplan?semester=')" = "1" ] && [ "$(fehlt_in "$PLAN" 'Anzeigen')" = "1" ] && echo 1 || echo 0)"
 
 echo
 echo "=== 30. Sicherheits-Header: Content-Security-Policy am App-Container ==="
@@ -2102,17 +2103,18 @@ pruefe "ohne Dozentenrecht fuehrt /dozent weg (307)" "$(gleich "$DZ_GUARD" "307"
 DZ_SEITE=$(curl -s "${BASIS}/dozent" -H "Cookie: ${KEKS_DOZ}")
 pruefe "die Dozentenseite rendert (Mein Unterricht)" "$(enthaelt "$DZ_SEITE" 'Mein Unterricht')"
 pruefe "die Seite zeigt die eigenen Abende (nicht den Leerzustand)" "$(fehlt_in "$DZ_SEITE" 'noch keine Unterrichtsabende zugeordnet')"
-pruefe "ein vergangener eigener Abend bietet die Erfassung an" "$(enthaelt "$DZ_SEITE" 'Anwesenheit (')"
-pruefe "ein kuenftiger eigener Abend ist markiert (noch nicht stattgefunden)" "$(enthaelt "$DZ_SEITE" 'noch nicht stattgefunden')"
+pruefe "ein vergangener eigener Abend bietet die Erfassung an" "$(enthaelt "$DZ_SEITE" 'data-erfassbar="ja"')"
+pruefe "ein kuenftiger eigener Abend ist markiert (geplant)" "$(enthaelt "$DZ_SEITE" 'geplant')"
 # „Offene Aufgaben" springt per Anker zum Abend im Stundenplan: DZ_TERMIN liegt
 # zurueck und ist noch fuer niemanden erfasst.
 pruefe "offene Erfassung verlinkt den Abend per Anker (#termin-…), das Ziel existiert" \
   "$([ "$(enthaelt "$DZ_SEITE" "href=\"#termin-${DZ_TERMIN}\"")" = "1" ] && [ "$(enthaelt "$DZ_SEITE" "id=\"termin-${DZ_TERMIN}\"")" = "1" ] && echo 1 || echo 0)"
 # Rueckwege: Wer von „Mein Unterricht" in die eigene Akte geht, kommt dorthin zurueck.
-DZ_AKTE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS_DOZ}")
-pruefe "die eigene Akte der Dozentin fuehrt zurueck zu „Mein Unterricht“ (/dozent)" \
-  "$([ "$(enthaelt "$DZ_AKTE" 'href="/dozent"')" = "1" ] && [ "$(enthaelt "$DZ_AKTE" 'Mein Unterricht')" = "1" ] && echo 1 || echo 0)"
-pruefe "ein Teilnehmer sieht dort weiter „Meine Akte“" "$(enthaelt "$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")" 'Meine Akte')"
+pruefe "die Übersicht leitet eine Dozentin ohne eigene Teilnahme zu „Ich“ (307)" "$(gleich "$(status_von "${BASIS}/meine-daten" -H "Cookie: ${KEKS_DOZ}")" "307")"
+DZ_AKTE=$(curl -s "${BASIS}/meine-daten/ich" -H "Cookie: ${KEKS_DOZ}")
+pruefe "die eigenen Daten der Dozentin fuehren ueber die Leiste zurueck zu „Unterricht“ (/dozent)" \
+  "$([ "$(enthaelt "$DZ_AKTE" 'href="/dozent"')" = "1" ] && [ "$(enthaelt "$DZ_AKTE" '>Unterricht<')" = "1" ] && echo 1 || echo 0)"
+pruefe "ein Teilnehmer sieht dort weiter seine Übersicht („Hallo Petra“)" "$(enthaelt "$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS2}")" 'Hallo Petra')"
 
 # Anwesenheit fuer den EIGENEN vergangenen Abend erfassen (200) + Provenienz.
 DZ_OK=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BASIS}/api/dozent/anwesenheit" -H "Cookie: ${KEKS_DOZ}" -H 'Content-Type: application/json' -d "{\"terminId\":\"${DZ_TERMIN}\",\"eintraege\":[{\"teilnahmeId\":\"${TEILNAHME_ID}\",\"status\":\"ANWESEND\"}]}")
@@ -2281,7 +2283,7 @@ pruefe "der Schueler sieht sein Ergebnis im Klartext (erfolgreich teilgenommen)"
 
 # Schulleitungs-Notenseite rendert die Kurseinheit-Matrix (nicht nur die Ueberschrift).
 SL_SEITE=$(curl -s "${BASIS}/verwaltung/noten" -H "Cookie: ${KEKS}")
-pruefe "die Notenseite der Schulleitung rendert die Matrix" "$(enthaelt "$SL_SEITE" 'Noten (')"
+pruefe "die Notenseite der Schulleitung bietet die Erfassung je Kurseinheit an" "$(enthaelt "$SL_SEITE" 'Noten eintragen')"
 
 # Die Dozentenseite zeigt den Noten-Abschnitt.
 DZ_NOTEN=$(curl -s "${BASIS}/dozent" -H "Cookie: ${KEKS_DOZ}")
@@ -2569,7 +2571,7 @@ pruefe "Stella selbst bekommt es nicht mehr (410, „wurde storniert“)" \
   "$([ "$SN_PDF_SELBST" = "410" ] && grep -q 'wurde storniert' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$SN_PDF_SELBST $(cat /tmp/gbs-rumpf.txt)"
 SN_AKTE=$(curl -s "${BASIS}/meine-daten" -H "Cookie: ${KEKS_STELLA}")
 pruefe "und „Meine Daten“ fuehrt die Beleg-Nr nicht mehr (die Akte selbst laedt)" \
-  "$([ "$(enthaelt "$SN_AKTE" 'Meine Akte')" = "1" ] && [ "$(fehlt_in "$SN_AKTE" "$ZST_BELEG")" = "1" ] && echo 1 || echo 0)"
+  "$([ "$(enthaelt "$SN_AKTE" 'Hallo Stella')" = "1" ] && [ "$(fehlt_in "$SN_AKTE" "$ZST_BELEG")" = "1" ] && echo 1 || echo 0)"
 SN_SAMMEL=$(rumpf_und_status -X POST "${BASIS}/api/zeugnisse/ausstellen" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d "{\"semesterId\":\"${SEMESTER_ID}\",\"typ\":\"SEMESTER\"}")
 pruefe "der Sammellauf stellt die stornierte Fehlausstellung nicht still neu aus (storniert gezaehlt)" \
   "$([ "$SN_SAMMEL" = "200" ] && grep -qE '"storniert":[1-9]' /tmp/gbs-rumpf.txt && grep -q '"fehlgeschlagen":0' /tmp/gbs-rumpf.txt && [ "$($PSQL "select count(*) from zeugnisse where \"personId\"='${STELLA_ID}' and status='GUELTIG';")" = "0" ] && echo 1 || echo 0)" "$SN_SAMMEL $(cat /tmp/gbs-rumpf.txt)"
@@ -3146,12 +3148,14 @@ GERD_ANM=$($PSQL "select id from anmeldungen where \"personId\"='${FREI_ID}';")
 GERD_HTML=$(curl -s "${BASIS}/verwaltung/anmeldungen/${GERD_ANM}" -H "Cookie: ${KEKS}")
 pruefe "ohne wirksame Einwilligung (Gerd) bleiben die Art.-9-Fragen auch fuer die Schulleitung ausgeblendet" \
   "$([ "$(enthaelt "$GERD_HTML" 'keine wirksame Einwilligung')" = "1" ] && [ "$(enthaelt "$GERD_HTML" 'Fragen dieses Abschnitts sind ausgeblendet')" = "1" ] && [ "$(fehlt_in "$GERD_HTML" 'Antworten sind ausgeblendet')" = "1" ] && echo 1 || echo 0)"
-LISTE_ANM=$(curl -s "${BASIS}/verwaltung/anmeldungen" -H "Cookie: ${KEKS}")
-pruefe "die Anmeldeliste verlinkt Antwortansicht und Akte" \
-  "$([ "$(enthaelt "$LISTE_ANM" "/verwaltung/anmeldungen/${ANMELDUNG_ID}")" = "1" ] && [ "$(enthaelt "$LISTE_ANM" "/verwaltung/personen/${TEILNEHMER_ID}")" = "1" ] && echo 1 || echo 0)"
-LISTE_ANM_V=$(curl -s "${BASIS}/verwaltung/anmeldungen" -H "Cookie: ${KEKS_V}")
-pruefe "die Verwaltung sieht in der Liste nur „hinterlegt“ — keine Schein-Maske" \
-  "$([ "$(enthaelt "$LISTE_ANM_V" 'hinterlegt')" = "1" ] && [ "$(enthaelt "$LISTE_ANM_V" 'vollständig anzeigen')" = "1" ] && [ "$(fehlt_in "$LISTE_ANM_V" '•••• •••• XXXX')" = "1" ] && echo 1 || echo 0)"
+# Seit dem Oberflächenplan (09/2026) zeigt die Liste standardmäßig „Offen“; Petras
+# Anmeldung ist entschieden. Der Link zur Akte und der Bankhinweis stehen in der
+# Einzelansicht (Antwortansicht).
+LISTE_ANM=$(curl -s "${BASIS}/verwaltung/anmeldungen?ansicht=entschieden" -H "Cookie: ${KEKS}")
+pruefe "die Anmeldeliste (Entschieden) verlinkt die Antwortansicht, die Antwortansicht die Akte" \
+  "$([ "$(enthaelt "$LISTE_ANM" "/verwaltung/anmeldungen/${ANMELDUNG_ID}")" = "1" ] && [ "$(enthaelt "$ANTW_SL_HTML" "/verwaltung/personen/${TEILNEHMER_ID}")" = "1" ] && echo 1 || echo 0)"
+pruefe "die Verwaltung sieht in der Antwortansicht nur „hinterlegt“ — keine Schein-Maske" \
+  "$([ "$(enthaelt "$ANTW_V_HTML" 'hinterlegt')" = "1" ] && [ "$(enthaelt "$ANTW_V_HTML" 'vollständig anzeigen')" = "1" ] && [ "$(fehlt_in "$ANTW_V_HTML" '•••• •••• XXXX')" = "1" ] && echo 1 || echo 0)"
 
 # Zwischenstand: Der Token steht im URL-Fragment und kommt im Rumpf — als
 # ?fortsetzen=… stand er in jedem Zugriffslog des Proxys. Gespeichert wird ohne
@@ -3304,7 +3308,7 @@ pruefe "ihre Anmeldung ist damit geschlossen (ABGELEHNT, Grund [anonymisiert], e
 B_ANNEHMEN=$(status_von -X POST "${BASIS}/api/anmeldungen/${BRUNO_ANM}/entscheiden" -H "Cookie: ${KEKS}" -H 'Content-Type: application/json' -d '{"entscheidung":"ANNEHMEN"}')
 pruefe "annehmen laesst sie sich nicht mehr (409) — keine Teilnahme, keine Willkommensmail" \
   "$([ "$B_ANNEHMEN" = "409" ] && [ "$($PSQL "select (select count(*) from teilnahmen where \"personId\"='${BRUNO_ID}') + (select count(*) from email_versand where \"personId\"='${BRUNO_ID}' and \"vorlageCode\"='ANMELDUNG_ANGENOMMEN');")" = "0" ] && echo 1 || echo 0)" "$B_ANNEHMEN"
-LISTE_NACH_ANON=$(curl -s "${BASIS}/verwaltung/anmeldungen" -H "Cookie: ${KEKS}")
+LISTE_NACH_ANON=$(curl -s "${BASIS}/verwaltung/anmeldungen?ansicht=entschieden" -H "Cookie: ${KEKS}")
 pruefe "die Anmeldeliste fuehrt Anmeldungen Anonymisierter nicht mehr" \
   "$([ "$(fehlt_in "$LISTE_NACH_ANON" "${BRUNO_ANM}")" = "1" ] && [ "$(fehlt_in "$LISTE_NACH_ANON" "${TILDA_ANM}")" = "1" ] && echo 1 || echo 0)"
 
@@ -3698,10 +3702,10 @@ pruefe "Zeugnis-Snapshots: ebenso" \
 pruefe "Gegenprobe: alle vier Stellen sind gefuellt" \
   "$(gleich "$($PSQL "select (select count(*) from audit_log) > 0 and (select count(*) from email_versand) > 0 and (select count(*) from honorar_abrechnung_posten) > 0 and (select count(*) from zeugnisse) > 0;")" "t")"
 
-# 849 Pruefungen plus diese eine, die sich selbst mitzaehlt. Im Text stehen 834
+# 850 Pruefungen plus diese eine, die sich selbst mitzaehlt. Im Text stehen 835
 # Aufrufe; der in der Protokoll-Schleife von Abschnitt 19 laeuft 17-mal
-# (833 + 17 = 850). Kein Aufruf steht in einem if-Zweig — die Zahl ist fest.
-SOLL=850
+# (834 + 17 = 851). Kein Aufruf steht in einem if-Zweig — die Zahl ist fest.
+SOLL=851
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

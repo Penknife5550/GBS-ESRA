@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 
 type Antwort = { abrechnungId: string; abende: number; summe: number };
 
@@ -13,7 +14,8 @@ type Antwort = { abrechnungId: string; abende: number; summe: number };
  * Abende und Betrag, das aria-label den Dozenten (in der Liste steht der Knopf in
  * jeder Zeile). Abende und Summe gehen mit: Hat sich der Stand seit dem Laden
  * geändert, legt der Server nichts an (409) — festgeschrieben wird nur, was die
- * Rückfrage genannt hat.
+ * Rückfrage genannt hat. Hell statt dunkel, weil er in jeder Zeile mit offenen
+ * Abenden steht (Oberflächenplan 09/2026: höchstens ein dunkler Knopf je Seite).
  */
 export function AbrechnenKnopf({
   dozentId,
@@ -67,9 +69,9 @@ export function AbrechnenKnopf({
         onClick={abrechnen}
         disabled={laeuft}
         aria-label={`Abrechnen: ${dozentName}`}
-        className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+        className={knopf("sekundaer")}
       >
-        {laeuft ? "Rechne ab …" : "Abrechnen"}
+        {laeuft ? "Rechne ab …" : "Abrechnen …"}
       </button>
       {fehler && (
         <span role="alert" className="max-w-[16rem] text-right text-xs text-credo-rot">

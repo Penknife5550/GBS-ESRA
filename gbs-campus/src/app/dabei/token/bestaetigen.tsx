@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Hinweis } from "@/components/ui/hinweis";
+import { knopf } from "@/components/ui/knopf";
+import { Abschnitt, Gruppe, Zeile } from "@/components/ui/liste";
 
 /**
  * Liest den Token aus dem URL-FRAGMENT (#token=…) und schickt die Antwort
@@ -91,7 +94,7 @@ export function DabeiBestaetigen() {
 
   if (!token) {
     return (
-      <p className="mt-8 rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
+      <p className="mt-8 rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
         Der Link war unvollständig. Bitte öffnen Sie den Link aus der E-Mail vollständig, oder wenden Sie sich an
         die Schulverwaltung.
       </p>
@@ -101,67 +104,69 @@ export function DabeiBestaetigen() {
   const istDabei = ergebnis?.status === "ok" || ergebnis?.status === "schon_bestaetigt";
 
   return (
-    <div className="mt-8">
+    <div className="mt-6">
       {ergebnis ? (
         <>
           <p
             role="status"
-            className={`rounded-lg px-4 py-3 text-sm ${istDabei ? "bg-credo-gruen/10" : "border border-border bg-muted"}`}
+            className={`rounded-xl px-4 py-3 text-[15px] leading-relaxed text-foreground ${istDabei ? "bg-credo-gruen/10" : "bg-muted"}`}
           >
             {meldungZu(ergebnis)}
           </p>
 
           {istDabei && ergebnis.faecher.length > 0 && (
-            <div className="mt-6">
-              <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Diese Fächer erwarten Sie
-              </h2>
-              <ul className="mt-3 space-y-1.5 text-sm">
+            <div className="mt-7">
+              <Abschnitt titel="Diese Fächer erwarten Sie" />
+              <Gruppe>
                 {ergebnis.faecher.map((fach) => (
-                  <li key={fach} className="rounded-lg border border-border bg-card px-3 py-2">
-                    {fach}
-                  </li>
+                  <Zeile key={fach} titel={fach} />
                 ))}
-              </ul>
+              </Gruppe>
             </div>
           )}
 
-          <p className="mt-6 text-xs text-muted-foreground">
-            Anders überlegt? Bis einschließlich {ergebnis.frist} können Sie Ihre Antwort hier ändern — ab dem
-            ersten Semestertag ist die Rückmeldung geschlossen.
-          </p>
+          <Hinweis icon="uhr" className="mt-7">
+            Anders überlegt? Bis einschließlich <span className="font-semibold text-foreground">{ergebnis.frist}</span>{" "}
+            können Sie Ihre Antwort hier ändern — ab dem ersten Semestertag ist die Rückmeldung geschlossen.
+          </Hinweis>
           <button
             type="button"
             onClick={() => antworten(istDabei ? "raus" : "dabei")}
             disabled={laeuft !== null}
-            className="mt-2 min-h-11 w-full rounded-lg border border-border px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+            className={`${knopf("sekundaer", "gross")} mt-3`}
           >
             {laeuft !== null ? "Wird gespeichert …" : istDabei ? "Doch absagen: Ich bin raus" : "Doch dabei: Ich bin dabei"}
           </button>
         </>
       ) : (
-        <div className="grid gap-3">
-          <button
-            type="button"
-            onClick={() => antworten("dabei")}
-            disabled={laeuft !== null}
-            className="min-h-11 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          >
-            {laeuft === "dabei" ? "Wird gespeichert …" : "Ja, ich bin dabei"}
-          </button>
-          <button
-            type="button"
-            onClick={() => antworten("raus")}
-            disabled={laeuft !== null}
-            className="min-h-11 w-full rounded-lg border border-border px-4 py-2.5 text-sm font-medium disabled:opacity-60"
-          >
-            {laeuft === "raus" ? "Wird gespeichert …" : "Nein, ich bin raus"}
-          </button>
-        </div>
+        <>
+          <Hinweis icon="uhr">
+            Bis zum Tag vor Semesterbeginn können Sie Ihre Antwort über denselben Link noch ändern; das genaue Datum
+            steht in der E-Mail.
+          </Hinweis>
+          <div className="mt-6 grid gap-2.5">
+            <button
+              type="button"
+              onClick={() => antworten("dabei")}
+              disabled={laeuft !== null}
+              className={knopf("primaer", "gross")}
+            >
+              {laeuft === "dabei" ? "Wird gespeichert …" : "Ja, ich bin dabei"}
+            </button>
+            <button
+              type="button"
+              onClick={() => antworten("raus")}
+              disabled={laeuft !== null}
+              className={knopf("sekundaer", "gross")}
+            >
+              {laeuft === "raus" ? "Wird gespeichert …" : "Nein, ich bin raus"}
+            </button>
+          </div>
+        </>
       )}
 
       {fehler && (
-        <p role="alert" className="mt-6 rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
+        <p role="alert" className="mt-5 rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
           {fehler}
         </p>
       )}

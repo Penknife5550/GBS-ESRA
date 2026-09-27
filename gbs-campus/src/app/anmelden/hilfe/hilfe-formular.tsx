@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
+import { FELD, FELD_TITEL } from "../oeffentlich";
 
 type Felder = {
   vorname: string;
@@ -88,7 +90,7 @@ export function HilfeFormular() {
         ref={erfolgRef}
         tabIndex={-1}
         role="status"
-        className="mt-8 rounded-lg border border-border bg-credo-gruen/10 px-4 py-4 text-sm"
+        className="mt-8 rounded-xl bg-credo-gruen/10 px-4 py-4 text-sm text-foreground outline-none"
       >
         {meldung?.text}
       </p>
@@ -96,7 +98,7 @@ export function HilfeFormular() {
   }
 
   return (
-    <form onSubmit={absenden} className="mt-8 space-y-4">
+    <form onSubmit={absenden} className="mt-7 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Feld
           name="vorname"
@@ -149,7 +151,7 @@ export function HilfeFormular() {
       </div>
 
       <div>
-        <label htmlFor="nachricht" className="mb-1.5 block text-sm font-medium">
+        <label htmlFor="nachricht" className={FELD_TITEL}>
           Möchten Sie uns etwas dazu sagen?
         </label>
         <textarea
@@ -157,20 +159,16 @@ export function HilfeFormular() {
           rows={3}
           value={felder.nachricht}
           onChange={(e) => aendere("nachricht", e.target.value)}
-          className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+          className={`${FELD} border-input py-3`}
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={zustand !== "bereit"}
-        className="min-h-11 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
+      <button type="submit" disabled={zustand !== "bereit"} className={knopf("primaer", "gross")}>
         {zustand === "laeuft" ? "Wird gesendet …" : "Meldung abschicken"}
       </button>
 
       {meldung?.art === "fehler" && (
-        <p role="alert" className="rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
+        <p role="alert" className="rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">
           {meldung.text}
         </p>
       )}
@@ -199,7 +197,7 @@ function Feld({
 }) {
   return (
     <div>
-      <label htmlFor={name} className="mb-1.5 block text-sm font-medium">
+      <label htmlFor={name} className={FELD_TITEL}>
         {label}
       </label>
       <input
@@ -213,10 +211,10 @@ function Feld({
         onChange={(e) => onAendern(e.target.value)}
         aria-invalid={fehler ? true : undefined}
         aria-describedby={fehler ? `${name}-fehler` : undefined}
-        className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
+        className={`${FELD} h-12 ${fehler ? "border-credo-rot" : "border-input"}`}
       />
       {fehler && (
-        <p id={`${name}-fehler`} className="mt-1 text-xs text-credo-rot">
+        <p id={`${name}-fehler`} className="mt-1.5 text-[13px] text-credo-rot">
           {fehler}
         </p>
       )}

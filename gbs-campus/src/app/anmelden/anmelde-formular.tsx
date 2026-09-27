@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
+import { FELD, FELD_TITEL } from "./oeffentlich";
 
 export function AnmeldeFormular({ linkFehler }: { linkFehler: string | null }) {
   const [email, setEmail] = useState("");
@@ -57,45 +59,38 @@ export function AnmeldeFormular({ linkFehler }: { linkFehler: string | null }) {
 
   return (
     <>
-      {linkFehler && (
-        <p className="mt-6 rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">{linkFehler}</p>
-      )}
+      {linkFehler && <p className="mt-6 rounded-xl bg-credo-rot/10 px-4 py-3 text-sm text-foreground">{linkFehler}</p>}
 
-      <form onSubmit={absenden} className="mt-8 space-y-4">
-        <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-            E-Mail-Adresse
-          </label>
-          <input
-            ref={eingabe}
-            id="email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={zustand !== "bereit"}
-            className="min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm disabled:opacity-60"
-          />
-        </div>
-
-        <button
-          type="submit"
+      <form onSubmit={absenden} className="mt-7">
+        <label htmlFor="email" className={FELD_TITEL}>
+          E-Mail-Adresse
+        </label>
+        <input
+          ref={eingabe}
+          id="email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="Ihre E-Mail-Adresse"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           disabled={zustand !== "bereit"}
-          className="min-h-11 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {zustand === "laeuft" ? "Wird gesendet …" : "Anmeldelink anfordern"}
+          className={`${FELD} h-12 border-input`}
+        />
+
+        <button type="submit" disabled={zustand !== "bereit"} className={`${knopf("primaer", "gross")} mt-3.5`}>
+          {zustand === "laeuft" ? "Wird gesendet …" : "Link senden"}
         </button>
       </form>
 
-      <MeldungsBox meldung={meldung} className="mt-6" />
+      <MeldungsBox meldung={meldung} className="mt-4" />
 
       {zustand === "gesendet" && (
         <button
           ref={andereAdresseKnopf}
           type="button"
           onClick={andereAdresse}
-          className="mt-3 min-h-11 w-full rounded-lg border border-input px-4 py-2.5 text-sm font-medium"
+          className={`${knopf("sekundaer", "gross")} mt-3`}
         >
           Andere Adresse eingeben
         </button>

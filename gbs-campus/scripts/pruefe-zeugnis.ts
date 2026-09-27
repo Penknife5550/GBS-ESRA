@@ -483,13 +483,24 @@ console.log("\n13. DMS-Archivkopie nach der Antwort, Nachversand gesperrt und mi
     "Nachversand: wirft die Sperr-Transaktion nach gesendeten Kopien, gilt der Stand (kein 500)",
     /catch \(ausnahme\) \{\s*if \(stand\.gesendeteBelege\.length === 0 && stand\.fehlgeschlagen === 0\) throw ausnahme;/.test(nachversand),
   );
+  // Seit dem Oberflächenplan (09/2026): Semester (Menü) und Art (Umschalter)
+  // sind Links und wirken sofort — eine „angezeigte“ und eine „gewählte“ Auswahl
+  // können nicht mehr auseinanderlaufen.
   pruefe(
-    "Zeugnisseite: Semester und Art per GET-Formular mit „Anzeigen“, kein Wechsel beim Auswählen",
-    /<form method="get" action="\/verwaltung\/zeugnisse"/.test(client) && /Anzeigen/.test(client) && !/router\.push/.test(client),
+    "Zeugnisseite: Semester und Art als Links (wirken sofort), kein Wechsel per router.push",
+    (() => {
+      try {
+        const seite = readFileSync("src/app/verwaltung/zeugnisse/page.tsx", "utf8");
+        const kopf = readFileSync("src/app/verwaltung/noten/noten-kopf.tsx", "utf8");
+        return /<NotenZeugnisseFilter\b/.test(seite) && /<SemesterWahl\b/.test(kopf) && /<Segment\b/.test(seite) && !/router\.push/.test(client);
+      } catch {
+        return false;
+      }
+    })(),
   );
   pruefe(
-    "„Alle ausstellen“ bleibt aus, solange die geänderte Auswahl nicht angezeigt ist",
-    /const sammelAus = !auswahlAngezeigt \|\|/.test(client),
+    "„Alle ausstellen“ bleibt aus, solange der Sammellauf gesperrt ist oder nichts auszustellen ist",
+    /const sammelAus = sammellauf\.sperre !== null \|\| sammellauf\.auszustellen === 0;/.test(client),
   );
 }
 

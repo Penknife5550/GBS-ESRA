@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 /**
@@ -64,7 +65,7 @@ export function EinzelnUebernehmenKnopf({
         onClick={uebernehmen}
         disabled={laeuft}
         aria-label={`${name} ins laufende Semester übernehmen`}
-        className="min-h-11 rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-60"
+        className={knopf("sekundaer")}
       >
         {laeuft ? "Wird übernommen …" : "Übernehmen"}
       </button>

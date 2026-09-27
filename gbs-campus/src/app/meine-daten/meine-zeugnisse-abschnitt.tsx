@@ -1,9 +1,12 @@
+import { Icon } from "@/components/icons";
+import { Abschnitt, Gruppe, Symbol } from "@/components/ui/liste";
+
 /**
- * Die eigenen Zeugnisse/Bescheinigungen des Schülers — rein lesend
- * (Recht PERSON_LESEN_EIGENE). Ausgestellt werden sie von der Schulleitung; hier
- * lädt der Schüler sein Exemplar als PDF herunter. Serverkomponente ohne Interaktion.
+ * Die eigenen Zeugnisse/Bescheinigungen — rein lesend (Recht
+ * PERSON_LESEN_EIGENE). Ausgestellt werden sie von der Schulleitung; hier lädt
+ * die Person ihr Exemplar als PDF herunter — die ganze Zeile ist der Link.
  * Nur gültige (`ladeEigeneZeugnisse`): Ersetzte und stornierte sind für die
- * Person nicht mehr abrufbar (PDF-Route 410).
+ * Person nicht mehr abrufbar (PDF-Route 410). Serverkomponente ohne Interaktion.
  */
 export function MeineZeugnisseAbschnitt({
   zeugnisse,
@@ -11,34 +14,28 @@ export function MeineZeugnisseAbschnitt({
   zeugnisse: { id: string; belegNr: string; titel: string; abschnitt: string; ausgestelltAm: string }[];
 }) {
   return (
-    <div>
-      <p className="max-w-prose text-sm text-muted-foreground">
-        Ihre ausgestellten Zeugnisse und Bescheinigungen. Laden Sie sie hier als PDF herunter.
-      </p>
-
-      <ul className="mt-4 space-y-2">
+    <section>
+      <Abschnitt titel="Meine Zeugnisse" />
+      <Gruppe>
         {zeugnisse.map((z) => (
-          <li
+          // Ein schlichter Link (kein next/link): Die Route liefert ein PDF.
+          <a
             key={z.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
+            href={`/api/zeugnisse/${z.id}/pdf`}
+            className="flex min-h-12 items-center gap-3 px-4 py-2.5 hover:bg-muted/60 focus-visible:bg-muted/60"
           >
-            <div className="min-w-0">
-              <span className="text-sm font-medium">{z.titel}</span>
-              <span className="ml-2 text-sm text-muted-foreground">· {z.abschnitt}</span>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                Beleg-Nr. {z.belegNr} · {z.ausgestelltAm}
-              </div>
-            </div>
-            <a
-              href={`/api/zeugnisse/${z.id}/pdf`}
-              aria-label={`${z.titel} (${z.abschnitt}) als PDF herunterladen`}
-              className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-            >
-              Herunterladen
-            </a>
-          </li>
+            <Symbol icon="zeugnis" />
+            <span className="min-w-0 flex-1">
+              <span className="sr-only">Als PDF herunterladen: </span>
+              <span className="block truncate text-sm font-semibold text-foreground">{z.titel}</span>
+              <span className="block text-[13px] text-muted-foreground">
+                {`${z.abschnitt} · Beleg-Nr. ${z.belegNr} · ${z.ausgestelltAm}`}
+              </span>
+            </span>
+            <Icon name="herunterladen" className="h-5 w-5 shrink-0 text-muted-foreground" />
+          </a>
         ))}
-      </ul>
-    </div>
+      </Gruppe>
+    </section>
   );
 }

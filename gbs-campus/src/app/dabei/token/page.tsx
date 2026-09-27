@@ -1,4 +1,5 @@
 import { EINRICHTUNG } from "@/lib/constants";
+import { OeffentlicheSeite } from "@/app/anmelden/oeffentlich";
 import { DabeiBestaetigen } from "./bestaetigen";
 
 /**
@@ -14,15 +15,19 @@ import { DabeiBestaetigen } from "./bestaetigen";
 export const metadata = { title: "Sind Sie dabei?" };
 
 export default function DabeiSeite() {
+  // Die Frist („Bis zum Tag vor Semesterbeginn …“) steht als Hinweis über den
+  // Knöpfen und nach der Antwort mit dem genauen Datum (bestaetigen.tsx).
   return (
-    <main className="mx-auto max-w-md px-6 py-24">
-      <h1 className="text-2xl font-bold tracking-tight">Sind Sie im nächsten Semester dabei?</h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Sagen Sie uns mit einem Klick, ob Sie am kommenden Semester der {EINRICHTUNG.name} teilnehmen. Sie
-        melden sich damit nicht an — es geht nur um Ihre Rückmeldung. Bis zum Tag vor Semesterbeginn können
-        Sie Ihre Antwort über denselben Link noch ändern; das genaue Datum steht in der E-Mail.
-      </p>
+    <OeffentlicheSeite
+      titel="Sind Sie im nächsten Semester dabei?"
+      satz={
+        <>
+          Sagen Sie uns mit einem Klick, ob Sie am kommenden Semester der {EINRICHTUNG.name} teilnehmen. Sie melden
+          sich damit nicht an — es geht nur um Ihre Rückmeldung.
+        </>
+      }
+    >
       <DabeiBestaetigen />
-    </main>
+    </OeffentlicheSeite>
   );
 }

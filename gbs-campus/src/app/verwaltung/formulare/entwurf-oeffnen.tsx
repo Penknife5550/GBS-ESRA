@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 
 /**
  * Öffnet den bearbeitbaren Entwurf. Gibt es keinen, entsteht serverseitig eine
@@ -32,16 +33,11 @@ export function EntwurfOeffnen({ formularCode }: { formularCode: string }) {
   }
 
   return (
-    <div className="text-right">
-      <button
-        type="button"
-        onClick={oeffnen}
-        disabled={laeuft}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-      >
+    <div className="flex flex-col items-start gap-1 sm:items-end">
+      <button type="button" onClick={oeffnen} disabled={laeuft} className={knopf("primaer")}>
         {laeuft ? "Wird geöffnet …" : "Formular bearbeiten"}
       </button>
-      {fehler && <p className="mt-1 text-xs text-credo-rot">{fehler}</p>}
+      {fehler && <p className="max-w-xs text-xs text-credo-rot sm:text-right">{fehler}</p>}
     </div>
   );
 }

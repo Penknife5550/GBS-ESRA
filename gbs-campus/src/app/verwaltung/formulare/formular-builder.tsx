@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { knopf } from "@/components/ui/knopf";
 import {
   aktenfeldVerlangtArt9,
   behalteVorhandeneZuordnungen,
@@ -17,6 +19,11 @@ import {
  * Bewusst ohne Ziehen und Fallenlassen: Pfeiltasten zum Verschieben sind mit
  * Tastatur und Vorlesesoftware bedienbar (WCAG 2.1 AA) und funktionieren auch
  * auf dem Tablet, mit dem der Schulleiter arbeitet.
+ *
+ * Der Kopf ist der gemeinsame Seitenkopf (Oberflächenplan 09/2026) mit Rückweg
+ * „‹ Formulare“; ab Tabletbreite bleibt er beim Scrollen stehen (unter der
+ * Kopfzeile des Rahmens), damit Speichern und Veröffentlichen immer erreichbar
+ * sind. Am Handy nähme der hohe Kopf sonst ein Drittel des Bildschirms ein.
  */
 
 export type FeldTypWert =
@@ -258,209 +265,199 @@ export function FormularBuilder({
   }
 
   return (
-    <div className="space-y-6">
-      <header className="sticky top-0 z-10 -mx-6 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-background px-6 pb-5 pt-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Anmeldeformular gestalten</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Fassung {version} · {abschnitte.length} Abschnitte · {anzahlFelder} Felder
-            {!bearbeitbar && " · veröffentlicht, nur lesbar"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setVorschau((v) => !v)}
-            className="rounded-lg border border-input px-4 py-2 text-sm font-medium"
-          >
-            {vorschau ? "Bearbeiten" : "Vorschau"}
-          </button>
-          {bearbeitbar && (
+    <>
+      <div className="z-20 md:sticky md:top-14 lg:top-0">
+        <Seitenkopf
+          zurueck={{ href: "/verwaltung/formulare", text: "Formulare" }}
+          titel="Anmeldeformular"
+          untertitel={`Fassung ${version} · ${abschnitte.length} Abschnitte · ${anzahlFelder} Felder${
+            bearbeitbar ? "" : " · veröffentlicht, nur lesbar"
+          }`}
+          aktionen={
             <>
-              <button
-                type="button"
-                onClick={speichern}
-                disabled={laeuft}
-                className="rounded-lg border border-input px-4 py-2 text-sm font-medium disabled:opacity-60"
-              >
-                Entwurf speichern
+              <button type="button" onClick={() => setVorschau((v) => !v)} className={knopf("sekundaer")}>
+                {vorschau ? "Bearbeiten" : "Vorschau"}
               </button>
-              <button
-                type="button"
-                onClick={veroeffentlichen}
-                disabled={laeuft}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-              >
-                Veröffentlichen
-              </button>
+              {bearbeitbar && (
+                <>
+                  <button type="button" onClick={speichern} disabled={laeuft} className={knopf("sekundaer")}>
+                    Entwurf speichern
+                  </button>
+                  <button type="button" onClick={veroeffentlichen} disabled={laeuft} className={knopf("primaer")}>
+                    Veröffentlichen
+                  </button>
+                </>
+              )}
             </>
+          }
+        />
+      </div>
+
+      <Inhalt breite="mittel" className="space-y-6">
+        <MeldungsBox meldung={meldung} className="font-medium">
+          {meldung?.punkte && meldung.punkte.length > 0 && (
+            <ul className="mt-2 list-disc space-y-1 pl-5 font-normal text-muted-foreground">
+              {/* Index als Key: Zwei Felder können dieselbe Meldung tragen. */}
+              {meldung.punkte.map((punkt, i) => (
+                <li key={i}>{punkt}</li>
+              ))}
+            </ul>
           )}
-        </div>
-      </header>
+        </MeldungsBox>
 
-      <MeldungsBox meldung={meldung} className="font-medium">
-        {meldung?.punkte && meldung.punkte.length > 0 && (
-          <ul className="mt-2 list-disc space-y-1 pl-5 font-normal text-muted-foreground">
-            {/* Index als Key: Zwei Felder können dieselbe Meldung tragen. */}
-            {meldung.punkte.map((punkt, i) => (
-              <li key={i}>{punkt}</li>
-            ))}
-          </ul>
-        )}
-      </MeldungsBox>
+        {vorschau ? (
+          <Vorschau einleitung={einleitung} abschnitte={abschnitte} />
+        ) : (
+          <>
+            <section className="rounded-xl border border-linie bg-card p-5">
+              <label htmlFor="einleitung" className="mb-1.5 block text-sm font-medium">
+                Einleitung über dem Formular
+              </label>
+              <textarea
+                id="einleitung"
+                rows={3}
+                value={einleitung}
+                disabled={!bearbeitbar}
+                onChange={(e) => setEinleitung(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm disabled:opacity-60"
+              />
+            </section>
 
-      {vorschau ? (
-        <Vorschau einleitung={einleitung} abschnitte={abschnitte} />
-      ) : (
-        <>
-          <section className="rounded-lg border border-border bg-card p-5">
-            <label htmlFor="einleitung" className="mb-1.5 block text-sm font-medium">
-              Einleitung über dem Formular
-            </label>
-            <textarea
-              id="einleitung"
-              rows={3}
-              value={einleitung}
-              disabled={!bearbeitbar}
-              onChange={(e) => setEinleitung(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm disabled:opacity-60"
-            />
-          </section>
-
-          {abschnitte.map((abschnitt, abschnittIndex) => (
-            <section key={abschnitt.uid} className="rounded-lg border border-border bg-card p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex-1">
-                  <label
-                    htmlFor={`builder-${abschnitt.uid}-titel`}
-                    className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                  >
-                    Abschnitt {abschnittIndex + 1}
-                    <span className="sr-only">, Überschrift</span>
-                  </label>
-                  <input
-                    id={`builder-${abschnitt.uid}-titel`}
-                    value={abschnitt.titel}
-                    disabled={!bearbeitbar}
-                    onChange={(e) => aendereAbschnitt(abschnittIndex, { titel: e.target.value })}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm font-medium disabled:opacity-60"
-                  />
-                  <input
-                    id={`builder-${abschnitt.uid}-beschreibung`}
-                    aria-label={`Abschnitt ${abschnittIndex + 1}, Beschreibung (optional)`}
-                    value={abschnitt.beschreibung ?? ""}
-                    disabled={!bearbeitbar}
-                    placeholder="Erklärender Text unter der Überschrift (optional)"
-                    onChange={(e) => aendereAbschnitt(abschnittIndex, { beschreibung: e.target.value || null })}
-                    className="mt-2 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm disabled:opacity-60"
-                  />
-                </div>
-                {bearbeitbar && (
-                  <div className="flex flex-col gap-1 pt-6">
-                    <SchiebeKnopf
-                      richtung="hoch"
-                      titel="Abschnitt nach oben"
-                      aus={abschnittIndex === 0}
-                      onClick={() => setAbschnitte((alt) => verschiebe(alt, abschnittIndex, abschnittIndex - 1))}
-                    />
-                    <SchiebeKnopf
-                      richtung="runter"
-                      titel="Abschnitt nach unten"
-                      aus={abschnittIndex === abschnitte.length - 1}
-                      onClick={() => setAbschnitte((alt) => verschiebe(alt, abschnittIndex, abschnittIndex + 1))}
-                    />
-                    <button
-                      type="button"
-                      title="Abschnitt löschen"
-                      aria-label={`Abschnitt ${abschnittIndex + 1} löschen`}
-                      onClick={() => {
-                        if (confirm(`Abschnitt „${abschnitt.titel}“ mit ${abschnitt.felder.length} Feldern löschen?`)) {
-                          setAbschnitte((alt) => alt.filter((_, i) => i !== abschnittIndex));
-                        }
-                      }}
-                      className="mt-2 flex h-11 w-11 items-center justify-center rounded border border-input text-sm text-credo-rot"
+            {abschnitte.map((abschnitt, abschnittIndex) => (
+              <section key={abschnitt.uid} className="rounded-xl border border-linie bg-card p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <label
+                      htmlFor={`builder-${abschnitt.uid}-titel`}
+                      className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                     >
-                      ✕
-                    </button>
+                      Abschnitt {abschnittIndex + 1}
+                      <span className="sr-only">, Überschrift</span>
+                    </label>
+                    <input
+                      id={`builder-${abschnitt.uid}-titel`}
+                      value={abschnitt.titel}
+                      disabled={!bearbeitbar}
+                      onChange={(e) => aendereAbschnitt(abschnittIndex, { titel: e.target.value })}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+                    />
+                    <input
+                      id={`builder-${abschnitt.uid}-beschreibung`}
+                      aria-label={`Abschnitt ${abschnittIndex + 1}, Beschreibung (optional)`}
+                      value={abschnitt.beschreibung ?? ""}
+                      disabled={!bearbeitbar}
+                      placeholder="Erklärender Text unter der Überschrift (optional)"
+                      onChange={(e) => aendereAbschnitt(abschnittIndex, { beschreibung: e.target.value || null })}
+                      className="mt-2 w-full rounded-lg border border-input bg-background px-4 py-2 text-sm disabled:opacity-60"
+                    />
                   </div>
-                )}
-              </div>
+                  {bearbeitbar && (
+                    <div className="flex flex-col gap-1 pt-6">
+                      <SchiebeKnopf
+                        richtung="hoch"
+                        titel="Abschnitt nach oben"
+                        aus={abschnittIndex === 0}
+                        onClick={() => setAbschnitte((alt) => verschiebe(alt, abschnittIndex, abschnittIndex - 1))}
+                      />
+                      <SchiebeKnopf
+                        richtung="runter"
+                        titel="Abschnitt nach unten"
+                        aus={abschnittIndex === abschnitte.length - 1}
+                        onClick={() => setAbschnitte((alt) => verschiebe(alt, abschnittIndex, abschnittIndex + 1))}
+                      />
+                      <button
+                        type="button"
+                        title="Abschnitt löschen"
+                        aria-label={`Abschnitt ${abschnittIndex + 1} löschen`}
+                        onClick={() => {
+                          if (confirm(`Abschnitt „${abschnitt.titel}“ mit ${abschnitt.felder.length} Feldern löschen?`)) {
+                            setAbschnitte((alt) => alt.filter((_, i) => i !== abschnittIndex));
+                          }
+                        }}
+                        className="mt-2 flex h-11 w-11 items-center justify-center rounded border border-input text-sm text-credo-rot"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              <div className="mt-5 space-y-3">
-                {abschnitt.felder.map((feld, feldIndex) => (
-                  <FeldZeile
-                    key={feld.uid}
-                    feld={feld}
-                    bearbeitbar={bearbeitbar}
-                    istErstes={feldIndex === 0}
-                    istLetztes={feldIndex === abschnitt.felder.length - 1}
-                    onAendern={(teil) => aendereFeld(abschnittIndex, feldIndex, teil)}
-                    onVerschieben={(delta) =>
+                <div className="mt-5 space-y-3">
+                  {abschnitt.felder.map((feld, feldIndex) => (
+                    <FeldZeile
+                      key={feld.uid}
+                      feld={feld}
+                      bearbeitbar={bearbeitbar}
+                      istErstes={feldIndex === 0}
+                      istLetztes={feldIndex === abschnitt.felder.length - 1}
+                      onAendern={(teil) => aendereFeld(abschnittIndex, feldIndex, teil)}
+                      onVerschieben={(delta) =>
+                        aendereAbschnitt(abschnittIndex, {
+                          felder: verschiebe(abschnitt.felder, feldIndex, feldIndex + delta),
+                        })
+                      }
+                      onLoeschen={() => {
+                        // Rueckfrage wie beim Abschnitt: Der Loeschknopf sitzt
+                        // direkt unter den Verschiebeknoepfen, und es gibt kein
+                        // Rueckgaengig.
+                        if (!confirm(`Frage „${feld.label}“ löschen?`)) return;
+                        aendereAbschnitt(abschnittIndex, {
+                          felder: abschnitt.felder.filter((_, j) => j !== feldIndex),
+                        });
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {bearbeitbar && (
+                  <button
+                    type="button"
+                    onClick={() =>
                       aendereAbschnitt(abschnittIndex, {
-                        felder: verschiebe(abschnitt.felder, feldIndex, feldIndex + delta),
+                        felder: [
+                          ...abschnitt.felder,
+                          {
+                            uid: neueUid(),
+                            code: neuerFeldcode(),
+                            typ: "TEXT",
+                            label: "Neue Frage",
+                            hilfetext: null,
+                            platzhalter: null,
+                            pflicht: false,
+                            optionen: null,
+                            personFeld: "NICHTS",
+                            istArt9: false,
+                            teilnahmeformZuordnung: null,
+                          },
+                        ],
                       })
                     }
-                    onLoeschen={() => {
-                      // Rueckfrage wie beim Abschnitt: Der Loeschknopf sitzt
-                      // direkt unter den Verschiebeknoepfen, und es gibt kein
-                      // Rueckgaengig.
-                      if (!confirm(`Frage „${feld.label}“ löschen?`)) return;
-                      aendereAbschnitt(abschnittIndex, {
-                        felder: abschnitt.felder.filter((_, j) => j !== feldIndex),
-                      });
-                    }}
-                  />
-                ))}
-              </div>
+                    className="mt-4 rounded-lg border border-dashed border-input px-4 py-2 text-sm font-medium text-muted-foreground"
+                  >
+                    + Frage hinzufügen
+                  </button>
+                )}
+              </section>
+            ))}
 
-              {bearbeitbar && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    aendereAbschnitt(abschnittIndex, {
-                      felder: [
-                        ...abschnitt.felder,
-                        {
-                          uid: neueUid(),
-                          code: neuerFeldcode(),
-                          typ: "TEXT",
-                          label: "Neue Frage",
-                          hilfetext: null,
-                          platzhalter: null,
-                          pflicht: false,
-                          optionen: null,
-                          personFeld: "NICHTS",
-                          istArt9: false,
-                          teilnahmeformZuordnung: null,
-                        },
-                      ],
-                    })
-                  }
-                  className="mt-4 rounded-lg border border-dashed border-input px-4 py-2 text-sm font-medium text-muted-foreground"
-                >
-                  + Frage hinzufügen
-                </button>
-              )}
-            </section>
-          ))}
-
-          {bearbeitbar && (
-            <button
-              type="button"
-              onClick={() => {
-                // uid ausserhalb der Update-Funktion erzeugen: Die muss rein
-                // sein und laeuft im Strict Mode doppelt.
-                const uid = neueUid();
-                setAbschnitte((alt) => [...alt, { uid, titel: "Neuer Abschnitt", beschreibung: null, felder: [] }]);
-              }}
-              className="w-full rounded-lg border border-dashed border-input px-4 py-3 text-sm font-medium text-muted-foreground"
-            >
-              + Abschnitt hinzufügen
-            </button>
-          )}
-        </>
-      )}
-    </div>
+            {bearbeitbar && (
+              <button
+                type="button"
+                onClick={() => {
+                  // uid ausserhalb der Update-Funktion erzeugen: Die muss rein
+                  // sein und laeuft im Strict Mode doppelt.
+                  const uid = neueUid();
+                  setAbschnitte((alt) => [...alt, { uid, titel: "Neuer Abschnitt", beschreibung: null, felder: [] }]);
+                }}
+                className="w-full rounded-lg border border-dashed border-input px-4 py-3 text-sm font-medium text-muted-foreground"
+              >
+                + Abschnitt hinzufügen
+              </button>
+            )}
+          </>
+        )}
+      </Inhalt>
+    </>
   );
 }
 
@@ -787,7 +784,7 @@ function OptionenEingabe({
 /** Zeigt das Formular so, wie es der Anmeldende sehen wird. */
 function Vorschau({ einleitung, abschnitte }: { einleitung: string; abschnitte: BuilderAbschnitt[] }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-6">
+    <div className="rounded-xl border border-linie bg-card p-6">
       {einleitung && <p className="mb-8 max-w-prose text-sm text-muted-foreground">{einleitung}</p>}
 
       {abschnitte.map((abschnitt) => (

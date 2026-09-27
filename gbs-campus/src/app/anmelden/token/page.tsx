@@ -1,3 +1,4 @@
+import { OeffentlicheSeite } from "../oeffentlich";
 import { AnmeldungBestaetigen } from "./bestaetigen";
 
 /**
@@ -33,12 +34,11 @@ export const metadata = { title: "Anmeldung bestätigen" };
 
 export default function TokenSeite() {
   return (
-    <main className="mx-auto max-w-md px-6 py-24">
-      <h1 className="text-2xl font-bold tracking-tight">Anmeldung bestätigen</h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Ein Klick, und Sie sind angemeldet. Der Link gilt danach als verbraucht.
-      </p>
+    <OeffentlicheSeite
+      titel="Anmeldung bestätigen"
+      satz="Ein Klick, und Sie sind angemeldet. Der Link gilt danach als verbraucht."
+    >
       <AnmeldungBestaetigen />
-    </main>
+    </OeffentlicheSeite>
   );
 }

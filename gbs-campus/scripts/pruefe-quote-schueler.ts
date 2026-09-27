@@ -154,7 +154,10 @@ pruefe(
   );
   pruefe(
     "die Detailakte zeigt die Verwaltungssicht, die Schüler-Akte die Schülersicht",
-    /<QuoteAmpel quote=\{gruppe\.quote\} sicht="verwaltung" \/>/.test(lies("src/components/personen/anwesenheit-liste.tsx")) &&
+    // Seit dem Oberflächenplan (09/2026) zeigt die Akte Balken und Ziel; wird es
+    // eng, steht der Hinweis der Verwaltungssicht darunter.
+    /quoteHinweis\(quote, "verwaltung"\)/.test(lies("src/components/personen/anwesenheit-liste.tsx")) &&
+      !/"schueler"/.test(lies("src/components/personen/anwesenheit-liste.tsx")) &&
       /<QuoteAmpel quote=\{gruppe\.quote\} sicht="schueler" \/>/.test(lies("src/app/meine-daten/anwesenheit-abschnitt.tsx")),
   );
 }

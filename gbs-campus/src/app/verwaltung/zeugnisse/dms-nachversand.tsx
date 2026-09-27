@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Icon } from "@/components/icons";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Ergebnis = { gesendet: number; fehlgeschlagen: number; offen: number };
@@ -64,28 +66,32 @@ export function DmsNachversand({ offen, dmsEingerichtet }: { offen: number; dmsE
 
   const zeigeKasten = offen > 0 || meldung !== null;
 
+  // Gelb als Signal: Archivkopien fehlen im DMS. Aufbau wie ein Hinweis (Symbol,
+  // Satz, Knopf rechts), damit die Seite nur eine Form für „hier ist etwas zu tun“ kennt.
   return (
-    <div className={zeigeKasten ? "mt-6 rounded-lg border border-border bg-credo-gelb/15 px-4 py-4 text-sm" : undefined}>
+    <div className={zeigeKasten ? "mb-4 rounded-xl bg-credo-gelb/15 px-4 py-3 text-sm" : undefined}>
       {offen > 0 && (
-        <p id="zeugnis-dms-hinweis">
-          {offen} {offen === 1 ? "Zeugnis ist" : "Zeugnisse sind"} noch nicht im DMS archiviert.
-          {!dmsEingerichtet && " Es ist keine DMS-Adresse eingerichtet (DMS_EMAIL) — der Nachversand ist erst danach möglich."}
-        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 gap-3">
+            <Icon name="hinweis" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-foreground" />
+            <p id="zeugnis-dms-hinweis" className="min-w-0 text-foreground">
+              {offen} {offen === 1 ? "Zeugnis ist" : "Zeugnisse sind"} noch nicht im DMS archiviert.
+              {!dmsEingerichtet && " Es ist keine DMS-Adresse eingerichtet (DMS_EMAIL) — der Nachversand ist erst danach möglich."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={nachsenden}
+            disabled={laeuft || !dmsEingerichtet}
+            aria-describedby="zeugnis-dms-hinweis"
+            className={`shrink-0 ${knopf("sekundaer")}`}
+          >
+            {laeuft ? "Wird gesendet …" : `An das DMS nachsenden (${offen})`}
+          </button>
+        </div>
       )}
 
-      {offen > 0 && (
-        <button
-          type="button"
-          onClick={nachsenden}
-          disabled={laeuft || !dmsEingerichtet}
-          aria-describedby="zeugnis-dms-hinweis"
-          className="mt-3 min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {laeuft ? "Wird gesendet …" : `An das DMS nachsenden (${offen})`}
-        </button>
-      )}
-
-      <MeldungsBox meldung={meldung} className="mt-3" />
+      <MeldungsBox meldung={meldung} className={offen > 0 ? "mt-3" : ""} />
     </div>
   );
 }

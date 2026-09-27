@@ -422,12 +422,14 @@ console.log("\n8. Rückfrage vor dem Rollenwechsel und Klartext-IBAN (Quelltext,
     /istEigeneAkte=\{eigeneAkte\}/.test(lies("src/app/verwaltung/personen/[id]/page.tsx")),
   );
   pruefe(
-    "Anonymisieren steht nicht in der Knopfreihe der Alltagsaktionen",
+    "Anonymisieren steht nicht bei den Alltagsaktionen, sondern als letzter, roter Eintrag im Menü „…“",
     (() => {
-      const reiheStart = aktionen.indexOf('<div className="mt-3 flex flex-wrap gap-3">');
-      const reiheEnde = aktionen.indexOf("</div>", reiheStart);
-      const knopf = aktionen.indexOf("onClick={anonymisieren}");
-      return reiheStart > 0 && knopf > 0 && !(knopf > reiheStart && knopf < reiheEnde);
+      const anonym = aktionen.indexOf('text: "Anonymisieren …"');
+      return (
+        anonym > 0 &&
+        /text: "Anonymisieren …",\s*icon: "person-entfernen",\s*aktion: anonymisieren,\s*gefahr: true,\s*trenner: punkte\.length > 0,/.test(aktionen) &&
+        aktionen.lastIndexOf("punkte.push(") < anonym
+      );
     })(),
   );
 }

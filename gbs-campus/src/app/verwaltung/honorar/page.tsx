@@ -5,8 +5,11 @@ import { ladeMitRecht, hatRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeHonorarUebersicht } from "@/lib/honorar-io";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { Inhalt, Seitenkopf } from "@/components/ui/seitenkopf";
+import { knopf } from "@/components/ui/knopf";
+import { Hinweis, LeererZustand } from "@/components/ui/hinweis";
 import { LadeHinweis } from "@/components/ui/lade-hinweis";
+import { SemesterWahl } from "./semester-wahl";
 
 export const metadata = { title: "Dozentenhonorar" };
 export const dynamic = "force-dynamic";
@@ -28,14 +31,35 @@ export default async function HonorarSeite({
   const sp = await searchParams;
   const semesters = await prisma.semester.findMany({ orderBy: { start: "desc" } });
 
+  // Unterseiten als helle Knöpfe: Diese Seite liest nur, eine Hauptaktion hat sie nicht.
+  const aktionen = (
+    <>
+      {hatRecht(benutzer, RECHT.HONORAR_SATZ_GENEHMIGEN) && (
+        <Link href="/verwaltung/honorar/saetze" className={knopf("sekundaer")}>
+          <span>
+            Sätze
+            <LadeHinweis className="ml-1.5" />
+          </span>
+        </Link>
+      )}
+      {hatRecht(benutzer, RECHT.HONORAR_ABRECHNEN) && (
+        <Link href="/verwaltung/honorar/abrechnungen" className={knopf("sekundaer")}>
+          <span>
+            Abrechnungen
+            <LadeHinweis className="ml-1.5" />
+          </span>
+        </Link>
+      )}
+    </>
+  );
+
   if (semesters.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-12">
-        <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Dozentenhonorar" />
-        <h1 className="mt-6 text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
-        <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Noch ist kein Semester angelegt.
-        </p>
+      <main>
+        <Seitenkopf titel="Honorar" aktionen={aktionen} />
+        <Inhalt breite="lesen">
+          <LeererZustand icon="semester" titel="Noch ist kein Semester angelegt." />
+        </Inhalt>
       </main>
     );
   }
@@ -47,90 +71,50 @@ export default async function HonorarSeite({
   const uebersicht = await ladeHonorarUebersicht(semester.id);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Dozentenhonorar" />
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
-        <div className="flex flex-wrap gap-2">
-          {hatRecht(benutzer, RECHT.HONORAR_ABRECHNEN) && (
-            <Link
-              href="/verwaltung/honorar/abrechnungen"
-              className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
-            >
-              Abrechnungen
-              <LadeHinweis className="ml-2" />
-            </Link>
-          )}
-          {hatRecht(benutzer, RECHT.HONORAR_SATZ_GENEHMIGEN) && (
-            <Link
-              href="/verwaltung/honorar/saetze"
-              className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
-            >
-              Sätze verwalten
-              <LadeHinweis className="ml-2" />
-            </Link>
-          )}
-        </div>
-      </div>
-      <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Gehaltene Unterrichtsabende je Dozent, jeder Abend zu dem Satz, der zu seinem Datum galt (aktuell
-        {" "}
-        {euro(uebersicht.aktuellerSatz)} je Abend). Diese Seite ist nur die Übersicht — abgerechnet, zur
-        Auszahlung freigegeben und als ausgezahlt markiert wird unter „Abrechnungen“. Die Sätze werden unter
-        „Sätze verwalten" genehmigt; die Zuordnung der Dozenten läuft über den Stundenplan.
-      </p>
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        {semesters.map((s) => (
-          <Link
-            key={s.id}
-            href={`/verwaltung/honorar?semester=${s.id}`}
-            aria-current={s.id === semester.id ? "page" : undefined}
-            className={`rounded-full px-3 py-1 text-sm ${
-              s.id === semester.id
-                ? "bg-primary text-primary-foreground"
-                : "border border-border text-muted-foreground hover:border-primary"
-            }`}
-          >
-            {s.bezeichnung}
-            <LadeHinweis className="ml-2" />
-          </Link>
-        ))}
-      </div>
-
-      {uebersicht.zeilen.length === 0 ? (
-        <p className="mt-8 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          In diesem Semester ist noch kein Abend einem Dozenten zugeordnet.
-        </p>
-      ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[420px] text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-[0.08em] text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Dozent</th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Abende</th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">Honorar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {uebersicht.zeilen.map((z) => (
-                <tr key={z.dozentId} className="border-t border-border">
-                  <td className="px-4 py-2.5">{z.name}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{z.abende}</td>
-                  <td className="px-4 py-2.5 font-medium">{euro(z.betrag)}</td>
+    <main>
+      <Seitenkopf titel="Honorar" aktionen={aktionen}>
+        <SemesterWahl semesters={semesters} gewaehltId={semester.id} pfad="/verwaltung/honorar" />
+      </Seitenkopf>
+      <Inhalt breite="lesen">
+        {uebersicht.zeilen.length === 0 ? (
+          <LeererZustand icon="honorar" titel="Noch kein gehaltener Abend">
+            In diesem Semester ist noch kein Abend einem Dozenten zugeordnet.
+          </LeererZustand>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-linie text-left text-[11.5px] uppercase tracking-[0.06em] text-dezent">
+                  <th scope="col" className="pb-2 pr-3 font-semibold">Dozent</th>
+                  <th scope="col" className="px-3 pb-2 text-right font-semibold">Abende</th>
+                  <th scope="col" className="pb-2 pl-3 text-right font-semibold">Honorar</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border bg-muted/50">
-                <td className="px-4 py-2.5 font-semibold">Summe</td>
-                <td className="px-4 py-2.5" />
-                <td className="px-4 py-2.5 font-semibold">{euro(uebersicht.summe)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {uebersicht.zeilen.map((z) => (
+                  <tr key={z.dozentId} className="border-b border-linie">
+                    <td className="py-2.5 pr-3 font-medium">{z.name}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{z.abende}</td>
+                    <td className="py-2.5 pl-3 text-right tabular-nums">{euro(z.betrag)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="py-2.5 pr-3 font-semibold">Summe</td>
+                  <td className="px-3 py-2.5" />
+                  <td className="py-2.5 pl-3 text-right font-semibold tabular-nums">{euro(uebersicht.summe)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        <Hinweis className="mt-6">
+          Jeder Abend zählt mit dem Satz, der an seinem Tag galt, derzeit {euro(uebersicht.aktuellerSatz)} je Abend.
+          Abgerechnet, zur Auszahlung freigegeben und als ausgezahlt markiert wird unter „Abrechnungen“.
+        </Hinweis>
+      </Inhalt>
     </main>
   );
 }

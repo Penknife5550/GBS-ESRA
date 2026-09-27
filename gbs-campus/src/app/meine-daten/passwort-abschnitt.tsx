@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 /**
@@ -98,14 +99,14 @@ export function PasswortAbschnitt({
   }
 
   return (
-    <form onSubmit={speichern} className="rounded-lg border border-border bg-card p-5">
+    <form onSubmit={speichern} className="flex flex-col">
       <p className="max-w-prose text-sm text-muted-foreground">
         {hatPasswort
           ? `Sie haben ein Passwort gesetzt${gesetztAm ? ` (zuletzt am ${gesetztAm})` : ""}. Damit kommen Sie auch dann hinein, wenn Sie gerade nicht an Ihr E-Mail-Postfach kommen.`
           : "Ein Passwort ist freiwillig. Es lohnt sich trotzdem: Ohne Passwort führt der einzige Weg ins Portal über Ihr E-Mail-Postfach — wer den Zugriff darauf verliert, kommt ohne Hilfe der Schulleitung nicht mehr hinein."}
       </p>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-4">
         <div>
           <label htmlFor="neues-passwort" className="block text-sm font-medium">
             {hatPasswort ? "Neues Passwort" : "Passwort"}
@@ -154,36 +155,35 @@ export function PasswortAbschnitt({
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <button
-          type="submit"
-          disabled={laeuft || !stimmtUeberein}
-          className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {laeuft ? "Speichert …" : hatPasswort ? "Passwort ändern" : "Passwort setzen"}
-        </button>
-
+      <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         {hatPasswort && (
           <button
             type="button"
             onClick={entfernen}
             disabled={laeuft}
-            className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className={`${knopf("gefahr")} w-full sm:w-auto`}
           >
             Passwort entfernen
           </button>
         )}
+        <button
+          type="submit"
+          disabled={laeuft || !stimmtUeberein}
+          className={`${knopf("primaer")} w-full sm:w-auto`}
+        >
+          {laeuft ? "Speichert …" : hatPasswort ? "Passwort ändern" : "Passwort setzen"}
+        </button>
       </div>
 
       {/* Ein grauer Knopf ohne Begründung sieht aus wie ein Fehler im Portal. */}
       {!stimmtUeberein && (
-        <p className="mt-2 max-w-prose text-xs text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground sm:text-right">
           Der Knopf wird aktiv, sobald in beiden Feldern dasselbe Passwort steht — mindestens{" "}
           {mindestLaenge} Zeichen.
         </p>
       )}
 
-      <MeldungsBox meldung={meldung} className="mt-4 max-w-prose" />
+      <MeldungsBox meldung={meldung} className="mt-4" />
     </form>
   );
 }

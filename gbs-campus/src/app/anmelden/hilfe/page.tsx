@@ -1,46 +1,36 @@
 import Link from "next/link";
-import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { Hinweis } from "@/components/ui/hinweis";
+import { OeffentlicheSeite } from "../oeffentlich";
 import { HilfeFormular } from "./hilfe-formular";
 
 export const metadata = { title: "Ich komme nicht mehr ins Portal" };
 
+const LINK = "font-medium text-primary underline underline-offset-2";
+
 export default function HilfeSeite() {
   return (
-    <main className="mx-auto max-w-md px-6 py-24">
-      <ZurueckLeiste href="/anmelden" label="Zur Anmeldung" />
-
-      <h1 className="mt-6 text-3xl font-bold tracking-tight">Ich komme nicht mehr rein</h1>
-
-      <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>
-          <span className="font-medium text-foreground">Zwei Wege führen ins Portal.</span> Haben Sie im
-          Portal ein Passwort gesetzt, dann{" "}
-          <Link href="/anmelden/passwort" className="underline underline-offset-4">
-            melden Sie sich damit an
-          </Link>{" "}
-          — dafür brauchen Sie Ihr Postfach nicht. Wissen Sie Ihre E-Mail-Adresse noch und erreichen Sie Ihr
-          Postfach, dann{" "}
-          <Link href="/anmelden" className="underline underline-offset-4">
-            fordern Sie einen neuen Anmeldelink an
-          </Link>{" "}
-          — er ist jedes Mal frisch. Ein Passwort ist freiwillig; nicht jeder hat eines.
-        </p>
-        <p>
-          Dieses Formular ist für den Fall, dass beides nicht geht: Sie wissen nicht mehr, welche Adresse
-          hinterlegt ist, oder Sie kommen an Ihr altes Postfach nicht mehr heran — und ein Passwort haben
-          Sie auch nicht. Dann meldet sich die Schulleitung bei Ihnen und trägt die neue Adresse ein.
-        </p>
-        <p>
-          Wir ändern nichts allein auf diese Meldung hin — jemand aus der Schulleitung wird sich vorher
-          bei Ihnen melden. Das schützt Ihr Konto davor, dass sich jemand anderes als Sie ausgibt.
-        </p>
-      </div>
+    <OeffentlicheSeite
+      zurueck={{ href: "/anmelden", text: "Ins Portal" }}
+      titel="Ich komme nicht mehr rein"
+      satz="Sie wissen nicht mehr, welche Adresse hinterlegt ist, oder kommen an Ihr Postfach nicht mehr heran — und ein Passwort haben Sie auch nicht? Dann meldet sich die Schulleitung bei Ihnen und trägt die neue Adresse ein."
+      // Nichts wird allein auf die Meldung hin geändert — das schützt das Konto
+      // davor, dass sich jemand anderes als die Person ausgibt.
+      fuss="Wir ändern nichts allein auf diese Meldung hin — die Schulleitung meldet sich vorher bei Ihnen. Ihre Angaben dienen nur dazu, Ihnen wieder Zugang zu verschaffen."
+    >
+      {/* Zwei Wege führen schneller hinein; ein Passwort ist freiwillig, nicht jeder hat eines. */}
+      <Hinweis className="mt-6">
+        Schneller geht es{" "}
+        <Link href="/anmelden/passwort" className={LINK}>
+          mit Passwort
+        </Link>{" "}
+        (dafür brauchen Sie Ihr Postfach nicht) oder mit einem{" "}
+        <Link href="/anmelden" className={LINK}>
+          neuen Anmeldelink
+        </Link>
+        .
+      </Hinweis>
 
       <HilfeFormular />
-
-      <p className="mt-8 text-xs text-muted-foreground">
-        Ihre Angaben werden ausschließlich dafür verwendet, Ihnen wieder Zugang zu verschaffen.
-      </p>
-    </main>
+    </OeffentlicheSeite>
   );
 }

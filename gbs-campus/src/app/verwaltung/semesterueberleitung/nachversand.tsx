@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { Icon } from "@/components/icons";
+import { knopf } from "@/components/ui/knopf";
 import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Ergebnis = { erneutEingeladen: number };
@@ -73,21 +75,20 @@ export function Nachversand({
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-border bg-credo-gelb/15 px-4 py-3 text-sm">
+    <div className="rounded-xl bg-credo-gelb/15 px-4 py-3 text-sm">
       {laeuft ? (
-        <p>
+        <p className="flex gap-3">
+          <Icon name="uhr" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-foreground" />
           Die Einladungen für dieses Semester werden gerade verschickt. Laden Sie die Seite in einer Minute neu —
           dann steht hier, ob alle zugestellt wurden.
         </p>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="font-medium">{`Einladung nicht zugestellt: ${anzahl}`}</p>
-          <button
-            type="button"
-            onClick={erneutSenden}
-            disabled={sendet}
-            className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          >
+          <p className="flex items-center gap-3 font-semibold text-foreground">
+            <Icon name="hinweis" className="h-[18px] w-[18px] shrink-0" />
+            {`Einladung nicht zugestellt: ${anzahl}`}
+          </p>
+          <button type="button" onClick={erneutSenden} disabled={sendet} className={knopf("sekundaer", "klein")}>
             {sendet ? "Wird gesendet …" : "Erneut senden"}
           </button>
         </div>
