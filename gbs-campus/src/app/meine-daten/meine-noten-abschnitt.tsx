@@ -10,7 +10,7 @@ export function MeineNotenAbschnitt({ gruppen }: { gruppen: EigeneLeistungGruppe
   return (
     <div>
       <p className="max-w-prose text-sm text-muted-foreground">
-        Deine Bewertungen je Semester. Erfasst werden sie von deinem Dozenten oder der Schulleitung.
+        Ihre Bewertungen je Semester. Erfasst werden sie von Ihrem Dozenten oder der Schulleitung.
       </p>
 
       {gruppen.map((gruppe) => (

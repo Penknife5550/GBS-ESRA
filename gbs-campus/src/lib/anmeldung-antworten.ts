@@ -262,7 +262,7 @@ export function titelListe(titel: string[]): string {
 /**
  * Benennt, was ein Zwischenstand nicht enthält — als Satzteil für die Meldungen.
  * `fall` wählt den Kasus: „Nicht gespeichert werden **die Antworten in …**"
- * (Nominativ) bzw. „Deine Angaben außer **den Antworten in …**" (Dativ).
+ * (Nominativ) bzw. „Ihre Angaben außer **den Antworten in …**" (Dativ).
  * Genannt werden die Abschnittstitel, nicht nur „Glaube und Gemeinde": Dass
  * etwa „Motivation" und „Ziele" dazugehören, erkennt ein Laie sonst nicht.
  * Liefert `null`, wenn das Formular nichts dergleichen enthält.

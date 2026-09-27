@@ -1,4 +1,5 @@
 import { ladeEinwilligungstexte, ladeVeroeffentlichteFassung } from "@/lib/anmeldung";
+import { baueFormularStempel, stempelGeheimnis } from "@/lib/anmelde-schutz";
 import { EINRICHTUNG } from "@/lib/constants";
 import { aktenfeldVerlangtArt9 } from "@/lib/formular-optionen";
 import {
@@ -29,7 +30,7 @@ export default async function AnmeldungSeite() {
       <main className="mx-auto max-w-2xl px-6 py-24">
         <h1 className="text-2xl font-bold tracking-tight">Anmeldung derzeit nicht möglich</h1>
         <p className="mt-3 text-muted-foreground">
-          Zurzeit ist kein Anmeldeformular veröffentlicht. Bitte wende dich an die Schulleitung.
+          Zurzeit ist kein Anmeldeformular veröffentlicht. Bitte wenden Sie sich an die Schulleitung.
         </p>
       </main>
     );
@@ -76,6 +77,10 @@ export default async function AnmeldungSeite() {
           einleitung={version.einleitung}
           abschnitte={abschnitte}
           einwilligungen={einwilligungen}
+          // Wann der Server das Formular ausgeliefert hat, signiert — gegen
+          // Roboter, die im selben Moment absenden (lib/anmelde-schutz.ts).
+          // Die Seite ist force-dynamic, der Zeitpunkt also je Aufruf neu.
+          formularStempel={baueFormularStempel(Date.now(), stempelGeheimnis())}
         />
       </div>
 

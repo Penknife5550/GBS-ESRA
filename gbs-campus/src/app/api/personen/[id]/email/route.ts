@@ -72,7 +72,7 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
   );
   if (zielKannMehr) {
     return fehler(
-      "Dieses Konto hat Rechte, die du selbst nicht hast. Ein Konto mit weitergehenden Rechten lässt " +
+      "Dieses Konto hat Rechte, die Sie selbst nicht haben. Ein Konto mit weitergehenden Rechten lässt " +
         "sich über diesen Weg nicht ändern — das wäre eine Kontoübernahme.",
       403,
     );
@@ -174,13 +174,13 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
     personId: id,
     vorlageCode: MAIL_VORLAGE.EMAIL_GEAENDERT_DURCH_VERWALTUNG,
     werte: { vorname: person.vorname, neueAdresse: ergebnis.email },
-    ersatzBetreff: "Deine E-Mail-Adresse wurde geändert",
-    ersatzText: "Hallo {{vorname}},\n\ndeine Adresse wurde auf {{neueAdresse}} geändert.",
+    ersatzBetreff: "Ihre E-Mail-Adresse wurde geändert",
+    ersatzText: "Hallo {{vorname}},\n\nIhre Adresse wurde auf {{neueAdresse}} geändert.",
     // Der Hinweis auf das entfernte Passwort wird angehängt und nicht in die
     // Vorlage geschrieben (siehe `anhang` in selbstpflege.ts).
     anhang: passwortWarGesetzt
-      ? "\n\nHinweis: Ein für dieses Konto gesetztes Passwort wurde dabei entfernt. Melde dich mit " +
-        "einem Anmeldelink an; danach kannst du unter „Meine Daten“ ein neues Passwort setzen."
+      ? "\n\nHinweis: Ein für dieses Konto gesetztes Passwort wurde dabei entfernt. Melden Sie sich mit " +
+        "einem Anmeldelink an; danach können Sie unter „Meine Daten“ ein neues Passwort setzen."
       : undefined,
   };
 

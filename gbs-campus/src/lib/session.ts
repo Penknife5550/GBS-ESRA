@@ -10,7 +10,7 @@
  * Der Ausstellungszeitpunkt ist der Widerrufsanker: Ein JWT lässt sich nicht
  * zurückrufen, aber `ladeAngemeldeten()` in lib/berechtigung.ts verwirft jede
  * Sitzung, die älter ist als die letzte Passwortänderung der Person. Ohne das
- * bliebe ein Angreifer nach dem Hinweis „für dein Konto wurde ein Passwort
+ * bliebe ein Angreifer nach dem Hinweis „für Ihr Konto wurde ein Passwort
  * gesetzt" noch bis zum Ablauf der Sitzung angemeldet — die Reaktion des
  * Betroffenen liefe ins Leere.
  */

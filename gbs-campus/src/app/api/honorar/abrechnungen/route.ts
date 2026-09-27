@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (f) {
     console.error("[HONORAR-ABRECHNUNG] Erstellen fehlgeschlagen", f);
-    return fehler("Die Abrechnung konnte nicht erstellt werden. Bitte versuche es später noch einmal.", 500);
+    return fehler("Die Abrechnung konnte nicht erstellt werden. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if (!ergebnis.ok) return fehler(ergebnis.meldung, statusFuer(ergebnis.code));

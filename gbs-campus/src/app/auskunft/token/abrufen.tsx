@@ -46,12 +46,12 @@ export function AuskunftAbrufen() {
       });
     } catch {
       setLaeuft(false);
-      setMeldung({ art: "fehler", text: "Die Verbindung ist abgerissen. Bitte versuche es noch einmal." });
+      setMeldung({ art: "fehler", text: "Die Verbindung ist abgerissen. Bitte versuchen Sie es noch einmal." });
       return;
     }
 
     if (!antwort.ok) {
-      let text = "Der Abruf hat nicht geklappt. Bitte fordere die Auskunft erneut an.";
+      let text = "Der Abruf hat nicht geklappt. Bitte fordern Sie die Auskunft erneut an.";
       try {
         const inhalt = (await antwort.json()) as { error?: string };
         if (inhalt?.error) text = inhalt.error;
@@ -78,12 +78,12 @@ export function AuskunftAbrufen() {
       URL.revokeObjectURL(url);
       setMeldung({
         art: "ok",
-        text: "Die Auskunft wurde heruntergeladen. Solange der Link gilt, kannst du sie erneut abrufen.",
+        text: "Die Auskunft wurde heruntergeladen. Solange der Link gilt, können Sie sie erneut abrufen.",
       });
     } catch {
       setMeldung({
         art: "fehler",
-        text: "Der Download ist abgebrochen. Bitte versuche es noch einmal — der Link gilt weiterhin.",
+        text: "Der Download ist abgebrochen. Bitte versuchen Sie es noch einmal — der Link gilt weiterhin.",
       });
     } finally {
       setLaeuft(false);
@@ -97,7 +97,7 @@ export function AuskunftAbrufen() {
   if (!token) {
     return (
       <p className="mt-6 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-        Der Link war unvollständig. Bitte öffne den Link aus der E-Mail vollständig, oder fordere die
+        Der Link war unvollständig. Bitte öffnen Sie den Link aus der E-Mail vollständig, oder fordern Sie die
         Auskunft über die Schulverwaltung erneut an.
       </p>
     );

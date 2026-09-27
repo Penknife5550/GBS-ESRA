@@ -49,8 +49,8 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
   });
   // Erst die Kontaktprüfung (narrowt `kontakt` für die Werte unten), dann die
   // Namen — beide Fehlerlisten werden zusammen gemeldet.
-  if (!kontakt.ok) return fehler("Bitte prüfe die markierten Felder.", 400, [...nameMeldungen, ...kontakt.meldungen]);
-  if (nameMeldungen.length > 0) return fehler("Bitte prüfe die markierten Felder.", 400, nameMeldungen);
+  if (!kontakt.ok) return fehler("Bitte prüfen Sie die markierten Felder.", 400, [...nameMeldungen, ...kontakt.meldungen]);
+  if (nameMeldungen.length > 0) return fehler("Bitte prüfen Sie die markierten Felder.", 400, nameMeldungen);
 
   const person = await prisma.person.findUnique({
     where: { id },

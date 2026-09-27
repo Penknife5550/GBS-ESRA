@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     ergebnis = await sendeOffeneZeugnisseAnDms(benutzer.id, request.headers);
   } catch (ausnahme) {
     console.error("[ZEUGNIS] DMS-Nachversand fehlgeschlagen", ausnahme);
-    return fehler("Der Nachversand an das DMS ist fehlgeschlagen. Bitte versuche es später noch einmal.", 500);
+    return fehler("Der Nachversand an das DMS ist fehlgeschlagen. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if ("fehler" in ergebnis) {

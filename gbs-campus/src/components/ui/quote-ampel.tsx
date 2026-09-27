@@ -27,7 +27,7 @@ export const QUOTE_STIL: Record<QuoteZustand, { label: string; zeichen: string; 
 
 /**
  * Die volle Quote-Box mit Balken und Klartext. `sicht` wählt den Klartext: Der
- * Schüler liest „Bitte wende dich an die Schulleitung.", die Detailakte nicht.
+ * Schüler liest „Bitte wenden Sie sich an die Schulleitung.", die Detailakte nicht.
  */
 export function QuoteAmpel({ quote, sicht }: { quote: QuoteModellA; sicht: QuoteSicht }) {
   const stil = QUOTE_STIL[quote.zustand] ?? QUOTE_STIL.OFFEN;

@@ -62,7 +62,7 @@ export async function mitFehlerbehandlung(
     return await arbeit();
   } catch (f) {
     console.error(`[${tag}] ${meldung}`, f);
-    return fehler(`${meldung} Bitte versuche es später noch einmal.`, 500);
+    return fehler(`${meldung} Bitte versuchen Sie es später noch einmal.`, 500);
   }
 }
 

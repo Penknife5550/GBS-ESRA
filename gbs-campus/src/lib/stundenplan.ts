@@ -170,7 +170,7 @@ export type QuoteModellA = {
  *  - **NICHT_ERREICHBAR**: schon so viele Abende versäumt, dass selbst mit allen
  *    verbleibenden Abenden die Schwelle nicht mehr zu schaffen ist.
  *  - **OFFEN**: noch erreichbar, aber noch nicht gesichert — mit dem Klartext
- *    „du darfst noch `darfNochFehlen` Abende fehlen".
+ *    „Es dürfen noch `darfNochFehlen` Abende fehlen." (`quoteHinweis`).
  *
  * Unerfasste vergangene Abende bleiben bewusst `offen` (weder teilgenommen noch
  * versäumt): Die Erfassung passiert real oft verspätet, ein noch nicht
@@ -264,7 +264,7 @@ export function istQuoteDringend(q: QuoteModellA): boolean {
 /**
  * Wer die Quote liest: der Schüler selbst (/meine-daten) oder Verwaltung und
  * Schulleitung in der Detailakte. Nur beim Zustand NICHT_ERREICHBAR
- * unterscheidet sich der Text — der Schulleitung „Bitte wende dich an die
+ * unterscheidet sich der Text — der Schulleitung „Bitte wenden Sie sich an die
  * Schulleitung." zu sagen, führte ins Leere.
  */
 export type QuoteSicht = "schueler" | "verwaltung";
@@ -283,7 +283,7 @@ export function quoteHinweis(q: QuoteModellA, sicht: QuoteSicht): string {
     return sicht === "verwaltung"
       ? "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. " +
           "Der Teilnehmer sieht dazu den Hinweis, sich an die Schulleitung zu wenden."
-      : "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. Bitte wende dich an die Schulleitung.";
+      : "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. Bitte wenden Sie sich an die Schulleitung.";
   }
   if (q.darfNochFehlen <= 0) {
     return "Achtung: Es darf kein Abend mehr fehlen, sonst reißt die Grenze.";

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
     ergebnis = await markiereAusgezahlt(id, ausgezahltAm, benutzer.id, request.headers);
   } catch (f) {
     console.error("[HONORAR-ABRECHNUNG] Auszahlen fehlgeschlagen", f);
-    return fehler("Die Abrechnung konnte nicht als ausgezahlt markiert werden. Bitte versuche es später noch einmal.", 500);
+    return fehler("Die Abrechnung konnte nicht als ausgezahlt markiert werden. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if (!ergebnis.ok) return fehler(ergebnis.meldung, statusFuer(ergebnis.code));

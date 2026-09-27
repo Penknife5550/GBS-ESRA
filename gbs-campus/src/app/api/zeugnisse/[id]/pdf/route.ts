@@ -54,6 +54,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   } catch (ausnahme) {
     console.error("[ZEUGNIS] Einzeldruck fehlgeschlagen für", id, ausnahme);
-    return downloadFehler(request, "Das PDF konnte nicht erzeugt werden. Bitte versuche es später erneut.", 500);
+    return downloadFehler(request, "Das PDF konnte nicht erzeugt werden. Bitte versuchen Sie es später erneut.", 500);
   }
 }

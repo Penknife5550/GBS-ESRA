@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
   // Den eigenen Status setzt niemand selbst: Ein Endzustand sperrte den
   // Handelnden sofort aus — und mit ihm womöglich die einzige Schulleitung.
   if (person.id === benutzer.id) {
-    return fehler("Den eigenen Status kannst du hier nicht ändern.", 403);
+    return fehler("Den eigenen Status können Sie hier nicht ändern.", 403);
   }
 
   const ziel = await prisma.teilnehmerStatus.findUnique({

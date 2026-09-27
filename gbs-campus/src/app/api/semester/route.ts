@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
   const maengel = pruefeSemester(geprueft.data);
-  if (maengel.length > 0) return fehler("Bitte prüfe die markierten Felder.", 400, maengel);
+  if (maengel.length > 0) return fehler("Bitte prüfen Sie die markierten Felder.", 400, maengel);
 
   const eingabe = geprueft.data;
   // Die Umformung steht in `lib/semester.ts` — dieselbe Funktion benutzt das

@@ -265,10 +265,10 @@ export async function versendeEinladungen(
           an: einladung.person.email,
           personId: einladung.person.id,
           vorlageCode: MAIL_VORLAGE.UEBERLEITUNG_EINLADUNG,
-          betreff: fuelleVorlage(vorlage?.betreff ?? "Bist du im {{semester}} dabei?", werte),
+          betreff: fuelleVorlage(vorlage?.betreff ?? "Sind Sie im {{semester}} dabei?", werte),
           text: fuelleVorlage(
             vorlage?.textMd ??
-              "Hallo {{vorname}},\n\nbist du im {{semester}} ({{zeitraum}}) dabei? Bitte antworte bis einschließlich {{frist}} über diesen Link:\n\n{{link}}",
+              "Hallo {{vorname}},\n\nsind Sie im {{semester}} ({{zeitraum}}) dabei? Bitte antworten Sie bis einschließlich {{frist}} über diesen Link:\n\n{{link}}",
             werte,
           ),
         });
@@ -627,10 +627,10 @@ export async function fuehreErinnerungslauf(jetzt: Date): Promise<ErinnerungBeri
           an: t.person.email,
           personId: t.person.id,
           vorlageCode: MAIL_VORLAGE.UEBERLEITUNG_ERINNERUNG,
-          betreff: fuelleVorlage(vorlage?.betreff ?? "Erinnerung: Bist du im {{semester}} dabei?", werte),
+          betreff: fuelleVorlage(vorlage?.betreff ?? "Erinnerung: Sind Sie im {{semester}} dabei?", werte),
           text: fuelleVorlage(
             vorlage?.textMd ??
-              "Hallo {{vorname}},\n\nfür {{semester}} ({{zeitraum}}) fehlt uns noch deine Rückmeldung. Bitte antworte bis einschließlich {{frist}} über diesen Link (ältere Links gelten nicht mehr):\n\n{{link}}",
+              "Hallo {{vorname}},\n\nfür {{semester}} ({{zeitraum}}) fehlt uns noch Ihre Rückmeldung. Bitte antworten Sie bis einschließlich {{frist}} über diesen Link (ältere Links gelten nicht mehr):\n\n{{link}}",
             werte,
           ),
         }));

@@ -46,14 +46,14 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
   const maengel = pruefeSemester(geprueft.data);
-  if (maengel.length > 0) return fehler("Bitte prüfe die markierten Felder.", 400, maengel);
+  if (maengel.length > 0) return fehler("Bitte prüfen Sie die markierten Felder.", 400, maengel);
 
   const { id } = await kontext.params;
   const vorher = await prisma.semester.findUnique({ where: { id } });
   if (!vorher) return fehler("Dieses Semester gibt es nicht.", 404);
 
   const kuerzel = pruefeKuerzelUnveraendert(vorher.code, geprueft.data.code);
-  if (kuerzel) return fehler("Bitte prüfe die markierten Felder.", 400, [kuerzel]);
+  if (kuerzel) return fehler("Bitte prüfen Sie die markierten Felder.", 400, [kuerzel]);
 
   // Dieselbe Umformung wie beim Anlegen — siehe `lib/semester.ts`. Das Kürzel
   // wird unverändert zurückgeschrieben (auch in seiner gespeicherten
@@ -73,7 +73,7 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
           "offenen Rückmeldungen vorher klären.";
         // Oben nur kurz, die Einzelheit am Feld: Sonst stünde die lange Meldung
         // im Formular zweimal (Alert und Feldfehler) und würde zweimal vorgelesen.
-        return fehler("Bitte prüfe den Semesterbeginn.", 409, [{ feld: "start", meldung }]);
+        return fehler("Bitte prüfen Sie den Semesterbeginn.", 409, [{ feld: "start", meldung }]);
       }
     }
   }

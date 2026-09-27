@@ -39,10 +39,10 @@ export async function PUT(request: NextRequest) {
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
   const ergebnis = pruefeEigeneDaten(geprueft.data);
-  if (!ergebnis.ok) return fehler("Bitte prüfe die markierten Felder.", 400, ergebnis.meldungen);
+  if (!ergebnis.ok) return fehler("Bitte prüfen Sie die markierten Felder.", 400, ergebnis.meldungen);
 
   const person = await prisma.person.findUnique({ where: { id: benutzer.id } });
-  if (!person) return fehler("Deine Akte wurde nicht gefunden.", 404);
+  if (!person) return fehler("Ihre Akte wurde nicht gefunden.", 404);
 
   const { werte } = ergebnis;
 
@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest) {
     },
   });
   if (geschrieben.count !== 1) {
-    return fehler("Dein Konto wurde gerade geschlossen. Die Änderung wurde nicht gespeichert.", 409);
+    return fehler("Ihr Konto wurde gerade geschlossen. Die Änderung wurde nicht gespeichert.", 409);
   }
 
   // Bankverbindung geändert: Hinweis an die hinterlegte Adresse der Person

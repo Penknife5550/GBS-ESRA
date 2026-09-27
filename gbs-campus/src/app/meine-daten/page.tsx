@@ -150,8 +150,8 @@ export default async function MeineDatenSeite() {
       </div>
 
       <p className="mt-3 max-w-prose text-xs text-muted-foreground">
-        Stimmt oben etwas nicht, wende dich an die Schulleitung — diese Angaben gehören zur Aufnahmeentscheidung und
-        lassen sich deshalb nicht selbst ändern. Kontakt, Bankverbindung, E-Mail und Passwort pflegst du unten selbst.
+        Stimmt oben etwas nicht, wenden Sie sich an die Schulleitung — diese Angaben gehören zur Aufnahmeentscheidung und
+        lassen sich deshalb nicht selbst ändern. Kontakt, Bankverbindung, E-Mail und Passwort pflegen Sie unten selbst.
       </p>
 
       {anwesenheitGruppen.length > 0 && (
@@ -226,7 +226,7 @@ export default async function MeineDatenSeite() {
         </>
       ) : (
         <p className="mt-10 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Dein Konto darf die eigenen Daten zurzeit nur ansehen.
+          Ihr Konto darf die eigenen Daten zurzeit nur ansehen.
         </p>
       )}
     </main>

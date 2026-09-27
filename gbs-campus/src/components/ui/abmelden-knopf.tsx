@@ -28,7 +28,7 @@ export function AbmeldenKnopf() {
       setLaeuft(false);
       // Kein „oder den Browser schließen": Das Cookie hat eine feste Laufzeit
       // (AUTH_SITZUNG_STUNDEN) und übersteht das Schließen des Browsers.
-      setFehler("Abmelden hat nicht geklappt — du bist auf diesem Gerät noch angemeldet. Bitte versuche es noch einmal.");
+      setFehler("Abmelden hat nicht geklappt — Sie sind auf diesem Gerät noch angemeldet. Bitte versuchen Sie es noch einmal.");
       return;
     }
 

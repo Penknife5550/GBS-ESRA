@@ -59,7 +59,7 @@ export function AnwesenheitAbschnitt({
       setMeldung({ art: "fehler", text: antwort.meldung });
       return;
     }
-    setMeldung({ art: "ok", text: "Danke, deine Bestätigung ist gespeichert." });
+    setMeldung({ art: "ok", text: "Danke, Ihre Bestätigung ist gespeichert." });
     router.refresh();
   }
 
@@ -67,8 +67,8 @@ export function AnwesenheitAbschnitt({
     <div>
       <p className="max-w-prose text-sm text-muted-foreground">
         {darfBearbeiten
-          ? "Bestätige hier selbst, an welchen vergangenen Abenden du da warst oder den Stoff nachgearbeitet hast. Beides zählt als Teilnahme. Was die Schule schon erfasst hat, steht fest und ist hier nur zum Nachlesen."
-          : "Hier siehst du deinen Anwesenheitsstand je Semester. Erfasst und geändert wird er von der Schule."}
+          ? "Bestätigen Sie hier selbst, an welchen vergangenen Abenden Sie da waren oder den Stoff nachgearbeitet haben. Beides zählt als Teilnahme. Was die Schule schon erfasst hat, steht fest und ist hier nur zum Nachlesen."
+          : "Hier sehen Sie Ihren Anwesenheitsstand je Semester. Erfasst und geändert wird er von der Schule."}
       </p>
 
       <MeldungsBox meldung={meldung} className="mt-4" />

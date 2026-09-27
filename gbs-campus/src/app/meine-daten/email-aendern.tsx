@@ -57,14 +57,14 @@ export function EmailAendern({
             art: "ok",
             text:
               "Falls die Adresse verwendbar ist, ist ein Bestätigungslink unterwegs. Erst nach dem Klick " +
-              "darauf gilt die neue Adresse — bis dahin meldest du dich weiterhin mit der bisherigen an. " +
-              "Kommt nichts an (auch im Spam-Ordner nachsehen), melde dich bitte bei der Schulleitung.",
+              "darauf gilt die neue Adresse — bis dahin melden Sie sich weiterhin mit der bisherigen an. " +
+              "Kommt nichts an (auch im Spam-Ordner nachsehen), melden Sie sich bitte bei der Schulleitung.",
           }
         : {
             art: "warnung",
             text:
-              "Der Versand des Bestätigungslinks hat nicht geklappt. Bitte melde dich bei der " +
-              "Schulleitung — bis dahin gilt weiterhin deine bisherige Adresse.",
+              "Der Versand des Bestätigungslinks hat nicht geklappt. Bitte melden Sie sich bei der " +
+              "Schulleitung — bis dahin gilt weiterhin Ihre bisherige Adresse.",
           },
     );
   }
@@ -73,14 +73,14 @@ export function EmailAendern({
     <form onSubmit={beantragen} className="rounded-lg border border-border bg-card p-5">
       <p className="text-sm">
         Hinterlegt ist <span className="font-medium break-all">{bisherige}</span>. Über diese Adresse läuft
-        dein Zugang zum Portal.
+        Ihr Zugang zum Portal.
       </p>
 
       {offenerAntrag && (
         <p className="mt-4 max-w-prose rounded-lg bg-credo-gelb/15 px-3 py-2 text-sm">
           Es läuft bereits ein Antrag auf{" "}
           <span className="font-medium break-all">{offenerAntrag.neueEmail}</span>. Der Bestätigungslink in
-          der Mail an diese Adresse gilt bis {offenerAntrag.gueltigBis}. Bis du ihn anklickst, bleibt deine
+          der Mail an diese Adresse gilt bis {offenerAntrag.gueltigBis}. Bis Sie ihn anklicken, bleibt Ihre
           bisherige Adresse gültig. Ein neuer Antrag ersetzt diesen.
         </p>
       )}
@@ -102,8 +102,8 @@ export function EmailAendern({
         className="mt-1.5 min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm sm:max-w-md"
       />
       <p id="neue-email-hinweis" className="mt-1 max-w-prose text-xs text-muted-foreground">
-        Wir schicken einen Bestätigungslink an die neue Adresse. Bis du ihn anklickst, bleibt alles beim
-        Alten — so kann ein Tippfehler dich nicht aussperren.
+        Wir schicken einen Bestätigungslink an die neue Adresse. Bis Sie ihn anklicken, bleibt alles beim
+        Alten — so kann ein Tippfehler Sie nicht aussperren.
       </p>
 
       <button

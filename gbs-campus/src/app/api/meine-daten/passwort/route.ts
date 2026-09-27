@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest) {
   if (!geprueft.success) return fehler("Bitte ein Passwort angeben.", 400);
 
   const person = await prisma.person.findUnique({ where: { id: benutzer.id } });
-  if (!person) return fehler("Deine Akte wurde nicht gefunden.", 404);
+  if (!person) return fehler("Ihre Akte wurde nicht gefunden.", 404);
 
   const mindestLaenge = await zahl("AUTH_PASSWORT_MIN_LAENGE");
   const maengel = pruefePasswort(geprueft.data.passwort, mindestLaenge, person.email);
@@ -82,7 +82,7 @@ export async function DELETE(request: NextRequest) {
   if (benutzer instanceof Response) return benutzer;
 
   const person = await prisma.person.findUnique({ where: { id: benutzer.id } });
-  if (!person) return fehler("Deine Akte wurde nicht gefunden.", 404);
+  if (!person) return fehler("Ihre Akte wurde nicht gefunden.", 404);
   // Nichts zu tun, also auch keine Mail — `null` statt `false`, damit die
   // Oberfläche das nicht als Fehlversand anzeigt.
   if (!person.passwortHash) return erfolg({ entfernt: true, mailGesendet: null });
@@ -139,8 +139,8 @@ async function benachrichtige(auftrag: {
       an: auftrag.email,
       personId: auftrag.personId,
       vorlageCode: MAIL_VORLAGE.PASSWORT_GEAENDERT,
-      betreff: fuelleVorlage(vorlage?.betreff ?? "Dein Passwort wurde geändert", werte),
-      text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\nfür dein Konto wurde {{vorgang}}.", werte),
+      betreff: fuelleVorlage(vorlage?.betreff ?? "Ihr Passwort wurde geändert", werte),
+      text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\nfür Ihr Konto wurde {{vorgang}}.", werte),
     });
     return versand.gesendet;
   } catch (ausnahme) {

@@ -6,7 +6,21 @@ import { MINUTE_MS, RECHT, ROLLE, STUNDE_MS } from "@/lib/constants";
 import { datumZeit } from "@/lib/datum";
 import { dmsAdresse } from "@/lib/konfiguration";
 import { zaehleOffeneDmsArchivierungen } from "@/lib/zeugnis-io";
+import { SCHLUESSEL_EINGANG } from "@/lib/anmelde-schutz";
+import { ladeGesamtgrenzen, zaehlstand } from "@/lib/anmelde-schutz-io";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+
+/**
+ * Die Abweisungen des öffentlichen Anmeldeformulars (lib/anmelde-schutz.ts) in
+ * der Reihenfolge der Schutzschichten — die Audit-Aktionen aus
+ * api/anmeldung/route.ts.
+ */
+const ANMELDESCHUTZ_AKTIONEN = [
+  { aktion: "ANMELDUNG_GESAMT_GEDROSSELT", text: "Gesamtgrenze" },
+  { aktion: "ANMELDUNG_GEDROSSELT", text: "je Anschluss" },
+  { aktion: "ANMELDUNG_ABGEWIESEN_STEMPEL", text: "Mindestdauer" },
+  { aktion: "ANMELDUNG_VERWORFEN_FANGFELD", text: "Fangfeld" },
+] as const;
 
 export const metadata = { title: "Betrieb" };
 export const dynamic = "force-dynamic";
@@ -70,6 +84,9 @@ export default async function BetriebSeite() {
     offeneZeugnisse,
     letzterWorkerLauf,
     letzterWorkerFehler,
+    anmeldeEingaenge,
+    anmeldeGrenzen,
+    anmeldeAbweisungen,
   ] = await Promise.all([
     prisma.emailVersand.findMany({
       where: { status: { in: ["FEHLER", "BOUNCE"] } },
@@ -126,6 +143,18 @@ export default async function BetriebSeite() {
       orderBy: { erstelltAm: "desc" },
       select: { erstelltAm: true, objektId: true, nachher: true },
     }),
+    // Schutz des Anmeldeformulars: angenommene Einreichungen gegen die
+    // Gesamtgrenzen und die Abweisungen der letzten 24 Stunden je Schicht.
+    zaehlstand(SCHLUESSEL_EINGANG, new Date(jetzt)),
+    ladeGesamtgrenzen(),
+    prisma.auditLog.groupBy({
+      by: ["aktion"],
+      where: {
+        aktion: { in: ANMELDESCHUTZ_AKTIONEN.map((a) => a.aktion) },
+        erstelltAm: { gte: new Date(jetzt - 24 * STUNDE_MS) },
+      },
+      _count: { _all: true },
+    }),
   ]);
 
   const aufraeumenUeberfaellig =
@@ -140,6 +169,11 @@ export default async function BetriebSeite() {
   })();
   const dmsOffen = offeneZahlungsbelege + offeneSatzBelege + offeneZeugnisse;
   const dmsEingerichtet = dmsAdresse() !== null;
+  const abweisungen = ANMELDESCHUTZ_AKTIONEN.map((a) => ({
+    ...a,
+    anzahl: anmeldeAbweisungen.find((g) => g.aktion === a.aktion)?._count._all ?? 0,
+  }));
+  const gesamtgrenzeGegriffen = (abweisungen.find((a) => a.aktion === "ANMELDUNG_GESAMT_GEDROSSELT")?.anzahl ?? 0) > 0;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -263,6 +297,35 @@ export default async function BetriebSeite() {
               Honorarsätze, Zahlungsbelege in der einzelnen Abrechnung (Dozentenhonorar →
               Honorar-Abrechnungen), Zeugnisse unter Zeugnisse („An das DMS nachsenden"). Warum der Versand
               gescheitert ist, steht unten unter „Nicht zugestellt".
+            </p>
+          )}
+        </div>
+
+        <div
+          className={`rounded-lg border bg-card p-5 sm:col-span-2 ${
+            gesamtgrenzeGegriffen ? "border-credo-rot/50" : "border-border"
+          }`}
+        >
+          <p className="text-lg font-semibold leading-tight tabular-nums">
+            {anmeldeEingaenge.letzteStunde} / {anmeldeGrenzen.proStunde} in der letzten Stunde ·{" "}
+            {anmeldeEingaenge.letzterTag} / {anmeldeGrenzen.proTag} in 24 Stunden
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Anmeldeformular: angenommene Anmeldungen gegen die Gesamtgrenzen. Abgewiesen in den letzten
+            24 Stunden —{" "}
+            {abweisungen.map((a, i) => (
+              <span key={a.aktion}>
+                {i > 0 && " · "}
+                {a.text}: <span className="tabular-nums">{a.anzahl}</span>
+              </span>
+            ))}
+          </p>
+          {gesamtgrenzeGegriffen && (
+            <p className="mt-3 text-xs text-credo-rot">
+              Die Gesamtgrenze hat in den letzten 24 Stunden gegriffen: Das Formular hat Anmeldungen
+              abgewiesen, und Schulleitung und Verwaltung wurden per Mail gewarnt. Bitte die zuletzt
+              eingegangenen Anmeldungen prüfen. Sind es echte Bewerbungen, lässt sich die Grenze unter
+              Verwaltung → Einstellungen („Anmeldungen je Stunde“ bzw. „je Tag“) anheben.
             </p>
           )}
         </div>

@@ -352,7 +352,7 @@ console.log("\n8. Geänderte Bankverbindung: Hinweis an den Kontoinhaber selbst 
   pruefe(
     "der Hinweis rät allen (nicht nur mit Passwort), ein (neues) Passwort zu setzen — das beendet fremde Sitzungen",
     vorlage.includes("damit fremde Sitzungen enden") &&
-      !vorlage.includes("Hast du ein Passwort gesetzt") &&
+      !vorlage.includes("Haben Sie ein Passwort gesetzt") &&
       selbstpflege.includes("damit fremde Sitzungen enden"),
   );
 }

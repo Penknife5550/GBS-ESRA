@@ -76,14 +76,14 @@ export function EmailBestaetigen() {
   // der „unvollständig"-Meldung, bevor der Token gelesen ist.
   if (!bereit) return null;
 
-  // Ohne Token gilt der Einleitungssatz („Danach läuft dein Zugang …“) nicht —
+  // Ohne Token gilt der Einleitungssatz („Danach läuft Ihr Zugang …“) nicht —
   // eigene Überschrift statt eines Widerspruchs auf derselben Seite.
   if (!token) {
     return (
       <div className="mt-8">
         <h2 className="text-lg font-semibold">Der Link war unvollständig</h2>
         <p className="mt-3 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Bitte öffne den Link aus der E-Mail vollständig, oder beantrage die Änderung im Portal unter „Meine Daten“
+          Bitte öffnen Sie den Link aus der E-Mail vollständig, oder beantragen Sie die Änderung im Portal unter „Meine Daten“
           noch einmal.
         </p>
       </div>
@@ -99,8 +99,8 @@ export function EmailBestaetigen() {
           role="status"
           className="rounded-lg bg-credo-gruen/10 px-4 py-3 text-sm"
         >
-          Deine E-Mail-Adresse ist jetzt <span className="font-medium break-all">{neueAdresse}</span>. Ab
-          sofort läuft dein Zugang zum Portal über diese Adresse.
+          Ihre E-Mail-Adresse ist jetzt <span className="font-medium break-all">{neueAdresse}</span>. Ab
+          sofort läuft Ihr Zugang zum Portal über diese Adresse.
         </p>
         <Link
           href="/anmelden"
@@ -115,7 +115,7 @@ export function EmailBestaetigen() {
   return (
     <>
       <p className="mt-3 text-sm text-muted-foreground">
-        Danach läuft dein Zugang zum Portal über diese Adresse. Bis zu diesem Klick gilt die bisherige.
+        Danach läuft Ihr Zugang zum Portal über diese Adresse. Bis zu diesem Klick gilt die bisherige.
       </p>
       <button
         type="button"

@@ -30,13 +30,13 @@ type Ergebnis = {
 function meldungZu(ergebnis: Ergebnis): string {
   switch (ergebnis.status) {
     case "ok":
-      return `Schön, dass du dabei bist, ${ergebnis.vorname}! Deine Teilnahme am ${ergebnis.semester} ist bestätigt.`;
+      return `Schön, dass Sie dabei sind, ${ergebnis.vorname}! Ihre Teilnahme am ${ergebnis.semester} ist bestätigt.`;
     case "schon_bestaetigt":
-      return `Deine Teilnahme am ${ergebnis.semester} war schon bestätigt — schön, dass du dabei bist, ${ergebnis.vorname}.`;
+      return `Ihre Teilnahme am ${ergebnis.semester} war schon bestätigt — schön, dass Sie dabei sind, ${ergebnis.vorname}.`;
     case "abgemeldet":
-      return `Danke für deine Rückmeldung, ${ergebnis.vorname}. Du bist für das ${ergebnis.semester} abgemeldet.`;
+      return `Danke für Ihre Rückmeldung, ${ergebnis.vorname}. Sie sind für das ${ergebnis.semester} abgemeldet.`;
     case "schon_abgemeldet":
-      return `Du warst für das ${ergebnis.semester} schon abgemeldet, ${ergebnis.vorname}.`;
+      return `Sie waren für das ${ergebnis.semester} schon abgemeldet, ${ergebnis.vorname}.`;
   }
 }
 
@@ -62,8 +62,8 @@ export function DabeiBestaetigen() {
     if (
       antwort === "raus" &&
       !window.confirm(
-        "Wirklich absagen?\n\nDu wirst für das kommende Semester abgemeldet und stehst in keiner Liste dieses " +
-          `Semesters. ${bisWann} kannst du über denselben Link noch „Ich bin dabei“ sagen.`,
+        "Wirklich absagen?\n\nSie werden für das kommende Semester abgemeldet und stehen in keiner Liste dieses " +
+          `Semesters. ${bisWann} können Sie über denselben Link noch „Ich bin dabei“ sagen.`,
       )
     ) {
       return;
@@ -92,7 +92,7 @@ export function DabeiBestaetigen() {
   if (!token) {
     return (
       <p className="mt-8 rounded-lg border border-credo-rot/40 bg-credo-rot/5 px-4 py-3 text-sm">
-        Der Link war unvollständig. Bitte öffne den Link aus der E-Mail vollständig, oder wende dich an
+        Der Link war unvollständig. Bitte öffnen Sie den Link aus der E-Mail vollständig, oder wenden Sie sich an
         die Schulverwaltung.
       </p>
     );
@@ -114,7 +114,7 @@ export function DabeiBestaetigen() {
           {istDabei && ergebnis.faecher.length > 0 && (
             <div className="mt-6">
               <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Diese Fächer erwarten dich
+                Diese Fächer erwarten Sie
               </h2>
               <ul className="mt-3 space-y-1.5 text-sm">
                 {ergebnis.faecher.map((fach) => (
@@ -127,7 +127,7 @@ export function DabeiBestaetigen() {
           )}
 
           <p className="mt-6 text-xs text-muted-foreground">
-            Anders überlegt? Bis einschließlich {ergebnis.frist} kannst du deine Antwort hier ändern — ab dem
+            Anders überlegt? Bis einschließlich {ergebnis.frist} können Sie Ihre Antwort hier ändern — ab dem
             ersten Semestertag ist die Rückmeldung geschlossen.
           </p>
           <button

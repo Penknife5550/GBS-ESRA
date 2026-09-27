@@ -149,11 +149,11 @@ export async function benachrichtigeKontoinhaberUeberBankverbindung(
     personId: person.id,
     vorlageCode: MAIL_VORLAGE.BANKVERBINDUNG_GEAENDERT,
     werte: { vorname: person.vorname, felder: felder.join(", ") },
-    ersatzBetreff: "Deine Bankverbindung bei GBS Campus wurde geändert",
+    ersatzBetreff: "Ihre Bankverbindung bei GBS Campus wurde geändert",
     ersatzText:
       "Hallo {{vorname}},\n\n" +
-      "in deinem Konto bei GBS Campus wurde soeben geändert: {{felder}}.\n\n" +
-      "Warst du das nicht, melde dich umgehend bei der Schulleitung und setze unter „Meine Daten“ ein (neues) " +
+      "in Ihrem Konto bei GBS Campus wurde soeben geändert: {{felder}}.\n\n" +
+      "Waren Sie das nicht, melden Sie sich umgehend bei der Schulleitung und setzen Sie unter „Meine Daten“ ein (neues) " +
       "Passwort, damit fremde Sitzungen enden.",
   });
 }
@@ -228,9 +228,9 @@ export async function beantrageEmailAenderung(
         ersatzText:
           "Guten Tag,\n\n" +
           "jemand wollte die Adresse {{adresse}} einem anderen Konto bei GBS Campus zuordnen. " +
-          "Weil sie bereits vergeben ist, wurde nichts geändert — an deinem Konto ebenso wenig " +
+          "Weil sie bereits vergeben ist, wurde nichts geändert — an Ihrem Konto ebenso wenig " +
           "wie am anderen.\n\n" +
-          "Warst du das nicht, kannst du diese Nachricht ignorieren. Kommt sie öfter, melde dich " +
+          "Waren Sie das nicht, können Sie diese Nachricht ignorieren. Kommt sie öfter, melden Sie sich " +
           "bitte bei der Schulleitung.\n\n" +
           EINRICHTUNG.name,
       }),
@@ -282,7 +282,7 @@ export async function beantrageEmailAenderung(
         link: `${basisUrl()}/meine-daten/email#token=${token}`,
         gueltigkeit: gueltigkeitAlsText(stunden * 60),
       },
-      ersatzBetreff: "Bitte bestätige deine neue E-Mail-Adresse",
+      ersatzBetreff: "Bitte bestätigen Sie Ihre neue E-Mail-Adresse",
       ersatzText: "Hallo {{vorname}},\n\n{{link}}\n\nDer Link gilt {{gueltigkeit}}.",
     }),
     hinweisAnBisherige(person, neueEmail),
@@ -306,12 +306,12 @@ async function hinweisAnBisherige(person: PersonKurz, neueEmail: string): Promis
     personId: person.id,
     vorlageCode: MAIL_VORLAGE.EMAIL_AENDERUNG_HINWEIS,
     werte: { vorname: person.vorname, neueAdresse: neueEmail },
-    ersatzBetreff: "Änderung deiner E-Mail-Adresse wurde beantragt",
+    ersatzBetreff: "Änderung Ihrer E-Mail-Adresse wurde beantragt",
     ersatzText:
       "Hallo {{vorname}},\n\n" +
-      "für dein Konto bei GBS Campus wurde eine neue E-Mail-Adresse beantragt: {{neueAdresse}}\n\n" +
-      "Warst du das nicht, melde dich bitte umgehend bei der Schulleitung. Solange du nicht " +
-      "bestätigst, bleibt alles wie bisher.\n\n" +
+      "für Ihr Konto bei GBS Campus wurde eine neue E-Mail-Adresse beantragt: {{neueAdresse}}\n\n" +
+      "Waren Sie das nicht, melden Sie sich bitte umgehend bei der Schulleitung. Solange Sie nicht " +
+      "bestätigen, bleibt alles wie bisher.\n\n" +
       EINRICHTUNG.name,
   });
 }
@@ -395,7 +395,7 @@ export async function loeseEmailAenderungEin(token: string): Promise<EinloesenEr
       return {
         ok: false,
         status: 409,
-        meldung: "Diese Adresse ist inzwischen vergeben. Bitte wende dich an die Schulleitung.",
+        meldung: "Diese Adresse ist inzwischen vergeben. Bitte wenden Sie sich an die Schulleitung.",
       };
     }
     throw ausnahme;

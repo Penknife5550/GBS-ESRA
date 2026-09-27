@@ -28,7 +28,7 @@ const schema = z.object({ token: z.string().uuid() });
 export async function POST(request: NextRequest) {
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) {
-    return fehler("Dieser Link ist ungültig. Bitte fordere einen neuen an.", 400);
+    return fehler("Dieser Link ist ungültig. Bitte fordern Sie einen neuen an.", 400);
   }
 
   const personId = await loeseMagicLinkEin(geprueft.data.token);
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     console.error("[ANMELDUNG] Sitzung konnte nach dem Einlösen nicht angelegt werden:", f);
     return fehler(
       "Die Anmeldung hat nicht geklappt, und dieser Link ist dabei verbraucht worden. " +
-        "Bitte fordere einen neuen an.",
+        "Bitte fordern Sie einen neuen an.",
       500,
     );
   }

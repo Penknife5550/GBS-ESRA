@@ -43,6 +43,7 @@ const SKRIPTE = [
   "pruefe-herkunft.ts",
   "pruefe-anmeldung-antworten.ts",
   "pruefe-betrieb.ts",
+  "pruefe-anmelde-schutz.ts",
 ];
 
 /** Brauchen eine Datenbank — laufen über `npm run pruefen:db`, nicht hier. */

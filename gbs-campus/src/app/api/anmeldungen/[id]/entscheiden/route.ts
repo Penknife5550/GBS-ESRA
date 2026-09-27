@@ -208,7 +208,7 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
         personId: person.id,
         vorlageCode: MAIL_VORLAGE.ANMELDUNG_ANGENOMMEN,
         betreff: fuelleVorlage(vorlage?.betreff ?? `Willkommen an der ${EINRICHTUNG.name}`, werte),
-        text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\nwir freuen uns auf dich.", werte),
+        text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\nwir freuen uns auf Sie.", werte),
       });
       mailGesendet = versand.gesendet;
     }

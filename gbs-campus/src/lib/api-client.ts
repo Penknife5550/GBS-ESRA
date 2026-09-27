@@ -25,8 +25,8 @@ const ZEITGRENZE_MS = 30_000;
  * Cookie gilt dann auch hier) und drückt denselben Knopf noch einmal.
  */
 export const SITZUNG_ABGELAUFEN =
-  "Deine Sitzung ist abgelaufen. Bitte melde dich in einem neuen Tab an und versuche es dann hier noch einmal — " +
-  "deine Eingaben bleiben so lange stehen.";
+  "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich in einem neuen Tab an und versuchen Sie es dann hier noch einmal — " +
+  "Ihre Eingaben bleiben so lange stehen.";
 
 export type AnfrageErgebnis<T> =
   | { ok: true; daten: T }
@@ -56,8 +56,8 @@ export async function sendeAnfrage<T>(pfad: string, optionen: Optionen = {}): Pr
       ok: false,
       status: 0,
       meldung: abgelaufen
-        ? "Der Server hat zu lange nicht geantwortet. Bitte versuche es noch einmal."
-        : "Die Verbindung zum Server ist abgerissen. Bitte prüfe deine Internetverbindung und versuche es noch einmal.",
+        ? "Der Server hat zu lange nicht geantwortet. Bitte versuchen Sie es noch einmal."
+        : "Die Verbindung zum Server ist abgerissen. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es noch einmal.",
     };
   }
 
@@ -72,10 +72,10 @@ export async function sendeAnfrage<T>(pfad: string, optionen: Optionen = {}): Pr
       status: antwort.status,
       meldung:
         antwort.status >= 500
-          ? "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später noch einmal."
+          ? "Auf dem Server ist ein Fehler aufgetreten. Bitte versuchen Sie es später noch einmal."
           : antwort.status === 401
             ? SITZUNG_ABGELAUFEN
-            : "Der Server hat unerwartet geantwortet. Bitte lade die Seite neu.",
+            : "Der Server hat unerwartet geantwortet. Bitte laden Sie die Seite neu.",
     };
   }
 

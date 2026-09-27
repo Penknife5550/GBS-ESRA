@@ -88,7 +88,7 @@ export async function speichereEntwurf(
     include: { abschnitte: { include: { felder: { orderBy: { reihenfolge: "asc" } } } } },
   });
   if (!version || version.status !== FormularVersionStatus.VEROEFFENTLICHT) {
-    return { fehler: "Das Anmeldeformular wurde zwischenzeitlich geändert. Bitte lade die Seite neu." };
+    return { fehler: "Das Anmeldeformular wurde zwischenzeitlich geändert. Bitte laden Sie die Seite neu." };
   }
 
   // Art.-9-Angaben und die IBAN werden hier verworfen: Ein Zwischenstand
@@ -169,7 +169,7 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
     include: { abschnitte: { include: { felder: { orderBy: { reihenfolge: "asc" } } } } },
   });
   if (!version || version.status !== FormularVersionStatus.VEROEFFENTLICHT) {
-    return { ok: false, status: 409, meldung: "Das Anmeldeformular wurde zwischenzeitlich geändert. Bitte lade die Seite neu." };
+    return { ok: false, status: 409, meldung: "Das Anmeldeformular wurde zwischenzeitlich geändert. Bitte laden Sie die Seite neu." };
   }
 
   // --- Einwilligungen prüfen -------------------------------------------------
@@ -195,7 +195,7 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
   const felder = alsFeldEingaben(version.abschnitte);
   const geprueft = pruefeAntworten(felder, eingabe.antworten, art9Erteilt);
   if (!geprueft.ok) {
-    return { ok: false, status: 400, meldung: "Bitte prüfe die markierten Felder.", felder: geprueft.fehler };
+    return { ok: false, status: 400, meldung: "Bitte prüfen Sie die markierten Felder.", felder: geprueft.fehler };
   }
 
   // Die IBAN wird an der Person verschluesselt abgelegt und darf deshalb NICHT
@@ -236,14 +236,14 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
       an: personDaten.email,
       personId: vorhanden.id,
       vorlageCode: MAIL_VORLAGE.ANMELDUNG_DOPPELT,
-      betreff: fuelleVorlage(doppelt?.betreff ?? "Zu deiner Adresse liegt uns bereits eine Anmeldung vor", werteDoppelt),
+      betreff: fuelleVorlage(doppelt?.betreff ?? "Zu Ihrer Adresse liegt uns bereits eine Anmeldung vor", werteDoppelt),
       text: fuelleVorlage(
         doppelt?.textMd ??
           "Hallo {{vorname}},\n\n" +
-            `du hast gerade eine Anmeldung zur ${EINRICHTUNG.name} abgeschickt. Zu deiner ` +
+            `Sie haben gerade eine Anmeldung zur ${EINRICHTUNG.name} abgeschickt. Zu Ihrer ` +
             "E-Mail-Adresse ist bei uns aber schon eine Anmeldung hinterlegt, deshalb haben wir keine " +
             "zweite angelegt.\n\n" +
-            "Wenn das ein Versehen war, kannst du diese Nachricht ignorieren. Andernfalls melde dich " +
+            "Wenn das ein Versehen war, können Sie diese Nachricht ignorieren. Andernfalls melden Sie sich " +
             "einfach bei der Schulleitung.\n\n" +
             EINRICHTUNG.name,
         werteDoppelt,
@@ -432,7 +432,7 @@ async function sendeBestaetigung(vorname: string, email: string, personId: strin
     // hing die Eingangsbestätigung an niemandem).
     personId,
     vorlageCode: MAIL_VORLAGE.ANMELDUNG_EINGEGANGEN,
-    betreff: vorlage?.betreff ?? "Deine Anmeldung ist angekommen",
-    text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\ndeine Anmeldung ist eingegangen.", { vorname }),
+    betreff: vorlage?.betreff ?? "Ihre Anmeldung ist eingegangen",
+    text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\nIhre Anmeldung ist eingegangen.", { vorname }),
   });
 }

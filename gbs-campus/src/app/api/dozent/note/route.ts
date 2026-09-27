@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         case "kontext_fehlt":
           return fehler("Diese Kurseinheit gibt es in diesem Semester nicht.", 404);
         case "fremd":
-          return fehler("Dieses Fach gehört nicht zu deinem Unterricht.", 403);
+          return fehler("Dieses Fach gehört nicht zu Ihrem Unterricht.", 403);
         case "ungueltig":
           return fehler("Die Bewertung ist ungültig.", 400);
         case "hoerer":

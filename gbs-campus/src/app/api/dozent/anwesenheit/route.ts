@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         case "termin_fehlt":
           return fehler("Diesen Unterrichtsabend gibt es nicht.", 404);
         case "fremd":
-          return fehler("Dieser Abend gehört nicht zu deinem Unterricht.", 403);
+          return fehler("Dieser Abend gehört nicht zu Ihrem Unterricht.", 403);
         case "zukunft":
           return fehler("Dieser Abend hat noch nicht stattgefunden.", 409);
         case "status_ungueltig":

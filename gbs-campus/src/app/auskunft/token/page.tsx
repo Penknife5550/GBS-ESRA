@@ -15,11 +15,11 @@ export const metadata = { title: "Datenauskunft abrufen" };
 export default function AuskunftSeite() {
   return (
     <main className="mx-auto max-w-md px-6 py-24">
-      <h1 className="text-2xl font-bold tracking-tight">Deine Datenauskunft</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Ihre Datenauskunft</h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        Hier kannst du die Auskunft über die zu dir gespeicherten Daten nach Art. 15 DSGVO als PDF
-        herunterladen. Sie enthält persönliche Angaben — lade sie an einem Ort herunter, zu dem nur du
-        Zugang hast.
+        Hier können Sie die Auskunft über die zu Ihnen gespeicherten Daten nach Art. 15 DSGVO als PDF
+        herunterladen. Die Auskunft enthält persönliche Angaben — laden Sie sie an einem Ort herunter, zu dem
+        nur Sie Zugang haben.
       </p>
       <AuskunftAbrufen />
     </main>

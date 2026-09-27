@@ -40,8 +40,8 @@ export default function Fehlerseite({ error, reset }: { error: Error & { digest?
         Wir konnten die Seite gerade nicht laden. Meistens hilft es, es noch einmal zu versuchen.
       </p>
       <p className="mt-3 text-sm text-muted-foreground">
-        Wenn das Problem bleibt, wende dich bitte an die Schulleitung der {EINRICHTUNG.name}
-        {error.digest ? " und nenne den Fehlercode." : "."}
+        Wenn das Problem bleibt, wenden Sie sich bitte an die Schulleitung der {EINRICHTUNG.name}
+        {error.digest ? " und nennen Sie den Fehlercode." : "."}
       </p>
       {error.digest && (
         <p className="mt-2 text-sm text-muted-foreground">

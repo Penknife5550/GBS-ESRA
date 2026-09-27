@@ -20,7 +20,7 @@ const schema = z.object({ token: z.string().uuid() });
 export async function POST(request: NextRequest) {
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) {
-    return fehler("Dieser Link ist ungültig. Bitte fordere die Auskunft erneut an.", 400);
+    return fehler("Dieser Link ist ungültig. Bitte fordern Sie die Auskunft erneut an.", 400);
   }
 
   let ergebnis;
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       quelle: "SYSTEM",
       headers: request.headers,
     });
-    return fehler("Beim Erstellen der Auskunft ist ein Fehler aufgetreten. Bitte versuche es später noch einmal.", 500);
+    return fehler("Beim Erstellen der Auskunft ist ein Fehler aufgetreten. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if (ergebnis.status === "ungueltig") {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       quelle: "SYSTEM",
       headers: request.headers,
     });
-    return fehler("Dieser Link ist abgelaufen oder ungültig. Bitte fordere die Auskunft erneut an.", 401);
+    return fehler("Dieser Link ist abgelaufen oder ungültig. Bitte fordern Sie die Auskunft erneut an.", 401);
   }
   if (ergebnis.status === "weg") {
     return fehler("Die zugehörige Person ist nicht mehr vorhanden.", 404);

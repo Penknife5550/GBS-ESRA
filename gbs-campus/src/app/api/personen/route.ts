@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
   const ergebnis = pruefeNeuePerson(geprueft.data);
-  if (!ergebnis.ok) return fehler("Bitte prüfe die markierten Felder.", 400, ergebnis.meldungen);
+  if (!ergebnis.ok) return fehler("Bitte prüfen Sie die markierten Felder.", 400, ergebnis.meldungen);
   const { werte } = ergebnis;
 
   // Vorabprüfung für eine klare Meldung; der Unique-Index unten ist die

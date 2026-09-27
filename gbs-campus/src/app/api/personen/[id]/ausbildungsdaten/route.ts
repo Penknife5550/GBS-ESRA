@@ -95,7 +95,7 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
       ),
     },
   );
-  if (!ergebnis.ok) return fehler("Bitte prüfe die markierten Felder.", ergebnis.status, ergebnis.meldungen);
+  if (!ergebnis.ok) return fehler("Bitte prüfen Sie die markierten Felder.", ergebnis.status, ergebnis.meldungen);
 
   // Die gewählte Form (die Regel oben hat sie schon geprüft: Schüler, Hörer oder leer).
   const gewaehlteForm =

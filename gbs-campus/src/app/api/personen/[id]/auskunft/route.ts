@@ -68,7 +68,7 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
     personId: person.id,
     vorlageCode: MAIL_VORLAGE.AUSKUNFT_BEREIT,
     werte: { vorname: person.vorname, link, gueltigkeit: gueltigkeitAlsText(AUSKUNFT_GUELTIG_MINUTEN) },
-    ersatzBetreff: "Deine Datenauskunft steht bereit",
+    ersatzBetreff: "Ihre Datenauskunft steht bereit",
     ersatzText: "Hallo {{vorname}},\n\n{{link}}",
   });
 

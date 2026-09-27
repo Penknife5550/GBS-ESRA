@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { z } from "zod";
 import { drosselSchluesselFuerIp, ermittleRequestKontext } from "@/lib/request-kontext";
 import { zahl } from "@/lib/einstellungen";
@@ -6,10 +6,28 @@ import { ladeEntwurf, nimmAnmeldungEntgegen, speichereEntwurf } from "@/lib/anme
 import { protokolliere } from "@/lib/audit";
 import { erfolg, fehler } from "@/lib/api";
 import { drosselUeberschritten } from "@/lib/magic-link";
+import {
+  SCHLUESSEL_EINGANG,
+  entwurfGrenzen,
+  gesamtgrenzeErreicht,
+  gesamtgrenzeMeldung,
+  pruefeFormularStempel,
+  stempelGeheimnis,
+  stempelMeldung,
+} from "@/lib/anmelde-schutz";
+import {
+  gibKontingentFrei,
+  ladeGesamtgrenzen,
+  reserviereKontingent,
+  warneBeiGesamtgrenze,
+  zaehleNeueAnmeldezeilen,
+} from "@/lib/anmelde-schutz-io";
 
 /**
  * Öffentliche Endpunkte des Anmeldeformulars — die einzigen ohne Anmeldung.
- * Entsprechend gedrosselt und mit knapper Fehlerausgabe.
+ * Entsprechend gedrosselt und mit knapper Fehlerausgabe. Die Schutzschichten
+ * gegen Massenanmeldungen (Anschlussdrossel, Fangfeld, Mindestdauer,
+ * Gesamtgrenze) beschreibt `lib/anmelde-schutz.ts`.
  */
 
 /**
@@ -55,6 +73,8 @@ const absendenSchema = z.object({
    * gern selbst aus, und eine echte Anmeldung verschwände still.
    */
   hp_feld: z.string().max(500).optional(),
+  /** Wann der Server das Formular ausgeliefert hat, signiert — siehe `lib/anmelde-schutz.ts`. */
+  formularStempel: z.string().max(200).optional(),
 });
 
 /**
@@ -111,7 +131,7 @@ export async function POST(request: NextRequest) {
       quelle: "SYSTEM",
       headers: request.headers,
     });
-    return fehler("Zu viele Anfragen von diesem Anschluss. Bitte später erneut versuchen.", 429);
+    return fehler("Zu viele Anfragen von diesem Anschluss. Bitte versuchen Sie es später erneut.", 429);
   }
 
   if (geprueft.data.aktion === "laden") {
@@ -122,6 +142,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (geprueft.data.aktion === "speichern") {
+    // Gesamtgrenze für neue Anmeldezeilen (das Dreifache der Einreichungen).
+    // Geprüft wird jede Anfrage, nicht nur die ohne Token — ein erfundener
+    // Token legt ebenfalls eine neue Zeile an.
+    const fenster = gesamtgrenzeErreicht(await zaehleNeueAnmeldezeilen(), entwurfGrenzen(await ladeGesamtgrenzen()));
+    if (fenster) {
+      await protokolliere({
+        aktion: "ANMELDUNG_GESAMT_GEDROSSELT",
+        objektTyp: "Anmeldung",
+        quelle: "SYSTEM",
+        nachher: { art: "ZWISCHENSTAND", fenster },
+        headers: request.headers,
+      });
+      return fehler(gesamtgrenzeMeldung(fenster, "ZWISCHENSTAND"), 429);
+    }
+
     const ergebnis = await speichereEntwurf(
       geprueft.data.versionId,
       geprueft.data.antworten,
@@ -146,22 +181,70 @@ export async function POST(request: NextRequest) {
     return erfolg({ eingereicht: true });
   }
 
-  const ergebnis = await nimmAnmeldungEntgegen({
-    versionId: geprueft.data.versionId,
-    antworten: geprueft.data.antworten,
-    einwilligungen: geprueft.data.einwilligungen,
-    fortsetzenToken: geprueft.data.fortsetzenToken,
-    ipAdresse,
-    userAgent,
-  });
-
-  if (!ergebnis.ok) {
-    return fehler(
-      ergebnis.meldung,
-      ergebnis.status,
-      ergebnis.felder?.map((f) => ({ feld: f.feldCode, meldung: f.meldung })),
+  // Mindestdauer: Ein Roboter sendet im selben Moment ab, in dem er die Seite
+  // lädt. Anders als das Fangfeld mit sichtbarer Meldung — ein Mensch, der
+  // hier landet, soll es merken und kann einfach erneut absenden.
+  const mindestSekunden = await zahl("ANMELDUNG_MINDESTDAUER_SEKUNDEN");
+  if (mindestSekunden > 0) {
+    const stempel = pruefeFormularStempel(
+      geprueft.data.formularStempel,
+      Date.now(),
+      mindestSekunden,
+      stempelGeheimnis(),
     );
+    if (!stempel.ok) {
+      await protokolliere({
+        aktion: "ANMELDUNG_ABGEWIESEN_STEMPEL",
+        objektTyp: "Anmeldung",
+        quelle: "SYSTEM",
+        nachher: { grund: stempel.grund },
+        headers: request.headers,
+      });
+      return fehler(stempelMeldung(stempel.grund), 400);
+    }
   }
 
-  return erfolg({ eingereicht: true });
+  // Gesamtgrenze über alle Anschlüsse: einen Platz reservieren, bevor die
+  // Anmeldung angelegt wird. Scheitert sie fachlich, wird er wieder frei.
+  const grenzen = await ladeGesamtgrenzen();
+  const reservierung = await reserviereKontingent(SCHLUESSEL_EINGANG, grenzen);
+  if ("fenster" in reservierung) {
+    await protokolliere({
+      aktion: "ANMELDUNG_GESAMT_GEDROSSELT",
+      objektTyp: "Anmeldung",
+      quelle: "SYSTEM",
+      nachher: { art: "ANMELDUNG", fenster: reservierung.fenster },
+      headers: request.headers,
+    });
+    // Nach der Antwort: Der Absender soll nicht auf den Mailserver warten.
+    after(() => warneBeiGesamtgrenze(reservierung.fenster, grenzen));
+    return fehler(gesamtgrenzeMeldung(reservierung.fenster, "ABSENDEN"), 429);
+  }
+
+  let angenommen = false;
+  try {
+    const ergebnis = await nimmAnmeldungEntgegen({
+      versionId: geprueft.data.versionId,
+      antworten: geprueft.data.antworten,
+      einwilligungen: geprueft.data.einwilligungen,
+      fortsetzenToken: geprueft.data.fortsetzenToken,
+      ipAdresse,
+      userAgent,
+    });
+
+    if (!ergebnis.ok) {
+      return fehler(
+        ergebnis.meldung,
+        ergebnis.status,
+        ergebnis.felder?.map((f) => ({ feld: f.feldCode, meldung: f.meldung })),
+      );
+    }
+
+    angenommen = true;
+    return erfolg({ eingereicht: true });
+  } finally {
+    // Gezählt wird nur, was angenommen wurde: Ein vergessenes Pflichtfeld oder
+    // ein Fehler auf unserer Seite verbraucht kein Kontingent.
+    if (!angenommen) await gibKontingentFrei(reservierung.platzId);
+  }
 }

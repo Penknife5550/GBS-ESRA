@@ -119,7 +119,7 @@ export function pruefeNeueEmail(eingabe: unknown, bisherige: string): EmailErgeb
     return { ok: false, meldung: "Bitte eine gültige E-Mail-Adresse angeben." };
   }
   if (email === bisherige.trim().toLowerCase()) {
-    return { ok: false, meldung: "Das ist bereits deine hinterlegte Adresse." };
+    return { ok: false, meldung: "Das ist bereits die hinterlegte Adresse." };
   }
 
   return { ok: true, email };

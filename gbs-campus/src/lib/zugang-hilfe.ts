@@ -66,10 +66,10 @@ export function pruefeHilfeAnfrage(eingabe: HilfeAnfrage): HilfeErgebnis {
   const vorname = text(eingabe.vorname);
   const nachname = text(eingabe.nachname);
   if (!vorname || vorname.length > 80) {
-    meldungen.push({ feld: "vorname", meldung: "Bitte deinen Vornamen angeben." });
+    meldungen.push({ feld: "vorname", meldung: "Bitte Ihren Vornamen angeben." });
   }
   if (!nachname || nachname.length > 80) {
-    meldungen.push({ feld: "nachname", meldung: "Bitte deinen Nachnamen angeben." });
+    meldungen.push({ feld: "nachname", meldung: "Bitte Ihren Nachnamen angeben." });
   }
 
   const bisherigeEmail = text(eingabe.bisherigeEmail)?.toLowerCase() ?? null;
@@ -92,7 +92,7 @@ export function pruefeHilfeAnfrage(eingabe: HilfeAnfrage): HilfeErgebnis {
   if (!erreichbarEmail && !erreichbarTelefon) {
     meldungen.push({
       feld: "erreichbarEmail",
-      meldung: "Bitte eine E-Mail-Adresse oder eine Telefonnummer angeben, unter der wir dich erreichen.",
+      meldung: "Bitte eine E-Mail-Adresse oder eine Telefonnummer angeben, unter der wir Sie erreichen.",
     });
   }
 

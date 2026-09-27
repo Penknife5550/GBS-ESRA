@@ -130,9 +130,17 @@ pruefe(
 console.log("\n4. Seed: Einwilligungstexte und Semester nur anlegen (M3, M8)");
 const seed = lies("prisma/seed.ts");
 pruefe("seed.ts ist lesbar", seed.length > 0);
+// Einzige erlaubte Schreibaktion an einer bestehenden Fassung: `aktivBis` einer
+// abgelösten setzen (das Einzige, was der Trigger zulässt) — als updateMany
+// mit NUR aktivBis im data-Teil und nur, solange es noch leer ist.
+const textSchreibend = [...seed.matchAll(/einwilligungsText\.(upsert|update|updateMany|delete|deleteMany)\(/g)].map((m) => m[1]);
+const textUpdateMany = [...seed.matchAll(/einwilligungsText\.updateMany\(\{[\s\S]*?\}\);/g)].map((m) => m[0]);
 pruefe(
-  "Einwilligungstexte werden nie per upsert/update/delete geschrieben",
-  !/einwilligungsText\.(upsert|update|updateMany|delete|deleteMany)\(/.test(seed),
+  "Einwilligungstexte werden nie per upsert/update/delete geschrieben — nur aktivBis einer abgelösten Fassung",
+  textSchreibend.every((art) => art === "updateMany") &&
+    textUpdateMany.length === textSchreibend.length &&
+    textUpdateMany.every((aufruf) => /data: \{ aktivBis: [\w.]+ \}/.test(aufruf) && /aktivBis: null/.test(aufruf)),
+  textSchreibend,
 );
 pruefe("Einwilligungstexte werden angelegt, wenn sie fehlen", /if \(!vorhanden\) \{\s*await prisma\.einwilligungsText\.create\(/.test(seed));
 pruefe("Semester werden nie per upsert/update geschrieben", !/semester\.(upsert|update|updateMany)\(/.test(seed));

@@ -6,8 +6,8 @@ import { AnmeldeFormular } from "./anmelde-formular";
 export const metadata = { title: "Anmelden" };
 
 const FEHLERTEXTE: Record<string, string> = {
-  fehlend: "Der Link war unvollständig. Bitte fordere einen neuen an.",
-  ungueltig: "Dieser Link ist abgelaufen oder wurde bereits benutzt. Bitte fordere einen neuen an.",
+  fehlend: "Der Link war unvollständig. Bitte fordern Sie einen neuen an.",
+  ungueltig: "Dieser Link ist abgelaufen oder wurde bereits benutzt. Bitte fordern Sie einen neuen an.",
 };
 
 export default async function AnmeldenSeite({
@@ -29,13 +29,13 @@ export default async function AnmeldenSeite({
     <main className="mx-auto max-w-md px-6 py-24">
       <h1 className="text-3xl font-bold tracking-tight">Anmelden</h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        Gib deine E-Mail-Adresse ein. Du bekommst einen Link, mit dem du dich ohne Passwort anmeldest.
+        Geben Sie Ihre E-Mail-Adresse ein. Sie bekommen einen Link, mit dem Sie sich ohne Passwort anmelden.
       </p>
 
       {angemeldet && (
         <div className="mt-6 rounded-lg border border-border bg-muted px-4 py-4 text-sm">
           <p>
-            Du bist auf diesem Gerät noch als{" "}
+            Sie sind auf diesem Gerät noch als{" "}
             <span className="font-medium">
               {angemeldet.vorname} {angemeldet.nachname}
             </span>{" "}
@@ -68,7 +68,7 @@ export default async function AnmeldenSeite({
           aussperrt: Der Link braucht das Postfach, das Passwort nicht. */}
       <div className="mt-10 rounded-lg border border-border bg-muted px-4 py-4 text-sm text-muted-foreground">
         <p>
-          <span className="font-medium text-foreground">Du brauchst kein Passwort.</span> Jeder Link ist
+          <span className="font-medium text-foreground">Sie brauchen kein Passwort.</span> Jeder Link ist
           neu und nur einmal verwendbar. Wer im Portal eines gesetzt hat, kann sich auch{" "}
           <Link href="/anmelden/passwort" className="underline underline-offset-4">
             mit Passwort anmelden
@@ -76,8 +76,8 @@ export default async function AnmeldenSeite({
           — das hilft, wenn das Postfach einmal nicht erreichbar ist.
         </p>
         <p className="mt-3">
-          Du weißt nicht mehr, welche Adresse hinterlegt ist, oder kommst an dein Postfach nicht mehr
-          heran und hast auch kein Passwort?{" "}
+          Sie wissen nicht mehr, welche Adresse hinterlegt ist, oder kommen an Ihr Postfach nicht mehr
+          heran und haben auch kein Passwort?{" "}
           <Link href="/anmelden/hilfe" className="underline underline-offset-4">
             Hier melden
           </Link>

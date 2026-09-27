@@ -21,8 +21,8 @@ export default function Startseite() {
       </p>
       <h1 className="mt-4 text-4xl font-bold tracking-tight">{EINRICHTUNG.name}</h1>
       <p className="mt-4 max-w-prose text-muted-foreground">
-        Drei Jahre Bibelschule am Abend, getragen von sechs Gemeinden. Hier meldest du dich an — und hier
-        findest du später deine Unterlagen.
+        Drei Jahre Bibelschule am Abend, getragen von sechs Gemeinden. Hier melden Sie sich an — und hier
+        finden Sie später Ihre Unterlagen.
       </p>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
@@ -32,7 +32,7 @@ export default function Startseite() {
         >
           <h2 className="font-semibold">Zur Anmeldung</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Für den Jahrgang 2026–29. Dauert etwa zehn Minuten, du kannst zwischendurch speichern.
+            Für den Jahrgang 2026–29. Dauert etwa zehn Minuten, Sie können zwischendurch speichern.
           </p>
         </Link>
 
@@ -42,7 +42,7 @@ export default function Startseite() {
         >
           <h2 className="font-semibold">Anmelden am Portal</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Für Teilnehmer, Dozenten und die Verwaltung. Ohne Passwort — du bekommst einen Link per E-Mail.
+            Für Teilnehmer, Dozenten und die Verwaltung. Ohne Passwort — Sie bekommen einen Link per E-Mail.
           </p>
         </Link>
       </div>

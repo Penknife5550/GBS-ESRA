@@ -87,9 +87,9 @@ export function StammdatenFormular({
     // die eigene Adresse — ob er zugestellt wurde, steht dabei.
     const hinweis =
       hinweisGesendet === true
-        ? " Zur Sicherheit haben wir dir einen Hinweis auf die geänderte Bankverbindung geschickt."
+        ? " Zur Sicherheit haben wir Ihnen einen Hinweis auf die geänderte Bankverbindung geschickt."
         : hinweisGesendet === false
-          ? " Der Sicherheitshinweis an deine E-Mail-Adresse konnte aber nicht zugestellt werden — die Änderung gilt trotzdem."
+          ? " Der Sicherheitshinweis an Ihre E-Mail-Adresse konnte aber nicht zugestellt werden — die Änderung gilt trotzdem."
           : "";
     // Die Seite verspricht „Die Verwaltung wird über jede Änderung informiert".
     // Wenn die Mail nicht rausging, darf hier nicht dasselbe stehen.
@@ -101,7 +101,7 @@ export function StammdatenFormular({
               art: "warnung",
               text:
                 `Gespeichert: ${geaendert.join(", ")}. Die Verwaltung konnte aber nicht benachrichtigt ` +
-                "werden — bitte gib der Schulleitung selbst Bescheid." +
+                "werden — bitte geben Sie der Schulleitung selbst Bescheid." +
                 hinweis,
             }
           : {

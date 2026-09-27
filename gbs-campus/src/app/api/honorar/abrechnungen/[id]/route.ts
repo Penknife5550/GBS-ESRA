@@ -23,7 +23,7 @@ export async function DELETE(request: NextRequest, kontext: { params: Promise<{ 
     ergebnis = await storniereAbrechnung(id, benutzer.id, request.headers);
   } catch (f) {
     console.error("[HONORAR-ABRECHNUNG] Storno fehlgeschlagen", f);
-    return fehler("Die Abrechnung konnte nicht storniert werden. Bitte versuche es später noch einmal.", 500);
+    return fehler("Die Abrechnung konnte nicht storniert werden. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if (!ergebnis.ok) return fehler(ergebnis.meldung, statusFuer(ergebnis.code));

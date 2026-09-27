@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (f) {
     console.error("[HONORAR] Genehmigung fehlgeschlagen", f);
-    return fehler("Der Satz konnte nicht genehmigt werden. Bitte versuche es später noch einmal.", 500);
+    return fehler("Der Satz konnte nicht genehmigt werden. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if (!ergebnis.ok) {

@@ -676,7 +676,7 @@ for (const [datei, mindestens] of FILTER_STELLEN) {
     /\$transaction\([\s\S]*ziehLinkfristNach\(tx,/.test(semesterPut) &&
       semesterPut.includes("zaehleOffeneEinladungen(") &&
       // Oben kurz, die Einzelheit nur am Feld — sonst stünde sie doppelt im Formular.
-      /return fehler\("Bitte prüfe den Semesterbeginn\.", 409, \[\{ feld: "start", meldung \}\]\)/.test(semesterPut),
+      /return fehler\("Bitte prüfen Sie den Semesterbeginn\.", 409, \[\{ feld: "start", meldung \}\]\)/.test(semesterPut),
   );
   // Startet die Überleitung am letzten Stichtag oder später, erledigt die
   // Einladung alle Stufen — eine nicht zugestellte wird nie wiederholt. Das

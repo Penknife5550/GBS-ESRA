@@ -57,7 +57,7 @@ export default async function DozentSeite() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Mein Unterricht</h1>
           <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-            Deine Unterrichtsabende. Für vergangene Abende trägst du hier die Anwesenheit deiner Teilnehmer ein —
+            Ihre Unterrichtsabende. Für vergangene Abende tragen Sie hier die Anwesenheit Ihrer Teilnehmer ein —
             anwesend, gefehlt oder nachgearbeitet.
           </p>
           <Link href="/meine-daten" className="mt-3 inline-block text-sm text-muted-foreground underline underline-offset-4">
@@ -70,7 +70,7 @@ export default async function DozentSeite() {
 
       {gruppen.length === 0 ? (
         <p className="mt-10 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
-          Dir sind noch keine Unterrichtsabende zugeordnet. Die Zuordnung nimmt die Verwaltung im Stundenplan vor.
+          Ihnen sind noch keine Unterrichtsabende zugeordnet. Die Zuordnung nimmt die Verwaltung im Stundenplan vor.
         </p>
       ) : (
         <>
@@ -140,7 +140,7 @@ export default async function DozentSeite() {
         <section id="meine-noten" className="mt-12">
           <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Meine Noten</h2>
           <p className="mt-2 mb-4 max-w-prose text-sm text-muted-foreground">
-            Bewerte die Teilnehmer deiner eigenen Fächer. Pflicht ist nur das Ergebnis; Punkte und Note sind optional
+            Bewerten Sie die Teilnehmer Ihrer eigenen Fächer. Pflicht ist nur das Ergebnis; Punkte und Note sind optional
             (nur wo benotet wird, z. B. Bibelkunde). Hörer werden nicht benotet und stehen deshalb nicht in der Liste.
           </p>
           {notenGruppen.map((g) => (

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
   const ergebnis = pruefeHilfeAnfrage(geprueft.data);
-  if (!ergebnis.ok) return fehler("Bitte prüfe die markierten Felder.", 400, ergebnis.meldungen);
+  if (!ergebnis.ok) return fehler("Bitte prüfen Sie die markierten Felder.", 400, ergebnis.meldungen);
 
   // Eigene Schlüssel und nicht die des Anmeldelinks: Jede Meldung hier erzeugt
   // Mails an ALLE in Schulleitung und Verwaltung. Mit dem Wert des Anmeldelinks
@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
       userAgent,
     });
     return fehler(
-      "Zu viele Meldungen in kurzer Zeit. Bitte versuche es später noch einmal — oder melde dich " +
-        "telefonisch bei der Schule, damit dir jemand direkt weiterhilft.",
+      "Zu viele Meldungen in kurzer Zeit. Bitte versuchen Sie es später noch einmal — oder melden Sie sich " +
+        "telefonisch bei der Schule, damit Ihnen jemand direkt weiterhilft.",
       429,
     );
   }
@@ -142,8 +142,8 @@ export async function POST(request: NextRequest) {
   return erfolg({
     hinweis:
       versand.gesendet > 0
-        ? "Deine Meldung ist bei der Schulleitung eingegangen. Wir melden uns bei dir — in der Regel innerhalb weniger Tage."
-        : "Deine Meldung wurde aufgenommen, konnte aber gerade nicht an die Schulleitung zugestellt werden. " +
-          "Bitte melde dich zusätzlich telefonisch bei der Schule — sonst erreicht dich möglicherweise keine Antwort.",
+        ? "Ihre Meldung ist bei der Schulleitung eingegangen. Wir melden uns bei Ihnen — in der Regel innerhalb weniger Tage."
+        : "Ihre Meldung wurde aufgenommen, konnte aber gerade nicht an die Schulleitung zugestellt werden. " +
+          "Bitte melden Sie sich zusätzlich telefonisch bei der Schule — sonst erreicht Sie möglicherweise keine Antwort.",
   });
 }

@@ -107,7 +107,7 @@ export default async function SemesterueberleitungSeite() {
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Lädt den Jahrgang des laufenden Semesters ins Folgesemester ein: Jeder Teilnehmer bekommt eine
         Einladung mit einem persönlichen Link, über den er „Ich bin dabei" oder „Ich bin raus" sagt. Wer
-        nicht antwortet, wird {o1}, {o2} und {o3} Tage vor Semesterstart automatisch erinnert. Startest du
+        nicht antwortet, wird {o1}, {o2} und {o3} Tage vor Semesterstart automatisch erinnert. Starten Sie
         die Überleitung erst an oder nach einem dieser Stichtage, zählt die Einladung für diese Stichtage mit —
         am selben Tag geht nie eine zweite Mail hinterher.
       </p>

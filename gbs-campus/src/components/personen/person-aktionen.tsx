@@ -216,10 +216,10 @@ export function PersonAktionen({
     ].filter(Boolean);
     const selbstWarnung =
       istEigeneAkte && entziehtAdmin(diff)
-        ? `\n\nAchtung: Das ist dein eigenes Konto. Ohne die Rolle „${bezeichnung(ADMIN_ROLLE)}“ kommst du danach ` +
-          "nicht mehr an Konten und Rollen — zurückgeben kann sie dir nur ein anderer Administrator."
+        ? `\n\nAchtung: Das ist Ihr eigenes Konto. Ohne die Rolle „${bezeichnung(ADMIN_ROLLE)}“ kommen Sie danach ` +
+          "nicht mehr an Konten und Rollen — zurückgeben kann sie Ihnen nur ein anderer Administrator."
         : istEigeneAkte
-          ? "\n\nDas ist dein eigenes Konto — die Änderung wirkt sofort."
+          ? "\n\nDas ist Ihr eigenes Konto — die Änderung wirkt sofort."
           : "";
     if (!confirm(`Rollen von ${person.name} ändern?\n\n${zeilen.join("\n")}${selbstWarnung}`)) return;
 

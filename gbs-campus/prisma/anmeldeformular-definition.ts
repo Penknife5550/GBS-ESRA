@@ -40,7 +40,7 @@ export type FormularAbschnittDefinition = {
 // Einleitung stand er doppelt.
 export const EINLEITUNG =
   "Willkommen bei der Anmeldung zur Gemeindebibelschule Minden. " +
-  "Die Angaben zu Glaube und Gemeinde brauchen wir für die Aufnahme an einer Bibelschule; ihnen stimmst du weiter unten gesondert zu.";
+  "Die Angaben zu Glaube und Gemeinde brauchen wir für die Aufnahme an einer Bibelschule; ihnen stimmen Sie weiter unten gesondert zu.";
 
 export const ABSCHNITTE: FormularAbschnittDefinition[] = [
   {
@@ -73,7 +73,7 @@ export const ABSCHNITTE: FormularAbschnittDefinition[] = [
   },
   {
     titel: "Persönlich-Geistlicher Werdegang",
-    beschreibung: "Diese Angaben brauchen wir für die Aufnahme an einer Bibelschule. Bitte stimme ihnen weiter unten gesondert zu.",
+    beschreibung: "Diese Angaben brauchen wir für die Aufnahme an einer Bibelschule. Bitte stimmen Sie ihnen weiter unten gesondert zu.",
     felder: [
       { code: "glaube_bekenntnis", typ: "MEHRZEILIG", label: "Glauben Sie an Jesus Christus als Ihren persönlichen Retter und Herrn?", pflicht: true, istArt9: true },
       { code: "glaube_werdegang", typ: "MEHRZEILIG", label: "Beschreiben Sie bitte kurz, wie Sie zum Glauben an Jesus Christus gekommen sind und wie es Ihnen seither im Leben mit Ihm ergangen ist.", pflicht: true, istArt9: true },

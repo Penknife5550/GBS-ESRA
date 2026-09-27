@@ -11,7 +11,7 @@ export default function PasswortSeite() {
 
       <h1 className="mt-6 text-3xl font-bold tracking-tight">Mit Passwort anmelden</h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        Das geht nur, wenn du im Portal ein Passwort gesetzt hast. Es ist freiwillig — der Anmeldelink
+        Das geht nur, wenn Sie im Portal ein Passwort gesetzt haben. Es ist freiwillig — der Anmeldelink
         funktioniert weiterhin.
       </p>
 
@@ -25,12 +25,12 @@ export default function PasswortSeite() {
         <p className="mt-1">
           Dann{" "}
           <Link href="/anmelden" className="underline underline-offset-4">
-            fordere einen Anmeldelink an
+            fordern Sie einen Anmeldelink an
           </Link>{" "}
-          — damit kommst du sofort hinein und kannst unter „Meine Daten" ein neues Passwort setzen.
+          — damit kommen Sie sofort hinein und können unter „Meine Daten" ein neues Passwort setzen.
         </p>
         <p className="mt-3">
-          Du kommst auch an dein Postfach nicht mehr heran?{" "}
+          Sie kommen auch an Ihr Postfach nicht mehr heran?{" "}
           <Link href="/anmelden/hilfe" className="underline underline-offset-4">
             Hier melden
           </Link>

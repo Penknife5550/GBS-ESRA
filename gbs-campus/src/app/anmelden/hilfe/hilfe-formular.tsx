@@ -130,7 +130,7 @@ export function HilfeFormular() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Feld
           name="erreichbarEmail"
-          label="E-Mail-Adresse, die du erreichst"
+          label="E-Mail-Adresse, die Sie erreichen"
           typ="email"
           autoComplete="email"
           wert={felder.erreichbarEmail}
@@ -150,7 +150,7 @@ export function HilfeFormular() {
 
       <div>
         <label htmlFor="nachricht" className="mb-1.5 block text-sm font-medium">
-          Möchtest du uns etwas dazu sagen?
+          Möchten Sie uns etwas dazu sagen?
         </label>
         <textarea
           id="nachricht"

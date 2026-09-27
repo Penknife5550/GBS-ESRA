@@ -38,11 +38,11 @@ export async function POST(request: NextRequest) {
   if ("fehler" in ergebnis) {
     switch (ergebnis.fehler) {
       case "status_ungueltig":
-        return fehler("Für dich sind nur anwesend und nachgearbeitet möglich.", 400);
+        return fehler("Für Sie sind nur anwesend und nachgearbeitet möglich.", 400);
       case "termin_fehlt":
         return fehler("Diesen Unterrichtsabend gibt es nicht.", 404);
       case "nicht_eingeschrieben":
-        return fehler("Dieser Abend gehört nicht zu einem deiner Semester.", 404);
+        return fehler("Dieser Abend gehört nicht zu einem Ihrer Semester.", 404);
       case "zukunft":
         return fehler("Dieser Abend hat noch nicht stattgefunden.", 409);
       case "fremd_erfasst":

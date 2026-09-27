@@ -66,7 +66,7 @@ export async function ladeAngemeldeten(): Promise<AngemeldeteBenutzer | null> {
   //
   // Der Fall, um den es geht: Jemand erlangt Zugriff auf ein Postfach, setzt
   // sich ein Passwort und meldet sich an. Der Betroffene bekommt den Hinweis
-  // „für dein Konto wurde ein Passwort gesetzt", ändert es sofort — und ohne
+  // „für Ihr Konto wurde ein Passwort gesetzt", ändert es sofort — und ohne
   // diese Prüfung bliebe der Angreifer bis zum Ablauf seiner Sitzung
   // angemeldet, also bis zu zwölf Stunden. Die Reaktion des Betroffenen wäre
   // wirkungslos, obwohl er alles richtig gemacht hat.

@@ -51,7 +51,7 @@ export function PasswortAbschnitt({
     setWiederholung("");
 
     const erledigt = antwort.daten.neu
-      ? "Passwort gesetzt. Du kannst dich ab sofort auch ohne Anmeldelink anmelden."
+      ? "Passwort gesetzt. Sie können sich ab sofort auch ohne Anmeldelink anmelden."
       : "Passwort geändert.";
 
     // Der Hinweis an die hinterlegte Adresse ist die einzige Warnung, falls
@@ -60,15 +60,15 @@ export function PasswortAbschnitt({
       antwort.daten.mailGesendet === false
         ? {
             art: "warnung",
-            text: `${erledigt} Der Sicherheitshinweis an deine E-Mail-Adresse konnte aber nicht zugestellt werden — die Änderung gilt trotzdem.`,
+            text: `${erledigt} Der Sicherheitshinweis an Ihre E-Mail-Adresse konnte aber nicht zugestellt werden — die Änderung gilt trotzdem.`,
           }
-        : { art: "ok", text: `${erledigt} Ein Hinweis ist an deine E-Mail-Adresse unterwegs.` },
+        : { art: "ok", text: `${erledigt} Ein Hinweis ist an Ihre E-Mail-Adresse unterwegs.` },
     );
     router.refresh();
   }
 
   async function entfernen() {
-    if (!confirm("Passwort wirklich entfernen? Danach kommst du nur noch über den Anmeldelink hinein.")) {
+    if (!confirm("Passwort wirklich entfernen? Danach kommen Sie nur noch über den Anmeldelink hinein.")) {
       return;
     }
 
@@ -90,9 +90,9 @@ export function PasswortAbschnitt({
       antwort.daten.mailGesendet === false
         ? {
             art: "warnung",
-            text: "Passwort entfernt. Der Sicherheitshinweis an deine E-Mail-Adresse konnte aber nicht zugestellt werden. Der Anmeldelink bleibt dein Weg ins Portal.",
+            text: "Passwort entfernt. Der Sicherheitshinweis an Ihre E-Mail-Adresse konnte aber nicht zugestellt werden. Der Anmeldelink bleibt Ihr Weg ins Portal.",
           }
-        : { art: "ok", text: "Passwort entfernt. Der Anmeldelink bleibt dein Weg ins Portal." },
+        : { art: "ok", text: "Passwort entfernt. Der Anmeldelink bleibt Ihr Weg ins Portal." },
     );
     router.refresh();
   }
@@ -101,8 +101,8 @@ export function PasswortAbschnitt({
     <form onSubmit={speichern} className="rounded-lg border border-border bg-card p-5">
       <p className="max-w-prose text-sm text-muted-foreground">
         {hatPasswort
-          ? `Du hast ein Passwort gesetzt${gesetztAm ? ` (zuletzt am ${gesetztAm})` : ""}. Damit kommst du auch dann hinein, wenn du gerade nicht an dein E-Mail-Postfach kommst.`
-          : "Ein Passwort ist freiwillig. Es lohnt sich trotzdem: Ohne Passwort führt der einzige Weg ins Portal über dein E-Mail-Postfach — wer den Zugriff darauf verliert, kommt ohne Hilfe der Schulleitung nicht mehr hinein."}
+          ? `Sie haben ein Passwort gesetzt${gesetztAm ? ` (zuletzt am ${gesetztAm})` : ""}. Damit kommen Sie auch dann hinein, wenn Sie gerade nicht an Ihr E-Mail-Postfach kommen.`
+          : "Ein Passwort ist freiwillig. Es lohnt sich trotzdem: Ohne Passwort führt der einzige Weg ins Portal über Ihr E-Mail-Postfach — wer den Zugriff darauf verliert, kommt ohne Hilfe der Schulleitung nicht mehr hinein."}
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">

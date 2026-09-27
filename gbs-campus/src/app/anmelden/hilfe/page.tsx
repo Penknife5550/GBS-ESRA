@@ -13,33 +13,33 @@ export default function HilfeSeite() {
 
       <div className="mt-4 space-y-3 text-sm text-muted-foreground">
         <p>
-          <span className="font-medium text-foreground">Zwei Wege führen ins Portal.</span> Hast du im
+          <span className="font-medium text-foreground">Zwei Wege führen ins Portal.</span> Haben Sie im
           Portal ein Passwort gesetzt, dann{" "}
           <Link href="/anmelden/passwort" className="underline underline-offset-4">
-            melde dich damit an
+            melden Sie sich damit an
           </Link>{" "}
-          — dafür brauchst du dein Postfach nicht. Weißt du deine E-Mail-Adresse noch und erreichst dein
+          — dafür brauchen Sie Ihr Postfach nicht. Wissen Sie Ihre E-Mail-Adresse noch und erreichen Sie Ihr
           Postfach, dann{" "}
           <Link href="/anmelden" className="underline underline-offset-4">
-            fordere einen neuen Anmeldelink an
+            fordern Sie einen neuen Anmeldelink an
           </Link>{" "}
           — er ist jedes Mal frisch. Ein Passwort ist freiwillig; nicht jeder hat eines.
         </p>
         <p>
-          Dieses Formular ist für den Fall, dass beides nicht geht: Du weißt nicht mehr, welche Adresse
-          hinterlegt ist, oder du kommst an dein altes Postfach nicht mehr heran — und ein Passwort hast
-          du auch nicht. Dann meldet sich die Schulleitung bei dir und trägt die neue Adresse ein.
+          Dieses Formular ist für den Fall, dass beides nicht geht: Sie wissen nicht mehr, welche Adresse
+          hinterlegt ist, oder Sie kommen an Ihr altes Postfach nicht mehr heran — und ein Passwort haben
+          Sie auch nicht. Dann meldet sich die Schulleitung bei Ihnen und trägt die neue Adresse ein.
         </p>
         <p>
           Wir ändern nichts allein auf diese Meldung hin — jemand aus der Schulleitung wird sich vorher
-          bei dir melden. Das schützt dein Konto davor, dass sich jemand anderes als du ausgibt.
+          bei Ihnen melden. Das schützt Ihr Konto davor, dass sich jemand anderes als Sie ausgibt.
         </p>
       </div>
 
       <HilfeFormular />
 
       <p className="mt-8 text-xs text-muted-foreground">
-        Deine Angaben werden ausschließlich dafür verwendet, dir wieder Zugang zu verschaffen.
+        Ihre Angaben werden ausschließlich dafür verwendet, Ihnen wieder Zugang zu verschaffen.
       </p>
     </main>
   );

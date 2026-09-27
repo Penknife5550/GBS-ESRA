@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     where: { id: benutzer.id },
     select: { id: true, vorname: true, nachname: true, email: true },
   });
-  if (!person) return fehler("Deine Akte wurde nicht gefunden.", 404);
+  if (!person) return fehler("Ihre Akte wurde nicht gefunden.", 404);
 
   const ergebnis = pruefeNeueEmail(geprueft.data.email, person.email);
   if (!ergebnis.ok) return fehler(ergebnis.meldung, 400, [{ feld: "email", meldung: ergebnis.meldung }]);

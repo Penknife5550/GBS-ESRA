@@ -35,7 +35,7 @@ export function PersonAnlegen() {
     }
     setMeldung({
       art: "ok",
-      text: `${felder.vorname} ${felder.nachname} wurde angelegt. In der Akte der Person kannst du den Anmeldelink schicken und Rollen vergeben.`,
+      text: `${felder.vorname} ${felder.nachname} wurde angelegt. In der Akte der Person können Sie den Anmeldelink schicken und Rollen vergeben.`,
       akteId: antwort.daten.id,
     });
     setFelder({ vorname: "", nachname: "", email: "", telefon: "" });
@@ -88,7 +88,7 @@ export function PersonAnlegen() {
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Die Person startet als aktives Konto mit der Rolle Teilnehmer. Der Anmeldelink wird nicht
-            automatisch verschickt — das machst du in der Akte der Person, sobald du sie erkannt hast.
+            automatisch verschickt — das machen Sie in der Akte der Person, sobald Sie sie erkannt haben.
           </p>
           <button
             type="button"

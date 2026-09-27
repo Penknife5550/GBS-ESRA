@@ -79,11 +79,14 @@ export function OeffentlichesFormular({
   einleitung,
   abschnitte,
   einwilligungen,
+  formularStempel,
 }: {
   versionId: string;
   einleitung: string | null;
   abschnitte: OeffentlicherAbschnitt[];
   einwilligungen: EinwilligungsAngebot[];
+  /** Signierter Auslieferungszeitpunkt (lib/anmelde-schutz.ts) — geht beim Absenden mit. */
+  formularStempel: string;
 }) {
   const [antworten, setAntworten] = useState<Antworten>(KEINE_ANTWORTEN);
   // Stand beim letzten Zwischenspeichern bzw. Laden — für die Warnung beim
@@ -309,11 +312,11 @@ export function OeffentlichesFormular({
     setGesichert(stand);
     const bis = datum(new Date(antwort.daten.laeuftAb));
     setHinweis(
-      `Zwischenstand gespeichert. Über den Link unten kommst du bis zum ${bis} hierher zurück — ` +
+      `Zwischenstand gespeichert. Über den Link unten kommen Sie bis zum ${bis} hierher zurück — ` +
         "am besten kopieren oder als Lesezeichen ablegen." +
         (nichtGesichertText
           ? ` Nicht gespeichert werden ${nichtGesichertText}: Diese Angaben speichern wir erst beim Absenden. ` +
-            "Bitte trage sie beim Fortsetzen noch einmal ein."
+            "Bitte tragen Sie sie beim Fortsetzen noch einmal ein."
           : ""),
     );
 
@@ -349,7 +352,7 @@ export function OeffentlichesFormular({
     const fehlend = einwilligungen.filter((e) => e.pflicht && !erteilt.has(e.code));
     if (fehlend.length > 0) {
       setConsentFehler(true);
-      setFehler(`Bitte stimme noch zu: ${fehlend.map((e) => e.titel).join(", ")}.`);
+      setFehler(`Bitte stimmen Sie noch zu: ${fehlend.map((e) => e.titel).join(", ")}.`);
       consentRef.current?.scrollIntoView({ behavior: bewegungErlaubt() ? "smooth" : "auto", block: "center" });
       consentRef.current?.focus();
       return;
@@ -369,6 +372,7 @@ export function OeffentlichesFormular({
         einwilligungen: [...erteilt],
         fortsetzenToken: token ?? undefined,
         hp_feld: hpFeld,
+        formularStempel,
       },
     });
     setSendet(false);
@@ -405,10 +409,10 @@ export function OeffentlichesFormular({
         tabIndex={-1}
         className="rounded-lg border border-credo-gruen/40 bg-credo-gruen/5 p-8 outline-none"
       >
-        <h2 className="text-xl font-semibold">Deine Anmeldung ist angekommen</h2>
+        <h2 className="text-xl font-semibold">Ihre Anmeldung ist eingegangen</h2>
         <p className="mt-3 max-w-prose text-sm">
-          Wir haben dir eine Bestätigung per E-Mail geschickt. Die Schulleitung sieht sich deine Anmeldung an und
-          meldet sich bei dir.
+          Wir haben Ihnen eine Bestätigung per E-Mail geschickt. Die Schulleitung sieht sich Ihre Anmeldung an und
+          meldet sich bei Ihnen.
         </p>
       </div>
     );
@@ -417,11 +421,13 @@ export function OeffentlichesFormular({
   const laeuft = sendet || speichert || laedtEntwurf;
 
   return (
-    <form onSubmit={absenden} noValidate>
+    // data-formular-stempel: derselbe Wert wie oben — nur, damit die Ende-zu-Ende-Prüfung
+    // (scripts/durchstich.sh) ihn aus dem ausgelieferten HTML lesen kann.
+    <form onSubmit={absenden} noValidate data-formular-stempel={formularStempel}>
       <div role="status">
         {laedtEntwurf && (
           <p className="mb-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-            Deine begonnene Anmeldung wird geladen …
+            Ihre begonnene Anmeldung wird geladen …
           </p>
         )}
         {wiederherstellung?.art === "ok" && (
@@ -430,10 +436,10 @@ export function OeffentlichesFormular({
           // Zustimmungen stehen wieder offen.
           <p className="mb-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
             {nichtWiederhergestellt
-              ? `Wir haben deine begonnene Anmeldung wiederhergestellt. Deine Angaben sind wieder da — außer ${nichtWiederhergestellt}. ` +
-                "Diese Angaben speichern wir erst beim Absenden; bitte trage sie noch einmal ein."
-              : "Wir haben deine begonnene Anmeldung wiederhergestellt. Du kannst weitermachen, wo du aufgehört hast."}
-            {einwilligungen.length > 0 && " Die Zustimmungen unter „Datenschutz“ setzt du bitte noch einmal."}
+              ? `Wir haben Ihre begonnene Anmeldung wiederhergestellt. Ihre Angaben sind wieder da — außer ${nichtWiederhergestellt}. ` +
+                "Diese Angaben speichern wir erst beim Absenden; bitte tragen Sie sie noch einmal ein."
+              : "Wir haben Ihre begonnene Anmeldung wiederhergestellt. Sie können weitermachen, wo Sie aufgehört haben."}
+            {einwilligungen.length > 0 && " Die Zustimmungen unter „Datenschutz“ setzen Sie bitte noch einmal."}
           </p>
         )}
         {wiederherstellung?.art === "fehler" && (
@@ -478,8 +484,8 @@ export function OeffentlichesFormular({
               <section key={i} className="mb-10 rounded-lg border border-dashed border-border p-5">
                 <h2 className="text-lg font-semibold text-muted-foreground">{abschnitt.titel}</h2>
                 <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                  Diese Fragen erscheinen, sobald du der Verarbeitung von Angaben zu Glaube und
-                  Gemeindezugehörigkeit zugestimmt hast
+                  Diese Fragen erscheinen, sobald Sie der Verarbeitung von Angaben zu Glaube und
+                  Gemeindezugehörigkeit zugestimmt haben
                   {mitZustimmung ? " — gleich hier oder unten unter „Datenschutz“." : "."}{" "}
                   {!mitZustimmung && (
                     <a
@@ -588,7 +594,7 @@ export function OeffentlichesFormular({
         {hinweis && fortsetzenUrl && (
           <div className="mt-3">
             <label htmlFor="fortsetzen-link" className="mb-1 block text-xs font-medium text-foreground">
-              Dein Link zum Fortsetzen
+              Ihr Link zum Fortsetzen
             </label>
             <div className="flex flex-wrap items-center gap-2">
               {/* Nur lesbar statt als anklickbarer Link: Ein Klick darauf lüde die
@@ -627,7 +633,7 @@ export function OeffentlichesFormular({
       {warnenVorZwischenstand && (
         <p id="zwischenstand-hinweis" className="mb-4 rounded-lg bg-credo-gelb/15 px-4 py-3 text-sm">
           Hinweis zu „Später weitermachen“: Dabei bleiben {nichtGesichertText} außen vor — diese Angaben speichern wir
-          erst beim Absenden. Was du dort schon eingetragen hast, bleibt nur erhalten, solange diese Seite geöffnet ist.
+          erst beim Absenden. Was Sie dort schon eingetragen haben, bleibt nur erhalten, solange diese Seite geöffnet ist.
         </p>
       )}
 
@@ -821,7 +827,7 @@ function IbanEingabe({
  * Auswahl- und Ja/Nein-Fragen werden als `fieldset` mit `legend` dargestellt.
  * Vorher zeigte ein `label htmlFor` auf eine ID, die es bei diesen Typen gar
  * nicht gab: Vorlesesoftware las nur die Antwortmöglichkeiten vor, nie die
- * Frage — auf dem Pflichtfeld „Wie möchtest du teilnehmen?" also gar nichts
+ * Frage — auf dem Pflichtfeld „Wie möchten Sie teilnehmen?" also gar nichts
  * Verständliches. Und ein Klick auf die Beschriftung wählte nichts aus.
  */
 function Feld({

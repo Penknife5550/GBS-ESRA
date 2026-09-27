@@ -11,7 +11,7 @@ export function MeineZeugnisseAbschnitt({
   return (
     <div>
       <p className="max-w-prose text-sm text-muted-foreground">
-        Deine ausgestellten Zeugnisse und Bescheinigungen. Lade sie hier als PDF herunter.
+        Ihre ausgestellten Zeugnisse und Bescheinigungen. Laden Sie sie hier als PDF herunter.
       </p>
 
       <ul className="mt-4 space-y-2">

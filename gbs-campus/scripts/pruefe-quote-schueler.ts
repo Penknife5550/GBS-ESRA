@@ -144,12 +144,12 @@ pruefe(
   quoteHinweis(quoteModellA(20, 8, 2, 80), "schueler"),
 );
 {
-  // Dieselbe Quote in der Detailakte: Der Schulleitung „Bitte wende dich an die
+  // Dieselbe Quote in der Detailakte: Der Schulleitung „Bitte wenden Sie sich an die
   // Schulleitung." zu sagen, führte ins Leere.
   const verwaltung = quoteHinweis(quoteModellA(20, 3, 5, 80), "verwaltung");
   pruefe(
-    "Hinweis NICHT_ERREICHBAR in der Verwaltungssicht: ohne „wende dich an die Schulleitung“",
-    verwaltung.includes("nicht mehr erreichbar") && !/wende dich/.test(verwaltung),
+    "Hinweis NICHT_ERREICHBAR in der Verwaltungssicht: ohne „wenden Sie sich an die Schulleitung“",
+    verwaltung.includes("nicht mehr erreichbar") && !/wenden Sie sich/.test(verwaltung),
     verwaltung,
   );
   pruefe(

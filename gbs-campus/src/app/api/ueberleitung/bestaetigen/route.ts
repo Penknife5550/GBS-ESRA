@@ -34,13 +34,13 @@ export async function POST(request: NextRequest) {
 
   if (ergebnis.status === "ungueltig") {
     return fehler(
-      "Dieser Link ist abgelaufen oder ungültig. Bitte nimm den Link aus der neuesten E-Mail oder wende dich an die Schulverwaltung.",
+      "Dieser Link ist abgelaufen oder ungültig. Bitte verwenden Sie den Link aus der neuesten E-Mail oder wenden Sie sich an die Schulverwaltung.",
       401,
     );
   }
   if (ergebnis.status === "geschlossen") {
     return fehler(
-      "Das Semester hat bereits begonnen — die Rückmeldung über diesen Link ist geschlossen. Bitte wende dich an die Schulverwaltung.",
+      "Das Semester hat bereits begonnen — die Rückmeldung über diesen Link ist geschlossen. Bitte wenden Sie sich an die Schulverwaltung.",
       409,
     );
   }

@@ -3,9 +3,10 @@
  *
  * Idempotent: laeuft bei jedem Start des App-Containers und legt nur an, was
  * fehlt. Bestehende Datensaetze werden aktualisiert, nicht dupliziert.
- * Ausnahmen — nur anlegen, nie ueberschreiben: Einwilligungstexte (Nachweis),
- * Semester (gehoeren nach dem Erststart dem Betrieb), das Anmeldeformular und
- * die Werte der Einstellungen.
+ * Ausnahmen — nur anlegen, nie ueberschreiben: Einwilligungstexte (Nachweis;
+ * an einer abgeloesten Fassung setzt der Seed nur `aktivBis`), Semester
+ * (gehoeren nach dem Erststart dem Betrieb), das Anmeldeformular und die Werte
+ * der Einstellungen.
  *
  * Was hier steht, ist bewusst KEINE Konfiguration im Code: Status, Rollen und
  * Rechte liegen als Daten in der Datenbank und lassen sich ohne Deploy
@@ -306,8 +307,20 @@ const ROLLEN = [
 
 // -----------------------------------------------------------------------------
 // Einwilligungstexte
+//
+// Eine Fassung ist nach dem Anlegen eingefroren (Trigger, Migration
+// 20260927100000_einwilligungstexte_unveraenderlich), denn erteilte
+// Einwilligungen verweisen auf genau ihre Fassung. Ein geaenderter Text ist
+// deshalb immer ein neuer Eintrag mit version + 1; die abgeloesten Fassungen
+// bleiben hier stehen, damit ihr Wortlaut (Nachweis nach Art. 7 Abs. 1 DSGVO)
+// auch im Code nachlesbar bleibt. Angeboten wird je Code die hoechste gueltige
+// Fassung (`ladeEinwilligungstexte`); die aelteren setzt main() ueber
+// `aktivBis` ausser Kraft.
 // -----------------------------------------------------------------------------
 const EINWILLIGUNGEN = [
+  // Fassung 1 (Release 0.1) — abgeloest durch Fassung 2. Bleibt unveraendert
+  // stehen: Die bis dahin erteilten Einwilligungen zeigen auf sie und bleiben
+  // wirksam.
   {
     code: "DATENSCHUTZ",
     version: 1,
@@ -335,6 +348,35 @@ const EINWILLIGUNGEN = [
       "besonderen Kategorie nach Art. 9 DSGVO handelt und dass ich diese Einwilligung " +
       "jederzeit widerrufen kann.",
   },
+  // Fassung 2 (27.09.2026, Umstellung der Anwendung auf die Anrede „Sie“):
+  // Die Texte sind Erklaerungen der Person und bleiben deshalb in der Ich-Form;
+  // Titel, Inhalt, Art.-9-Kennzeichen und Pflicht sind unveraendert. Korrigiert
+  // sind nur die Umschreibungen „fuer“ und „ausdruecklich“.
+  {
+    code: "DATENSCHUTZ",
+    version: 2,
+    titel: "Verarbeitung meiner Daten zur Durchführung der Ausbildung",
+    istArt9: false,
+    pflicht: true,
+    text:
+      "Ich willige ein, dass das Christliche Werk Esra e.V. meine im Anmeldeformular " +
+      "angegebenen Daten zum Zweck der Durchführung und Verwaltung der Ausbildung an " +
+      "der Gemeindebibelschule Minden verarbeitet. Die Einwilligung kann ich jederzeit " +
+      "mit Wirkung für die Zukunft widerrufen.",
+  },
+  {
+    code: "GLAUBENSANGABEN",
+    version: 2,
+    titel: "Angaben zu Glaube und Gemeindezugehörigkeit",
+    istArt9: true,
+    pflicht: true,
+    text:
+      "Ich willige ausdrücklich ein, dass meine Angaben zu meinem Glauben und meiner " +
+      "Gemeindezugehörigkeit verarbeitet werden. Diese Angaben sind für die Aufnahme in " +
+      "eine Bibelschule erforderlich. Mir ist bekannt, dass es sich um Daten einer " +
+      "besonderen Kategorie nach Art. 9 DSGVO handelt und dass ich diese Einwilligung " +
+      "jederzeit widerrufen kann.",
+  },
 ];
 
 // -----------------------------------------------------------------------------
@@ -351,22 +393,22 @@ const MAIL_VORLAGEN = [
   {
     code: "MAGIC_LINK",
     bezeichnung: "Anmeldelink zum Portal",
-    betreff: "Dein Zugang zu GBS Campus",
+    betreff: "Ihr Zugang zu GBS Campus",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "hier ist dein Zugang zu GBS Campus:\n\n{{link}}\n\n" +
+      "hier ist Ihr Zugang zu GBS Campus:\n\n{{link}}\n\n" +
       "Der Link gilt {{gueltigkeit}} und kann nur einmal verwendet werden.\n\n" +
-      "Wenn du diesen Link nicht angefordert hast, kannst du diese Nachricht ignorieren.\n\n" +
+      "Wenn Sie diesen Link nicht angefordert haben, können Sie diese Nachricht ignorieren.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung: "Einziger Weg ins Portal — fällt der Versand aus, kommt niemand hinein.",
   },
   {
     code: "ANMELDUNG_EINGEGANGEN",
     bezeichnung: "Eingangsbestätigung der Anmeldung",
-    betreff: "Deine Anmeldung ist angekommen",
+    betreff: "Ihre Anmeldung ist eingegangen",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "deine Anmeldung zur Gemeindebibelschule Minden ist bei uns eingegangen. " +
+      "Ihre Anmeldung zur Gemeindebibelschule Minden ist bei uns eingegangen. " +
       "Wir melden uns, sobald wir sie angesehen haben.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung: "Geht automatisch nach dem Absenden des Anmeldeformulars raus.",
@@ -377,8 +419,8 @@ const MAIL_VORLAGEN = [
     betreff: "Willkommen an der Gemeindebibelschule Minden",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "wir freuen uns, dich an der Gemeindebibelschule Minden begrüßen zu dürfen.\n\n" +
-      "Über deinen persönlichen Zugang kannst du jederzeit deine Daten einsehen und ändern:\n\n" +
+      "wir freuen uns, Sie an der Gemeindebibelschule Minden begrüßen zu dürfen.\n\n" +
+      "Über Ihren persönlichen Zugang können Sie jederzeit Ihre Daten einsehen und ändern:\n\n" +
       "{{link}}\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung: "Wird vom Schulleiter beim Annehmen ausgelöst.",
@@ -396,13 +438,13 @@ const MAIL_VORLAGEN = [
   {
     code: "ANMELDUNG_DOPPELT",
     bezeichnung: "Hinweis bei doppelter Anmeldung",
-    betreff: "Zu deiner Adresse liegt uns bereits eine Anmeldung vor",
+    betreff: "Zu Ihrer Adresse liegt uns bereits eine Anmeldung vor",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "du hast gerade eine Anmeldung zur Gemeindebibelschule Minden abgeschickt. Zu deiner " +
+      "Sie haben gerade eine Anmeldung zur Gemeindebibelschule Minden abgeschickt. Zu Ihrer " +
       "E-Mail-Adresse ist bei uns aber schon eine Anmeldung hinterlegt, deshalb haben wir keine " +
       "zweite angelegt.\n\n" +
-      "Wenn das ein Versehen war, kannst du diese Nachricht ignorieren. Andernfalls melde dich " +
+      "Wenn das ein Versehen war, können Sie diese Nachricht ignorieren. Andernfalls melden Sie sich " +
       "einfach bei der Schulleitung.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
@@ -426,8 +468,8 @@ const MAIL_VORLAGEN = [
     textMd:
       "Guten Tag,\n\n" +
       "jemand wollte die Adresse {{adresse}} einem anderen Konto bei GBS Campus zuordnen. Weil sie " +
-      "bereits vergeben ist, wurde nichts geändert — an deinem Konto ebenso wenig wie am anderen.\n\n" +
-      "Wenn du das nicht warst, musst du nichts tun. Bei Fragen wende dich an die Schulleitung.\n\n" +
+      "bereits vergeben ist, wurde nichts geändert — an Ihrem Konto ebenso wenig wie am anderen.\n\n" +
+      "Wenn Sie das nicht waren, müssen Sie nichts tun. Bei Fragen wenden Sie sich an die Schulleitung.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Geht an den Inhaber der belegten Adresse. Nennt bewusst KEINEN Namen — sonst erführe der Empfänger, wer sich bei der Bibelschule angemeldet hat (Art. 9 DSGVO).",
@@ -460,13 +502,13 @@ const MAIL_VORLAGEN = [
   {
     code: "EMAIL_AENDERUNG_BESTAETIGEN",
     bezeichnung: "Bestätigung einer neuen E-Mail-Adresse",
-    betreff: "Bitte bestätige deine neue E-Mail-Adresse",
+    betreff: "Bitte bestätigen Sie Ihre neue E-Mail-Adresse",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "du möchtest deine E-Mail-Adresse für GBS Campus auf diese Adresse ändern. " +
-      "Bitte bestätige das über diesen Link:\n\n{{link}}\n\n" +
-      "Der Link gilt {{gueltigkeit}}. Bis zur Bestätigung bleibt deine bisherige Adresse gültig.\n\n" +
-      "Wenn du das nicht warst, kannst du diese Nachricht ignorieren.\n\n" +
+      "Sie möchten Ihre E-Mail-Adresse für GBS Campus auf diese Adresse ändern. " +
+      "Bitte bestätigen Sie das über diesen Link:\n\n{{link}}\n\n" +
+      "Der Link gilt {{gueltigkeit}}. Bis zur Bestätigung bleibt Ihre bisherige Adresse gültig.\n\n" +
+      "Wenn Sie das nicht waren, können Sie diese Nachricht ignorieren.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Geht an die NEUE Adresse. Ohne diesen Klick ändert sich nichts — die Adresse ist der einzige Zugang zum Portal.",
@@ -474,13 +516,13 @@ const MAIL_VORLAGEN = [
   {
     code: "EMAIL_AENDERUNG_HINWEIS",
     bezeichnung: "Hinweis an die bisherige E-Mail-Adresse",
-    betreff: "Änderung deiner E-Mail-Adresse wurde beantragt",
+    betreff: "Änderung Ihrer E-Mail-Adresse wurde beantragt",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "für dein Konto bei GBS Campus wurde eine neue E-Mail-Adresse beantragt: {{neueAdresse}}\n\n" +
-      "Sobald sie bestätigt ist, läuft dein Zugang über die neue Adresse.\n\n" +
-      "Warst du das nicht, melde dich bitte umgehend bei der Schulleitung. " +
-      "Solange du nicht bestätigst, bleibt alles wie bisher.\n\n" +
+      "für Ihr Konto bei GBS Campus wurde eine neue E-Mail-Adresse beantragt: {{neueAdresse}}\n\n" +
+      "Sobald sie bestätigt ist, läuft Ihr Zugang über die neue Adresse.\n\n" +
+      "Waren Sie das nicht, melden Sie sich bitte umgehend bei der Schulleitung. " +
+      "Solange Sie nicht bestätigen, bleibt alles wie bisher.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Geht an die BISHERIGE Adresse und ist die Notbremse: Wer sie bekommt, ohne etwas geändert zu haben, kann Alarm schlagen.",
@@ -488,12 +530,12 @@ const MAIL_VORLAGEN = [
   {
     code: "EMAIL_GEAENDERT_DURCH_VERWALTUNG",
     bezeichnung: "E-Mail-Adresse durch die Schule geändert",
-    betreff: "Deine E-Mail-Adresse für GBS Campus wurde geändert",
+    betreff: "Ihre E-Mail-Adresse für GBS Campus wurde geändert",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "deine E-Mail-Adresse für GBS Campus wurde von der Schule auf {{neueAdresse}} geändert. " +
-      "Ab sofort läuft dein Zugang über diese Adresse.\n\n" +
-      "Wenn du das nicht angefragt hast, melde dich bitte umgehend bei der Schulleitung.\n\n" +
+      "Ihre E-Mail-Adresse für GBS Campus wurde von der Schule auf {{neueAdresse}} geändert. " +
+      "Ab sofort läuft Ihr Zugang über diese Adresse.\n\n" +
+      "Wenn Sie das nicht angefragt haben, melden Sie sich bitte umgehend bei der Schulleitung.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Geht an die alte UND die neue Adresse, wenn die Verwaltung eine Adresse ändert — etwa nach einer Meldung über das Hilfeformular.",
@@ -501,12 +543,12 @@ const MAIL_VORLAGEN = [
   {
     code: "PASSWORT_GEAENDERT",
     bezeichnung: "Hinweis auf ein geändertes Passwort",
-    betreff: "Dein Passwort für GBS Campus wurde geändert",
+    betreff: "Ihr Passwort für GBS Campus wurde geändert",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "für dein Konto bei GBS Campus wurde {{vorgang}}.\n\n" +
-      "Warst du das nicht, fordere bitte sofort einen Anmeldelink an und setze ein neues Passwort — " +
-      "und gib der Schulleitung Bescheid.\n\n" +
+      "für Ihr Konto bei GBS Campus wurde {{vorgang}}.\n\n" +
+      "Waren Sie das nicht, fordern Sie bitte sofort einen Anmeldelink an und setzen Sie ein neues Passwort — " +
+      "und geben Sie der Schulleitung Bescheid.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Die Notbremse beim Passwort: Wer diesen Hinweis bekommt, ohne etwas geändert zu haben, weiß, dass jemand an seinem Konto war.",
@@ -522,12 +564,12 @@ const MAIL_VORLAGEN = [
     // — deshalb der Rat an alle, nicht nur an Personen mit Passwort.
     code: "BANKVERBINDUNG_GEAENDERT",
     bezeichnung: "Hinweis auf eine geänderte Bankverbindung",
-    betreff: "Deine Bankverbindung bei GBS Campus wurde geändert",
+    betreff: "Ihre Bankverbindung bei GBS Campus wurde geändert",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "in deinem Konto bei GBS Campus wurde soeben geändert: {{felder}}. " +
+      "in Ihrem Konto bei GBS Campus wurde soeben geändert: {{felder}}. " +
       "Die neue Bankverbindung steht aus Sicherheitsgründen nicht in dieser Nachricht.\n\n" +
-      "Warst du das nicht, melde dich umgehend bei der Schulleitung und setze unter „Meine Daten“ ein (neues) " +
+      "Waren Sie das nicht, melden Sie sich umgehend bei der Schulleitung und setzen Sie unter „Meine Daten“ ein (neues) " +
       "Passwort, damit fremde Sitzungen enden.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
@@ -536,14 +578,14 @@ const MAIL_VORLAGEN = [
   {
     code: "AUSKUNFT_BEREIT",
     bezeichnung: "Datenauskunft nach Art. 15 DSGVO steht bereit",
-    betreff: "Deine Datenauskunft der Gemeindebibelschule steht bereit",
+    betreff: "Ihre Datenauskunft der Gemeindebibelschule steht bereit",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "auf Anforderung wurde eine Auskunft über die zu dir gespeicherten Daten nach Art. 15 DSGVO " +
-      "erstellt. Über den folgenden persönlichen Link kannst du sie als PDF herunterladen:\n\n" +
+      "auf Anforderung wurde eine Auskunft über die zu Ihnen gespeicherten Daten nach Art. 15 DSGVO " +
+      "erstellt. Über den folgenden persönlichen Link können Sie die Auskunft als PDF herunterladen:\n\n" +
       "{{link}}\n\n" +
-      "Der Link gilt {{gueltigkeit}} und führt zu deinen persönlichen Daten. Bitte gib ihn nicht weiter.\n\n" +
-      "Hast du keine Auskunft angefordert, kannst du diese Nachricht ignorieren — ohne den Link wird nichts angezeigt.\n\n" +
+      "Der Link gilt {{gueltigkeit}} und führt zu Ihren persönlichen Daten. Bitte geben Sie ihn nicht weiter.\n\n" +
+      "Haben Sie keine Auskunft angefordert, können Sie diese Nachricht ignorieren — ohne den Link wird nichts angezeigt.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Trägt nur den Abruf-Link, nie die Daten selbst — Glaubensangaben und IBAN dürfen den Mailkanal nicht verlassen.",
@@ -551,14 +593,14 @@ const MAIL_VORLAGEN = [
   {
     code: "UEBERLEITUNG_EINLADUNG",
     bezeichnung: "Einladung ins Folgesemester (Re-Enrollment)",
-    betreff: "Bist du im {{semester}} dabei?",
+    betreff: "Sind Sie im {{semester}} dabei?",
     textMd:
       "Hallo {{vorname}},\n\n" +
       "das nächste Semester an der Gemeindebibelschule Minden steht an: {{semester}} " +
       "({{zeitraum}}).\n\n" +
-      "Bist du wieder dabei? Über diesen Link sagst du mit einem Klick „Ich bin dabei“ oder „Ich bin raus“:\n\n{{link}}\n\n" +
-      "Antworten – und deine Antwort über denselben Link ändern – kannst du bis einschließlich {{frist}}. " +
-      "Ohne Rückmeldung bis dahin gilt deine Teilnahme am neuen Semester als abgemeldet.\n\n" +
+      "Sind Sie wieder dabei? Über diesen Link sagen Sie mit einem Klick „Ich bin dabei“ oder „Ich bin raus“:\n\n{{link}}\n\n" +
+      "Antworten – und Ihre Antwort über denselben Link ändern – können Sie bis einschließlich {{frist}}. " +
+      "Ohne Rückmeldung bis dahin gilt Ihre Teilnahme am neuen Semester als abgemeldet.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Startet die Semesterüberleitung: geht an alle Teilnehmer des laufenden Semesters mit dem persönlichen Link für „Ich bin dabei“ oder „Ich bin raus“.",
@@ -566,17 +608,32 @@ const MAIL_VORLAGEN = [
   {
     code: "UEBERLEITUNG_ERINNERUNG",
     bezeichnung: "Erinnerung an die Rückmeldung fürs Folgesemester",
-    betreff: "Erinnerung: Bist du im {{semester}} dabei?",
+    betreff: "Erinnerung: Sind Sie im {{semester}} dabei?",
     textMd:
       "Hallo {{vorname}},\n\n" +
-      "kurze Erinnerung: Für {{semester}} ({{zeitraum}}) fehlt uns noch deine " +
-      "Rückmeldung. Bist du dabei oder bist du raus? Ein Klick auf den Link genügt:\n\n{{link}}\n\n" +
-      "Bitte nimm den Link aus dieser neuesten E-Mail — ältere Links gelten nicht mehr. Antworten kannst du " +
-      "bis einschließlich {{frist}}; ohne Rückmeldung bis dahin gilt deine Teilnahme am neuen Semester als " +
+      "kurze Erinnerung: Für {{semester}} ({{zeitraum}}) fehlt uns noch Ihre " +
+      "Rückmeldung. Sind Sie dabei oder sind Sie raus? Ein Klick auf den Link genügt:\n\n{{link}}\n\n" +
+      "Bitte verwenden Sie den Link aus dieser neuesten E-Mail — ältere Links gelten nicht mehr. Antworten können Sie " +
+      "bis einschließlich {{frist}}; ohne Rückmeldung bis dahin gilt Ihre Teilnahme am neuen Semester als " +
       "abgemeldet.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
       "Automatische Erinnerung (T-14/-7/-3 vor Semesterstart) an alle Eingeladenen ohne Antwort. Jede zugestellte Erinnerung trägt einen frischen Link; ältere verfallen damit. Eine gescheiterte Erinnerung wird nicht wiederholt – die nächste Stufe versucht es erneut. Fällt die Einladung auf einen Stichtag oder später, zählt sie für diese Stichtage mit (nie zwei Mails am selben Tag).",
+  },
+  {
+    code: "ANMELDUNG_GEDROSSELT",
+    bezeichnung: "Warnung: Gesamtgrenze des Anmeldeformulars erreicht",
+    betreff: "Anmeldeformular: ungewöhnlich viele Anmeldungen",
+    textMd:
+      "Guten Tag,\n\n" +
+      "im öffentlichen Anmeldeformular ist die Obergrenze erreicht: {{grenze}}. Weitere Anmeldungen " +
+      "werden vorerst abgewiesen; die Absender sehen den Hinweis, es später erneut zu versuchen.\n\n" +
+      "Bitte prüfen Sie die zuletzt eingegangenen Anmeldungen: {{link}}\n\n" +
+      "Handelt es sich um echte Bewerbungen, können Sie die Grenze unter Verwaltung → Einstellungen " +
+      "anheben. Diese Nachricht geht höchstens einmal pro Stunde hinaus.\n\n" +
+      "GBS Campus",
+    beschreibung:
+      "Geht an Schulleitung und Verwaltung, wenn die Gesamtgrenze je Stunde oder je Tag greift (Schutz vor Massenanmeldungen, lib/anmelde-schutz.ts) — höchstens einmal pro Stunde. Ohne Personennamen: Die Absender sind unbekannt.",
   },
 ];
 
@@ -755,6 +812,38 @@ async function main() {
       console.warn(
         `[Seed] WARNUNG: Einwilligungstext ${einwilligung.code} Fassung ${einwilligung.version} weicht vom Seed ab ` +
           "und bleibt unveraendert. Ein geaenderter Text braucht eine neue Fassung (version + 1).",
+      );
+    }
+  }
+
+  // Die neueste Fassung eines Codes loest die aelteren ab: Deren `aktivBis`
+  // wird auf den Gueltigkeitsbeginn der neuesten gesetzt — das Einzige, was der
+  // Trigger an einer Fassung aendern laesst. Nur bei Fassungen ohne Ende; ist
+  // `aktivBis` schon gesetzt, bleibt es, wie es ist (ein weiterer Seed-Lauf
+  // aendert nichts). Fuer die Auswahl waere das nicht noetig —
+  // `ladeEinwilligungstexte` nimmt ohnehin die hoechste gueltige Fassung —, aber
+  // so gilt in der Datenbank je Code genau eine Fassung, und die Laufzeit der
+  // alten steht fest. Die erteilten Einwilligungen bleiben an ihrer Fassung und
+  // damit wirksam (die Wirksamkeit wertet je Code ueber alle Fassungen aus,
+  // `art9EinwilligungenWirksam`).
+  const neuesteFassung = new Map<string, number>();
+  for (const { code, version } of EINWILLIGUNGEN) {
+    neuesteFassung.set(code, Math.max(version, neuesteFassung.get(code) ?? 0));
+  }
+  for (const [code, version] of neuesteFassung) {
+    const neueste = await prisma.einwilligungsText.findUnique({
+      where: { code_version: { code, version } },
+      select: { aktivAb: true },
+    });
+    if (!neueste) continue;
+    const abgeloest = await prisma.einwilligungsText.updateMany({
+      where: { code, version: { lt: version }, aktivBis: null },
+      data: { aktivBis: neueste.aktivAb },
+    });
+    if (abgeloest.count > 0) {
+      console.log(
+        `[Seed] Einwilligungstext ${code}: ${abgeloest.count} aeltere Fassung(en) durch Fassung ${version} ` +
+          `abgeloest (aktivBis = ${neueste.aktivAb.toISOString()}).`,
       );
     }
   }

@@ -215,6 +215,51 @@ export const EINSTELLUNGEN = {
     einheit: "Anmeldungen",
     sortierung: 20,
   },
+  // Schutz vor Massenanmeldungen (lib/anmelde-schutz.ts): Obergrenzen über alle
+  // Anschlüsse hinweg. Die Schule erwartet 20–60 Anmeldungen im Jahr — die
+  // Standardwerte fangen Roboter ab, nicht Bewerber.
+  ANMELDUNG_MAX_GESAMT_STUNDE: {
+    bezeichnung: "Anmeldungen je Stunde (alle Anschlüsse)",
+    beschreibung:
+      "Obergrenze für angenommene Anmeldungen innerhalb einer Stunde, über alle Internetanschlüsse " +
+      "hinweg. Ist sie erreicht, nimmt das Formular vorübergehend keine weiteren an, und Schulleitung " +
+      "und Verwaltung erhalten höchstens einmal pro Stunde eine Warnung. Neue Zwischenstände " +
+      "(„Später weitermachen“) dürfen das Dreifache.",
+    bereich: "ANMELDUNG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 10,
+    minimum: 1,
+    maximum: 500,
+    einheit: "Anmeldungen",
+    sortierung: 21,
+  },
+  ANMELDUNG_MAX_GESAMT_TAG: {
+    bezeichnung: "Anmeldungen je Tag (alle Anschlüsse)",
+    beschreibung:
+      "Obergrenze für angenommene Anmeldungen innerhalb von 24 Stunden, über alle Internetanschlüsse " +
+      "hinweg. Begrenzt eine langsame, gleichmäßige Flut, die unter der Stundengrenze bleibt.",
+    bereich: "ANMELDUNG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 30,
+    minimum: 1,
+    maximum: 2000,
+    einheit: "Anmeldungen",
+    sortierung: 22,
+  },
+  ANMELDUNG_MINDESTDAUER_SEKUNDEN: {
+    bezeichnung: "Mindestdauer bis zum Absenden",
+    beschreibung:
+      "So viele Sekunden müssen zwischen dem Laden des Formulars und dem Absenden liegen. Roboter " +
+      "senden im selben Moment ab, in dem sie die Seite laden; ein Mensch braucht für das Formular " +
+      "Minuten. 0 schaltet die Prüfung ab.",
+    bereich: "ANMELDUNG",
+    typ: EinstellungTyp.ZAHL,
+    standard: 3,
+    minimum: 0,
+    maximum: 120,
+    einheit: "Sekunden",
+    sortierung: 23,
+  },
   ANMELDUNG_FORTSETZEN_TAGE: {
     bezeichnung: "Anmeldung fortsetzen",
     beschreibung:

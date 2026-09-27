@@ -55,7 +55,7 @@ export function middleware(request: NextRequest) {
 
   return fehler(
     "Diese Anfrage kam nicht von der Seite des Portals und wurde aus Sicherheitsgründen abgelehnt. " +
-      "Bitte öffne das Portal direkt über seine Adresse und versuche es noch einmal.",
+      "Bitte öffnen Sie das Portal direkt über seine Adresse und versuchen Sie es noch einmal.",
     403,
   );
 }

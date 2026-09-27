@@ -232,7 +232,7 @@ export default async function VerwaltungSeite() {
 
       {bereiche.length === 0 ? (
         <p className="mt-10 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Für dein Konto ist noch kein Verwaltungsbereich freigeschaltet.
+          Für Ihr Konto ist noch kein Verwaltungsbereich freigeschaltet.
         </p>
       ) : (
         <div className="mt-8 space-y-8">

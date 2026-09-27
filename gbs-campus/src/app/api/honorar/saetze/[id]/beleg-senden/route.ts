@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
     ergebnis = await sendeSatzBelegNach(id, benutzer.id, request.headers);
   } catch (f) {
     console.error("[HONORAR] Nachversand fehlgeschlagen", f);
-    return fehler("Der Beleg konnte nicht gesendet werden. Bitte versuche es später noch einmal.", 500);
+    return fehler("Der Beleg konnte nicht gesendet werden. Bitte versuchen Sie es später noch einmal.", 500);
   }
 
   if (!ergebnis.ok) return fehler(ergebnis.meldung, statusFuer(ergebnis.code));

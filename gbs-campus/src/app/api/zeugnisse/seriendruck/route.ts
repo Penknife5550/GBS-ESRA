@@ -39,6 +39,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (ausnahme) {
     console.error("[ZEUGNIS] Seriendruck fehlgeschlagen", ausnahme);
-    return downloadFehler(request, "Der Seriendruck konnte nicht erzeugt werden. Bitte versuche es später erneut.", 500);
+    return downloadFehler(request, "Der Seriendruck konnte nicht erzeugt werden. Bitte versuchen Sie es später erneut.", 500);
   }
 }

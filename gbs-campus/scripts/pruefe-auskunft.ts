@@ -62,7 +62,7 @@ console.log("\n2. Antwort-Zuordnung");
 const felder: FeldInfo[] = [
   feld("vorname", "Vorname", "TEXT"),
   feld("hinweis1", "Bitte ausfüllen", "HINWEIS"),
-  feld("glaube", "Dein Glaubensweg", "MEHRZEILIG", true),
+  feld("glaube", "Ihr Glaubensweg", "MEHRZEILIG", true),
   feld("beruf", "Beruf", "TEXT"),
 ];
 const antworten = { vorname: "Petra", glaube: "Bekehrung 2019", hinweis1: "sollte ignoriert werden", altfeld: "Wert aus alter Fassung" };
@@ -73,7 +73,7 @@ pruefe(
   zeilen[0]?.label === "Vorname" && zeilen[0]?.wert === "Petra",
   zeilen,
 );
-pruefe("Art-9-Feld wird als solches markiert", zeilen.some((z) => z.label === "Dein Glaubensweg" && z.istArt9));
+pruefe("Art-9-Feld wird als solches markiert", zeilen.some((z) => z.label === "Ihr Glaubensweg" && z.istArt9));
 pruefe("Nicht-Art-9-Feld bleibt unmarkiert", zeilen.some((z) => z.label === "Vorname" && !z.istArt9));
 pruefe("Hinweisfeld wird nicht als Antwort ausgegeben", !zeilen.some((z) => z.label === "Bitte ausfüllen"));
 pruefe(

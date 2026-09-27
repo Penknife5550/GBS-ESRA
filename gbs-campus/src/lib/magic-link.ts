@@ -206,7 +206,7 @@ export async function fordereMagicLinkAn(
     an: person.email,
     personId: person.id,
     vorlageCode: MAIL_VORLAGE.MAGIC_LINK,
-    betreff: fuelleVorlage(vorlage?.betreff ?? "Dein Zugang zu GBS Campus", werte),
+    betreff: fuelleVorlage(vorlage?.betreff ?? "Ihr Zugang zu GBS Campus", werte),
     text: fuelleVorlage(vorlage?.textMd ?? `Hallo {{vorname}},\n\n{{link}}`, werte),
   });
 

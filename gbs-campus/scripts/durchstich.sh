@@ -158,6 +158,16 @@ for i in $(seq 1 60); do
 done
 pruefe "Container antwortet" "$([ "$KOPF" != "000" ] && echo 1 || echo 0)" "HTTP ${KOPF}"
 
+# Schutz vor Massenanmeldungen (lib/anmelde-schutz.ts): Der Seed legt die drei
+# Regler mit ihren Standardwerten an. Die folgenden Abschnitte schicken
+# Anmeldungen per curl ohne Formularstempel und dicht hintereinander ab — fuer
+# den Lauf werden Mindestdauer und Gesamtgrenzen deshalb gelockert; Abschnitt 50
+# schaltet sie einzeln scharf.
+ANMELDESCHUTZ="select string_agg(wert, '/' order by schluessel collate \"C\") from einstellungen where schluessel in ('ANMELDUNG_MAX_GESAMT_STUNDE', 'ANMELDUNG_MAX_GESAMT_TAG', 'ANMELDUNG_MINDESTDAUER_SEKUNDEN');"
+pruefe "der Seed legt den Anmeldeschutz mit Standardwerten an (10/30/3)" "$(gleich "$($PSQL "$ANMELDESCHUTZ")" "10/30/3")" "$($PSQL "$ANMELDESCHUTZ")"
+$PSQL "update einstellungen set wert = case schluessel when 'ANMELDUNG_MAX_GESAMT_STUNDE' then '500' when 'ANMELDUNG_MAX_GESAMT_TAG' then '2000' else '0' end where schluessel in ('ANMELDUNG_MAX_GESAMT_STUNDE', 'ANMELDUNG_MAX_GESAMT_TAG', 'ANMELDUNG_MINDESTDAUER_SEKUNDEN');" > /dev/null
+pruefe "fuer den Lauf gelockert (500/2000/0)" "$(gleich "$($PSQL "$ANMELDESCHUTZ")" "500/2000/0")" "$($PSQL "$ANMELDESCHUTZ")"
+
 echo
 echo "=== 0. Datumsannahmen (kalenderunabhaengig) ==="
 # Alles Folgende rechnet mit diesen Werten. Stimmt hier etwas nicht, sind die
@@ -817,9 +827,11 @@ pruefe "ohne Pflichteinwilligung wird die Anmeldung abgewiesen (400)" "$(gleich 
 # die danach ueber `aktivBis` ausser Kraft gesetzt wird — das Einzige, was der
 # Trigger aendern laesst. Bewusst KEIN DISABLE TRIGGER: Sonst uebte der
 # Durchstich genau das Muster, das M8 verbieten soll.
+# Der Seed bringt seit der Umstellung auf „Sie“ schon Fassung 2 mit (Fassung 1
+# per aktivBis abgeloest) — die Test-Fassung ohne Pflicht ist deshalb Fassung 3.
 $PSQL "insert into einwilligungs_texte (id, code, version, titel, text, \"istArt9\", pflicht, \"aktivAb\") select gen_random_uuid()::text, code, version + 1, titel, text, \"istArt9\", false, now() - interval '1 minute' from einwilligungs_texte where code = 'GLAUBENSANGABEN' order by version desc limit 1;" > /dev/null
-pruefe "die Pflicht laesst sich nur als neue Fassung aufheben (Fassung 2 ohne Pflicht)" \
-  "$(gleich "$($PSQL "select count(*) from einwilligungs_texte where code='GLAUBENSANGABEN' and version=2 and pflicht=false;")" "1")"
+pruefe "die Pflicht laesst sich nur als neue Fassung aufheben (Fassung 3 ohne Pflicht)" \
+  "$(gleich "$($PSQL "select count(*) from einwilligungs_texte where code='GLAUBENSANGABEN' and version=3 and pflicht=false;")" "1")"
 OHNE_ART9=$(curl -s -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' \
   -H 'X-Real-Ip: 203.0.113.31' -d "{
   \"aktion\": \"absenden\", \"versionId\": \"${VERSION_ID}\", \"einwilligungen\": [\"DATENSCHUTZ\"],
@@ -836,8 +848,10 @@ OHNE_ART9=$(curl -s -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: applicati
   }
 }")
 $PSQL "update einwilligungs_texte set \"aktivBis\" = now() - interval '1 second' where code = 'GLAUBENSANGABEN' and pflicht = false and \"aktivBis\" is null;" > /dev/null
-pruefe "danach gilt wieder allein Fassung 1 mit Pflicht (Fassung 2 ausser Kraft)" \
-  "$(gleich "$($PSQL "select string_agg(version::text || ':' || pflicht::text, ',') from einwilligungs_texte where code='GLAUBENSANGABEN' and (\"aktivBis\" is null or \"aktivBis\" > now());")" "1:true")"
+# Zugleich die Probe auf den Seed: Fassung 1 ist dort ausser Kraft gesetzt, es
+# gilt genau eine Fassung.
+pruefe "danach gilt wieder allein Fassung 2 mit Pflicht (Fassung 1 abgeloest, Fassung 3 ausser Kraft)" \
+  "$(gleich "$($PSQL "select string_agg(version::text || ':' || pflicht::text, ',') from einwilligungs_texte where code='GLAUBENSANGABEN' and (\"aktivBis\" is null or \"aktivBis\" > now());")" "2:true")"
 pruefe "die Anmeldung ohne Glaubensangaben wird angenommen" "$(echo "$OHNE_ART9" | grep -qc 'eingereicht' 2>/dev/null && echo 1 || echo 0)" "$OHNE_ART9"
 
 FREI_ID=$($PSQL "select id from personen where email='ohne.einwilligung@beispiel.de';")
@@ -2439,16 +2453,18 @@ echo "=== 38. Einwilligungstexte sind eingefroren (Trigger, M8) ==="
 # zeigten alle bisherigen Einwilligungen still auf einen Text, dem niemand
 # zugestimmt hat (Nachweis nach Art. 7 Abs. 1 DSGVO). Geprueft als Eigentuemer —
 # der Trigger gilt fuer jeden, das entzogene Recht (Abschnitt 31) nur fuer gbs_app.
+# Geprueft an der geltenden Fassung 2 (seit der Umstellung auf „Sie“): So stellt
+# das Zuruecknehmen von aktivBis unten genau den Stand des Seeds wieder her.
 pruefe "den Text einer Fassung zu aendern weist die Datenbank ab" \
-  "$(abgewiesen "update einwilligungs_texte set text = text || ' (geaendert)' where code='DATENSCHUTZ' and version=1;")"
+  "$(abgewiesen "update einwilligungs_texte set text = text || ' (geaendert)' where code='DATENSCHUTZ' and version=2;")"
 pruefe "der Text ist unveraendert" \
   "$(gleich "$($PSQL "select count(*) from einwilligungs_texte where text like '%(geaendert)';")" "0")"
 pruefe "ebenso Pflicht und Titel" \
-  "$([ "$(abgewiesen "update einwilligungs_texte set pflicht = not pflicht where code='DATENSCHUTZ' and version=1;")" = "1" ] && [ "$(abgewiesen "update einwilligungs_texte set titel = titel || ' x' where code='DATENSCHUTZ' and version=1;")" = "1" ] && echo 1 || echo 0)"
+  "$([ "$(abgewiesen "update einwilligungs_texte set pflicht = not pflicht where code='DATENSCHUTZ' and version=2;")" = "1" ] && [ "$(abgewiesen "update einwilligungs_texte set titel = titel || ' x' where code='DATENSCHUTZ' and version=2;")" = "1" ] && echo 1 || echo 0)"
 pruefe "ein UPDATE ohne Aenderung laeuft durch (kein Fehlalarm)" \
-  "$(laeuft_durch "update einwilligungs_texte set titel = titel where code='DATENSCHUTZ' and version=1;")"
+  "$(laeuft_durch "update einwilligungs_texte set titel = titel where code='DATENSCHUTZ' and version=2;")"
 pruefe "ausser Kraft setzen ueber aktivBis ist erlaubt — und zuruecknehmbar" \
-  "$([ "$(laeuft_durch "update einwilligungs_texte set \"aktivBis\" = now() + interval '10 years' where code='DATENSCHUTZ' and version=1;")" = "1" ] && [ "$(laeuft_durch "update einwilligungs_texte set \"aktivBis\" = null where code='DATENSCHUTZ' and version=1;")" = "1" ] && echo 1 || echo 0)"
+  "$([ "$(laeuft_durch "update einwilligungs_texte set \"aktivBis\" = now() + interval '10 years' where code='DATENSCHUTZ' and version=2;")" = "1" ] && [ "$(laeuft_durch "update einwilligungs_texte set \"aktivBis\" = null where code='DATENSCHUTZ' and version=2;")" = "1" ] && echo 1 || echo 0)"
 # Eine Fassung ohne Einwilligung daran — der Fremdschluessel schuetzt sie also
 # nicht, nur der Trigger. aktivBis in der Vergangenheit, damit sie in keinem
 # Formular erscheint.
@@ -2857,7 +2873,9 @@ pruefe "der Hinweis auf die Pflichtangaben steht genau einmal" \
   "$(gleich "$(echo "$FORMULAR_HTML" | grep -o 'gekennzeichnete Felder sind Pflichtangaben' | wc -l | tr -d ' ')" "1")"
 
 # Widerruf: Die juengste Einwilligungszeile zaehlt. Danach sind Petras
-# Art.-9-Antworten auch fuer die Schulleitung ausgeblendet.
+# Art.-9-Antworten auch fuer die Schulleitung ausgeblendet. Petra hat Fassung 2
+# bestaetigt, der Widerruf zeigt bewusst auf Fassung 1: Gewertet wird je Code
+# ueber alle Fassungen (`art9EinwilligungenWirksam`), nicht je Fassung.
 $PSQL "insert into einwilligungen (id, \"personId\", \"textId\", erteilt, zeitpunkt) values (gen_random_uuid(), '${TEILNEHMER_ID}', (select id from einwilligungs_texte where code='GLAUBENSANGABEN' and version=1), false, now() + interval '1 second');" > /dev/null
 WIDERRUF_HTML=$(curl -s "${BASIS}/verwaltung/anmeldungen/${ANMELDUNG_ID}" -H "Cookie: ${KEKS}")
 pruefe "nach dem Widerruf sind Petras Art.-9-Antworten ausgeblendet (keine wirksame Einwilligung)" \
@@ -3237,7 +3255,105 @@ pruefe "Gegenprobe: die Zeilen gibt es (Protokoll-ID statt Adresse)" \
   "$([ "$(docker logs gbs-durchstich 2>&1 | grep -c '\[MAIL\] Nicht verschickt (Protokoll')" -gt 0 ] && echo 1 || echo 0)"
 
 echo
-echo "=== 50. Abschluss-Sweep: keine IBAN, keine Art.-9-Angaben in Protokollen und Belegen ==="
+echo "=== 50. Schutz vor Massenanmeldungen: Mindestdauer, Gesamtgrenze, Warnung ==="
+# Die Schichten aus lib/anmelde-schutz.ts. Zu Beginn des Laufs sind Mindestdauer
+# und Gesamtgrenzen gelockert (siehe „Container starten"); hier werden sie
+# einzeln scharf geschaltet. Jede Anfrage kommt von einem eigenen Anschluss,
+# damit die Anschlussdrossel nicht dazwischenfunkt.
+setze_einstellung() { $PSQL "update einstellungen set wert='$2' where schluessel='$1';" > /dev/null; }
+mit_stempel() { # $1 = Formularstempel, danach die Argumente von anmeldung_rumpf
+  local s="$1"; shift
+  anmeldung_rumpf "$@" | sed "1s/^{/{ \"formularStempel\": \"${s}\",/"
+}
+eingaenge_stunde() { $PSQL "select count(*) from rate_limit where schluessel='ANMELDUNG_EINGANG' and zeitpunkt > now() - interval '1 hour';"; }
+
+# --- Mindestdauer (Formularstempel)
+setze_einstellung ANMELDUNG_MINDESTDAUER_SEKUNDEN 3
+S_OHNE=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.80' \
+  -d "$(anmeldung_rumpf "Stempel" "Fehlt" "stempel.fehlt@beispiel.de" "1990-01-01")")
+pruefe "ohne Formularstempel abgewiesen (400, „nicht mehr aktuell“)" \
+  "$([ "$S_OHNE" = "400" ] && grep -q 'nicht mehr aktuell' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$S_OHNE $(cat /tmp/gbs-rumpf.txt)"
+STEMPEL=$(curl -s "${BASIS}/anmeldung" | grep -o 'data-formular-stempel="[^"]*"' | head -1 | sed 's/^data-formular-stempel="//; s/"$//')
+pruefe "die Formularseite liefert einen signierten Stempel aus" \
+  "$(echo "$STEMPEL" | grep -qE '^[0-9]{13}\.[A-Za-z0-9_-]{43}$' && echo 1 || echo 0)" "$STEMPEL"
+S_SOFORT=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.81' \
+  -d "$(mit_stempel "$STEMPEL" "Stempel" "Sofort" "stempel.sofort@beispiel.de" "1990-01-01")")
+pruefe "sofort nach dem Laden abgeschickt: abgewiesen (400, „schneller“)" \
+  "$([ "$S_SOFORT" = "400" ] && grep -q 'schneller' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$S_SOFORT $(cat /tmp/gbs-rumpf.txt)"
+# Ein älterer Zeitpunkt mit der alten Signatur — so täte ein Roboter die Wartezeit vor.
+S_ALT="$(( ${STEMPEL%%.*} - 60000 )).${STEMPEL#*.}"
+S_FALSCH=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.82' \
+  -d "$(mit_stempel "$S_ALT" "Stempel" "Falsch" "stempel.falsch@beispiel.de" "1990-01-01")")
+pruefe "vorgetäuschter älterer Stempel abgewiesen (400)" \
+  "$([ "$S_FALSCH" = "400" ] && grep -q 'nicht mehr aktuell' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$S_FALSCH $(cat /tmp/gbs-rumpf.txt)"
+pruefe "die drei abgewiesenen Anmeldungen haben keine Akte angelegt" \
+  "$(gleich "$($PSQL "select count(*) from personen where email like 'stempel.%@beispiel.de';")" "0")"
+sleep 3
+S_OK=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.83' \
+  -d "$(mit_stempel "$STEMPEL" "Stempel" "Geduldig" "stempel.geduldig@beispiel.de" "1990-01-01")")
+pruefe "nach der Mindestdauer mit demselben Stempel angenommen (200)" \
+  "$([ "$S_OK" = "200" ] && grep -q 'eingereicht' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$S_OK $(cat /tmp/gbs-rumpf.txt)"
+pruefe "die Abweisungen stehen mit Grund im Protokoll (FEHLT, UNGUELTIG, ZU_SCHNELL)" \
+  "$(gleich "$($PSQL "select string_agg(distinct nachher->>'grund', ',' order by nachher->>'grund') from audit_log where aktion='ANMELDUNG_ABGEWIESEN_STEMPEL';")" "FEHLT,UNGUELTIG,ZU_SCHNELL")"
+setze_einstellung ANMELDUNG_MINDESTDAUER_SEKUNDEN 0
+
+# --- Gesamtgrenze je Stunde, Freigabe bei Fehlschlag, Warnung
+EING=$(eingaenge_stunde)
+pruefe "angenommene Anmeldungen dieses Laufs sind gezählt" "$([ "${EING:-0}" -ge 5 ] && echo 1 || echo 0)" "$EING"
+setze_einstellung ANMELDUNG_MAX_GESAMT_STUNDE "$((EING + 1))"
+G_UNGUELTIG=$(status_von -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.84' \
+  -d "$(anmeldung_rumpf "Grenze" "Ohne" "grenze.ohne@beispiel.de" "1990-01-01" | sed 's/"einwilligungen": \["DATENSCHUTZ", "GLAUBENSANGABEN"\]/"einwilligungen": []/')")
+pruefe "eine abgelehnte Anmeldung (Pflichteinwilligung fehlt) verbraucht kein Kontingent" \
+  "$([ "$G_UNGUELTIG" = "400" ] && [ "$(eingaenge_stunde)" = "$EING" ] && echo 1 || echo 0)" "$G_UNGUELTIG $(eingaenge_stunde)/${EING}"
+G_LETZTE=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.85' \
+  -d "$(anmeldung_rumpf "Grenze" "Letzte" "grenze.letzte@beispiel.de" "1990-01-01")")
+pruefe "bis zur Stundengrenze angenommen (200)" "$(gleich "$G_LETZTE" "200")" "$G_LETZTE $(cat /tmp/gbs-rumpf.txt)"
+G_DRUEBER=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.86' \
+  -d "$(anmeldung_rumpf "Grenze" "Drueber" "grenze.drueber@beispiel.de" "1990-01-01")")
+pruefe "über der Stundengrenze abgewiesen (429, „in einer Stunde“)" \
+  "$([ "$G_DRUEBER" = "429" ] && grep -q 'in einer Stunde' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$G_DRUEBER $(cat /tmp/gbs-rumpf.txt)"
+pruefe "die abgewiesene Anmeldung legt keine Akte an" \
+  "$(gleich "$($PSQL "select count(*) from personen where email='grenze.drueber@beispiel.de';")" "0")"
+pruefe "das Protokoll hält die Gesamtgrenze fest (Fenster STUNDE)" \
+  "$(gleich "$($PSQL "select count(*) > 0 from audit_log where aktion='ANMELDUNG_GESAMT_GEDROSSELT' and nachher->>'art'='ANMELDUNG' and nachher->>'fenster'='STUNDE';")" "t")"
+sleep 2
+WARN=$($PSQL "select count(*) from email_versand where \"vorlageCode\"='ANMELDUNG_GEDROSSELT';")
+pruefe "Schulleitung und Verwaltung werden gewarnt (Versandprotokoll)" "$([ "${WARN:-0}" -ge 1 ] && echo 1 || echo 0)" "$WARN"
+pruefe "der Betreff der Warnung kommt aus der Vorlage, ohne Namen" \
+  "$(gleich "$($PSQL "select count(*) from email_versand where \"vorlageCode\"='ANMELDUNG_GEDROSSELT' and betreff <> 'Anmeldeformular: ungewöhnlich viele Anmeldungen';")" "0")"
+G_NOCHMAL=$(status_von -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.87' \
+  -d "$(anmeldung_rumpf "Grenze" "Nochmal" "grenze.nochmal@beispiel.de" "1990-01-01")")
+sleep 2
+pruefe "weitere Abweisungen lösen keine zweite Warnung aus (höchstens eine pro Stunde)" \
+  "$([ "$G_NOCHMAL" = "429" ] && [ "$($PSQL "select count(*) from email_versand where \"vorlageCode\"='ANMELDUNG_GEDROSSELT';")" = "$WARN" ] && echo 1 || echo 0)" "$G_NOCHMAL"
+
+# --- Gesamtgrenze je Tag
+setze_einstellung ANMELDUNG_MAX_GESAMT_STUNDE 500
+setze_einstellung ANMELDUNG_MAX_GESAMT_TAG "$($PSQL "select count(*) from rate_limit where schluessel='ANMELDUNG_EINGANG' and zeitpunkt > now() - interval '24 hours';")"
+G_TAG=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.88' \
+  -d "$(anmeldung_rumpf "Grenze" "Tag" "grenze.tag@beispiel.de" "1990-01-01")")
+pruefe "über der Tagesgrenze abgewiesen (429, „morgen“)" \
+  "$([ "$G_TAG" = "429" ] && grep -q 'morgen' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$G_TAG $(cat /tmp/gbs-rumpf.txt)"
+setze_einstellung ANMELDUNG_MAX_GESAMT_TAG 2000
+
+# --- Zwischenstände: das Dreifache der Stundengrenze, gezählt über neue Zeilen
+ZEILEN=$($PSQL "select count(*) from anmeldungen where \"erstelltAm\" > now() - interval '1 hour';")
+ZS_GRENZE=$(( ZEILEN / 3 )); [ "$ZS_GRENZE" -lt 1 ] && ZS_GRENZE=1
+setze_einstellung ANMELDUNG_MAX_GESAMT_STUNDE "$ZS_GRENZE"
+ZS_ERFUNDEN=$(rumpf_und_status -X POST "${BASIS}/api/anmeldung" -H 'Content-Type: application/json' -H 'X-Real-Ip: 203.0.113.89' \
+  -d "{\"aktion\":\"speichern\",\"versionId\":\"${VERSION_ID}\",\"antworten\":{\"vorname\":\"Zwischen\"},\"fortsetzenToken\":\"$(neuer_token)\"}")
+pruefe "Zwischenstand über der Grenze abgewiesen — auch mit erfundenem Token (429)" \
+  "$([ "$ZS_ERFUNDEN" = "429" ] && grep -q 'Zwischenstand' /tmp/gbs-rumpf.txt && echo 1 || echo 0)" "$ZS_ERFUNDEN $(cat /tmp/gbs-rumpf.txt)"
+setze_einstellung ANMELDUNG_MAX_GESAMT_STUNDE 500
+
+# --- Betriebsansicht
+KEKS_ADMIN50=$(anmelden_als "$ADMIN_ID")
+BETRIEB50=$(curl -s "${BASIS}/verwaltung/betrieb" -H "Cookie: ${KEKS_ADMIN50}")
+pruefe "die Betriebsansicht zeigt den Anmeldeschutz und dass die Gesamtgrenze gegriffen hat" \
+  "$([ "$(enthaelt "$BETRIEB50" 'Anmeldeformular: angenommene Anmeldungen')" = "1" ] && [ "$(enthaelt "$BETRIEB50" 'Die Gesamtgrenze hat in den letzten 24 Stunden gegriffen')" = "1" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 51. Abschluss-Sweep: keine IBAN, keine Art.-9-Angaben in Protokollen und Belegen ==="
 # Frueher lief diese Suche in Abschnitt 19 — vor Honorar-Freigabe, Zeugnissen,
 # Statuswechseln und Anonymisierung. Jetzt am Ende, ueber alle Stellen, die
 # breiter lesbar sind als die Akte oder unloeschbar: Audit-Log, Versandprotokoll,
@@ -3256,10 +3372,10 @@ pruefe "Zeugnis-Snapshots: ebenso" \
 pruefe "Gegenprobe: alle vier Stellen sind gefuellt" \
   "$(gleich "$($PSQL "select (select count(*) from audit_log) > 0 and (select count(*) from email_versand) > 0 and (select count(*) from honorar_abrechnung_posten) > 0 and (select count(*) from zeugnisse) > 0;")" "t")"
 
-# 765 Pruefungen plus diese eine, die sich selbst mitzaehlt. Im Text stehen 750
+# 786 Pruefungen plus diese eine, die sich selbst mitzaehlt. Im Text stehen 771
 # Aufrufe; der in der Protokoll-Schleife von Abschnitt 19 laeuft 17-mal
-# (749 + 17 = 766). Kein Aufruf steht in einem if-Zweig — die Zahl ist fest.
-SOLL=766
+# (770 + 17 = 787). Kein Aufruf steht in einem if-Zweig — die Zahl ist fest.
+SOLL=787
 pruefe "alle ${SOLL} Pruefungen sind gelaufen" "$(gleich "$((ok + fehler + 1))" "${SOLL}")" "$((ok + fehler + 1))"
 
 echo

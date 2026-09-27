@@ -112,6 +112,8 @@ export const MAIL_VORLAGE = {
   AUSKUNFT_BEREIT: "AUSKUNFT_BEREIT",
   UEBERLEITUNG_EINLADUNG: "UEBERLEITUNG_EINLADUNG",
   UEBERLEITUNG_ERINNERUNG: "UEBERLEITUNG_ERINNERUNG",
+  /** Warnung an Schulleitung und Verwaltung, wenn die Gesamtgrenze des Anmeldeformulars greift. */
+  ANMELDUNG_GEDROSSELT: "ANMELDUNG_GEDROSSELT",
 } as const;
 
 /** Millisekunden — damit die Umrechnung nicht viermal ausgeschrieben im Code steht. */
