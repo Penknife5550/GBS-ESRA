@@ -1,16 +1,616 @@
-# Übergabe — Stand 29.07.2026
+# Übergabe — Stand 27.09.2026
 
 Diese Datei ist der Einstieg in eine neue Arbeitssitzung. Sie enthält, was man wissen muss, ohne den
 bisherigen Gesprächsverlauf zu kennen: was zuerst zu tun ist, wie man das Projekt zum Laufen bringt,
 welche Entscheidungen feststehen, welche Fallen es gibt und was als Nächstes ansteht.
 
 Fachliche Fragen beantwortet [`../1_Bauplan.html`](../1_Bauplan.html), technische das
-[README](README.md). Die beiden Review-Berichte: [erstes Review](../2_Code-Review.html) (vormittags,
-211 Befunde) und [zweites Review samt Komplettfix](../3_Code-Review-2.html) (abends, 160 Befunde).
+[README](README.md). Die Review-Berichte: [erstes Review](../2_Code-Review.html) (27.07. vormittags,
+211 Befunde), [zweites Review samt Komplettfix](../3_Code-Review-2.html) (27.07. abends, 160 Befunde),
+[drittes Review](../4_Code-Review-3.html) (29.07.) und [Code-Review 4](../10_Code-Review-4.md) (27.09.,
+19 MAJOR, mit dem Abschnitt „Stand der Behebung“). Den Stand davor fasst
+[`../9_Bestandsaufnahme-2026-09-26.md`](../9_Bestandsaufnahme-2026-09-26.md) zusammen.
 
 ---
 
-## Neuester Stand (29.07.2026, abends)
+## Neuester Stand (27.09.2026): Code-Review 4 ist behoben
+
+Alle 19 MAJOR-Befunde aus [`../10_Code-Review-4.md`](../10_Code-Review-4.md) und der größte Teil der
+MINOR-Befunde sind behoben — in drei Fix-Runden, jede gegengeprüft. Die Änderungen liegen auf dem Branch
+**`fix/code-review-4`** und sind **committet, aber noch nicht nach `main` gemergt**. Verifiziert (27.09.2026):
+`tsc` 0 Fehler, **1177 DB-freie Prüfungen in 19 Skripten** grün, `next build` grün (41 Seiten), alle
+**24 Migrationen** gegen PGlite fehlerfrei und ohne Drift zum Schema — und mit Docker: **Durchstich
+766/766 grün** gegen das gebaute Image und eine frische Datenbank, **`pruefen:db` 19 + 18 grün**.
+
+### Der Durchstich ist grün (27.09.2026) — so wiederholst du ihn
+
+> **Durchstich 766/766 grün** gegen das gebaute Image und eine frische Datenbank. `scripts/durchstich.sh`
+> ist kalenderunabhängig umgebaut (M19), hat die neuen Abschnitte 37–50 und zählt gegen **`SOLL=766`**
+> (vorher 414). Im ersten echten Lauf waren 4 von 764 Prüfungen rot — alle vier ein Fehler **im Test**:
+> Die Rechte-Gegenproben „ein Teilnehmer darf … nicht (403)“ benutzten Petras Sitzung `KEKS2`, die
+> Abschnitt 13 durch den Adresswechsel absichtlich entwertet. Früher antwortete die App darauf pauschal
+> 403, seit der 401/403-Trennung korrekt 401. Die vier Prüfungen nutzen jetzt eine frische Sitzung
+> (`KEKS_TN`), zwei neue Prüfungen halten fest, dass die entwertete Sitzung 401 liefert. Danach: 766/766.
+
+```bash
+docker start gbs-campus-db-dev
+```
+
+```bash
+cd gbs-campus && docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1; echo "Exit: $?"
+```
+
+Der Build führt in der Stufe `builder` jetzt selbst `npm run pruefen` aus (in `TZ=Europe/Berlin`), ein
+rotes Prüfskript bricht ihn also ab.
+
+```bash
+bash scripts/durchstich.sh > /tmp/durchstich.log 2>&1; echo "Exit: $?"
+```
+
+Soll: **766 Prüfungen, 0 fehlgeschlagen.** Voraussetzungen: die Dev-Datenbank auf Port 5434 **ohne eigene
+Zeitzone** (sie rechnet in UTC wie die Produktion; Abschnitt 0 prüft das zusammen mit der Container-Zeitzone
+und legt alle Daten relativ zum heutigen Berliner Kalendertag an) und das Image `gbs-campus-test:local`.
+Rote Zeilen erst verstehen, dann beheben — und die Grenzen der drei maschinenabhängigen Laufzeitprüfungen
+nicht vorschnell aufweichen (siehe unten „So prüfst du den Stand nachvollziehbar“). Die zwei Zeilen
+„Rest (bekannt)“ in Abschnitt 49 müssen grün sein: Sie halten fest, dass `docker exec` und der Healthcheck
+das Eigentümer-Passwort weiter sehen (Entscheidung E-betrieb-migrationsdienst). Wird diese umgesetzt, sind
+beide Prüfungen umzudrehen.
+
+Danach die DB-Prüfungen gegen die Dev-Datenbank (Soll **19 + 18**, am 27.09.2026 grün gegen `gbs_durchstich`; das Skript für die Einstellungen lehnt
+alles außer `localhost`, `127.0.0.1` und `host.docker.internal` ab):
+
+```bash
+docker run --rm --entrypoint sh -e DATABASE_URL="postgresql://gbs:gbs_dev_2026@host.docker.internal:5434/gbs_campus?schema=public" gbs-campus-test:local -c "prisma migrate deploy && node prisma/seed.js"
+```
+
+```bash
+docker build --target builder -t gbs-campus-builder:local . > /tmp/build-builder.log 2>&1; echo "Exit: $?"
+```
+
+```bash
+docker run --rm -e DATABASE_URL="postgresql://gbs:gbs_dev_2026@host.docker.internal:5434/gbs_campus?schema=public" -e ENCRYPTION_KEY="$(openssl rand -hex 32)" gbs-campus-builder:local npm run pruefen:db
+```
+
+Ebenfalls vor dem Livegang, aber nicht vor dem Merge: den **ganzen Stack auf einem Staging-Server** mit TLS
+durchspielen (siehe „Traefik und Deploy“ unten und die Go-Live-Checkliste in [`LAIENTEST.md`](LAIENTEST.md)).
+
+### Was behoben ist
+
+Einzelheiten je Befund stehen in [`../10_Code-Review-4.md`](../10_Code-Review-4.md), Abschnitt „Stand der
+Behebung“. In Kürze:
+
+| Befund | Behoben durch |
+|---|---|
+| **M1** Traefik-Netz | Netz fest `gbs_edge`, Traefik doppelt darauf festgelegt, Header aus `docker/traefik-dynamisch.yml` |
+| **M2** `APP_DATABASE_URL` | Umschalten auf `gbs_app` nur bei gesetztem `APP_DB_PASSWORD`, Passwortregel beim Start geprüft |
+| **M3** Seed setzt Semester zurück | Semester nur bei leerer Tabelle, Kürzel danach fest |
+| **M4** Abmelden | Cookie mit denselben Attributen gelöscht, Knopf wertet das Ergebnis aus |
+| **M5** CSRF | Herkunftsprüfung in `src/middleware.ts` / `src/lib/herkunft.ts` |
+| **M6** Anonymisierung | Zeugnis-Snapshots, Versandprotokoll, Audit nur Feldnamen, Rollen, Sitzungen |
+| **M7** offene Anmeldung Anonymisierter | Anmeldung wird geschlossen, Entscheidung antwortet 409 |
+| **M8** Einwilligungstexte | Trigger, kein UPDATE für `gbs_app`, Seed legt nur an |
+| **M9** Statusmaschine | Statusroute, Ausbildungsdaten, `wechsleStatus` als einziger Schreibweg |
+| **M10** „bin raus“ | Rückmeldung an der Teilnahme, Abmeldung ohne Antwort, Filter `TEILNAHME_ZAEHLT` |
+| **M11** abgerechnete Abende | Dozentenwechsel gesperrt, Storno OFFENER Abrechnungen |
+| **M12** DMS-Beleg | Nachversand für Zahlungs-, Satz- und Zeugnisbeleg |
+| **M13** Anmeldeantworten | Seite `/verwaltung/anmeldungen/[id]` |
+| **M14** Zeugnis-Sammellauf | Rückfrage mit Zahlen, ABSCHLUSS nur im letzten Semester, ersetzte Zeugnisse gekennzeichnet |
+| **M15–M17** Formular-Builder | stabile Schlüssel, Beschriftungen, Antwortmöglichkeiten tippbar, Zuordnung geladen |
+| **M18** Noten-Leeroption | Anzeige folgt nach dem Speichern der Datenbank |
+| **M19** Durchstich-Kalender | relative Daten, Abschnitt 0 — **Lauf steht aus** |
+
+Von den MINOR- und INFO-Befunden ist der größte Teil erledigt. Was eine fachliche Wahl braucht, steht unten
+unter „Offene Entscheidungen“; was bewusst bleibt, steht im Review-Bericht.
+
+### Fachentscheidungen vom 27.09.2026 (verbindlich)
+
+1. **Die Anonymisierung anonymisiert auch Zeugnis-Snapshots.** Name und Geburtsdatum im eingefrorenen
+   Snapshot werden überschrieben; das Zeugnis bleibt mit Beleg-Nr., Typ, Fächern und Ergebnissen als
+   Nachweis stehen. Eine Neuausstellung für ANONYMISIERT wird abgewiesen (409). Damit ist auch der Verweis
+   „siehe Backlog“ im Kommentar der Migration `20260730150000_zeugnisse` erledigt.
+2. **„Bin raus“ oder keine Rückmeldung bis Semesterstart meldet die Teilnahme ab, der Personenstatus
+   bleibt.** Gespeichert an der Teilnahme (`abgemeldetAm`, `abmeldeGrund` = `BIN_RAUS` bzw.
+   `KEINE_RUECKMELDUNG`). Jede Liste eines Semesters filtert mit `TEILNAHME_ZAEHLT`.
+3. **ABSOLVENT ist kein Endzustand:** `istTerminal = false`, `istAktiv = false`, `automatikMails = false`.
+   Der Portalzugang bleibt (Abschlusszeugnis, eigene Daten), aus Semesterlisten und Automatik-Mails fällt die
+   Person heraus. Endzustände sind jetzt ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT.
+4. **Die Gemeindezugehörigkeit bleibt im Excel-Export und in der Oberfläche unverändert.** Befunde dazu
+   (Art.-9-Angabe im Export, für den Administrator sichtbar) gelten als **bewusst** und werden nicht erneut
+   gemeldet.
+
+Dazu eine Hausregel, die ab jetzt für jeden neuen `protokolliere()`-Aufruf gilt: **Das Audit enthält bei
+Personendaten nur Feldnamen, keine Werte** (`geaenderteFeldnamen` in `src/lib/anonymisierung.ts`). Statuscodes,
+Rollen und Zähler dürfen mit alt/neu hinein, Namen, Adressen, E-Mail-Adressen und Freitext-Gründe nicht (beim
+Statuswechsel nur `grundAngegeben`). Das Audit-Log ist unlöschbar, und die Anonymisierung erreicht es nicht.
+`scripts/pruefe-anonymisierung.ts` (Abschnitt 8, Liste `AUDIT_DATEIEN`) prüft das für die Personen- und
+Selbstpflege-Dateien; eine neue Datei mit Personendaten im Audit gehört in diese Liste. Ein fehlgeschlagener
+Passwort-Login protokolliert keine Adresse mehr, die Meldung aus dem Hilfeformular nur die Zahl der Empfänger
+(`empfaengerAnzahl`).
+
+### Neue Regeln für Betrieb und Weiterbau
+
+**`APP_URL` muss genau die Adresse sein, unter der der Browser das Portal öffnet** — gleiches Schema, gleicher
+Host, gleicher Port. Sonst lehnt die neue Herkunftsprüfung jede Änderung mit 403 ab („Diese Anfrage kam
+nicht von der Seite des Portals …“), und im Server-Log steht `[HERKUNFT] … abgewiesen (fremder-origin)`. Das
+gilt auch lokal: Die Testinstanz unten läuft mit `APP_URL=http://127.0.0.1:3000` und muss im Browser unter
+genau **`http://127.0.0.1:3000`** geöffnet werden, nicht unter `localhost:3000`; bei `npm run dev` mit
+`APP_URL=http://localhost:3000` ist es umgekehrt. Der Startprüfer lehnt eine `APP_URL` ab, aus der sich keine
+Herkunft ergibt (etwa `https://`). In Produktion mit gesetztem `APP_DOMAIN` muss sie außerdem mit `https://`
+beginnen und denselben Host haben wie `APP_DOMAIN` (Traefik-Regel); sonst startet der Container nicht, und
+im Log steht `[START] … APP_URL: passt nicht zu APP_DOMAIN …`.
+
+**Herkunftsprüfung (CSRF).** `src/middleware.ts` (Matcher `/api/:path*`, Edge-Laufzeit, Begründung im
+Dateikopf) ruft die reine Regel `pruefeHerkunft()` aus `src/lib/herkunft.ts`: GET/HEAD/OPTIONS frei; sonst
+muss ein vorhandenes `Origin` exakt der Herkunft aus `APP_URL` entsprechen und ein vorhandenes
+`Sec-Fetch-Site` `same-origin` oder `none` sein. Ohne beide Header (curl, Cron, Durchstich) geht die Anfrage
+durch; ein externer Zeitgeber für `/api/cron/erinnerungen` schickt deshalb keinen `Origin` mit, oder genau
+den aus `APP_URL`. Bewusst **nicht** gebaut: ein Zwang zu `Content-Type: application/json` (POSTs ohne Rumpf
+schicken keinen) und eine Pfad-Ausnahme für `/api/cron/*` (neue Angriffsfläche über Pfad-Normalisierung).
+Die **Referrer-Policy darf nie `no-referrer`** lauten, sonst schicken Browser `Origin: null`, und jede
+Änderung scheitert; Traefik setzt `strict-origin-when-cross-origin`. Next puffert für die Middleware
+Anfragerümpfe bis 10 MB — bei einem künftigen Datei-Upload unter `/api` bedenken.
+
+**Traefik und Deploy.** Traefik ist auf das Netz **`gbs_edge`** festgelegt (fester Name, unabhängig vom
+Ordnernamen; `--providers.docker.network` und Label `traefik.docker.network` an `app`). Die
+Sicherheits-Header kommen aus dem Datei-Provider: **`docker/traefik-dynamisch.yml` gehört auf den Server
+neben `docker-compose.yml`** (Middleware `gbs-sicherheit@file`). Der traefik-Container hat keine Labels mehr,
+es entsteht kein Default-Router mehr. Beim ersten Deploy nach dieser Änderung legt Compose `gbs_edge` neu an,
+das alte Netz (`gbs-campus_edge`) bleibt verwaist: `docker compose up -d --force-recreate`, danach
+`docker network rm gbs-campus_edge`. **Vor dem Livegang auf Staging:** `docker compose config` ohne Fehler,
+den Stack fünfmal neu starten, `/api/health` über Traefik darf dabei nie 502/504 liefern, und das Traefik-Log
+muss sauber sein.
+
+**Getrennter App-Nutzer `gbs_app`.** Der Entrypoint schaltet **nur bei gesetztem `APP_DB_PASSWORD`** um
+(vorher genügte die immer gesetzte `APP_DATABASE_URL`, M2). Das Passwort braucht **mindestens 16 Zeichen und
+nur Buchstaben und Ziffern** (`openssl rand -hex 24`), weil es unkodiert in einer Verbindungs-URL steht;
+alles andere lehnt der Start mit einer Meldung ab. **Upgrade-Hinweis:** Wer schon ein kürzeres Passwort oder
+eines mit Sonderzeichen gesetzt hat, muss es vor dem Deploy ersetzen. Dasselbe gilt sinngemäß für
+`DB_PASSWORD`. Nach dem Umschalten entfernt der Entrypoint `DB_PASSWORD` aus der Umgebung des Serverprozesses —
+nur dort: In der Container-Konfiguration bleibt es stehen, `docker exec` und die Healthcheck-Prozesse sehen es
+(offene Entscheidung E-betrieb-migrationsdienst). Der **Worker bleibt bewusst Eigentümer** (startet nicht
+über den Entrypoint, nicht web-exponiert).
+
+**Der Seed legt Semester und Einwilligungstexte nur an.** Semester nur bei **leerer Tabelle**; danach gehören
+Datum, Bezeichnung, Lehrjahr/Halbjahr dem Betrieb und überleben jeden Neustart, gepflegt unter
+`/verwaltung/semester` (das Kürzel ist nach dem Anlegen fest). Einwilligungstexte legt der Seed nur an; weicht
+eine Fassung in der Datenbank vom Seed ab, schreibt er eine **WARNUNG** ins Log und ändert nichts. Weiterhin
+bei jedem Start nachgezogen werden Statusschalter, Rechtematrix (aus `RECHT` in `src/lib/constants.ts`),
+Mailvorlagen, Kursraster und die Beschreibung der Einstellungen (offene Entscheidung
+ARCH-seed-ueberschreibt-konfiguration). Deshalb wirken die neuen Vorlagen-Betreffs ohne Namen, der neue Text
+von `BANKVERBINDUNG_GEAENDERT` und die Beitragsbeschreibung „Wird derzeit nicht eingezogen.“ nach dem nächsten
+Container-Start von selbst; der Altbestand im Versandprotokoll ist durch die Migration
+`20260927130000_versandprotokoll_betreff_ohne_namen` einmalig bereinigt.
+
+**Einwilligungstexte sind eingefroren** (Migration `20260927100000`, drei Trigger
+`einwilligungs_text_nur_aktiv_bis`, `…_kein_delete`, `…_kein_truncate`). Nur `aktivBis` ist änderbar, `gbs_app`
+hat kein UPDATE, DELETE oder TRUNCATE. **Ein geänderter Text ist eine neue Fassung mit `version + 1`**, nie
+eine Korrektur der alten — sonst änderte sich rückwirkend der Text aller erteilten Einwilligungen (Art. 7
+Abs. 1). Die Tippfehler in Fassung 1 („fuer“, „ausdruecklich“) sind deshalb eine offene Entscheidung.
+
+**Belege sind auf DB-Ebene eingefroren** (Migration `20260927160000_belege_unveraenderlich`, 14 Trigger):
+`honorar_saetze` — nur `dmsBelegNr`/`dmsGesendetAm` nachtragen, kein DELETE; `honorar_abrechnungen` — Status
+nur vorwärts, Beleg-, Freigabe-, Auszahlungs- und DMS-Felder einmalig, DELETE (Storno) nur bei OFFEN;
+Abrechnungsposten — INSERT nur zu OFFENEN Abrechnungen, kein UPDATE, weg nur per Storno-Cascade, und beim
+Commit muss die Summe der Abrechnung der Summe ihrer Posten entsprechen (verzögerte Constraint-Trigger);
+`zeugnisse` — nur GUELTIG → ERSETZT, DMS-Datum einmalig und der Scrub durch die Anonymisierung. TRUNCATE ist
+überall gesperrt; `gbs_app` fehlen zusätzlich DELETE auf Sätzen, Posten und Zeugnissen sowie UPDATE auf
+Posten. **Wer an diesen Tabellen eine Spalte ergänzt oder einen neuen Schreibweg baut, passt die
+Trigger-Funktion per neuer Migration an (`CREATE OR REPLACE FUNCTION`)**; beim Nachfüllen einer neuen Spalte
+die Trigger per `DISABLE/ENABLE TRIGGER` umklammern. Ändert sich `scrubbeZeugnisSnapshot`, muss
+`zeugnis_ist_eingefroren` mitgehen — `scripts/pruefe-betrieb.ts` koppelt beides. Kurseinheiten werden nie
+gelöscht, nur deaktiviert (`aktiv = false`); Leistungen hängen mit `ON DELETE RESTRICT` daran (Migration
+`20260927160500`). `prisma migrate dev` kennt weder Trigger noch CHECKs noch partielle Indexe (siehe
+„Bekannte Einschränkungen“).
+
+**Worker.** Er wartet beim Start, bis jede Migration aus `prisma/migrations` in `_prisma_migrations`
+abgeschlossen ist, höchstens 10 Minuten; danach endet er mit Exit 1, und Docker startet ihn neu. Auf den Seed
+wartet er nicht eigens (dafür gibt es die Rückfallwerte). Nach jedem Lauf, in dem mindestens ein Teillauf
+gelungen ist, schreibt er `/tmp/gbs-worker-lebenszeichen`; der Docker-Healthcheck verlangt die Datei jünger als
+130 Minuten (`start_period` 15 min). Bei einem Totalausfall (etwa Datenbank nicht erreichbar) bleibt das
+Lebenszeichen aus, und der Healthcheck wird rot. Ein gescheiterter Teillauf schreibt
+`WORKER_LAUF_FEHLGESCHLAGEN` (nur die Namen der Teilläufe). Die Betriebsansicht zeigt „Worker zuletzt
+gelaufen“ und warnt ab 26 Stunden.
+
+**Logs ohne Adressen.** Das Container-Log nennt keine Empfängeradressen mehr, sondern die Protokoll-ID
+(`email_versand.id`) und die Vorlage. Die Adresse steht nur in `email_versand`, das die Anonymisierung
+erreicht: `select * from email_versand where id='<Protokoll-ID>';`. Ausnahme ist die Konsolenausgabe im
+Entwicklungsmodus ohne SMTP. Fehlt `DMS_EMAIL`, warnt der Start; die Betriebsansicht hat eine Kachel „Belege
+noch nicht im DMS“ (Zahlungsbelege, Satz-Belege, Zeugnis-Archivkopien).
+
+**Prüfen gatet Build und CI.** `npm run pruefen` (und `npm test`) startet `scripts/pruefe-alle.ts`: alle 19
+DB-freien Skripte, jedes in eigenem Prozess mit `TZ=Europe/Berlin`, am Ende Zusammenfassung und Gesamtsumme,
+Exit 1 bei einem roten Skript. Ein `scripts/pruefe-*.ts`, das dort nicht eingetragen ist, macht den Lauf rot —
+**neue Prüfskripte dort eintragen.** Die Docker-Stufe `builder` läuft in `TZ=Europe/Berlin` und führt
+`npm run pruefen` vor `next build` aus. Neu ist die CI `.github/workflows/pruefen.yml` (`npm ci`,
+`prisma generate`, `tsc --noEmit`, `npm run pruefen`). **Offen:** den Job „Typpruefung und Pruefskripte“ in
+GitHub unter Branch-Schutz als Pflicht-Check für `main` eintragen — eine Einstellung im Repo, nicht im Code.
+`npm run pruefen:db` und der Durchstich laufen weiter von Hand vor jedem Release.
+
+**API-Konventionen.** 401 heißt „nicht oder nicht mehr angemeldet“ (die Oberfläche sagt „Deine Sitzung ist
+abgelaufen …“ und leitet bewusst nicht um — man meldet sich im neuen Tab an, damit Eingaben nicht verloren
+gehen). 403 heißt „angemeldet, aber ohne Recht“. Routen prüfen über `pruefeZugriff(RECHT.X)`, `ladeMitRecht`
+nur noch in Seiten; beide nehmen nur noch `RechtCode`. Download-Routen (Zeugnis-PDF, Seriendruck,
+Excel-Export) antworten beim Browser-Klick mit einer HTML-Fehlerseite bzw. 303 zur Anmeldung statt mit rohem
+JSON. Weiter gilt: `erfolg()`/`fehler()`, Auth → Recht → Zod.
+
+**Bewusst keine `loading.tsx`.** Sie würde die `redirect()`/`notFound()`-Antworten der
+`force-dynamic`-Seiten bei direktem Aufruf zu HTTP 200 mit Meta-Refresh machen. Rückmeldung beim Seitenwechsel
+gibt `<LadeHinweis />` (`useLinkStatus`) in Kachel und Zurück-Leiste; weitere Links können ihn in ihren
+`<Link>` setzen. **Die Fehlerseite zeigt jetzt einen Fehlercode** (`digest`), wenn es einen gibt. Wer einen
+Fehler meldet, nennt ihn; der Betrieb findet ihn im Server-Log (`docker compose logs app`).
+
+**Rechte ohne Funktion.** Der Seed legt die Rechte aus `RECHT` an; vier tragen „(noch ohne Funktion)“:
+`MAIL_VERTEILER_SENDEN`, `MAIL_VORLAGEN_BEARBEITEN`, `FINANZ_DATEN_LESEN`, `IMPERSONATION`. Die Prüfung
+erzwingt das Entfernen der Kennzeichnung, sobald eine Route eines davon prüft.
+
+### Löschkonzept: Umfang und Grenzen der Anonymisierung
+
+„Anonymisieren“ (Verwaltung → Personen → Akte, abgesetzt unter „Löschung nach Art. 17 DSGVO“, Recht
+`PERSON_ANONYMISIEREN`) erfasst jetzt in einer Transaktion:
+
+- alle personenbezogenen Felder der Person und die Antworten ihrer Anmeldungen;
+- **Zeugnis-Snapshots** (Name und Geburtsdatum, Fachentscheidung 1);
+- das **Versandprotokoll**: Betreffs, die Namen oder Adresse enthalten (unabhängig davon, an wen die Mail
+  ging), Empfängeradressen und Fehlertexte;
+- Freitext-Gründe früherer Statuswechsel (Systemgründe bleiben);
+- **Rollen** (werden entfernt), Sitzungen (`passwortGeaendertAm` = jetzt), Anmelde-, Bestätigungs-,
+  Auskunfts- und Überleitungs-Tokens sowie `rate_limit`-Einträge zur Adresse;
+- **offene Anmeldungen** (ENTWURF/EINGEREICHT → ABGELEHNT mit Grund `[anonymisiert]`, keine Mail).
+
+Die Sperrreihenfolge ist dieselbe wie bei „Annehmen“ und Adressänderung (erst Anmeldungen und Tokens, dann die
+Person); ein gleichzeitiger Zugriff ergibt 409 statt Deadlock. Das letzte Administratorkonto lässt sich nicht
+anonymisieren (409). Die Rückfrage nennt Zeugnisse, geschlossene Anmeldungen und Rollen.
+
+**Grenzen, bewusst:** Audit-Einträge **vor** dem 27.09.2026 enthalten noch Namen und Adressen (append-only,
+nicht bereinigbar); IP-Adressen in `audit_log` und `einwilligungen` bleiben; `ausgestelltVon` (Name des
+Ausstellers) in fremden Zeugnissen bleibt, wenn ein Mitarbeiter anonymisiert wird; Honorar-Belege eines
+Dozenten (Name/IBAN, auch im DMS) werden wegen der Aufbewahrungspflicht nicht angefasst; bereits ans DMS
+gesendete Kopien liegen außerhalb der Software. Der DMS-Nachversand erfasst Zeugnisse Anonymisierter mit
+bereinigtem Snapshot (offene Entscheidung ZEUG-dms-anonymisierte).
+
+**Echtes Löschen** einer Person gibt es im Code nicht. Auf Datenbankebene (als Eigentümer per SQL, etwa bei
+einer Testbereinigung) nimmt es ihre **Zeugnisse per `ON DELETE CASCADE` mit** — bewusst so gelassen: Das
+`REVOKE DELETE` für `gbs_app` sperrt nur das direkte Löschen von Zeugnissen, nicht den Weg über die Person.
+Ein `RESTRICT` wäre eine Aufbewahrungsentscheidung (E-betrieb-zeugnis-person-cascade); gelöscht werden
+dürfte eine Person mit Zeugnissen ohnehin erst nach Ablauf einer noch festzulegenden Aufbewahrungsfrist.
+
+### Personen: Statuswechsel, Ausbildungsdaten, Rollen
+
+Die Statusmaschine ist bedienbar: `POST /api/personen/[id]/status` und `PUT /api/personen/[id]/ausbildungsdaten`,
+beide mit Recht `PERSON_STATUS_WECHSELN` (nur Schulleitung), in der Detailakte als Block „Ausbildungsdaten &
+Status“. Die Regeln stehen DB-frei in `src/lib/status.ts` (Endzustand → 409; Ziel ANONYMISIERT oder
+INTERESSENT → 400; Grund Pflicht bei ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN; höchstens 500 Zeichen). **Einziger
+Schreibweg für Statuswechsel ist `src/lib/status-io.ts`** (`wechsleStatus`, `erfasseErstenStatus`);
+`pruefe-benutzerverwaltung.ts` wird rot, sobald `statusWechsel.create` woanders steht. Der **letzte
+Administrator** ist in Statusroute, Anonymisierung und Rollenroute geschützt (409); gezählt werden nur andere
+Administratoren **ohne** Endzustand.
+
+- **ABSOLVENT** (Fachentscheidung 3): Zugang bleibt, fällt aus Teilnehmer-, Anwesenheits- und Notenlisten und
+  aus allen Automatik-Mails; Zeugnisse bleiben ausstellbar (Zeugnisübersicht und Sammellauf schließen ABSOLVENT
+  ein), Noten gehen nur noch in der Akte. Empfohlene Reihenfolge: erst das Abschlusszeugnis, dann der Status.
+- **BEURLAUBT** und andere nicht aktive Ziele: kein Endzustand, aber die Person fällt aus allen Semesterlisten
+  — Noten und Zeugnis vorher erledigen. Die Rückfragen in der Oberfläche sagen das.
+- **Ausbildungsdaten:** Geburtsdatum, Gemeinde, Teilnahmeform. Die Gemeinde (Art. 9) lässt sich nur setzen,
+  wenn wirksame Einwilligungen in **alle** Art.-9-Texte vorliegen; leeren geht immer. Ein **Formwechsel** gilt
+  für die Teilnahmen des laufenden und der kommenden Semester, auch für abgemeldete; vergangene Semester
+  bleiben unverändert (offene Entscheidung PER-formwechsel-rueckwirkend). Audit nur mit Feldnamen.
+- **Rollen speichern** fragt mit „Entzogen/Hinzu“ nach, mit eigener Warnung beim Selbst-Entzug der Rolle
+  Administrator. „Anmeldelink schicken“ meldet jetzt echte Zustellfehler und nennt die richtige Drossel.
+- Die Personenliste zeigt die Quote wie die Akte (✓ erfüllt / • offen / ✕ nicht erreichbar); „Person
+  anlegen“ führt zur neuen Akte.
+
+### Semesterüberleitung: Rückmeldung, Frist, Erinnerungen
+
+**Datenvertrag.** `Teilnahme.eingeladenAm`, `abgemeldetAm`, `abmeldeGrund` (Migration
+`20260927110000_teilnahme_rueckmeldung`, rein additiv, mit CHECK `teilnahmen_abmeldung_konsistent`: Grund
+genau dann, wenn `abgemeldetAm` gesetzt ist; nur `BIN_RAUS` oder `KEINE_RUECKMELDUNG`). Das Nachtragen von
+`eingeladenAm` betraf nur Semester, die noch nicht begonnen hatten. **Regel für jede neue Abfrage auf die
+Teilnahmen eines Semesters: `TEILNAHME_ZAEHLT` (aus `src/lib/teilnahme-filter.ts`) einmischen** — nach Regel 1
+unten gilt eine Zusage erst, wenn alle Lesepfade sie einhalten; die Prüfskripte zählen die bekannten Stellen.
+
+- Der Link bietet **„Ich bin dabei“ und „Ich bin raus“** (mit Rückfrage). Die Antwort ist bis zum **Vortag
+  des Semesterstarts** änderbar, ab dem Starttag (Europe/Berlin) geschlossen (409). Eine eigene Absage hebt
+  ein späteres „dabei“ auf; eine `KEINE_RUECKMELDUNG` hebt nur die Schulleitung auf („Wieder aufnehmen“ auf
+  der Überleitungsseite).
+- **Ab Semesterstart** meldet `schliesseRueckmeldungen` jede Einladung ohne Antwort ab. Worker und
+  `/api/cron/erinnerungen` rufen es stündlich **vor** dem Erinnerungslauf auf; die Cron-Antwort lautet
+  `{ laeufe, abgemeldet }`, bei einem gescheiterten Teillauf 500 mit den Namen der Teilläufe. Weil
+  `eingeladenAm` den Aufräumlauf überlebt, holt es auch nach einem Worker-Ausfall nach (offene Entscheidung
+  SEM-nachholen-nach-ausfall).
+- **Antwortfrist:** Mail und Seite nennen „bis einschließlich {{frist}}“, den Vortag des Semesterstarts
+  (`rueckmeldeFrist`). Wird der Start verschoben, wandert die Linkfrist in derselben Transaktion mit (Audit
+  `SEMESTER_GEAENDERT` mit `linksNachgezogen`). Ein Vorziehen auf heute oder früher bei offenen Einladungen
+  wird mit 409 abgewiesen.
+- **Versand:** Die Start-Route legt die Teilnahmen an und antwortet sofort mit `{ eingeladen }`; die Mails
+  gehen danach per `after()` raus, höchstens drei gleichzeitig (der Klartext-Token existiert nur in diesem
+  Prozess). Bricht der Prozess mitten im Versand ab, bekommen die Übrigen keine Einladung; ihr Link bleibt
+  gültig, die nächste Erinnerung bringt einen frischen.
+- **Link- und Erinnerungssemantik:** Jede **zugestellte** Erinnerung trägt einen frischen Link und löst ältere
+  ab („Link aus der neuesten E-Mail“). Eine **gescheiterte** Erinnerung wird nicht wiederholt: Die Stufenmarke
+  bleibt stehen, der alte Link gültig, die nächste Stufe versucht es erneut — genau ein Versuch je Person und
+  Stufe. Jeder Stichtag (T-14/-7/-3), der am Tag der Einladung schon erreicht ist, gilt als erledigt; es geht
+  nie eine zweite Mail am selben Tag. Parallele Starts laden jeden nur einmal ein. **Wird am letzten Stichtag
+  (T-3) oder später gestartet, folgt keine Erinnerung mehr** — eine nicht zugestellte Einladung wird dann
+  nicht wiederholt (Hinweis im Start-Dialog; im Betrieb prüfen).
+- Die Sammelübernahme legt eine abgemeldete Teilnahme im selben Semester nicht neu an. Im Folgesemester
+  erscheint die Person aber wieder als „nicht zugeordnet“ und lässt sich übernehmen (offene Entscheidung
+  SEM-bin-raus-sammeluebernahme).
+- **Semesterverwaltung:** Lehrjahr und Halbjahr sind pflegbar (nur 3/2 erlaubt den gesammelten
+  Abschluss-Zeugnislauf), das Kürzel ist nach dem Anlegen fest (PUT mit anderem Kürzel → 400).
+- **Audit-Aktionen:** `SEMESTER_UEBERLEITUNG_GESTARTET` (mit `erledigteStufen`),
+  `SEMESTER_UEBERLEITUNG_VERSENDET`, `TEILNAHME_BESTAETIGT` (mit `vorher`), `TEILNAHME_ABGEMELDET`,
+  `TEILNAHME_OHNE_RUECKMELDUNG_ABGEMELDET` (Quelle SYSTEM, mit `teilnahmeIds`), `TEILNAHME_WIEDER_AUFGENOMMEN`,
+  `SEMESTER_ERINNERUNG_GELAUFEN` nur bei `gesendet > 0`, `AUFRAEUMEN_GELAUFEN` mit `objektId` = Herkunft
+  (WORKER/APP; ein Lauf mit Löschungen steht immer im Protokoll, sonst spätestens alle 12 h je Herkunft),
+  `WORKER_LAUF_FEHLGESCHLAGEN` (objektTyp System, objektId WORKER oder CRON).
+
+**Stundenplan (Verwaltung):** Die Quote folgt Modell A wie in Personen- und Schülerakte. Die Semesterwahl
+wechselt erst mit „Anzeigen“. Abgerechnete Abende sind gekennzeichnet (Dozent gesperrt, kein Löschen, Link zur
+Abrechnung). Auf der Dozentenseite springen „Offene Aufgaben“ per „Jetzt erfassen“ zum Abend.
+
+### Honorar
+
+- **Storno** OFFENER Abrechnungen: `DELETE /api/honorar/abrechnungen/[id]` (Recht `HONORAR_ABRECHNEN`), Posten
+  per Cascade, Audit `HONORAR_ABRECHNUNG_STORNIERT` mit allen Posten. Der **Dozentenwechsel** an einem
+  abgerechneten Abend ist gesperrt (409); Korrekturweg: stornieren → umhängen → neu abrechnen. **Eine
+  freigegebene oder ausgezahlte Abrechnung ist bewusst nicht korrigierbar** (kein Storno nach Freigabe);
+  Korrektur außerhalb, per Gegenbuchung.
+- **„Abrechnen“ schreibt nur fest, was die Rückfrage genannt hat** (Abende und Summe; sonst 409 „bitte neu
+  laden“). Genehmigen und Abrechnen fragen mit Betrag, Gültig-ab bzw. Dozent, Abenden und Betrag nach. Die
+  Honorarübersicht zeigt für abgerechnete Abende den eingefrorenen Betrag; ein rückdatierter Satz wirkt nur
+  auf noch offene Abende (offene Entscheidung E-honorar-rueckwirkender-satz).
+- **Freigeben** ist ohne Bankverbindung gesperrt; die IBAN trägt der Dozent selbst unter „Meine Daten“ ein,
+  die Serverfehlermeldung sagt das.
+- **Nachversand** eines nicht angekommenen DMS-Belegs: Zahlungsbeleg per `POST
+  /api/honorar/abrechnungen/[id]/beleg-senden` (Rechte `HONORAR_ABRECHNEN` + `BANKVERBINDUNG_LESEN`),
+  Satz-Beleg per `POST /api/honorar/saetze/[id]/beleg-senden` (`HONORAR_SATZ_GENEHMIGEN`), jeweils mit
+  derselben Beleg-Nr. Das PDF trägt „NACHVERSAND – Kopie des Belegs <Nr>, nicht erneut anweisen“ bzw. beim
+  Satz-Beleg „NACHVERSAND – Kopie des Belegs <Nr>“. **Der Nachversand trägt die dann hinterlegte IBAN** — die
+  Abrechnung speichert keine; die Mail sagt das (offene Entscheidung HON-iban-abgleich-nachversand). Ohne
+  `DMS_EMAIL` zeigen Abrechnung und Sätze-Seite statt des Knopfs einen Hinweis. Freigabe und Genehmigung
+  melden `dmsVersand` (`GESENDET | KEINE_ADRESSE | FEHLGESCHLAGEN | LAEUFT`).
+- **DMS-Versand unter Sperre:** Jeder Belegversand läuft unter einem Postgres-Advisory-Lock je Beleg in einer
+  Transaktion, die während des SMTP-Versands eine Verbindung hält (Zeitlimit 60 s); ein zweiter gleichzeitiger
+  Versand bekommt 409. Log-Meldung „Beleg gesendet, Festhalten unter der Sperre gescheitert — wird
+  nachgetragen“: Der Beleg ist beim DMS, `dmsGesendetAm` wurde außerhalb der Sperre nachgetragen. Folgt
+  „dmsGesendetAm nicht nachgetragen“, steht der Beleg fälschlich auf „Versand steht aus“; ein Nachversand
+  trägt dann den Kopie-Vermerk.
+- **Statuscodes:** `POST /api/honorar/abrechnungen` 400 bei keinen offenen Abenden, 409 wenn ein Abend
+  zwischenzeitlich abgerechnet oder umgehängt wurde; `…/[id]/freigeben` 404 (gibt es nicht bzw. storniert),
+  409 (nicht OFFEN oder keine IBAN), 500 (IBAN nicht entschlüsselbar); `…/[id]/auszahlen` 400 (ungültiges
+  Datum), 404, 409 (nicht FREIGEGEBEN). Bisher lieferten diese Routen pauschal 400.
+- **Beleg-Nummern** (`HON-`, `HONA-`, `ZEU-`, `BESCH-`, eine Regel in `src/lib/beleg-nr.ts`) tragen den
+  **Berliner Kalendertag**. Früher zwischen 0 und 2 Uhr vergebene Belege tragen den Vortag (nur die Referenz,
+  keine Migration) — wichtig für die Suche im DMS.
+
+### Noten und Zeugnisse
+
+- **Hörer werden nicht benotet:** Sie stehen nicht in Notenmatrix und Noten-Editor; Noten für Hörer → 400, für
+  abgemeldete Teilnahmen → 409. Das Abschlusszeugnis zählt nur Schüler-Semester, die zählen. Das Zod-Schema der
+  Noten-Routen liegt in `src/lib/leistung-schema.ts`; `leistung.ts` bleibt frei von zod, weil
+  Client-Komponenten sie importieren.
+- In der Detailakte ist „— nicht bewertet“ bei bewerteten Fächern gesperrt, nach dem Speichern zeigt die Akte
+  den Stand der Datenbank. Die Semesterwahl (Noten) bzw. Semester + Art (Zeugnisse) wechselt erst mit
+  „Anzeigen“; hat die Notenmatrix ungespeicherte Noten, fragt der Browser vor dem Wechsel bzw. Neuladen nach.
+- **„Alle ausstellen“** fragt mit konkreten Zahlen nach: neue Zeugnisse und Bescheinigungen, Teilnehmer mit
+  unbewerteten Fächern, Teilnehmer **ganz ohne Bewertung** (das Zeugnis enthielte keine Fächer) und beim
+  Abschluss Teilnehmer mit weniger als 6 Schüler-Semestern (Quereinsteiger). Der Knopf ist gesperrt, solange
+  eine geänderte Auswahl noch nicht angezeigt ist. **Abschlusszeugnisse gibt es gesammelt nur im letzten
+  Rastersemester** (Lehrjahr 3, Halbjahr 2; einzeln weiterhin jederzeit); ein Semester ohne Lehrjahr/Halbjahr
+  hat einen eigenen Sperrtext mit Verweis auf Verwaltung → Semester. Antwort des Sammellaufs:
+  `{ ausgestellt, vorhanden, fehlgeschlagen, gesamt }`; ABSCHLUSS außerhalb des letzten Semesters → 400,
+  unbekanntes Semester → 404.
+- Keine (Neu-)Ausstellung für ANONYMISIERT, Endzustände oder abgemeldete Teilnahmen (409).
+- **Ein durch „Neu ausstellen“ ersetztes Zeugnis** liefert dem Schüler über die alte Id **410** (mit Hinweis
+  auf „Meine Daten“). Die Schulleitung bekommt es weiterhin als PDF, aber mit dem Kopfvermerk „UNGÜLTIG –
+  ersetzt durch Beleg … am …“ und dem Dateinamen `<BelegNr>-UNGUELTIG.pdf`. Der Snapshot bleibt unverändert.
+- **DMS-Archivkopie:** Beim Ausstellen (einzeln und im Sammellauf) geht sie nach der Antwort raus (`after()`),
+  die Oberfläche wartet nicht auf den Mailserver. Frisch ausgestellte Zeugnisse erscheinen erst nach
+  **2 Minuten** als „noch nicht im DMS archiviert“ (nur mit `DMS_EMAIL`), damit der laufende Erstversand nicht
+  doppelt nachgesendet wird. Der **Nachversand** (Knopf auf der Zeugnisseite bzw. `POST
+  /api/zeugnisse/dms-nachsenden`, Recht `NOTEN_VERWALTEN`) sendet nur GÜLTIGE Zeugnisse, höchstens 4 Mails zu
+  je 50 Zeugnissen je Klick, gruppiert nach Abschnitt, bricht beim ersten SMTP-Fehler ab und ist gesperrt (ein
+  zweiter gleichzeitiger Klick → 409; ohne `DMS_EMAIL` → 409). Versandläufe haben ein Zeitbudget von 20 s;
+  wirft die Sperr-Transaktion nach gesendeten Kopien, gilt der Stand (kein 500). Audit
+  `ZEUGNIS_DMS_NACHGESENDET`. Bekanntes Restrisiko: Klickt jemand in den Sekunden des Erstversands
+  „Nachsenden“, kann eine Kopie doppelt im DMS liegen (Entscheidung ZEUG-dms-erstversand-vs-nachversand,
+  Empfehlung: hinnehmen).
+- **PDF-Zeichen:** Namen mit Zeichen außerhalb von Latin-1 werden über WinAnsi abgebildet (Š, Ž, Œ …) oder
+  transliteriert (ł→l, ř→r, ş→s, İ→I). Nicht-lateinische Schriften (Kyrillisch, Griechisch) erscheinen weiter als
+  „?“ (Entscheidung E-betrieb-pdf-nichtlateinische-schrift).
+
+### Anmeldung, Antwortansicht und Formular-Builder
+
+- **Antwortansicht** `/verwaltung/anmeldungen/[id]` („Antworten ansehen“): Antworten nach den Abschnitten der
+  verwendeten Formularfassung, Link „Akte öffnen“ (mit `PERSON_LESEN_ALLE`), darunter die Entscheidung.
+  Schulleitung: alle Antworten, Art. 9 nur bei wirksamer Einwilligung; Verwaltung: alle Nicht-Art.-9-Antworten;
+  Administrator: kein Zugriff. Die IBAN steht nie in der Ansicht; die Bankverbindung erscheint als „hinterlegt“,
+  der Klartext nur über „vollständig anzeigen“ (POST, protokolliert, `Cache-Control: no-store`). Jeder Abruf
+  schreibt `ANMELDUNG_ANTWORTEN_ANGESEHEN` (nur `personId` und `art9Angezeigt`). Nach Aufnehmen/Ablehnen bleibt
+  die Meldung stehen, bis „Ansicht aktualisieren“ geklickt wird. Anmeldungen Anonymisierter stehen nicht mehr in
+  der Arbeitsliste.
+- **Zwischenstand:** Der Link lautet `/anmeldung#fortsetzen=<token>`; das Formular lädt per
+  `POST /api/anmeldung {aktion:"laden"}`. `ANMELDUNG_MAX_PRO_IP` gilt je Aktion (speichern, absenden, laden) als
+  eigenes Kontingent. Alte `?fortsetzen=`-Links funktionieren weiter und werden beim ersten Aufruf ins Fragment
+  umgeschrieben (dieser eine Aufruf steht noch im Zugriffslog). Die Oberfläche nennt vorher, was nicht
+  gespeichert wird (Titel der Art.-9-Abschnitte und die IBAN), zeigt den Link mit Kopier-Knopf und sagt beim
+  Fortsetzen, dass die Zustimmungen neu zu setzen sind. Beim Verlassen mit ungesicherten Eingaben warnt der
+  Browser (Art.-9-Freitexte und IBAN gelten immer als ungesichert).
+- **Fangfeld:** Die öffentliche Anmeldung hat ein verstecktes Feld `hp_feld` (vorher `website`, das
+  Passwortmanager ausfüllten). Ist es gefüllt, antwortet der Server wie bei Erfolg, legt aber keine Akte an und
+  schickt keine Mail; Audit `ANMELDUNG_VERWORFEN_FANGFELD` ohne Werte. **Die Verwaltung sollte diese Aktion im
+  Protokoll beobachten** — jeder Eintrag ist ein Roboter oder eine still verworfene echte Anmeldung.
+- **Barrierefreiheit:** Pflichtangaben sind für Vorlesesoftware als „(Pflichtangabe)“ markiert; die
+  Art.-9-Einwilligung steht zusätzlich im Platzhalter, mit Live-Ansage und Fokus beim Freischalten; die
+  IBAN-Bestätigung steht in Textfarbe auf grüner Tönung.
+- **Formular-Builder:** Schlüssel und IDs laufen über eine clientseitige `uid`, die Abschnittsköpfe sind
+  beschriftet. Antwortmöglichkeiten werden erst beim Verlassen des Felds bereinigt; eine umbenannte Antwort muss
+  neu Schüler/Hörer zugeordnet werden. Die Zuordnung wird beim Laden übernommen (`alsBuilderAbschnitte` in
+  `lib/formular.ts`), die PUT-Route bereinigt Antworten und Zuordnung selbst, das Veröffentlichen prüft die
+  Felddefinition und nennt Mängel mit Feldschlüssel. **Das Aktenfeld Gemeinde ist immer „Besonders geschützt
+  (Art. 9)“** — das Häkchen wird gesetzt und gesperrt, der Server prüft es beim Speichern und beim
+  Veröffentlichen, und zur Laufzeit gilt die Gemeinde auch in älteren Fassungen ohne Häkchen als Art. 9. Die
+  gemeinsame, DB-freie Logik von Builder und Prüfskript liegt in `src/lib/formular-optionen.ts` (inkl.
+  `ART9_AKTENFELDER`), getrennt von `formular.ts` wegen des Prisma-Imports — dasselbe Muster wie `pruefwerte.ts`.
+- **Bestandsinstallationen:** Die veröffentlichte Formularfassung trägt den Satz „Mit * gekennzeichnete Felder
+  sind Pflichtangaben.“ weiter doppelt in der Einleitung (der Seed überschreibt keine Fassung). Für die
+  Schulleitung: Formulare → Entwurf öffnen → den Satz aus „Einleitung über dem Formular“ löschen → veröffentlichen.
+
+### Datenauskunft, Selbstpflege, Anmelden
+
+- Die **Auskunfts-PDF** enthält jetzt auch die Rückmeldung zur Semesterüberleitung (eingeladen, bestätigt,
+  abgemeldet mit Grund), Anwesenheit samt Selbstbestätigung, Leistungen und Noten, Zeugnisse (auch ersetzte,
+  mit DMS-Datum), Unterrichtsabende als Dozent und Honorarabrechnungen mit Posten. Freitext-Vermerke der Schule
+  werden nur benannt. Die Begleitangaben (Zwecke, Kategorien, Herkunft) sind erweitert, nennen einen
+  vorhandenen Ablehnungsgrund (gesondert herauszugeben, nicht abgedruckt) und die DMS-Übermittlung von
+  Zahlungsbelegen; der Zeugnis-Hinweis verweist auf die Schulverwaltung. Offen: DMS als Empfänger,
+  Protokolldaten, Speicherdauer, Art. 22 (siehe unten).
+- Ein **Adresswechsel** (durch die Verwaltung oder selbst bestätigt) entwertet auch offene Auskunftslinks
+  (Audit `entwerteteAuskunftslinks`); ein selbst bestätigter Wechsel zusätzlich offene Anmeldelinks
+  (`entwerteteAnmeldelinks`). Mails nach dem Commit laufen über `sendeNachVorlage` (kein 500 mehr bei Vorlagen-
+  oder SMTP-Fehler).
+- Eine **IBAN- oder Kontoinhaber-Änderung** unter „Meine Daten“ schickt die Hinweis-Mail
+  `BANKVERBINDUNG_GEAENDERT` an die hinterlegte Adresse (Rat: „ein (neues) Passwort setzen, damit fremde
+  Sitzungen enden“; offene Entscheidung E1-iban-freigabesperre). Der Klartext-Abruf der Bankverbindung läuft
+  per POST und nie aus einem Cache.
+- **Token im Fragment** gilt jetzt für alle Links: Anmeldung, Auskunft, Überleitung, Zwischenstand
+  (`#fortsetzen=`) und E-Mail-Bestätigung (`/meine-daten/email#token=…`). Alte `?token=`-Links werden bis zum
+  Ablauf noch gelesen und clientseitig ins Fragment verschoben.
+- **`/anmelden`** zeigt eine noch laufende Sitzung samt Abmelde-Knopf, verlinkt auf die Anmeldung zur
+  Bibelschule, zeigt Fehler rot getrennt vom Erfolg und bietet nach dem Senden „Andere Adresse eingeben“.
+  **Abmelden** löscht das `__Host-`-Cookie jetzt mit `Secure`/`Path`/`HttpOnly`/`SameSite` und `Max-Age=0`; der
+  Knopf leitet nur bei Erfolg weiter. Einen serverseitigen Widerruf gibt es nicht (Entscheidung
+  AUTH-serverseitiger-widerruf).
+- Die **Drosseln** zählen atomar per `pg_advisory_xact_lock` je Schlüssel; bei IPv6 ist der Anschluss das
+  /64-Netz.
+
+### Prüfen ohne Docker (Sandbox + PGlite)
+
+So lässt sich der Stand ohne Docker verifizieren (so geschah es am 27.09., bevor Docker wieder lief) — ohne die Sync-Fallen. Alles läuft
+in einer **Kopie außerhalb des synchronisierten Ordners**; das Repo wird nur gelesen. Exit-Codes immer über eine
+`EXIT=`-Zeile am Log-Ende lesen, nie über `| tail`.
+
+```bash
+SBR="$HOME/gbs-sandbox"; REPO="<Repo-Wurzel>"
+mkdir -p "$SBR/gbs-campus" && rsync -a --delete --exclude node_modules --exclude .next --exclude prisma/compiled --include .env.example --exclude '.env' --exclude '.env.*' --exclude '*.tsbuildinfo' "$REPO/gbs-campus/" "$SBR/gbs-campus/"
+```
+
+`.env.example` muss mit (`pruefe-betrieb.ts` liest es), jede echte `.env` bleibt draußen. Dann in
+`$SBR/gbs-campus` — `npm ci` nur, wenn sich `package-lock.json` geändert hat:
+
+```bash
+npm ci --ignore-scripts > ../npm-ci.log 2>&1; echo "EXIT=$?" >> ../npm-ci.log
+npx prisma generate > ../generate.log 2>&1; echo "EXIT=$?" >> ../generate.log
+DATABASE_URL="postgresql://x:x@127.0.0.1:5432/x" npx prisma validate > ../validate.log 2>&1; echo "EXIT=$?" >> ../validate.log
+npx tsc --noEmit > ../tsc.log 2>&1; echo "EXIT=$?" >> ../tsc.log
+npm run pruefen > ../pruefen.log 2>&1; echo "EXIT=$?" >> ../pruefen.log
+env -i PATH="$PATH" HOME="$HOME" TZ=Europe/Berlin npm run pruefen > ../pruefen-wie-docker.log 2>&1; echo "EXIT=$?" >> ../pruefen-wie-docker.log
+env -i PATH="$PATH" HOME="$HOME" NEXT_TELEMETRY_DISABLED=1 npm run build > ../build.log 2>&1; echo "EXIT=$?" >> ../build.log
+bash -n scripts/durchstich.sh; echo "EXIT=$?"
+```
+
+`prisma validate` braucht eine `DATABASE_URL`, baut aber keine Verbindung auf — ein Platzhalter genügt. Der
+Build läuft in leerer Umgebung wie die Stufe `builder` (dort ist keine Build-Umgebung gesetzt). Die drei
+esbuild-Bundles (`prisma/seed.ts`, `scripts/worker.ts`, `prisma/setup-app-nutzer.ts`) baut man mit denselben
+Flags wie im `Dockerfile` (`--bundle --platform=node --target=node24 --format=cjs --tsconfig=tsconfig.json
+--external:@prisma/client`).
+
+**Migrationen gegen PGlite** (PostgreSQL als WASM, kein Server nötig). In einem eigenen Ordner neben der Kopie
+`npm install @electric-sql/pglite @electric-sql/pglite-socket`, dann zwei kleine Node-Skripte:
+
+- **Migrationstest:** eine In-Memory-`PGlite`-Instanz, jede `prisma/migrations/*/migration.sql` in
+  lexikografischer Reihenfolge einzeln mit `db.exec()` (wie `prisma migrate deploy`), danach gezielte
+  SQL-Prüfungen, jede in einer Transaktion, die zurückgerollt wird (Trigger, Append-only, CHECKs, partielle
+  Indexe, Nachtragen, Idempotenz).
+- **Drift-Prüfung:** je Lauf eine frische `PGlite`-Instanz hinter `PGLiteSocketServer` auf `127.0.0.1:<Port>`
+  als Shadow-Datenbank, dann in der Kopie
+  `npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url "postgresql://postgres:postgres@127.0.0.1:<Port>/postgres?sslmode=disable&connection_limit=1" --script`.
+  Soll: `-- This is an empty migration.`
+
+Grenzen: PGlite ist PostgreSQL 18, die Produktion 16. Prisma 6.19 sieht weder Trigger noch CHECKs noch
+partielle Indexe — die deckt nur der Migrationstest, nicht der Drift-Diff. Ergebnis am 27.09.: 24 Migrationen,
+65 SQL-Prüfungen OK, kein Drift. Die Hilfsskripte liegen nicht im Repo; wer sie dauerhaft braucht, legt sie als
+`scripts/pruefe-migrationen-pglite.mjs` o. ä. an (dann mit eigener `package.json`, damit die Abhängigkeit nicht
+ins Image wandert).
+
+### Prüfzahlen (Soll, Stand 27.09.2026)
+
+| Skript | Soll | Skript | Soll |
+|---|---:|---|---:|
+| formularlogik | 65 | selbstbestaetigung | 15 |
+| semesterlogik | 149 | honorar | 68 |
+| eigene-daten | 58 | honorar-abrechnung | 70 |
+| passwort | 38 | benutzerverwaltung | 92 |
+| auskunft | 52 | anonymisierung | 43 |
+| beitrag | 16 | herkunft | 42 |
+| faecher | 17 | anmeldung-antworten | 58 |
+| stundenplan | 45 | betrieb | 110 |
+| quote-schueler | 53 | **`npm run pruefen` gesamt** | **1177 in 19 Skripten** |
+| leistung | 67 | `npm run pruefen:db` (einstellungen + auskunft-db) | 19 + 18 |
+| zeugnis | 119 | `bash scripts/durchstich.sh` | **766** (grün 27.09.) |
+
+`pruefe-stundenplan.ts` muss in Europe/Berlin laufen (Abschnitt 8 prüft feste UTC-Zeitpunkte über die
+Zeitumstellung) und wird in UTC absichtlich rot; `pruefe-alle.ts` setzt die Zeitzone je Skript selbst. Jedes
+Skript prüft seine Soll-Zahl (`ERWARTET`), der Durchstich `SOLL` am Skriptende — beim Ergänzen mit anheben.
+
+### Offene Entscheidungen
+
+Nicht umgesetzt, weil sie eine fachliche oder organisatorische Wahl verlangen. Kürzel wie im Bericht der
+Fix-Runden; die Empfehlung ist ein Vorschlag, keine Festlegung.
+
+| Kürzel | Frage | Empfehlung |
+|---|---|---|
+| **Rechte und Sicherheit** | | |
+| SEC-admin-selbstvergabe, ARCH-rollen-obergrenze | Ein Administrator kann sich selbst fachliche Rollen geben; es gibt keine Obergrenze beim Vergeben. | Selbsterweiterung 403, Obergrenze (ADMIN vergibt alles außer an sich selbst), Mail an die Schulleitung bei Vergabe von ADMIN/SCHULLEITER/VERWALTUNG |
+| SEC-honorar-selbstabrechnung | Verwaltung und Dozent in einer Person können sich selbst abrechnen, freigeben, auszahlen und vergangene Abende selbst zuordnen. | Selbstbegünstigung 409, Selbstzuordnung vergangener Abende sperren; Vier-Augen erst ab zwei Berechtigten |
+| E1-iban-freigabesperre | Reicht nach einem IBAN-Wechsel die Hinweis-Mail? | Freigabe zeigt „Bankverbindung seit letzter Abrechnung geändert“ und verlangt eine Bestätigung (Rückruf) |
+| AUTH-serverseitiger-widerruf | Ein kopiertes Sitzungscookie bleibt bis Max-Age gültig. | Knopf „Überall abmelden“ in „Meine Daten“ |
+| E-betrieb-migrationsdienst | Eigentümer-Passwort ganz aus dem App-Container nehmen? | eigener Init-Dienst `migrate`, `app` nur mit `gbs_app` (macht `gbs_app` zur Pflicht); danach Abschnitt 49 umdrehen |
+| E3-rechte-ohne-funktion | Vier Rechte ohne Prüfstelle | behalten und kennzeichnen (umgesetzt); über das Entfernen von `IMPERSONATION` vor dem GoLive entscheiden |
+| E5-ipv6-praefix | IPv6-Anschluss als /64 | /64 belassen |
+| ERR-anmeldelink-ip-drossel, PER-ip-drossel-anmeldelink | Der Anmeldelink der Verwaltung zählt gegen das IP-Kontingent des Büros (am Semesterstart drohen 429). | eigenes Kontingent je Akteur bzw. IP-Drossel für den Verwaltungsweg aussetzen |
+| **Datenschutz** | | |
+| LUECKE-art9-widerruf | Widerruf der Art.-9-Einwilligung wird versprochen, ist aber nicht umsetzbar. | Aktion für die Schulleitung (Einwilligung erteilt=false, Gemeinde leeren, Art.-9-Antworten „[widerrufen]“) |
+| LUECKE-loeschfrist-abgelehnte | Keine Löschfrist für abgelehnte Bewerber | Fälligkeitsliste mit Knopf, später automatisch |
+| ANM-art9-nach-entscheidung | Art.-9-Antworten bleiben nach der Entscheidung sichtbar. | nur bei EINGEREICHT anzeigen |
+| ZEUG-dms-anonymisierte | DMS-Nachversand erfasst Zeugnisse Anonymisierter | `ANONYMISIERT` ausschließen |
+| E-betrieb-zeugnis-person-cascade | Zeugnisse verschwinden beim echten Löschen der Person per Cascade. | `RESTRICT` auf `zeugnisse_personId_fkey` plus `REVOKE DELETE ON personen FROM gbs_app`; Aufbewahrungsfrist getrennt festlegen |
+| E-auskunft-empfaenger-dms | DMS als Empfänger bzw. Auftragsverarbeiter nennen? | Satz zum DMS des Trägers ergänzen, bei externem Dienstleister diesen nennen |
+| E-auskunft-protokolldaten | Protokolldaten in die Auskunft? | Versandprotokoll und eine Zusammenfassung der Audit-Einträge aufnehmen |
+| E-auskunft-speicherdauer | Konkrete Aufbewahrungsfristen nennen? | ja, nachdem der Träger sie festgelegt hat (z. B. Honorarabrechnungen 10 Jahre nach § 147 AO) |
+| E-auskunft-art22 | Widerspricht „keine automatisierte Entscheidung“ der automatischen Abmeldung ohne Rückmeldung? | Satz präzisieren (regelbasiert, jederzeit durch die Schulleitung umkehrbar) |
+| BETR-einwilligung-tippfehler | Einwilligungstexte v1 mit „fuer“/„ausdruecklich“ | nach Freigabe als Fassung 2 korrigieren |
+| E2-personenname-im-seitentitel | Name der Person im Tab-Titel? | nein, feste Titel beibehalten (umgesetzt) |
+| **Betrieb und Architektur** | | |
+| ARCH-seed-ueberschreibt-konfiguration | Seed überschreibt Statusschalter, Rechtematrix, Vorlagen, Raster; Kommentare versprechen Änderbarkeit. | jetzt Kommentare korrigieren (Code-Konfiguration offiziell), mit einem Editor „Seed nur anlegen“ |
+| ARCH-status-schalter-tot | `anwesenheitZaehlt`/`beitragLaeuft` werden nicht gelesen; ANGENOMMEN zählt entgegen dem Schalter. | Schalter nutzen (Verhalten gleich), `beitragLaeuft` kommentieren |
+| PERF-belegdaten-ungebunden | Was soll der Satz-Beleg dokumentieren? | nur die Abende, deren Betrag dieser Satz bestimmt |
+| E-betrieb-pdf-nichtlateinische-schrift | Kyrillisch/Griechisch im PDF als „?“ | belassen, lateinische Ausweisschreibweise erfassen |
+| E-SEM-dozent-semesterfenster | Dozenten-Startseite lädt die ganze Historie. | laufendes, künftige und Vorsemester voll laden, ältere eingeklappt |
+| ENT-version-package | `package.json` steht auf 0.1.0, die Commits auf 0.4. | 0.4.0 mit ausdrücklichem Auftrag |
+| **Semester und Überleitung** | | |
+| PER-abgebrochen-endzustand | ABGEBROCHEN ist Endzustand ohne Rückweg. | nicht terminal, Übergang → AKTIV mit Pflichtgrund |
+| PER-formwechsel-rueckwirkend | Formwechsel stellt die laufende Teilnahme auch kurz vor Semesterende um. | Wahl „ab sofort“ oder „ab nächstem Semester“ |
+| SEM-nachholen-nach-ausfall | Nachholen nach Worker-Ausfall meldet auch aktiv Teilnehmende ab. | Teilnahmen mit Anwesenheit oder Noten ausnehmen |
+| SEM-bin-raus-sammeluebernahme | „Bin raus“ wird im Folgesemester per Übernehmen still aufgehoben. | getrennt ausweisen, nur einzeln übernehmbar |
+| SEM-zusage-von-hand | Telefonische Zusage nicht eintragbar | Knopf „Zusage eintragen“ |
+| SEM-einladung-erneut-senden, E-ueberleitung-nachversand | Kein „Einladung erneut senden“; nach T-3 keine Wiederholung | Sammelknopf für nicht zugestellte Einladungen; automatischer Nachversand nur bei Bedarf |
+| E-semester-start-vorziehen-heute | Beginn auf heute vorziehen ist bei offenen Einladungen gesperrt, ohne Ausweg. | Meldung nennt den frühesten möglichen Tag |
+| E-semester-start-vorziehen-zukunft | Vorziehen in der Zukunft verkürzt die Antwortfrist still. | Rückfrage mit Zahl der Betroffenen |
+| SEM-zahlweise-excel | Zahlweise fehlt im Excel-Export. | Spalte aus der jüngsten angenommenen Anmeldung, falls Lastschriften aus dem Export laufen |
+| **Honorar, Zeugnisse, Anmeldung** | | |
+| HON-iban-abgleich-nachversand | Nachversand nutzt die aktuelle IBAN ohne Abgleich. | IBAN-Fingerabdruck bei der Freigabe, Abweichung 409 |
+| E-honorar-rueckwirkender-satz | Soll ein rückwirkender Satz für abgerechnete Abende etwas auslösen? | nein; Rückfrage warnt bei Gültig-ab in der Vergangenheit |
+| LUECKE-bescheinigung-ohne-anwesenheit | Teilnahmebescheinigung bestätigt alle Fächer auch ohne Anwesenheit. | nur Fächer mit mindestens einer Anwesenheit; Sammellauf überspringt Personen ohne Anwesenheit |
+| ZEUG-storno-ohne-ersatz | Kein Zeugnis-Storno ohne Ersatz | Status STORNIERT mit Pflichtgrund, nach Abstimmung zur Aufbewahrung |
+| ZEUG-dms-erstversand-vs-nachversand | Doppelte Archivkopie möglich, wenn der Nachversand in den Erstversand fällt | hinnehmen |
+| LUECKE-anmeldung-gesamtdrossel, E-ANM-missbrauchsschutz | Reicht Fangfeld plus IP-Drossel? | Gesamtdrossel `ANMELDUNG_MAX_GESAMT` als Einstellung (Wert offen, z. B. 30/h) |
+| ANM-du-sie, E-ANM-anrede | Das Formular mischt Du und Sie. | durchgängig „du“; Bestand im Builder angleichen |
+| E4-anmeldestatus-begriff | Stand einer angenommenen Anmeldung heißt überall „Angenommen“. | so belassen (umgesetzt) |
+
+---
+
+## Stand 29.07.2026, abends
 
 Release **0.2 ist inhaltlich komplett** — alle vier Bausteine (Semesterüberleitung, Kursraster,
 Stundenplan/Anwesenheit, Worker, Löschkonzept nach Art. 17 und zuletzt **#4 Selbstbestätigung der
@@ -71,17 +671,19 @@ siehe unten) — und ohne `prisma generate` prüft es ohnehin keine Prisma-Feldn
 docker run --rm gbs-campus-builder:local npm run pruefen
 ```
 
-Soll: **351 Prüfungen** über zwölf Fachlogik-Skripte (Formular, Semester, Selbstpflege, Passwort,
-Auskunft, Beitrag, Fächer, Stundenplan, Selbstbestätigung, Honorar, Benutzerverwaltung, Anonymisierung).
-Jedes Skript meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft eine eigene Soll-Zahl.
+Soll (Stand 27.09.2026): **1177 Prüfungen in 19 Skripten** — die Liste steht oben unter „Prüfzahlen“.
+`npm run pruefen` startet `scripts/pruefe-alle.ts`, das jedes Skript in `TZ=Europe/Berlin` laufen lässt und
+am Ende die Gesamtsumme nennt. Jedes Skript meldet am Ende selbst, ob wirklich alle gelaufen sind, und prüft
+eine eigene Soll-Zahl. Seit Code-Review 4 führt schon `docker build --target builder` diese Prüfungen aus.
 
 ```bash
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1 && bash scripts/durchstich.sh
 ```
 
-Soll: **269 Prüfungen**. Der Durchstich braucht die Dev-Datenbank auf Port 5434 (`docker start
-gbs-campus-db-dev`) und legt sich darin eine eigene Datenbank `gbs_durchstich` an. Auch er zählt jetzt
-gegen eine Soll-Zahl (`SOLL=269` am Skriptende) — beim Ergänzen einer Prüfung mit anheben.
+Soll (Stand 27.09.2026): **766 Prüfungen** (grün). Der Durchstich braucht die Dev-Datenbank auf Port 5434
+(`docker start gbs-campus-db-dev`, ohne eigene Zeitzone, also UTC) und legt sich darin eine eigene Datenbank
+`gbs_durchstich` an. Auch er zählt gegen eine Soll-Zahl (`SOLL=766` am Skriptende) — beim Ergänzen einer
+Prüfung mit anheben. Seit M19 ist er kalenderunabhängig und läuft an jedem Tag gleich.
 
 Drei Prüfungen sind maschinenabhängig und können auf einer belasteten Maschine ausschlagen: die
 Laufzeitgrenzen im Durchstich (650 ms / 300 ms Abstand), der Faktor 2 bei der Laufzeitangleichung und
@@ -143,7 +745,9 @@ docker run -d --name gbs-laientest -p 3000:3000 \
 `APP_URL` muss **`127.0.0.1`** sein, nicht `localhost`: Der Startprüfer verbietet `localhost` bei
 `NODE_ENV=production`, und `NODE_ENV` ist im Standalone-Build fest einkompiliert (ein Runtime-Override
 wirkt nicht). Folge: Magic-Links werden **nie** geloggt — in der Testinstanz meldet man sich per
-**Passwort** an. Ein Schulleitungskonto anlegen (Passwort-Hash direkt in die DB, weil `testperson-anlegen.ts`
+**Passwort** an. **Im Browser dann auch genau `http://127.0.0.1:3000` öffnen**, nicht `localhost:3000`:
+Seit Code-Review 4 weist die Herkunftsprüfung sonst jede Änderung mit 403 ab (siehe „Neue Regeln für Betrieb
+und Weiterbau“). Ein Schulleitungskonto anlegen (Passwort-Hash direkt in die DB, weil `testperson-anlegen.ts`
 keins setzt) und mindestens ein Semester mit offenem Anmeldefenster (siehe `/verwaltung/semester`).
 
 ---
@@ -204,7 +808,12 @@ docker start gbs-campus-db-dev || docker run -d --name gbs-campus-db-dev -e POST
 cd gbs-campus && export DATABASE_URL="postgresql://gbs:gbs_dev_2026@localhost:5434/gbs_campus?schema=public" && export ENCRYPTION_KEY="$(openssl rand -hex 32)" && export SESSION_SECRET="$(openssl rand -hex 32)" && export APP_URL="http://localhost:3000" && npm run dev
 ```
 
-Ein Konto zum Anmelden gibt es noch nicht — es existiert keine Benutzerverwaltung. Für die Entwicklung:
+Das Portal dann unter genau dieser Adresse öffnen (`http://localhost:3000`, nicht `127.0.0.1`), sonst weist
+die Herkunftsprüfung jede Änderung mit 403 ab.
+
+Eine frische Datenbank hat noch kein Konto. Weitere Konten legt man später in der Oberfläche an
+(Verwaltung → Personen → „Person anlegen“, Recht `BENUTZER_VERWALTEN`, Rollen ebenda) — das **erste** Konto
+entsteht für die Entwicklung per Skript:
 
 ```bash
 npx tsx scripts/testperson-anlegen.ts peter@beispiel.de SCHULLEITER
@@ -224,7 +833,8 @@ siehe den nächsten Abschnitt. Prüfen und verifizieren lässt sich dann alles i
 **Der Rechner synchronisiert den Projektordner.** Synology Drive und iCloud Drive indizieren den
 Desktop mitsamt `node_modules` — rund 50.000 Dateien. Folgen: `tsc` und `next build` bleiben bei 0 %
 CPU hängen, und einmal wurde eine Paketdatei mit Nullbytes überschrieben. **Verifiziere im Docker-Build,
-nicht lokal.** Besser noch: `node_modules` und `.next` von der Synchronisierung ausnehmen.
+nicht lokal** — oder, ohne Docker, in einer Kopie außerhalb des synchronisierten Ordners (siehe oben „Prüfen
+ohne Docker“). Besser noch: `node_modules` und `.next` von der Synchronisierung ausnehmen.
 
 **`| tail` verschluckt den Exit-Code.** `docker build … | tail -20` meldet Erfolg, auch wenn der Build
 gescheitert ist. Bei allem, wo der Exit-Code zählt: in eine Datei umleiten und `$?` prüfen.
@@ -316,6 +926,12 @@ Nicht neu aufrollen — sie sind begründet und im Bauplan dokumentiert.
 | **Formular-Builder wird gebaut** | Steht wörtlich im Interview. War kurzzeitig gestrichen — die Streichung beruhte auf einer zu engen Lesart und ist zurückgenommen. |
 | **Ehepartner-Rabatt 50 %** | Existiert. Als konfigurierbare Tabelle umgesetzt, nicht als fest verdrahteter Satz. |
 | **Keine automatische Absage-Mail** | Eine Absage an jemanden, der sich für eine Bibelschule beworben hat, formuliert der Schulleiter selbst. |
+| **Anonymisierung erfasst auch Zeugnis-Snapshots** (27.09.2026) | Name und Geburtsdatum werden überschrieben, das Zeugnis bleibt als namenloser Nachweis. Name + Bibelschule ist eine Angabe mit Art.-9-Bezug. |
+| **„Bin raus“ / keine Rückmeldung meldet die Teilnahme ab, nicht die Person** (27.09.2026) | Ein Semester auszusetzen ist kein Abbruch. Gespeichert an der Teilnahme, alle Semesterlisten filtern mit `TEILNAHME_ZAEHLT`. |
+| **ABSOLVENT ist kein Endzustand** (27.09.2026) | Absolventen brauchen den Zugang für Abschlusszeugnis und eigene Daten; sie zählen nicht als aktiv und bekommen keine Automatik-Mails. |
+| **Gemeindezugehörigkeit bleibt in Excel-Export und Oberfläche** (27.09.2026) | Abgewogen: Die Angabe ist Art.-9-relevant und verlässt mit dem Export das System; entschieden ist, Export und Anzeige unverändert zu lassen. Schutz bleibt: Erfassung nur mit Einwilligung, jeder Export im Audit-Log, keine IBAN im Export. Befunde dazu gelten als bewusst. |
+| **Art.-9-Antworten nur mit Recht und Einwilligung sehen** (Code-Review 4) | Die Antwortansicht zeigt Art.-9-Antworten nur mit `ANMELDUNG_ENTSCHEIDEN` **und** wirksamer Einwilligung. Es gilt die jüngste Einwilligungszeile, Gleichstand gilt als nicht erteilt; Antworten zu unbekannten Codes werden wie Art. 9 behandelt; die IBAN steht nie darin. Gespeichert werden Art.-9-Antworten nur, wenn **alle** aktiven Art.-9-Texte erteilt sind — dieselbe Regel, nach der das Formular freischaltet (`art9Eingewilligt` in `lib/anmeldung-antworten.ts`); ein mitgeschickter Code ohne gültigen Text erteilt nichts. Ob sie nach der Entscheidung sichtbar bleiben, ist offen (ANM-art9-nach-entscheidung). |
+| **Audit nur mit Feldnamen** (Code-Review 4) | Das Audit-Log ist unlöschbar, die Anonymisierung erreicht es nicht. Personenwerte gehören deshalb nicht hinein. |
 
 ---
 
@@ -342,6 +958,16 @@ entweder einen Alarm oder eine Ansicht.
 Dazu eine technische: **Row-Level-Trigger greifen nicht bei `TRUNCATE`** — dafür braucht es
 zusätzlich Statement-Level-Trigger.
 
+Aus Code-Review 4 kommen drei weitere dazu:
+
+- **Nachweisdaten auf DB-Ebene sichern, nicht per Konvention.** Einwilligungstexte, Honorarsätze,
+  Abrechnungen samt Posten und Zeugnisse sind jetzt per Trigger eingefroren. Ein neuer Schreibweg an diesen
+  Tabellen braucht eine Migration, die die Trigger-Funktion anpasst.
+- **Eine Semester-Zusage gilt für alle Lesepfade.** Wer Teilnahmen eines Semesters abfragt, mischt
+  `TEILNAHME_ZAEHLT` ein — sonst stehen Abgemeldete wieder in Liste, Export, Anwesenheit, Noten oder
+  Zeugnislauf.
+- **Ins Audit gehören Feldnamen, keine Personenwerte** (siehe „Fachentscheidungen“ oben).
+
 ---
 
 ## Prüfen, ob noch alles steht
@@ -350,8 +976,9 @@ zusätzlich Statement-Level-Trigger.
 npm run pruefen
 ```
 
-179 Prüfungen der Fachlogik (Formular, Semester, Selbstpflege, Zugang, Passwort), ohne Datenbank. Dann
-der vollständige Durchstich mit 150 Prüfungen:
+1177 Prüfungen der Fachlogik in 19 Skripten (Stand 27.09.2026), ohne Datenbank, jedes Skript in
+Europe/Berlin. Dann der vollständige Durchstich mit 766 Prüfungen (`bash scripts/durchstich.sh` nach dem
+Build):
 
 ```bash
 docker build -t gbs-campus-test:local . > /tmp/build.log 2>&1; echo "Exit: $?"
@@ -449,9 +1076,13 @@ Wer daran weiterbaut, drei Sätze zum Merken:
   des Sitzungstokens geprüft. Wer eine Passwort- oder Adressänderung schreibt, muss deshalb
   anschließend `sitzungAnlegen()` aufrufen, sonst sperrt sich der Handelnde selbst aus.
 
-## Was als Nächstes gebaut wird
+## Was als Nächstes gebaut wird (Stand 29.07.2026)
 
-**Der Verifikationslauf ist am 28.07. grün durchgelaufen** — siehe ganz oben. Damit ist der Weg für
+> Dieser Abschnitt beschreibt den Ausbau bis zum 29.07.2026. Was heute ansteht, steht ganz oben unter
+> „Neuester Stand (27.09.2026)“; die Releases 0.3 und 0.4 (Honorar-Abrechnung, Dozenten- und Schülerbereich,
+> Noten, Zeugnisse, UI-Umbau) beschreibt das README.
+
+**Der Verifikationslauf ist am 28.07. grün durchgelaufen** — siehe weiter oben. Damit ist der Weg für
 alles Weitere frei.
 
 **Punkt (2) ist am 29.07. erledigt:** Die **vier Beträge liegen als Einstellungen** (Bereich BEITRAG,
@@ -550,7 +1181,7 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 | Frage | Worum es geht |
 |---|---|
 | **Wer sieht die Betriebsansicht?** | Sie hängt an `SYSTEM_EINSTELLUNGEN` — nur der Administrator. Die neuen Warnungen (hängende Mails, Empfänger null, Aufräumlauf tot) sieht damit ein einziges Konto. Beim Protokoll ist die Schulleitung inzwischen dabei. |
-| **Token im Zugriffsprotokoll des Proxy** — ✅ erledigt (29.07.) | Anmelde-, Bestätigungs- und Auskunftslink tragen den Token jetzt im **Adressfragment** (`…#token=…`), das der Browser nicht an den Server schickt — Traefik protokolliert ihn damit nicht mehr. Die Bestätigungsseiten lesen ihn clientseitig aus `location.hash`. |
+| **Token im Zugriffsprotokoll des Proxy** — ✅ erledigt (29.07., ergänzt 27.09.) | Anmelde-, Bestätigungs- und Auskunftslink tragen den Token jetzt im **Adressfragment** (`…#token=…`), das der Browser nicht an den Server schickt — Traefik protokolliert ihn damit nicht mehr. Die Bestätigungsseiten lesen ihn clientseitig aus `location.hash`. Seit Code-Review 4 gilt das auch für den E-Mail-Bestätigungslink (`/meine-daten/email#token=…`) und den Zwischenstand der Anmeldung (`/anmeldung#fortsetzen=…`); alte Links mit `?token=` bzw. `?fortsetzen=` werden noch gelesen und clientseitig ins Fragment verschoben. |
 | **Speichergrenze für den App-Container** — ✅ erledigt (29.07.) | `mem_limit: 768m` für die App und `256m` für den Worker sind im `docker-compose.yml` gesetzt — ohne sie holt sich der OOM-Killer im Zweifel die Datenbank statt der Anwendung. |
 
 ---
@@ -570,29 +1201,43 @@ Token-im-Log-Punkt ist am 29.07. erledigt):
 - **Der partielle Index `semester_genau_ein_aktuelles` ist Prisma unbekannt.** Partielle Indexe lassen
   sich im Schema nicht ausdrücken; `prisma migrate dev` nimmt deshalb ein `DROP INDEX` in die nächste
   erzeugte Migration auf und die Invariante „genau ein laufendes Semester" fiele lautlos weg.
-  **Jede von `migrate dev` erzeugte Migration vor dem Committen ansehen.** Dasselbe gilt für die fünf
-  Append-only-Trigger. Der Hinweis steht auch am Semester-Modell in `schema.prisma`.
-- **Getrennter Anwendungs-Datenbanknutzer (29.07., opt-in).** Sobald `APP_DB_PASSWORD` gesetzt ist,
-  verbindet sich der laufende Server als `gbs_app` — nur DML, kein DDL, und auf `audit_log`/
-  `einwilligungen` nur INSERT (kein UPDATE/DELETE, per Recht entzogen). Der Append-only-Schutz hängt
-  damit nicht mehr allein am Trigger, den ein Eigentümer entfernen könnte. Migration, Setup der Rolle
-  und Seed laufen weiter als Eigentümer (sie brauchen DDL); der Entrypoint schaltet erst danach auf
-  `gbs_app` um. Eingerichtet wird die Rolle idempotent von `prisma/setup-app-nutzer.ts`. Im Durchstich
-  lief die **ganze App als `gbs_app`** (248 Prüfungen grün, inkl. Nachweis, dass `gbs_app` das
-  Audit-Log nur ergänzen, nicht ändern darf); ohne die Variable bleibt es beim Eigentümer-Zugang
-  (nicht-brechend). Der `worker` läuft bewusst weiter als Eigentümer — er ist nicht web-exponiert und
-  seine Operationen sind eine Teilmenge der (als `gbs_app` geprüften) App-Schreibvorgänge.
+  **Jede von `migrate dev` erzeugte Migration vor dem Committen ansehen.** Dasselbe gilt für alle Trigger
+  (Append-only, Einwilligungstexte, eingefrorene Belege — `migrate dev` kennt keine Trigger), für die
+  CHECK-Constraints (`teilnahmen_abmeldung_konsistent`, Ehepartner) und die übrigen partiellen Indexe
+  (`zeugnis_*`). Prisma lässt sie stehen, erzeugt sie aber auch nicht; der Drift-Diff sieht sie nicht. Der
+  Hinweis steht auch am Semester-Modell in `schema.prisma`.
+- **Getrennter Anwendungs-Datenbanknutzer (29.07., opt-in; nachgeschärft 27.09.).** Sobald
+  `APP_DB_PASSWORD` gesetzt ist, verbindet sich der laufende Server als `gbs_app` — nur DML, kein DDL, und
+  auf `audit_log`/`einwilligungen` nur INSERT (kein UPDATE/DELETE, per Recht entzogen); seit 27.09. zusätzlich
+  kein UPDATE/DELETE/TRUNCATE auf `einwilligungs_texte`, kein DELETE auf Honorarsätzen, Posten und Zeugnissen
+  und kein UPDATE auf Posten. Der Append-only-Schutz hängt damit nicht mehr allein am Trigger, den ein
+  Eigentümer entfernen könnte. Migration, Setup der Rolle und Seed laufen weiter als Eigentümer (sie brauchen
+  DDL); der Entrypoint schaltet erst danach auf `gbs_app` um — **nur, wenn `APP_DB_PASSWORD` nicht leer ist**
+  (bis Code-Review 4 genügte die immer gesetzte `APP_DATABASE_URL`, und ein leeres Passwort legte den Server
+  lahm, M2). Das Passwort braucht mindestens 16 Zeichen, nur Buchstaben und Ziffern, sonst bricht der Start ab;
+  nach dem Umschalten entfernt der Entrypoint `DB_PASSWORD` aus dem Serverprozess (nicht aus der
+  Container-Konfiguration, siehe E-betrieb-migrationsdienst). Eingerichtet wird die Rolle idempotent von
+  `prisma/setup-app-nutzer.ts`. Im Durchstich läuft die **ganze App als `gbs_app`**; ohne die Variable bleibt
+  es beim Eigentümer-Zugang (nicht-brechend). Der `worker` läuft bewusst weiter als Eigentümer — er startet
+  nicht über den Entrypoint, ist nicht web-exponiert, und seine Operationen sind eine Teilmenge der (als
+  `gbs_app` geprüften) App-Schreibvorgänge. Eine Härtung wäre ein eigener Init-Dienst mit getrennten
+  env-Dateien.
 - **Content-Security-Policy gesetzt (29.07.).** `next.config.ts` liefert eine CSP direkt am
   App-Container (`default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, keine fremden
   Skript-Hosts) — im Durchstich gegen die laufende Instanz geprüft, die Seite hydratisiert ohne
   CSP-Verstöße. Die übrigen Sicherheits-Header (HSTS, `frameDeny`, `nosniff`, Referrer-Policy) setzt
-  weiterhin Traefik. `'unsafe-inline'` für Skripte bleibt vorerst nötig (Next bettet den Bootstrap
+  weiterhin Traefik, seit 27.09. aus dem Datei-Provider (`docker/traefik-dynamisch.yml`, Middleware
+  `gbs-sicherheit@file`). Die Referrer-Policy darf nie `no-referrer` werden, sonst scheitert die
+  Herkunftsprüfung. `'unsafe-inline'` für Skripte bleibt vorerst nötig (Next bettet den Bootstrap
   inline ein); ein **nonce-basiertes Verschärfen** ist der nächste Schritt, bevor irgendwo
   Formulartexte als Markdown gerendert werden.
 - **Eine Person wird nicht gelöscht, sondern anonymisiert** — echtes Löschen stößt bewusst auf den
   Append-only-Trigger (der Audit- und Einwilligungsnachweis muss bleiben). Das Löschkonzept nach
-  Art. 17 DSGVO ist seit 0.2 gebaut: `/verwaltung/personen` → „Anonymisieren" überschreibt alle
-  personenbezogenen Felder (siehe unten). Ein hartes Löschen auf DB-Ebene bleibt geblockt.
+  Art. 17 DSGVO ist seit 0.2 gebaut und seit 27.09. vollständig: „Anonymisieren“ in der Personenakte
+  überschreibt alle personenbezogenen Felder, Zeugnis-Snapshots und Versandprotokoll (Umfang und Grenzen oben
+  unter „Löschkonzept“). Einen Löschpfad im Code gibt es nicht. Wo Postgres das Löschen einer Person doch
+  zulässt (per SQL, etwa bei Testbereinigungen), nimmt es ihre Zeugnisse per Cascade mit — bewusst so
+  gelassen, siehe E-betrieb-zeugnis-person-cascade.
 - **Semester lassen sich nicht löschen** — bewusst kein Endpunkt dafür. Ein gelöschtes Semester
   risse alle Teilnahmen mit (`onDelete: Cascade`); die Anmeldungen blieben erhalten, verlören aber
   ihren Bezug.

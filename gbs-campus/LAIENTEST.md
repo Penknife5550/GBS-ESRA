@@ -5,11 +5,14 @@ Sackgassen, missverständliche Schaltflächen, Fehlermeldungen, die niemand vers
 **einer projektfremden Person** durchgeführt — jemandem, der die Software nie gesehen hat und idealerweise
 auch nicht besonders technikaffin ist. Genau deren Stolpersteine zählen.
 
-Das Dokument hat drei Teile:
+Das Dokument hat fünf Teile:
 
 1. **Vorbereitung** — was der Betreuer vor dem Termin einrichtet (die Testperson fasst keine Technik an).
 2. **Aufgaben** — was die Testperson tut, in Alltagssprache, ergebnisoffen.
-3. **Go-Live-Checkliste** — alles, was vor dem Livegang am 20.08. zusätzlich zu erledigen ist.
+3. **Rückmeldebogen** — was der Betreuer dabei mitschreibt.
+4. **Go-Live-Checkliste** — alles, was vor dem Livegang zusätzlich zu erledigen ist.
+5. **Handprüfungen** — was der Betreuer selbst im Browser nachsieht, weil es der automatische Durchstich
+   (per curl) nicht prüfen kann.
 
 > **Grundregel für den Betreuer:** Beim Beobachten **nicht helfen und nicht erklären**, solange es
 > irgendwie geht. Jedes „ach, da musst du oben rechts klicken" ist ein gefundener, aber ungeschriebener
@@ -54,6 +57,12 @@ npm run dev
 
 Das Serverlog **offen lassen** — es ist im Test die „Poststelle" (siehe 1.5).
 
+> **Die Anwendung im Browser genau unter der Adresse aus `APP_URL` öffnen** — hier also
+> `http://localhost:3000`, nicht `http://127.0.0.1:3000`. Seit Code-Review 4 prüft der Server die Herkunft
+> jeder Änderung; unter einer anderen Adresse meldet jede Speicher-Aktion „Diese Anfrage kam nicht von der
+> Seite des Portals …“. Die Testinstanz aus dem Produktions-Image (siehe [`UEBERGABE.md`](UEBERGABE.md),
+> „Lokale Testinstanz“) läuft dagegen mit `APP_URL=http://127.0.0.1:3000` und wird genau dort geöffnet.
+
 ### 1.2 Ein Semester anlegen — sonst bleibt alles leer
 
 Ohne laufendes Semester bekommt keine Anmeldung einen Bezug und die Teilnehmerliste bleibt leer. Also
@@ -67,6 +76,10 @@ den Test:
 | Anmeldefenster | von heute bis in zwei Wochen |
 | als laufendes Semester | ja |
 
+In eine **leere** Datenbank legt der Seed bereits die sechs realen Semester an (2026-H als laufend). Er
+überschreibt Semester danach nie — was hier geändert wird, bleibt auch nach einem Neustart. Das Kürzel eines
+Semesters lässt sich nach dem Anlegen nicht mehr ändern; Lehrjahr und Halbjahr (Verortung im Kursraster) schon.
+
 ### 1.3 Ein Verwaltungskonto anlegen
 
 Für die Verwaltungsseite (Teil 2, Abschnitt B) ein Konto mit Schulleitungsrolle. Das Skript liegt nur
@@ -77,7 +90,9 @@ npx tsx scripts/testperson-anlegen.ts leitung-test@beispiel.de SCHULLEITER
 ```
 
 Der Anmeldelink erscheint danach im Serverlog. Wer auch die reine Verwaltungsrolle prüfen will (sieht den
-Beitragsstatus, aber **nicht** die IBAN), legt zusätzlich ein Konto mit `VERWALTUNG` an.
+Beitragsstatus, aber **nicht** die IBAN), legt zusätzlich ein Konto mit `VERWALTUNG` an. Weitere Konten
+(Verwaltung, Dozent) lassen sich auch in der Oberfläche anlegen: Verwaltung → Personen → „Person anlegen“ und
+dort die Rollen setzen (Recht des Administrators).
 
 ### 1.4 Anmeldeformular — schon da
 
@@ -119,7 +134,10 @@ geben (soll **nicht** gehen)? Kommt am Ende eine klare Bestätigung?
 
 **A2 · Das Ausfüllen unterbrechen und später fortsetzen.**
 „Du wirst mittendrin gestört. Schließ den Tab. Setz später fort, wo du warst." — Gibt es einen
-Fortsetzen-Link? Kommt er an? Sind die Angaben noch da?
+Fortsetzen-Link? Kommt er an? Sind die Angaben noch da? Seit Code-Review 4 nennt ein gelber Hinweis vor
+„Später weitermachen“, was **nicht** gespeichert wird (die Glaubensabschnitte und die IBAN), der Link lässt
+sich per Knopf kopieren, und beim Fortsetzen steht dort, dass die Zustimmungen neu zu setzen sind. Versteht
+die Person das? Schließt sie den Tab mit solchen Eingaben, warnt der Browser — erschreckt sie das oder hilft es?
 
 **A3 · Sich zum ersten Mal einloggen.**
 Nachdem die Schulleitung die Anmeldung aufgenommen hat (Block B, der Betreuer macht das zwischendurch):
@@ -146,6 +164,13 @@ zunächst „nichts" ändert?
 Was tust du?" — Findet sie `/anmelden/hilfe`? Ist die Meldung, die sie absenden kann, verständlich, und
 ist klar, dass sich jetzt ein Mensch meldet?
 
+**A8 · Am fremden Rechner abmelden.**
+„Du hast am Rechner im Gemeindebüro nachgesehen. Melde dich ab, damit niemand nach dir in deine Daten
+schaut.“ — Findet sie den Knopf? Landet sie auf der Anmeldeseite? Ruft sie danach `/anmelden` erneut auf,
+darf dort keine laufende Sitzung mehr stehen (vorher zeigt die Seite eine laufende Sitzung samt Abmelde-Knopf).
+Nach dem Absenden einer Adresse bietet `/anmelden` „Andere Adresse eingeben“ — wird das gefunden, wenn man
+sich vertippt hat?
+
 ### Block B — als Schulleitung / Verwaltung
 
 Für diesen Block meldet sich die Testperson mit dem Schulleitungskonto an (1.3) — oder der Betreuer führt
@@ -153,8 +178,10 @@ ihn vor und die Person schaut zu und kommentiert.
 
 **B1 · Eine Anmeldung ansehen und aufnehmen.**
 „Es ist eine neue Anmeldung eingegangen (die aus A1). Sieh sie dir an und nimm die Person auf." — Findet
-sie `/verwaltung/anmeldungen`? Ist erkennbar, was die Person angegeben hat? Ist die Aufnahme ein klarer,
-bewusster Schritt?
+sie `/verwaltung/anmeldungen` und dort „Antworten ansehen“? Ist erkennbar, was die Person angegeben hat? Ist
+die Aufnahme ein klarer, bewusster Schritt? Als Schulleitung sind die Glaubensangaben sichtbar (die
+Einwilligung liegt vor), als Verwaltung ausgeblendet; „Akte öffnen“ führt zur Person. Nach dem Aufnehmen bleibt
+die Meldung stehen, bis „Ansicht aktualisieren“ geklickt wird. Der Stand heißt danach „Angenommen“.
 
 **B2 · Die Teilnehmerliste ansehen und als Excel herunterladen.**
 Erwartung: Die eben aufgenommene Person steht in der Liste; die heruntergeladene Datei enthält die
@@ -167,7 +194,46 @@ faktisch eine Kontoübernahme)?
 
 **B4 · Das Protokoll ansehen.**
 „Wo kannst du nachsehen, was in den letzten Minuten alles passiert ist?" — `/verwaltung/protokoll`. Sind
-die Einträge verständlich? Steht dort **nirgends** eine IBAN oder ein Passwort?
+die Einträge verständlich? Steht dort **nirgends** eine IBAN oder ein Passwort — und seit Code-Review 4 auch
+kein Name und keine Adresse in den Alt-/Neuwerten, sondern nur die Namen der geänderten Felder?
+
+### Block C — Schulleitung im Semesterbetrieb (mit dem Betreuer)
+
+Diese Aufgaben brauchen Vorbereitung durch den Betreuer (Teilnahmen, Unterrichtsabende, Noten). Die Testperson
+bedient, der Betreuer richtet die Daten ein und holt Links aus dem Log.
+
+**C1 · Ausbildungsdaten und Status ändern.**
+„Ein Teilnehmer pausiert ein Semester, und sein Geburtsdatum ist falsch eingetragen. Korrigiere beides.“ —
+Personenakte, Block „Ausbildungsdaten & Status“ (nur Schulleitung). Ist die Rückfrage verständlich (die Person
+fällt aus den Semesterlisten)? Wird beim Wechsel in einen Endzustand klar, dass er **nicht** rückgängig zu
+machen ist, und dass dafür ein Grund nötig ist? Bei „Absolvent“: Ist klar, dass erst das Abschlusszeugnis
+kommen sollte? „Anmeldelink schicken“ meldet eine gescheiterte Zustellung als Fehler, nicht als Erfolg.
+
+**C2 · Das nächste Semester vorbereiten.**
+„Lade den Jahrgang ins nächste Semester ein.“ — `/verwaltung/semesterueberleitung`. Danach, als Teilnehmer
+mit dem Link aus dem Log: „Ich bin raus“ (Rückfrage), die Antwort auf „Ich bin dabei“ ändern und wieder auf
+„raus“. Zurück als Schulleitung: Zeigt die Übersicht „abgemeldet“ mit Grund? Lässt sich die Person über
+„Wieder aufnehmen“ zurückholen? Ist die Frist in Mail und Seite („bis einschließlich …“) verständlich?
+
+**C3 · Noten eintragen.**
+„Trag für ein Fach Noten ein und wechsle dann zu einem anderen Semester.“ — Die Auswahl wechselt erst mit
+„Anzeigen“; bei ungespeicherten Noten fragt der Browser nach. Hörer stehen nicht in der Liste (der Hinweistext
+sagt das). In der Personenakte ist „— nicht bewertet“ bei schon bewerteten Fächern gesperrt, und nach dem
+Speichern stimmt die Anzeige.
+
+**C4 · Zeugnisse ausstellen.**
+„Stell für das Semester die Zeugnisse aus.“ — Semester und Art wählen, „Anzeigen“, dann „Alle ausstellen“.
+Nennt die Rückfrage verständliche Zahlen (unbewertete Fächer, Teilnehmer ohne jede Bewertung), und lässt sie
+sich abbrechen? Bei Art „Abschlusszeugnis“ außerhalb des letzten Semesters ist der Knopf gesperrt — ist der
+Grund verständlich? Solange eine geänderte Auswahl nicht angezeigt ist, ist „Alle ausstellen“ gesperrt.
+Erscheint der gelbe Kasten „noch nicht im DMS archiviert“, ist klar, was „An das DMS nachsenden“ tut?
+
+**C5 · Ein Honorar abrechnen (optional, Verwaltung).**
+„Rechne die gehaltenen Abende einer Dozentin ab und gib die Abrechnung frei.“ — Nennt die Rückfrage Dozentin,
+Abende und Betrag? Ohne hinterlegte Bankverbindung ist „Freigeben“ gesperrt, mit Hinweis, dass die Dozentin sie
+selbst unter „Meine Daten“ einträgt. Ohne DMS-Adresse steht statt „Beleg erneut senden“ ein Hinweis. Eine
+offene Abrechnung lässt sich mit Rückfrage stornieren; im Stundenplan ist ein abgerechneter Abend gekennzeichnet
+und der Dozent dort nicht mehr änderbar.
 
 ### Worauf bei jeder Aufgabe zu achten ist
 
@@ -177,6 +243,10 @@ die Einträge verständlich? Steht dort **nirgends** eine IBAN oder ein Passwort
 - **Sprache:** Tippfehler, Denglisch, unklare Fachwörter?
 - **Tempo:** Fühlt sich etwas hängend oder unfertig an (fehlende Ladeanzeige)?
 - **Handy:** Wenn ein Smartphone da ist, A1 und A3 auch dort — passt die Darstellung?
+- **Orientierung:** Jede Seite hat einen eigenen Tab-Titel („… · GBS Campus“) und oben eine Zurück-Leiste
+  mit Krümelspur. Hilft das, oder wird es übersehen?
+- **Fehlerseite:** Erscheint sie, zeigt sie einen Fehlercode. Den bitte mitschreiben — der Betrieb findet
+  ihn im Server-Log.
 
 ---
 
@@ -193,10 +263,16 @@ Pro Aufgabe eine Zeile. Der Betreuer füllt ihn während des Tests aus.
 | A5 Adresse | | | |
 | A6 E-Mail | | | |
 | A7 Ausgesperrt | | | |
+| A8 Abmelden | | | |
 | B1 Aufnehmen | | | |
 | B2 Teilnehmerliste | | | |
 | B3 Zugang | | | |
 | B4 Protokoll | | | |
+| C1 Ausbildungsdaten & Status | | | |
+| C2 Semesterüberleitung | | | |
+| C3 Noten | | | |
+| C4 Zeugnisse | | | |
+| C5 Honorar | | | |
 
 **Drei Abschlussfragen an die Person:**
 1. Was war der verwirrendste Moment?
@@ -214,8 +290,15 @@ Zusammengetragen aus [`UEBERGABE.md`](UEBERGABE.md). Der Laientest ist nur der e
 
 ### Inhalt und Daten
 - [ ] Laientest durchgeführt, Blocker-Findings behoben
-- [ ] Mindestens **ein Semester** in der Produktivdatenbank angelegt und als laufend gesetzt
-- [ ] Anmeldeformular in der endgültigen Fassung veröffentlicht
+- [ ] Durchstich gegen das gebaute Image grün (Soll 764) und `npm run pruefen:db` grün — nach Code-Review 4
+  noch nicht gelaufen, siehe [`UEBERGABE.md`](UEBERGABE.md)
+- [ ] Handprüfungen aus Teil 5 erledigt
+- [ ] Mindestens **ein Semester** in der Produktivdatenbank angelegt und als laufend gesetzt (bei leerer
+  Datenbank legt der Seed die sechs realen Semester an — Daten, Lehrjahr/Halbjahr und Anmeldefenster prüfen)
+- [ ] Anmeldeformular in der endgültigen Fassung veröffentlicht. **Bestandsinstallation:** In der
+  Einleitung steht der Satz „Mit * gekennzeichnete Felder sind Pflichtangaben.“ doppelt — Formulare → Entwurf
+  öffnen → Satz aus „Einleitung über dem Formular“ löschen → veröffentlichen
+- [ ] Einwilligungstexte endgültig: Korrekturen nur als neue Fassung (`version + 1`), nie am bestehenden Text
 - [ ] Konfigurierbare Werte geprüft: Anmeldelink-Gültigkeit, Drosselschwellen, Sitzungsdauer, Rabatte
 
 ### E-Mail-Zustellung (Show-Stopper — hängt am IT-Dienstleister)
@@ -231,17 +314,90 @@ Zusammengetragen aus [`UEBERGABE.md`](UEBERGABE.md). Der Laientest ist nur der e
 - [ ] Externer Uptime-Ping eingerichtet
 - [ ] Speichergrenze für den App-Container gesetzt (Empfehlung 768 MB), sonst trifft der OOM-Killer
   im Zweifel die Datenbank
-- [ ] Getrennter, rechtebeschränkter Datenbanknutzer (die App verbindet sich sonst als Eigentümer und
-  könnte die Append-only-Trigger entfernen)
+- [ ] Getrennter, rechtebeschränkter Datenbanknutzer: `APP_DB_PASSWORD` gesetzt — mindestens 16 Zeichen,
+  nur Buchstaben und Ziffern (`openssl rand -hex 24`), sonst bricht der Start ab; ohne Passwort verbindet sich
+  die App als Eigentümer und könnte die Append-only-Trigger entfernen. Auch `DB_PASSWORD` nur aus Buchstaben
+  und Ziffern
+- [ ] `APP_URL` = genau die Adresse, unter der das Portal im Browser geöffnet wird (`https://`, derselbe Host
+  wie `APP_DOMAIN`) — sonst startet der Container nicht bzw. jede Änderung scheitert mit 403
+- [ ] `DMS_EMAIL` gesetzt (sonst bleiben Honorar-Belege und Zeugnis-Archivkopien als „noch nicht im DMS“ stehen)
+- [ ] `docker/traefik-dynamisch.yml` liegt auf dem Server neben `docker-compose.yml`; erster Deploy mit
+  `docker compose up -d --force-recreate`, danach das alte Netz entfernen (`docker network rm gbs-campus_edge`)
+- [ ] **Staging-Probe des ganzen Stacks mit TLS:** `docker compose config` ohne Fehler, Stack fünfmal neu
+  starten, `/api/health` über Traefik liefert dabei nie 502/504, Traefik-Log sauber
+- [ ] Worker-Healthcheck grün, Betriebsansicht zeigt „Worker zuletzt gelaufen“ ohne Warnung
+- [ ] In GitHub unter Branch-Schutz den Job „Typpruefung und Pruefskripte“ als Pflicht-Check für `main`
+  eintragen
 - [ ] Content-Security-Policy nachgezogen — spätestens bevor irgendwo Formulartexte als Markdown
   gerendert werden
+- [ ] Im Betrieb beobachten: Audit-Aktion `ANMELDUNG_VERWORFEN_FANGFELD` (Roboter oder still verworfene echte
+  Anmeldung) und die Kachel „Belege noch nicht im DMS“
 
 ### Zwei Betriebsentscheidungen (siehe zweiter Review-Bericht, Abschnitt 07)
 - [ ] Wer sieht die Betriebsansicht mit den Störungswarnungen? (hängt aktuell allein am Administrator)
-- [x] Token im Zugriffsprotokoll des Proxy: ins Adressfragment verlegt — Anmelde- und Auskunftslink tragen den Token jetzt im `#`-Fragment, das der Browser nicht an den Server schickt (29.07.)
+- [x] Token im Zugriffsprotokoll des Proxy: ins Adressfragment verlegt — Anmelde- und Auskunftslink tragen den Token jetzt im `#`-Fragment, das der Browser nicht an den Server schickt (29.07.); seit 27.09. auch der E-Mail-Bestätigungslink und der Zwischenstand der Anmeldung (`#fortsetzen=`)
 
 ### Datenschutz (kein Softwarethema, aber vor dem Livegang zu klären)
 - [ ] Art.-9-Einwilligung als Pflichtfeld gegen das Kopplungsverbot (Art. 7 Abs. 4 DSGVO) — Frage an den
   Datenschutzbeauftragten
 - [ ] **E-17**: der Altzugang im früheren M365-Tenant ist unabhängig von dieser Software zu prüfen und zu
   entziehen — gehört zum Datenschutzbeauftragten, nicht ins Release
+
+### Offene Entscheidungen aus Code-Review 4
+- [ ] Die Liste „Offene Entscheidungen“ in [`UEBERGABE.md`](UEBERGABE.md) mit der Schulleitung durchgehen —
+  vor dem Livegang mindestens: Rollenvergabe durch den Administrator, Honorar-Selbstabrechnung, Widerruf der
+  Art.-9-Einwilligung, Löschfrist für abgelehnte Bewerber, Aufbewahrung der Zeugnisse beim Löschen einer Person,
+  Du/Sie im Anmeldeformular
+
+---
+
+## Teil 5 · Handprüfungen vor dem Livegang (Betreuer)
+
+Diese Punkte prüft der automatische Durchstich nicht, weil er ohne Browser (per curl) arbeitet. Der Betreuer
+geht sie einmal selbst durch — am besten auf der Staging-Instanz mit HTTPS, denn das Sitzungscookie trägt nur
+dort seinen `__Host-`-Namen.
+
+**Formular-Builder** (`/verwaltung/formulare`, Entwurf öffnen)
+- [ ] Im Feld „Antwortmöglichkeiten“ am Ende Enter drücken und eine neue Zeile tippen: Die Zeile bleibt, der
+  Fokus bleibt im Feld, Leerzeichen innerhalb einer Antwort bleiben. Bereinigt wird erst beim Verlassen des Felds.
+- [ ] In Abschnittstitel und Feldschlüssel tippen: Der Fokus springt nach keinem Tastendruck weg.
+- [ ] Formular öffnen, **nichts** ändern, Entwurf speichern: gelingt, die Schüler/Hörer-Zuordnung ist vorbelegt.
+- [ ] Ein Feld dem Aktenfeld „Gemeinde“ zuordnen: „Besonders geschützt (Art. 9)“ wird gesetzt und lässt sich
+  nicht abwählen.
+
+**Öffentliches Formular** (`/anmeldung`)
+- [ ] Glaubensangaben oder IBAN eintragen, „Später weitermachen“, dann den Tab schließen: Der Browser warnt.
+  Ohne solche Eingaben warnt er nach dem Zwischenspeichern nicht.
+- [ ] Den Link mit `#fortsetzen=` in einem neuen Tab öffnen: Der Stand ist wieder da.
+- [ ] Den Art.-9-Haken setzen: Die Glaubensabschnitte erscheinen, eine Ansage kommt, der Fokus springt dorthin;
+  vorher nennt der Platzhalter die Einwilligung.
+- [ ] Vorlesesoftware liest bei Pflichtfeldern „(Pflichtangabe)“ vor.
+
+**Verwaltung**
+- [ ] Nach „Aufnehmen“ oder „Ablehnen“ in der Antwortansicht bleibt die Meldung stehen, bis „Ansicht
+  aktualisieren“ geklickt wird.
+- [ ] „Rollen speichern“ fragt mit den entzogenen und hinzugefügten Rollen nach; beim Entzug der eigenen
+  Administratorrolle kommt eine eigene Warnung.
+- [ ] „Anonymisieren“ steht abgesetzt unter „Löschung nach Art. 17 DSGVO“, die Rückfrage nennt Zeugnisse,
+  geschlossene Anmeldungen und Rollen.
+- [ ] Die Personenliste zeigt die Quote wie die Akte (✓ erfüllt / • offen / ✕ nicht erreichbar); „Person
+  anlegen“ führt zur neuen Akte. Bei einer nicht mehr erreichbaren Quote rät die Detailakte der Schulleitung
+  nicht, sich „an die Schulleitung“ zu wenden.
+- [ ] Stundenplan: Die Semesterwahl wechselt erst mit „Anzeigen“; abgerechnete Abende sind gekennzeichnet.
+- [ ] Rückmeldungen (gespeichert, Fehler) werden von der Vorlesesoftware angesagt.
+
+**Dozent und Teilnehmer**
+- [ ] Als Dozent in „Meine Daten“: Der Rückweg „← Mein Unterricht“ ist da. „Jetzt erfassen“ bei den offenen
+  Aufgaben springt zum Abend.
+- [ ] Nach einer IBAN-Änderung in „Meine Daten“ geht die Hinweis-Mail an die hinterlegte Adresse (im Test: Log).
+- [ ] Die Einladung und die Erinnerungen der Überleitung nennen die Antwortfrist.
+
+**Sitzung und Fehlerfälle**
+- [ ] **Abmelden im Browser entfernt die Sitzung wirklich** (auf HTTPS): Danach ist das Cookie in den
+  Entwicklerwerkzeugen weg, und die Zurück-Taste zeigt nach dem Neuladen keine Daten.
+- [ ] Mit abgelaufener Sitzung einen Download-Link anklicken (Zeugnis-PDF, Excel): Es kommt die Anmeldeseite
+  bzw. eine lesbare Fehlerseite, kein rohes JSON.
+- [ ] Mit abgelaufener Sitzung speichern: Die Meldung sagt „Deine Sitzung ist abgelaufen …“ (Anmelden im neuen
+  Tab, dann erneut versuchen).
+- [ ] Die lokale Testinstanz einmal unter einer anderen Adresse als `APP_URL` öffnen (etwa `localhost:3000`
+  statt `127.0.0.1:3000`) und etwas speichern: 403 mit verständlicher Meldung, im Server-Log `[HERKUNFT]`.
