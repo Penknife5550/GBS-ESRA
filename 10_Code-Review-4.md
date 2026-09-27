@@ -559,13 +559,13 @@ Nachweisdaten: Leistung `RESTRICT` ja, Zeugnis ↔ Person weiter Cascade (E-betr
 **Offene Entscheidungen** (Liste mit Optionen und Empfehlung in `gbs-campus/UEBERGABE.md`):
 Admin-Selbstvergabe und Rollen-Obergrenze · Honorar-Selbstabrechnung · Umfang des Satz-Belegs · Seed überschreibt
 Konfiguration · tote Status-Schalter · ~~Du/Sie im Formular~~ (erledigt: „Sie“, E-22) · Versionsnummer · IP-Drossel beim Anmeldelink der
-Verwaltung · Bescheinigung ohne Anwesenheit · Widerruf der Art.-9-Einwilligung · Löschfrist für abgelehnte
-Bewerber · serverseitiger Sitzungswiderruf · ABGEBROCHEN ohne Rückweg · Reichweite eines Formwechsels ·
-Nachholen nach Worker-Ausfall · „bin raus“ in der Sammelübernahme · Zusage von Hand · Einladung erneut senden ·
-Zahlweise im Excel-Export · Zeugnis-Storno ohne Ersatz · DMS-Nachversand für Anonymisierte · IBAN-Abgleich beim
+Verwaltung · ~~Bescheinigung ohne Anwesenheit~~ (erledigt 27.09. spät) · Widerruf der Art.-9-Einwilligung · Löschfrist für abgelehnte
+Bewerber · serverseitiger Sitzungswiderruf · ~~ABGEBROCHEN ohne Rückweg~~ (erledigt 27.09. spät) · Reichweite eines Formwechsels ·
+~~Nachholen nach Worker-Ausfall~~ (erledigt 27.09. spät) · ~~„bin raus“ in der Sammelübernahme~~ (erledigt 27.09. spät) · ~~Zusage von Hand~~ (erledigt 27.09. spät) · ~~Einladung erneut senden~~ (erledigt 27.09. spät) ·
+Zahlweise im Excel-Export · ~~Zeugnis-Storno ohne Ersatz~~ (erledigt 27.09. spät) · DMS-Nachversand für Anonymisierte · IBAN-Abgleich beim
 Nachversand · Art.-9-Antworten nach der Entscheidung · ~~Tippfehler in Einwilligungstext v1~~ (erledigt: Fassung 2) · Restfenster
 Erst-/Nachversand · Auskunft (DMS als Empfänger, Protokolldaten, Speicherdauer, Art. 22) · Semesterbeginn
-vorziehen · rückwirkender Honorarsatz · Nachversand von Einladungen · Personenname im Tab-Titel · Rechte ohne
+vorziehen · rückwirkender Honorarsatz · ~~Nachversand von Einladungen~~ (erledigt 27.09. spät: nur per Knopf) · Personenname im Tab-Titel · Rechte ohne
 Funktion · Begriff „Angenommen“ · IPv6-Präfix.
 
 **Bewusst so belassen:**

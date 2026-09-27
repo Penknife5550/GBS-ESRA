@@ -13,7 +13,68 @@ Fachliche Fragen beantwortet [`../1_Bauplan.html`](../1_Bauplan.html), technisch
 
 ---
 
-## Neuester Stand (27.09.2026, abends): Anrede „Sie“ und Schutz vor Massenanmeldungen
+## Neuester Stand (27.09.2026, spät): Empfehlungen für den Semesterbetrieb
+
+Umgesetzt sind die sieben Empfehlungen für den laufenden Semesterbetrieb, die der Projektverantwortliche
+freigegeben hat. Verifiziert mit Docker gegen PostgreSQL 16: Build mit **1341 Prüfungen in 20 Skripten** grün
+(inkl. Produktionsbuild, 43 Seiten), **Durchstich 850/850**, `pruefen:db` 19 + 18. Die neue Migration
+`20260928100000_zeugnis_storno` lief auf einer frischen Datenbank und als Aktualisierung einer bestehenden
+Datenbank (mit gültigen und ersetzten Zeugnissen) fehlerfrei.
+
+1. **Zusage von Hand.** Wer telefonisch oder persönlich zusagt, bekommt in der Überleitung unter „Noch ohne
+   Antwort“ den Knopf „Zusage eintragen“ (`POST /api/semesterueberleitung/zusage`, Recht `SEMESTER_VERWALTEN`,
+   also Schulleitung und Verwaltung). Das geht auch am Starttag noch, solange der Worker nicht abgemeldet hat.
+   Audit `TEILNAHME_ZUSAGE_EINGETRAGEN`.
+2. **Einladung erneut senden.** Die Überleitungsseite zählt je Zielsemester die nicht zugestellten Einladungen
+   (offene Einladung ohne gesendete Einladungs- oder Erinnerungsmail seit der Einladung) und bietet „Erneut
+   senden“ (`POST /api/semesterueberleitung/erneut-senden`, nur bis zum Tag vor Semesterbeginn). Es gibt einen
+   neuen Link, der alte wird ungültig. Der Worker sendet nichts von selbst nach. Eine Sperre im App-Prozess
+   verhindert einen Nachversand, solange ein Versand läuft; sie gilt je Container (bei mehreren Instanzen
+   bräuchte es eine Sperre in der Datenbank). Audits `SEMESTER_EINLADUNG_ERNEUT_GESENDET` und
+   `SEMESTER_UEBERLEITUNG_VERSENDET` mit `erneut: true`.
+3. **Worker-Ausfall abgesichert.** Wer zum Semesterstart nicht geantwortet hat, aber schon eine Anwesenheit
+   (anwesend oder nachgearbeitet) oder eine Leistung hat, gilt als zurückgemeldet und wird nicht abgemeldet.
+   Audit `TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME` (Quelle SYSTEM).
+4. **„Bin raus“ bei der Übernahme.** Die Sammelübernahme lässt Personen aus, deren jüngste Teilnahme vor dem
+   Zielsemester abgemeldet ist („Ich bin raus“ oder keine Rückmeldung). Sie stehen auf der Teilnehmerseite
+   gesondert und lassen sich einzeln übernehmen (`POST /api/semester/[id]/teilnehmer` mit `{ personId }`).
+   Audit `SEMESTER_TEILNEHMER_EINZELN_UEBERNOMMEN`.
+5. **Wiederaufnahme nach Abbruch.** ABGEBROCHEN ist kein Endzustand mehr: wie ABSOLVENT nicht aktiv und ohne
+   Automatik-Mails, der Portalzugang bleibt. Die Schulleitung setzt die Person mit Grund zurück auf „Aktiv“
+   (Verlassen von ABGEBROCHEN ohne Grund → 400). Endzustände sind AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT.
+6. **Hörer-Bescheinigung nur mit besuchtem Abend.** Die Teilnahmebescheinigung nennt nur Fächer mit mindestens
+   einer Anwesenheit (anwesend oder nachgearbeitet). Ohne einen solchen Abend gibt es bei der Einzel-Ausstellung
+   409, der Sammellauf überspringt die Person und zählt sie als `ohneAnwesenheit`. Eine 80-%-Pflicht gibt es
+   bewusst nicht.
+7. **Zeugnis-Storno ohne Ersatz.** `POST /api/zeugnisse/[id]/stornieren` mit Pflichtgrund (Recht
+   `NOTEN_VERWALTEN`): Status `STORNIERT`; Zeitpunkt, Akteur und Grund bleiben als Nachweis. Die Person kann das
+   Zeugnis nicht mehr abrufen (410), die Schulleitung bekommt es mit dem Vermerk „STORNIERT am …“. Der
+   Sammellauf stellt für ein storniertes Dokument nichts still neu aus (zählt `storniert`), einzeln geht es.
+   Die Anonymisierung überschreibt den Grund. Der Trigger erlaubt GUELTIG → STORNIERT nur mit Zeitpunkt und
+   Grund, dazu kommt der CHECK `zeugnisse_storno_konsistent`. Stornieren geht auch in der Detailakte; dort
+   stehen jetzt alle Zeugnisse der Person mit Status.
+
+**Beim Einspielen beachten:** Die Migration fügt den Enum-Wert `STORNIERT` hinzu (rein additiv). Der Seed setzt
+ABGEBROCHEN beim nächsten Start auf „kein Endzustand“. Container mit altem Image laufen weiter; beim
+Neuerstellen spielt das neue Image die Migration ein.
+
+**Zu bestätigen bzw. offen:**
+- Ein storniertes **Abschlusszeugnis** blockiert den Sammellauf je Person (wie die bestehende Regel „ein
+  Abschlusszeugnis je Person“), nicht je Semester.
+- Bei **anonymisierten** Personen ist kein Storno mehr möglich (409), weil ein späterer Freitext-Grund nicht
+  mehr anonymisiert würde.
+- Bekannter Altfehler, nicht Teil dieser Runde: `bereinigen()` in `src/lib/audit.ts` schreibt `Date`-Werte als
+  `{}` ins Protokoll (z. B. `SEMESTER_GEAENDERT`). Die neuen Einträge schreiben Zeitpunkte deshalb als ISO-Text.
+- Die Bash 3.2 von macOS zerlegt `"{\"…\"}}"` innerhalb von `"$( … )"` in mehrere Argumente. Im Durchstich ist
+  die eine betroffene Stelle über eine vorab gesetzte Variable gelöst und kommentiert.
+
+Neue Durchstich-Abschnitte: 23b (Zusage von Hand), 26 (+6, Worker mit Anwesenheit), 26b (Erneut senden),
+36 (+1), 36b (Hörer ohne Anwesenheit, Storno), 41b (zuletzt abgemeldet), dazu in Abschnitt 39 der Block
+„Wiederaufnahme nach Abbruch“.
+
+---
+
+## Stand 27.09.2026, abends: Anrede „Sie“ und Schutz vor Massenanmeldungen
 
 Auf dem Branch **`feat/anmeldung-sie-massenschutz`** (in `main` gemergt) sind zwei Wünsche des
 Projektverantwortlichen umgesetzt.
@@ -155,7 +216,8 @@ unter „Offene Entscheidungen“; was bewusst bleibt, steht im Review-Bericht.
    `KEINE_RUECKMELDUNG`). Jede Liste eines Semesters filtert mit `TEILNAHME_ZAEHLT`.
 3. **ABSOLVENT ist kein Endzustand:** `istTerminal = false`, `istAktiv = false`, `automatikMails = false`.
    Der Portalzugang bleibt (Abschlusszeugnis, eigene Daten), aus Semesterlisten und Automatik-Mails fällt die
-   Person heraus. Endzustände sind jetzt ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT.
+   Person heraus. Endzustände waren damit ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT; seit dem
+   27.09. spät ist auch ABGEBROCHEN kein Endzustand mehr (siehe ganz oben).
 4. **Die Gemeindezugehörigkeit bleibt im Excel-Export und in der Oberfläche unverändert.** Befunde dazu
    (Art.-9-Angabe im Export, für den Administrator sichtbar) gelten als **bewusst** und werden nicht erneut
    gemeldet.
@@ -322,7 +384,8 @@ dürfte eine Person mit Zeugnissen ohnehin erst nach Ablauf einer noch festzuleg
 Die Statusmaschine ist bedienbar: `POST /api/personen/[id]/status` und `PUT /api/personen/[id]/ausbildungsdaten`,
 beide mit Recht `PERSON_STATUS_WECHSELN` (nur Schulleitung), in der Detailakte als Block „Ausbildungsdaten &
 Status“. Die Regeln stehen DB-frei in `src/lib/status.ts` (Endzustand → 409; Ziel ANONYMISIERT oder
-INTERESSENT → 400; Grund Pflicht bei ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN; höchstens 500 Zeichen). **Einziger
+INTERESSENT → 400; Grund Pflicht bei ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN und beim Verlassen von ABGEBROCHEN;
+höchstens 500 Zeichen). **Einziger
 Schreibweg für Statuswechsel ist `src/lib/status-io.ts`** (`wechsleStatus`, `erfasseErstenStatus`);
 `pruefe-benutzerverwaltung.ts` wird rot, sobald `statusWechsel.create` woanders steht. Der **letzte
 Administrator** ist in Statusroute, Anonymisierung und Rollenroute geschützt (409); gezählt werden nur andere
@@ -358,8 +421,9 @@ unten gilt eine Zusage erst, wenn alle Lesepfade sie einhalten; die Prüfskripte
 - **Ab Semesterstart** meldet `schliesseRueckmeldungen` jede Einladung ohne Antwort ab. Worker und
   `/api/cron/erinnerungen` rufen es stündlich **vor** dem Erinnerungslauf auf; die Cron-Antwort lautet
   `{ laeufe, abgemeldet }`, bei einem gescheiterten Teillauf 500 mit den Namen der Teilläufe. Weil
-  `eingeladenAm` den Aufräumlauf überlebt, holt es auch nach einem Worker-Ausfall nach (offene Entscheidung
-  SEM-nachholen-nach-ausfall).
+  `eingeladenAm` den Aufräumlauf überlebt, holt es auch nach einem Worker-Ausfall nach. Teilnahmen mit einer
+  Anwesenheit (anwesend oder nachgearbeitet) oder einer Leistung gelten dabei als zurückgemeldet und werden
+  bestätigt statt abgemeldet (seit 27.09. spät).
 - **Antwortfrist:** Mail und Seite nennen „bis einschließlich {{frist}}“, den Vortag des Semesterstarts
   (`rueckmeldeFrist`). Wird der Start verschoben, wandert die Linkfrist in derselben Transaktion mit (Audit
   `SEMESTER_GEAENDERT` mit `linksNachgezogen`). Ein Vorziehen auf heute oder früher bei offenen Einladungen
@@ -373,16 +437,20 @@ unten gilt eine Zusage erst, wenn alle Lesepfade sie einhalten; die Prüfskripte
   bleibt stehen, der alte Link gültig, die nächste Stufe versucht es erneut — genau ein Versuch je Person und
   Stufe. Jeder Stichtag (T-14/-7/-3), der am Tag der Einladung schon erreicht ist, gilt als erledigt; es geht
   nie eine zweite Mail am selben Tag. Parallele Starts laden jeden nur einmal ein. **Wird am letzten Stichtag
-  (T-3) oder später gestartet, folgt keine Erinnerung mehr** — eine nicht zugestellte Einladung wird dann
-  nicht wiederholt (Hinweis im Start-Dialog; im Betrieb prüfen).
-- Die Sammelübernahme legt eine abgemeldete Teilnahme im selben Semester nicht neu an. Im Folgesemester
-  erscheint die Person aber wieder als „nicht zugeordnet“ und lässt sich übernehmen (offene Entscheidung
-  SEM-bin-raus-sammeluebernahme).
+  (T-3) oder später gestartet, folgt keine Erinnerung mehr.** Eine nicht zugestellte Einladung lässt sich
+  seit dem 27.09. spät über „Erneut senden“ auf der Überleitungsseite nachschicken (bis zum Tag vor
+  Semesterbeginn, neuer Link); automatisch geschieht das nicht.
+- Die Sammelübernahme legt eine abgemeldete Teilnahme im selben Semester nicht neu an. Im Folgesemester lässt
+  sie Personen aus, deren jüngste Teilnahme abgemeldet ist; sie stehen auf der Teilnehmerseite unter „Zuletzt
+  abgemeldet“ und lassen sich einzeln übernehmen (seit 27.09. spät). Eine telefonische Zusage trägt die
+  Schulleitung oder Verwaltung mit „Zusage eintragen“ ein.
 - **Semesterverwaltung:** Lehrjahr und Halbjahr sind pflegbar (nur 3/2 erlaubt den gesammelten
   Abschluss-Zeugnislauf), das Kürzel ist nach dem Anlegen fest (PUT mit anderem Kürzel → 400).
 - **Audit-Aktionen:** `SEMESTER_UEBERLEITUNG_GESTARTET` (mit `erledigteStufen`),
   `SEMESTER_UEBERLEITUNG_VERSENDET`, `TEILNAHME_BESTAETIGT` (mit `vorher`), `TEILNAHME_ABGEMELDET`,
   `TEILNAHME_OHNE_RUECKMELDUNG_ABGEMELDET` (Quelle SYSTEM, mit `teilnahmeIds`), `TEILNAHME_WIEDER_AUFGENOMMEN`,
+  `TEILNAHME_ZUSAGE_EINGETRAGEN`, `TEILNAHME_RUECKMELDUNG_DURCH_TEILNAHME` (Quelle SYSTEM),
+  `SEMESTER_EINLADUNG_ERNEUT_GESENDET`, `SEMESTER_TEILNEHMER_EINZELN_UEBERNOMMEN`,
   `SEMESTER_ERINNERUNG_GELAUFEN` nur bei `gesendet > 0`, `AUFRAEUMEN_GELAUFEN` mit `objektId` = Herkunft
   (WORKER/APP; ein Lauf mit Löschungen steht immer im Protokoll, sonst spätestens alle 12 h je Herkunft),
   `WORKER_LAUF_FEHLGESCHLAGEN` (objektTyp System, objektId WORKER oder CRON).
@@ -441,8 +509,14 @@ Abrechnung). Auf der Dozentenseite springen „Offene Aufgaben“ per „Jetzt e
   eine geänderte Auswahl noch nicht angezeigt ist. **Abschlusszeugnisse gibt es gesammelt nur im letzten
   Rastersemester** (Lehrjahr 3, Halbjahr 2; einzeln weiterhin jederzeit); ein Semester ohne Lehrjahr/Halbjahr
   hat einen eigenen Sperrtext mit Verweis auf Verwaltung → Semester. Antwort des Sammellaufs:
-  `{ ausgestellt, vorhanden, fehlgeschlagen, gesamt }`; ABSCHLUSS außerhalb des letzten Semesters → 400,
-  unbekanntes Semester → 404.
+  `{ ausgestellt, vorhanden, storniert, ohneAnwesenheit, fehlgeschlagen, gesamt }`; ABSCHLUSS außerhalb des
+  letzten Semesters → 400, unbekanntes Semester → 404.
+- **Teilnahmebescheinigung (Hörer)** nur mit mindestens einem besuchten Abend und nur mit den besuchten Fächern
+  (seit 27.09. spät); sonst Einzel-Ausstellung 409 und im Sammellauf `ohneAnwesenheit`.
+- **Storno ohne Ersatz** (seit 27.09. spät): `POST /api/zeugnisse/[id]/stornieren` mit Pflichtgrund, Status
+  `STORNIERT`, für die Person 410, für die Schulleitung PDF mit Vermerk und Dateiname `<BelegNr>-STORNIERT.pdf`.
+  Seriendruck, DMS-Nachversand und „Meine Daten“ erfassen nur gültige Zeugnisse. Audit `ZEUGNIS_STORNIERT` ohne
+  Grundtext; ist `DMS_EMAIL` gesetzt, geht ein Storno-Vermerk ohne Namen und Grund ans DMS.
 - Keine (Neu-)Ausstellung für ANONYMISIERT, Endzustände oder abgemeldete Teilnahmen (409).
 - **Ein durch „Neu ausstellen“ ersetztes Zeugnis** liefert dem Schüler über die alte Id **410** (mit Hinweis
   auf „Meine Daten“). Die Schulleitung bekommt es weiterhin als PDF, aber mit dem Kopfvermerk „UNGÜLTIG –
@@ -576,22 +650,22 @@ partielle Indexe — die deckt nur der Migrationstest, nicht der Drift-Diff. Erg
 `scripts/pruefe-migrationen-pglite.mjs` o. ä. an (dann mit eigener `package.json`, damit die Abhängigkeit nicht
 ins Image wandert).
 
-### Prüfzahlen (Soll, Stand 27.09.2026)
+### Prüfzahlen (Soll, Stand 27.09.2026, spät)
 
 | Skript | Soll | Skript | Soll |
 |---|---:|---|---:|
 | formularlogik | 65 | selbstbestaetigung | 15 |
-| semesterlogik | 149 | honorar | 68 |
+| semesterlogik | 184 | honorar | 68 |
 | eigene-daten | 58 | honorar-abrechnung | 70 |
-| passwort | 38 | benutzerverwaltung | 92 |
-| auskunft | 52 | anonymisierung | 43 |
+| passwort | 38 | benutzerverwaltung | 97 |
+| auskunft | 55 | anonymisierung | 47 |
 | beitrag | 16 | herkunft | 42 |
 | faecher | 17 | anmeldung-antworten | 58 |
-| stundenplan | 45 | betrieb | 110 |
+| stundenplan | 45 | betrieb | 117 |
 | quote-schueler | 53 | anmelde-schutz | 52 |
-| | | **`npm run pruefen` gesamt** | **1229 in 20 Skripten** |
+| | | **`npm run pruefen` gesamt** | **1341 in 20 Skripten** |
 | leistung | 67 | `npm run pruefen:db` (einstellungen + auskunft-db) | 19 + 18 |
-| zeugnis | 119 | `bash scripts/durchstich.sh` | **787** (grün 27.09.) |
+| zeugnis | 177 | `bash scripts/durchstich.sh` | **850** (grün 27.09. spät) |
 
 `pruefe-stundenplan.ts` muss in Europe/Berlin laufen (Abschnitt 8 prüft feste UTC-Zeitpunkte über die
 Zeitumstellung) und wird in UTC absichtlich rot; `pruefe-alle.ts` setzt die Zeitzone je Skript selbst. Jedes
@@ -633,20 +707,20 @@ Fix-Runden; die Empfehlung ist ein Vorschlag, keine Festlegung.
 | E-SEM-dozent-semesterfenster | Dozenten-Startseite lädt die ganze Historie. | laufendes, künftige und Vorsemester voll laden, ältere eingeklappt |
 | ENT-version-package | `package.json` steht auf 0.1.0, die Commits auf 0.4. | 0.4.0 mit ausdrücklichem Auftrag |
 | **Semester und Überleitung** | | |
-| PER-abgebrochen-endzustand | ABGEBROCHEN ist Endzustand ohne Rückweg. | nicht terminal, Übergang → AKTIV mit Pflichtgrund |
+| PER-abgebrochen-endzustand | ABGEBROCHEN ist Endzustand ohne Rückweg. | **umgesetzt 27.09. spät:** kein Endzustand mehr, Rückweg nach AKTIV mit Pflichtgrund |
 | PER-formwechsel-rueckwirkend | Formwechsel stellt die laufende Teilnahme auch kurz vor Semesterende um. | Wahl „ab sofort“ oder „ab nächstem Semester“ |
-| SEM-nachholen-nach-ausfall | Nachholen nach Worker-Ausfall meldet auch aktiv Teilnehmende ab. | Teilnahmen mit Anwesenheit oder Noten ausnehmen |
-| SEM-bin-raus-sammeluebernahme | „Bin raus“ wird im Folgesemester per Übernehmen still aufgehoben. | getrennt ausweisen, nur einzeln übernehmbar |
-| SEM-zusage-von-hand | Telefonische Zusage nicht eintragbar | Knopf „Zusage eintragen“ |
-| SEM-einladung-erneut-senden, E-ueberleitung-nachversand | Kein „Einladung erneut senden“; nach T-3 keine Wiederholung | Sammelknopf für nicht zugestellte Einladungen; automatischer Nachversand nur bei Bedarf |
+| SEM-nachholen-nach-ausfall | Nachholen nach Worker-Ausfall meldet auch aktiv Teilnehmende ab. | **umgesetzt 27.09. spät:** Teilnahmen mit Anwesenheit oder Leistung gelten als zurückgemeldet |
+| SEM-bin-raus-sammeluebernahme | „Bin raus“ wird im Folgesemester per Übernehmen still aufgehoben. | **umgesetzt 27.09. spät:** getrennt ausgewiesen, nur einzeln übernehmbar |
+| SEM-zusage-von-hand | Telefonische Zusage nicht eintragbar | **umgesetzt 27.09. spät:** Knopf „Zusage eintragen“ (Schulleitung und Verwaltung) |
+| SEM-einladung-erneut-senden, E-ueberleitung-nachversand | Kein „Einladung erneut senden“; nach T-3 keine Wiederholung | **umgesetzt 27.09. spät:** Sammelknopf für nicht zugestellte Einladungen, kein automatischer Nachversand |
 | E-semester-start-vorziehen-heute | Beginn auf heute vorziehen ist bei offenen Einladungen gesperrt, ohne Ausweg. | Meldung nennt den frühesten möglichen Tag |
 | E-semester-start-vorziehen-zukunft | Vorziehen in der Zukunft verkürzt die Antwortfrist still. | Rückfrage mit Zahl der Betroffenen |
 | SEM-zahlweise-excel | Zahlweise fehlt im Excel-Export. | Spalte aus der jüngsten angenommenen Anmeldung, falls Lastschriften aus dem Export laufen |
 | **Honorar, Zeugnisse, Anmeldung** | | |
 | HON-iban-abgleich-nachversand | Nachversand nutzt die aktuelle IBAN ohne Abgleich. | IBAN-Fingerabdruck bei der Freigabe, Abweichung 409 |
 | E-honorar-rueckwirkender-satz | Soll ein rückwirkender Satz für abgerechnete Abende etwas auslösen? | nein; Rückfrage warnt bei Gültig-ab in der Vergangenheit |
-| LUECKE-bescheinigung-ohne-anwesenheit | Teilnahmebescheinigung bestätigt alle Fächer auch ohne Anwesenheit. | nur Fächer mit mindestens einer Anwesenheit; Sammellauf überspringt Personen ohne Anwesenheit |
-| ZEUG-storno-ohne-ersatz | Kein Zeugnis-Storno ohne Ersatz | Status STORNIERT mit Pflichtgrund, nach Abstimmung zur Aufbewahrung |
+| LUECKE-bescheinigung-ohne-anwesenheit | Teilnahmebescheinigung bestätigt alle Fächer auch ohne Anwesenheit. | **umgesetzt 27.09. spät:** nur Fächer mit mindestens einer Anwesenheit; Sammellauf überspringt Personen ohne Anwesenheit |
+| ZEUG-storno-ohne-ersatz | Kein Zeugnis-Storno ohne Ersatz | **umgesetzt 27.09. spät:** Status STORNIERT mit Pflichtgrund, bleibt als Nachweis; Aufbewahrungsfrist weiter offen |
 | ZEUG-dms-erstversand-vs-nachversand | Doppelte Archivkopie möglich, wenn der Nachversand in den Erstversand fällt | hinnehmen |
 | LUECKE-anmeldung-gesamtdrossel, E-ANM-missbrauchsschutz | Reicht Fangfeld plus IP-Drossel? | **entschieden und umgesetzt 27.09. (E-23):** Gesamtgrenze 10/Stunde und 30/Tag, Mindestdauer 3 s, Warnung an die Verwaltung — siehe ganz oben |
 | ANM-du-sie, E-ANM-anrede | Das Formular mischt Du und Sie. | **entschieden und umgesetzt 27.09. (E-22):** überall „Sie“; Bestand im Builder angleichen (siehe ganz oben) |

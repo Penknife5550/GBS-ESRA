@@ -207,13 +207,19 @@ bedient, der Betreuer richtet die Daten ein und holt Links aus dem Log.
 Personenakte, Block „Ausbildungsdaten & Status“ (nur Schulleitung). Ist die Rückfrage verständlich (die Person
 fällt aus den Semesterlisten)? Wird beim Wechsel in einen Endzustand klar, dass er **nicht** rückgängig zu
 machen ist, und dass dafür ein Grund nötig ist? Bei „Absolvent“: Ist klar, dass erst das Abschlusszeugnis
-kommen sollte? „Anmeldelink schicken“ meldet eine gescheiterte Zustellung als Fehler, nicht als Erfolg.
+kommen sollte? Bei „Abgebrochen“: Ist klar, dass die Person später wieder aufgenommen werden kann, und dass
+die Wiederaufnahme (Status zurück auf „Aktiv“) einen Grund verlangt? „Anmeldelink schicken“ meldet eine
+gescheiterte Zustellung als Fehler, nicht als Erfolg.
 
 **C2 · Das nächste Semester vorbereiten.**
 „Lade den Jahrgang ins nächste Semester ein.“ — `/verwaltung/semesterueberleitung`. Danach, als Teilnehmer
 mit dem Link aus dem Log: „Ich bin raus“ (Rückfrage), die Antwort auf „Ich bin dabei“ ändern und wieder auf
 „raus“. Zurück als Schulleitung: Zeigt die Übersicht „abgemeldet“ mit Grund? Lässt sich die Person über
 „Wieder aufnehmen“ zurückholen? Ist die Frist in Mail und Seite („bis einschließlich …“) verständlich?
+Für eine Person ohne Antwort eine telefonische Zusage eintragen („Zusage eintragen“): Ist die Rückfrage klar?
+Steht bei nicht zugestellten Einladungen (im Test ohne Mailserver: alle) „Erneut senden“ mit Rückfrage? In
+der Teilnehmerliste des Folgesemesters: Steht eine Person, die „bin raus“ gesagt hat, gesondert unter
+„Zuletzt abgemeldet“, und lässt sie sich einzeln übernehmen, während die Sammelübernahme sie auslässt?
 
 **C3 · Noten eintragen.**
 „Trag für ein Fach Noten ein und wechsle dann zu einem anderen Semester.“ — Die Auswahl wechselt erst mit
@@ -227,6 +233,9 @@ Nennt die Rückfrage verständliche Zahlen (unbewertete Fächer, Teilnehmer ohne
 sich abbrechen? Bei Art „Abschlusszeugnis“ außerhalb des letzten Semesters ist der Knopf gesperrt — ist der
 Grund verständlich? Solange eine geänderte Auswahl nicht angezeigt ist, ist „Alle ausstellen“ gesperrt.
 Erscheint der gelbe Kasten „noch nicht im DMS archiviert“, ist klar, was „An das DMS nachsenden“ tut?
+Ein falsch ausgestelltes Zeugnis stornieren: Verlangt die Seite einen Grund, und sagt die Rückfrage, dass das
+Zeugnis als Nachweis bleibt, für die Person aber nicht mehr abrufbar ist? Bei einem Hörer ohne besuchten Abend:
+Versteht man, warum keine Teilnahmebescheinigung entsteht?
 
 **C5 · Ein Honorar abrechnen (optional, Verwaltung).**
 „Rechne die gehaltenen Abende einer Dozentin ab und gib die Abrechnung frei.“ — Nennt die Rückfrage Dozentin,

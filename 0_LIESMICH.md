@@ -18,13 +18,14 @@ committet. Dazu kamen vier verbindliche Fachentscheidungen (Anonymisierung auch 
 meldet die Teilnahme ab, nicht die Person; ABSOLVENT ist kein Endzustand; die Gemeindezugehörigkeit bleibt in
 Export und Oberfläche).
 
-**Verifiziert (27.09.2026, abends):** Typprüfung fehlerfrei, **1229 Prüfungen der Fachlogik in 20
-Skripten** grün, Produktionsbuild grün, alle 24 Migrationen gegen eine echte Postgres-Engine (PGlite) fehlerfrei
-und ohne Abweichung vom Schema.
+**Verifiziert (27.09.2026, spät):** **1341 Prüfungen der Fachlogik in 20 Skripten** grün, Produktionsbuild
+grün, alle 25 Migrationen fehlerfrei, zuletzt mit Docker gegen PostgreSQL 16 (frische Datenbank und
+Aktualisierung einer bestehenden).
 
-> **🟢 Durchstich gegen das gebaute Image: 787/787 grün**, dazu die DB-Prüfungen (`pruefen:db`) 19 + 18 grün.
+> **🟢 Durchstich gegen das gebaute Image: 850/850 grün**, dazu die DB-Prüfungen (`pruefen:db`) 19 + 18 grün.
 > Code-Review 4, durchgängig „Sie“ und der Schutz vor Massenanmeldungen (Entscheidungen E-22/E-23) sind in
-> `main` — Befehle zum Wiederholen ganz
+> `main`; die sieben Empfehlungen für den Semesterbetrieb (E-24) sind umgesetzt und geprüft, aber noch nicht
+> committet — Befehle zum Wiederholen ganz
 > oben in [`gbs-campus/UEBERGABE.md`](gbs-campus/UEBERGABE.md).
 
 | | |
@@ -95,7 +96,8 @@ der Plan zum UI-Umbau ([`8_UI-Neustrukturierung-Plan.html`](8_UI-Neustrukturieru
 ## Was als Nächstes ansteht
 
 1. **Neuen Stand ausrollen** — `main` enthält Code-Review 4, Anrede „Sie“ und den Schutz vor
-   Massenanmeldungen; alle Prüfungen grün (Durchstich 787). Nach dem Deploy das Anmeldeformular einmal neu
+   Massenanmeldungen; dazu kommen die Empfehlungen für den Semesterbetrieb (E-24, mit einer neuen Migration für
+   den Zeugnis-Storno); alle Prüfungen grün (Durchstich 850). Nach dem Deploy das Anmeldeformular einmal neu
    veröffentlichen (Sie-Form, siehe UEBERGABE). Offene Fachentscheidungen stehen in [`gbs-campus/UEBERGABE.md`](gbs-campus/UEBERGABE.md).
 2. **Den ganzen Stack auf Staging mit TLS durchspielen** — Traefik-Netz `gbs_edge`, mehrere Neustarts, keine
    502/504 (Go-Live-Checkliste in [`gbs-campus/LAIENTEST.md`](gbs-campus/LAIENTEST.md)).

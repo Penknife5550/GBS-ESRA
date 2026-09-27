@@ -47,11 +47,15 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
   Excel, Anwesenheit, Noten, Zeugnislauf, Quote) filtern mit `TEILNAHME_ZAEHLT`. Offene Einladungen werden
   T−14/−7/−3 Tage vor Semesterstart erinnert (konfigurierbar, Bereich SEMESTER), je Stufe genau ein
   Versuch; Mail und Seite nennen die Frist „bis einschließlich“ Vortag des Starts. Die Einladungen gehen nach
-  der Antwort per `after()` raus. „Wieder aufnehmen“ hebt eine Abmeldung auf. Erinnerungs- und Abmeldelauf
+  der Antwort per `after()` raus. „Wieder aufnehmen“ hebt eine Abmeldung auf. Seit dem 27.09.2026 (spät):
+  Eine telefonische Zusage tragen Schulleitung oder Verwaltung mit „Zusage eintragen“ ein; nicht zugestellte
+  Einladungen lassen sich bis zum Vortag des Starts per „Erneut senden“ nachschicken (neuer Link, kein
+  automatischer Nachversand); wer zum Start nicht geantwortet hat, aber schon eine Anwesenheit oder Leistung
+  hat, gilt als zurückgemeldet. Erinnerungs- und Abmeldelauf
   laufen im `worker`-Container; der HTTP-Endpunkt `POST /api/cron/erinnerungen` (per `CRON_SECRET`, ohne
   `Origin`-Header aufrufen) bleibt fürs manuelle Auslösen und antwortet `{ laeufe, abgemeldet }`. Logik in
-  `src/lib/ueberleitung.ts`, DB-freie Kernlogik in `src/lib/semester.ts`, Filter in
-  `src/lib/teilnahme-filter.ts`.
+  `src/lib/ueberleitung.ts`, DB-freie Kernlogik in `src/lib/semester.ts` und `src/lib/ueberleitung-regel.ts`,
+  Filter in `src/lib/teilnahme-filter.ts`.
 - **Worker-Container (Release 0.2)** — eigener docker-compose-Dienst `worker` (gleiches Image, Einstieg
   `node worker.js`), der die Abmeldung ohne Rückmeldung, die Überleitungs-Erinnerungen und den
   DSGVO-Aufräumlauf **stündlich und idempotent** ausführt (`scripts/worker.ts`). Damit braucht es keinen
@@ -98,14 +102,16 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
 - **Honorar (Release 0.2/0.3)**, **Dozenten- und Schülerbereich (0.3)**, **Noten und Zeugnisse (0.4)** —
   siehe die Abschnitte weiter unten.
 
-> ### 🟢 Stand 27.09.2026: Code-Review 4 behoben, dazu Anrede „Sie“ und Schutz vor Massenanmeldungen
+> ### 🟢 Stand 27.09.2026: Code-Review 4 behoben, Anrede „Sie“, Schutz vor Massenanmeldungen, Semesterbetrieb
 >
 > Alle 19 MAJOR-Befunde aus [`../10_Code-Review-4.md`](../10_Code-Review-4.md) und der größte Teil der
 > MINOR-Befunde sind behoben (Branch `fix/code-review-4`, in `main` gemergt). Am Abend kamen durchgängig „Sie“
-> und der Schutz vor Massenanmeldungen dazu (Branch `feat/anmeldung-sie-massenschutz`, in `main` gemergt). Verifiziert: `tsc` 0
-> Fehler, **1229 DB-freie Prüfungen in 20 Skripten**, `next build` grün, alle 24 Migrationen gegen PGlite
-> fehlerfrei und ohne Drift, **Durchstich 787/787 grün** gegen das gebaute Image, `pruefen:db` 19 + 18 grün
-> (alles am 27.09.2026). Einzelheiten, Fachentscheidungen vom
+> und der Schutz vor Massenanmeldungen dazu (Branch `feat/anmeldung-sie-massenschutz`, in `main` gemergt), spät
+> die sieben Empfehlungen für den Semesterbetrieb (Zusage von Hand, Einladung erneut senden, Worker-Ausfall,
+> „bin raus“ bei der Übernahme, Wiederaufnahme nach Abbruch, Hörer-Bescheinigung nur mit Anwesenheit,
+> Zeugnis-Storno). Verifiziert mit Docker gegen PostgreSQL 16: **1341 DB-freie Prüfungen in 20 Skripten**,
+> `next build` grün, alle 25 Migrationen fehlerfrei, **Durchstich 850/850 grün** gegen das gebaute Image,
+> `pruefen:db` 19 + 18 grün (alles am 27.09.2026). Einzelheiten, Fachentscheidungen vom
 > 27.09. und offene Entscheidungen in [`UEBERGABE.md`](UEBERGABE.md).
 
 > ### ✅ Der Stand vom 27.07. ist verifiziert (28.07.2026)
@@ -159,9 +165,9 @@ frisch erzeugter `ENCRYPTION_KEY` macht bereits verschlüsselte Felder unlesbar.
 | `npm run db:deploy` | Migrationen einspielen (Produktion) |
 | `npm run db:seed` | Grunddaten setzen — idempotent, mehrfach ausführbar. Semester nur bei leerer Tabelle, Einwilligungstexte nur anlegen (bei Abweichung WARNUNG; bei einer neuen Fassung setzt er `aktivBis` der älteren), Statusschalter, Rechte, Vorlagen und Kursraster werden nachgezogen |
 | `npm run db:studio` | Prisma Studio |
-| `npm run pruefen` | **1229 Prüfungen in 20 DB-freien Skripten** (Stand 27.09.2026, abends): startet `scripts/pruefe-alle.ts`, jedes Skript in eigenem Prozess mit `TZ=Europe/Berlin`, am Ende Zusammenfassung und Gesamtsumme, Exit 1 bei einem roten Skript. Ein nicht eingetragenes `scripts/pruefe-*.ts` macht den Lauf rot. Läuft auch im Docker-Build vor `next build` und in der CI |
+| `npm run pruefen` | **1341 Prüfungen in 20 DB-freien Skripten** (Stand 27.09.2026, spät): startet `scripts/pruefe-alle.ts`, jedes Skript in eigenem Prozess mit `TZ=Europe/Berlin`, am Ende Zusammenfassung und Gesamtsumme, Exit 1 bei einem roten Skript. Ein nicht eingetragenes `scripts/pruefe-*.ts` macht den Lauf rot. Läuft auch im Docker-Build vor `next build` und in der CI |
 | `npm test` | dasselbe wie `npm run pruefen` |
-| `bash scripts/durchstich.sh` | **787 Prüfungen** gegen das gebaute Image und eine frische Datenbank, kalenderunabhängig (braucht Docker) |
+| `bash scripts/durchstich.sh` | **850 Prüfungen** gegen das gebaute Image und eine frische Datenbank, kalenderunabhängig (braucht Docker) |
 | `npm run pruefen:db` | 19 + 18 Prüfungen (Einstellungen + Auskunft-Roundtrip inkl. Verstorbenen-Sperre), **braucht** eine örtliche Datenbank |
 
 Die Soll-Zahlen je Skript stehen in [`UEBERGABE.md`](UEBERGABE.md) unter „Prüfzahlen“; jedes Skript prüft
@@ -249,11 +255,15 @@ Quote filtern auf `istAktiv` — offene Entscheidung ARCH-status-schalter-tot.)
 Personen über `erfasseErstenStatus`); `scripts/pruefe-benutzerverwaltung.ts` wird rot, sobald
 `statusWechsel.create` woanders steht. Die Regeln stehen DB-frei in `src/lib/status.ts`: aus einem Endzustand
 führt kein Weg zurück (409, einzige Ausnahme ist die Anonymisierung), ANONYMISIERT und INTERESSENT sind keine
-wählbaren Ziele, ABGEBROCHEN, AUSGESCHLOSSEN und VERSTORBEN verlangen einen Grund. Ins Audit kommt nur, *ob*
-ein Grund angegeben wurde. **Endzustände sind ABGEBROCHEN, AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT.**
+wählbaren Ziele, ABGEBROCHEN, AUSGESCHLOSSEN und VERSTORBEN verlangen einen Grund — ebenso das Verlassen von
+ABGEBROCHEN (Wiederaufnahme). Ins Audit kommt nur, *ob* ein Grund angegeben wurde. **Endzustände sind
+AUSGESCHLOSSEN, VERSTORBEN und ANONYMISIERT.**
 **ABSOLVENT ist kein Endzustand** (Fachentscheidung 27.09.2026): `istAktiv = false`, `automatikMails = false`,
 der Portalzugang bleibt — sonst kämen Absolventen nicht an ihr Abschlusszeugnis. Empfohlen: erst das
-Abschlusszeugnis ausstellen, dann den Status setzen. Wer auf ABSOLVENT oder BEURLAUBT steht, fällt aus allen
+Abschlusszeugnis ausstellen, dann den Status setzen. **ABGEBROCHEN ist seit dem 27.09.2026 abends ebenfalls kein
+Endzustand** (Empfehlung Semesterbetrieb): dieselben Schalter wie ABSOLVENT, der Zugang bleibt, und die
+Schulleitung nimmt die Person mit Grund wieder auf (Status zurück auf AKTIV, danach bei Bedarf unter „Aktive
+dieses Semester“ übernehmen). Wer auf ABSOLVENT, ABGEBROCHEN oder BEURLAUBT steht, fällt aus allen
 Semesterlisten. Das letzte Administratorkonto (gezählt werden nur Administratoren ohne Endzustand) lässt sich
 weder per Status noch per Anonymisierung noch per Rollenentzug aussperren (409).
 
@@ -298,8 +308,9 @@ sind.
 - **Belege** (Migration `20260927160000_belege_unveraenderlich`, 14 Trigger): Honorarsätze (nur Beleg-Nr und
   DMS-Datum nachtragen, kein DELETE), Honorarabrechnungen (Status nur vorwärts, Beleg-/Freigabe-/Auszahlungs-/
   DMS-Felder einmalig, DELETE nur bei OFFEN), Abrechnungsposten (INSERT nur zu OFFENEN Abrechnungen, kein
-  UPDATE, Summe der Abrechnung = Summe der Posten beim Commit) und Zeugnisse (nur GUELTIG → ERSETZT,
-  DMS-Datum einmalig, Scrub durch die Anonymisierung). TRUNCATE überall gesperrt. Neue Spalten oder
+  UPDATE, Summe der Abrechnung = Summe der Posten beim Commit) und Zeugnisse (nur GUELTIG → ERSETZT oder
+  GUELTIG → STORNIERT mit Zeitpunkt und Grund, DMS-Datum einmalig, Scrub durch die Anonymisierung; Migration
+  `20260928100000_zeugnis_storno`). TRUNCATE überall gesperrt. Neue Spalten oder
   Schreibwege an diesen Tabellen brauchen eine Migration mit angepasster Trigger-Funktion.
 - **Leistungen** hängen mit `ON DELETE RESTRICT` an ihrer Kurseinheit (Migration `20260927160500`);
   Kurseinheiten werden nur deaktiviert, nie gelöscht.
@@ -492,7 +503,9 @@ gelten als bewusst.
 Teilnehmerliste und Excel, Anwesenheit, Quote, Notenerfassung, Zeugnislauf und die Kennzahlen filtern mit
 `TEILNAHME_ZAEHLT` aus `src/lib/teilnahme-filter.ts`. Wer eine neue Abfrage auf die Teilnahmen eines Semesters
 schreibt, mischt diesen Filter ein. Die Sammelübernahme legt eine im selben Semester abgemeldete Teilnahme
-bewusst nicht neu an.
+bewusst nicht neu an. Seit dem 27.09.2026 (spät) lässt sie auch Personen aus, deren jüngste Teilnahme vor dem
+Zielsemester abgemeldet ist („Ich bin raus“ oder keine Rückmeldung); sie stehen auf der Teilnehmerseite unter
+„Zuletzt abgemeldet“ und werden einzeln übernommen (`POST /api/semester/[id]/teilnehmer` mit `{ personId }`).
 
 Semester lassen sich unter `/verwaltung/semester` samt **Lehrjahr und Halbjahr** (Verortung im Kursraster)
 pflegen; das **Kürzel ist nach dem Anlegen fest** (PUT mit anderem Kürzel → 400), weil es in Audit-Einträgen
@@ -916,7 +929,8 @@ Archivkopie ans DMS geschickt. Seit Code-Review 4 gilt:
 - **„Alle ausstellen“** fragt mit konkreten Zahlen nach (M14): neue Zeugnisse und Bescheinigungen, Teilnehmer
   mit unbewerteten Fächern, Teilnehmer ganz ohne Bewertung und beim Abschluss Teilnehmer mit weniger als 6
   Schüler-Semestern. **Gesammelt gibt es Abschlusszeugnisse nur im letzten Rastersemester** (Lehrjahr 3,
-  Halbjahr 2), einzeln weiterhin jederzeit. Antwort `{ ausgestellt, vorhanden, fehlgeschlagen, gesamt }`;
+  Halbjahr 2), einzeln weiterhin jederzeit. Antwort `{ ausgestellt, vorhanden, storniert, ohneAnwesenheit,
+  fehlgeschlagen, gesamt }`;
   ABSCHLUSS außerhalb des letzten Semesters → 400, unbekanntes Semester → 404. Der Knopf ist gesperrt, solange
   eine geänderte Auswahl nicht angezeigt ist.
 - Keine (Neu-)Ausstellung für ANONYMISIERT, Endzustände oder abgemeldete Teilnahmen (409); ABSOLVENT bleibt
@@ -934,7 +948,15 @@ Archivkopie ans DMS geschickt. Seit Code-Review 4 gilt:
   von Latin-1 werden über WinAnsi abgebildet oder transliteriert; Kyrillisch und Griechisch erscheinen als „?“
   (offene Entscheidung).
 - Zeugnisse sind per Trigger eingefroren; die Anonymisierung überschreibt nur Name und Geburtsdatum im
-  Snapshot (Fachentscheidung 27.09.2026). Storno ohne Ersatz gibt es nicht (offene Entscheidung).
+  Snapshot (Fachentscheidung 27.09.2026) und den Grund eines Stornos.
+- **Teilnahmebescheinigung (Hörer)** seit dem 27.09.2026 (spät) nur mit mindestens einem besuchten Abend
+  (anwesend oder nachgearbeitet) und nur mit den besuchten Fächern; sonst Einzel-Ausstellung 409, im
+  Sammellauf `ohneAnwesenheit`. Eine 80-%-Pflicht gibt es bewusst nicht.
+- **Storno ohne Ersatz** seit dem 27.09.2026 (spät): `POST /api/zeugnisse/[id]/stornieren` mit Pflichtgrund
+  (Recht `NOTEN_VERWALTEN`, auch in der Detailakte). Status `STORNIERT`, Zeitpunkt, Akteur und Grund bleiben als
+  Nachweis; für die Person 410, für die Schulleitung PDF mit Vermerk „STORNIERT am …“ und Dateiname
+  `<BelegNr>-STORNIERT.pdf`. Der Sammellauf stellt für ein storniertes Dokument nichts still neu aus, einzeln
+  geht es. Audit `ZEUGNIS_STORNIERT` ohne Grundtext.
 
 ---
 
@@ -948,13 +970,14 @@ Verifiziert in einer Sandbox-Kopie außerhalb des Sync-Ordners (Befehle in [`UEB
 | Prüfung | Ergebnis |
 |---|---|
 | `tsc --noEmit` | 0 Fehler |
-| `npm run pruefen` | **1229 Prüfungen in 20 Skripten, 0 fehlgeschlagen** — auch in leerer Umgebung mit `TZ=Europe/Berlin` wie in der Docker-Stufe `builder` |
-| `next build` in leerer Umgebung | grün, 41/41 Seiten, keine Warnungen |
+| `npm run pruefen` | **1341 Prüfungen in 20 Skripten, 0 fehlgeschlagen** — auch in leerer Umgebung mit `TZ=Europe/Berlin` wie in der Docker-Stufe `builder` |
+| `next build` in leerer Umgebung | grün, 43 Seiten |
 | esbuild-Bundles (Seed, Worker, `setup-app-nutzer`) | grün |
-| Migrationen gegen PGlite | alle 24 fehlerfrei, 65 SQL-Prüfungen (Trigger, Append-only, CHECK, partieller Index, Nachtragen, Idempotenz) |
+| Migrationen gegen PGlite | alle 25 fehlerfrei; für die Storno-Migration 69 SQL-Prüfungen (Trigger, CHECK, Rückwege, Scrub) |
+| Migrationen gegen PostgreSQL 16 | im Durchstich auf frischer Datenbank und als Aktualisierung einer bestehenden (27.09.2026, spät) |
 | `prisma migrate diff` Migrationen ↔ Schema | leer, kein Drift |
-| `bash -n scripts/durchstich.sh` | Syntax ok, `SOLL=787` |
-| **Durchstich gegen das Image** | **787/787 grün** (27.09.2026, abends) |
+| `bash -n scripts/durchstich.sh` | Syntax ok, `SOLL=850` |
+| **Durchstich gegen das Image** | **850/850 grün** (27.09.2026, spät) |
 | `npm run pruefen:db` | 19 + 18 grün |
 
 Der Durchstich deckt seit Code-Review 4 zusätzlich ab (Abschnitte 0 und 37–50 sowie Ergänzungen in älteren
@@ -964,7 +987,9 @@ Zeugnisse (SQL-Sperren, Triggerzahl), Leistung `RESTRICT`; Statusroute, letzter 
 Ausbildungsdaten; „bin raus“ und Antwort ändern, Abmeldung ohne Rückmeldung durch den Worker, Erinnerung ohne
 SMTP, Aufräumlauf mit Inhalt, erledigte Stufen, verschobener Beginn, parallele Starts, Wieder aufnehmen und
 Herausfallen aus allen Listen; Hörer ohne Noten; Honorar-Storno, Sperre und Nachversand samt DMS-Hinweisen;
-Abschluss-Sammellauf-Sperre, ersetzte Zeugnisse, DMS-Nachversand der Zeugnisse; Antwortansicht der Anmeldungen,
+Abschluss-Sammellauf-Sperre, ersetzte Zeugnisse, DMS-Nachversand der Zeugnisse; seit dem 27.09. spät auch
+Zusage von Hand (23b), Worker mit Anwesenheit (26), Erneut senden (26b), Hörer ohne Anwesenheit und
+Zeugnis-Storno (36b), zuletzt Abgemeldete bei der Übernahme (41b) und die Wiederaufnahme nach Abbruch (39); Antwortansicht der Anmeldungen,
 Zwischenstand per POST, Fangfeld; Formular-Builder; Anonymisierung Ende-zu-Ende; Seed-Wiederholung,
 Semester-Umbenennung mit Neustart, Opt-out ohne `APP_DB_PASSWORD`, `APP_URL`-Startabbruch, Eigentümer-Passwort
 nicht im Serverprozess, Logs ohne Adressen; vollständige Auskunft, Links verfallen beim Adresswechsel; zum
