@@ -8,19 +8,14 @@
  * Die Bewertung ist bewusst flexibel: Pflicht ist nur das `ergebnis`; `punkte`
  * und `note` sind optionale Zusatzangaben — real wird nur Bibelkunde benotet,
  * der Rest verbal.
+ *
+ * Bewusst ohne zod: Die Datei landet über die Oberfläche (Notenmatrix,
+ * Detailakte, Ergebnis-Badge) im Browser-Bundle. Das Zod-Schema der Noten-Routen
+ * liegt deshalb in `leistung-schema.ts`.
  */
 
-import { z } from "zod";
-
-/** Die vier Leistungsergebnisse als Werte (parallel zum Prisma-Enum). */
-export const LEISTUNGSERGEBNIS = {
-  TEILGENOMMEN: "TEILGENOMMEN",
-  ERFOLGREICH_TEILGENOMMEN: "ERFOLGREICH_TEILGENOMMEN",
-  BESTANDEN: "BESTANDEN",
-  NICHT_BESTANDEN: "NICHT_BESTANDEN",
-} as const;
-
-/** Als Tupel für z.enum in den Routen und die Reihenfolge in der Oberfläche. */
+/** Die vier Leistungsergebnisse (parallel zum Prisma-Enum) — als Tupel für z.enum
+ * in den Routen und die Reihenfolge in der Oberfläche. */
 export const LEISTUNG_ERGEBNISSE = [
   "TEILGENOMMEN",
   "ERFOLGREICH_TEILGENOMMEN",
@@ -42,7 +37,7 @@ export function istErgebnisErlaubt(ergebnis: string): ergebnis is Leistungsergeb
 export const BESTANDEN_ERGEBNISSE = ["BESTANDEN", "ERFOLGREICH_TEILGENOMMEN"] as const;
 
 export function giltAlsBestanden(ergebnis: string | null | undefined): boolean {
-  return ergebnis === "BESTANDEN" || ergebnis === "ERFOLGREICH_TEILGENOMMEN";
+  return ergebnis != null && (BESTANDEN_ERGEBNISSE as readonly string[]).includes(ergebnis);
 }
 
 /** Klartext für die Anzeige. */
@@ -60,6 +55,20 @@ export function ergebnisName(ergebnis: string | null | undefined): string {
       return "—";
   }
 }
+
+/**
+ * Die Auswahlliste der Oberfläche (Notenmatrix, Detailakte): Reihenfolge wie im
+ * Modell, Klartext aus `ergebnisName` — eine Quelle statt lokaler Kopien, die
+ * ein künftiges Ergebnis still auslassen könnten.
+ */
+export const ERGEBNIS_OPTIONEN: readonly { wert: Leistungsergebniswert; label: string }[] = LEISTUNG_ERGEBNISSE.map(
+  (wert) => ({ wert, label: ergebnisName(wert) }),
+);
+
+/** Eine gespeicherte Bewertung, wie die Ladeansichten sie an die Oberfläche geben
+ * (Notenmatrix, Detailakte). `ergebnis` bleibt ein string — der Wert kommt aus
+ * der Datenbank. */
+export type LeistungWert = { ergebnis: string; punkte: number | null; note: string | null };
 
 /**
  * Grenzen der optionalen Punktzahl. Bewusst großzügig (0-100): deckt sowohl eine
@@ -124,15 +133,43 @@ export function pruefeLeistung(eingabe: LeistungEingabe): { wert: LeistungNormal
   return { wert: { ergebnis: eingabe.ergebnis, punkte, note } };
 }
 
+// -----------------------------------------------------------------------------
+// Wer benotet wird — Hörer und Abgemeldete nicht
+// -----------------------------------------------------------------------------
+
 /**
- * Zod-Schema eines einzelnen Bewertungs-Eintrags — geteilt von den beiden
- * Noten-Routen (`/api/dozent/note`, `/api/noten`), deren Rumpf-Form identisch
- * ist. Spiegelt die fachlichen Grenzen aus `pruefeLeistung` strukturell; die
- * Route umschließt es nur noch mit `{ kurseinheitId, semesterId, eintraege[] }`.
+ * Wird eine Teilnahme dieser Form benotet? Nur Schüler. Bauregel: Der Hörer
+ * fällt aus jeder Prüfungsautomatik (Notenmatrix, Prüfungserinnerung,
+ * Zeugnislauf) — er bekommt eine Teilnahmebescheinigung, die ihre Fächer aus
+ * den Unterrichtsabenden baut, nicht aus Noten.
  */
-export const leistungEintragSchema = z.object({
-  teilnahmeId: z.string().uuid(),
-  ergebnis: z.enum(LEISTUNG_ERGEBNISSE),
-  punkte: z.number().int().min(PUNKTE_MIN).max(PUNKTE_MAX).nullish(),
-  note: z.string().trim().max(NOTE_MAX_LAENGE).nullish(),
-});
+export function wirdBenotet(teilnahmeform: string): boolean {
+  return teilnahmeform === "SCHUELER";
+}
+
+export type NotenZiel = { id: string; teilnahmeform: string; abgemeldetAm: Date | null };
+export type NotenZielFehler = "hoerer" | "abgemeldet";
+
+/**
+ * Welche Einträge einer Notenerfassung dürfen geschrieben werden? `ziele` sind
+ * die Teilnahmen des Semesters. Ein Eintrag für eine semesterfremde Teilnahme
+ * wird wie bisher still übersprungen (Whitelist). Ein Eintrag für einen Hörer
+ * oder für eine für das Semester abgemeldete Teilnahme lehnt die GANZE
+ * Erfassung ab — beide stehen in keiner Notenmatrix, ein solcher Eintrag ist
+ * also nie ein Versehen der Oberfläche, sondern ein falscher Aufruf.
+ */
+export function pruefeNotenZiele(
+  teilnahmeIds: string[],
+  ziele: NotenZiel[],
+): { gueltig: Set<string> } | { fehler: NotenZielFehler } {
+  const zuId = new Map(ziele.map((z) => [z.id, z]));
+  const gueltig = new Set<string>();
+  for (const id of teilnahmeIds) {
+    const ziel = zuId.get(id);
+    if (!ziel) continue;
+    if (!wirdBenotet(ziel.teilnahmeform)) return { fehler: "hoerer" };
+    if (ziel.abgemeldetAm !== null) return { fehler: "abgemeldet" };
+    gueltig.add(id);
+  }
+  return { gueltig };
+}

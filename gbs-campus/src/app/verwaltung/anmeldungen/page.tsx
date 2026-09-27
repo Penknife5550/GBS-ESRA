@@ -2,26 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { hatRecht, ladeMitRecht } from "@/lib/berechtigung";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { Entscheidung } from "./entscheidung";
 import { Bankverbindung } from "./bankverbindung";
-import { RECHT } from "@/lib/constants";
-import { ibanMaskiert } from "@/lib/encryption";
+import { RECHT, STATUS } from "@/lib/constants";
+import { datum } from "@/lib/datum";
+import { teilnahmeformName } from "@/lib/semester";
+import { AnmeldungStatusBadge } from "@/components/ui/badges";
 
+export const metadata = { title: "Anmeldungen" };
 export const dynamic = "force-dynamic";
-
-const STATUS_STIL: Record<string, string> = {
-  EINGEREICHT: "bg-credo-gelb/15",
-  ANGENOMMEN: "bg-credo-gruen/15",
-  ABGELEHNT: "bg-muted text-muted-foreground",
-  ENTWURF: "bg-muted text-muted-foreground",
-};
-
-const STATUS_NAME: Record<string, string> = {
-  EINGEREICHT: "Wartet auf Entscheidung",
-  ANGENOMMEN: "Aufgenommen",
-  ABGELEHNT: "Abgelehnt",
-  ENTWURF: "Begonnen, nicht abgeschickt",
-};
 
 export default async function AnmeldungenSeite() {
   const benutzer = await ladeMitRecht(RECHT.ANMELDUNG_LESEN);
@@ -31,14 +21,24 @@ export default async function AnmeldungenSeite() {
   // Nur die Verwaltung sieht die Bankverbindung — bewusst getrennt vom
   // Beitragsstatus, damit die IBAN nicht beilaeufig auf jedem Bildschirm steht.
   const darfBankSehen = hatRecht(benutzer, RECHT.BANKVERBINDUNG_LESEN);
+  // Der Link zur Akte fuehrt auf eine Seite mit eigenem Recht — ohne es waere er
+  // eine Sackgasse.
+  const darfAkteOeffnen = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
 
   const anmeldungen = await prisma.anmeldung.findMany({
     // Entwürfe sind unfertige Eingaben fremder Menschen — sie gehören nicht in
-    // die Arbeitsliste der Schulleitung.
-    where: { status: { not: "ENTWURF" } },
+    // die Arbeitsliste der Schulleitung. Ebenso wenig Anmeldungen anonymisierter
+    // Personen (Code-Review 4, M7): Die Anonymisierung schließt sie, und eine
+    // Zeile „Anonymisiert Person — Abgelehnt" ist keine Arbeit mehr.
+    where: {
+      status: { not: "ENTWURF" },
+      OR: [{ personId: null }, { person: { statusCode: { not: STATUS.ANONYMISIERT } } }],
+    },
     // `select` statt `include`: Sonst laedt Prisma auch die Spalte `antworten`
     // mit — bei 24 Fragen je Anmeldung mehrere Kilobyte, die diese Liste nie
-    // anzeigt, und die Seite laeuft ohne Zwischenspeicher.
+    // anzeigt, und die Seite laeuft ohne Zwischenspeicher. Gelesen werden die
+    // Antworten in der Einzelansicht /verwaltung/anmeldungen/[id] — dort mit
+    // Art.-9-Schutz und protokolliert.
     select: {
       id: true,
       status: true,
@@ -67,9 +67,7 @@ export default async function AnmeldungenSeite() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Anmeldungen" />
 
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Anmeldungen</h1>
       <p className="mt-2 text-sm text-muted-foreground">
@@ -93,19 +91,17 @@ export default async function AnmeldungenSeite() {
                   </p>
                   <p className="break-all text-sm text-muted-foreground">{anmeldung.person?.email}</p>
                 </div>
-                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STIL[anmeldung.status]}`}>
-                  {STATUS_NAME[anmeldung.status]}
-                </span>
+                <AnmeldungStatusBadge status={anmeldung.status} />
               </div>
 
               <dl className="mt-4 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                 <div className="flex gap-2">
                   <dt className="text-muted-foreground">Teilnahme:</dt>
-                  <dd>{anmeldung.person?.teilnahmeform === "HOERER" ? "Hörer" : anmeldung.person?.teilnahmeform === "SCHUELER" ? "Schüler" : "—"}</dd>
+                  <dd>{teilnahmeformName(anmeldung.person?.teilnahmeform) || "—"}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="text-muted-foreground">Eingegangen:</dt>
-                  <dd>{anmeldung.eingereichtAm?.toLocaleDateString("de-DE") ?? "—"}</dd>
+                  <dd>{datum(anmeldung.eingereichtAm)}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="text-muted-foreground">Formularfassung:</dt>
@@ -125,7 +121,7 @@ export default async function AnmeldungenSeite() {
                       {anmeldung.person ? (
                         <Bankverbindung
                           personId={anmeldung.person.id}
-                          maskiert={anmeldung.person.ibanVerschluesselt ? ibanMaskiert("XXXXXXXXXXXX") : null}
+                          hinterlegt={Boolean(anmeldung.person.ibanVerschluesselt)}
                         />
                       ) : (
                         "—"
@@ -143,6 +139,34 @@ export default async function AnmeldungenSeite() {
                   </dd>
                 </div>
               </dl>
+
+              {/* prefetch aus: Die Einzelansicht protokolliert jeden Abruf — ein
+                  Vorladen beim Scrollen durch die Liste waere ein Abruf, den niemand
+                  gemacht hat. */}
+              <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <Link
+                  href={`/verwaltung/anmeldungen/${anmeldung.id}`}
+                  prefetch={false}
+                  className="underline underline-offset-4"
+                >
+                  Antworten ansehen
+                  {anmeldung.person && (
+                    <span className="sr-only">
+                      {" "}
+                      von {anmeldung.person.vorname} {anmeldung.person.nachname}
+                    </span>
+                  )}
+                </Link>
+                {anmeldung.person && darfAkteOeffnen && (
+                  <Link href={`/verwaltung/personen/${anmeldung.person.id}`} className="underline underline-offset-4">
+                    Akte öffnen
+                    <span className="sr-only">
+                      {" "}
+                      von {anmeldung.person.vorname} {anmeldung.person.nachname}
+                    </span>
+                  </Link>
+                )}
+              </p>
 
               {anmeldung.ablehnungsgrund && (
                 <p className="mt-3 rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">

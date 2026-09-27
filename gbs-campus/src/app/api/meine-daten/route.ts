@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
-import { RECHT } from "@/lib/constants";
+import { erfolg, fehler } from "@/lib/api";
+import { RECHT, STATUS } from "@/lib/constants";
 import { verschluesseln } from "@/lib/encryption";
-import { geaenderteFelder, pruefeEigeneDaten } from "@/lib/eigene-daten";
-import { benachrichtigeVerwaltungUeberAenderung } from "@/lib/selbstpflege";
+import { FELD_BEZEICHNUNG, geaenderteFelder, pruefeEigeneDaten } from "@/lib/eigene-daten";
+import { benachrichtigeKontoinhaberUeberBankverbindung, benachrichtigeVerwaltungUeberAenderung } from "@/lib/selbstpflege";
+import { geaenderteFeldnamen } from "@/lib/anonymisierung";
 
 const schema = z.object({
   telefon: z.string().nullish(),
@@ -31,8 +32,8 @@ const schema = z.object({
  * unverändert; ein leer mitgeschicktes Feld wird geleert.
  */
 export async function PUT(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_BEARBEITEN_EIGENE);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_BEARBEITEN_EIGENE);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
@@ -85,11 +86,15 @@ export async function PUT(request: NextRequest) {
 
   const geaendert = geaenderteFelder(vorher, nachher);
   if (geaendert.length === 0) {
-    return erfolg({ gespeichert: true, geaendert: [], mailGesendet: null });
+    return erfolg({ gespeichert: true, geaendert: [], mailGesendet: null, hinweisGesendet: null });
   }
 
-  await prisma.person.update({
-    where: { id: person.id },
+  // Bedingt statt Prüfen-dann-Schreiben: Eine Anfrage, die vor einer
+  // Anonymisierung begonnen hat, schriebe Anschrift und IBAN sonst in den
+  // gerade gelöschten Datensatz zurück. `data` ist hier nie leer (mindestens ein
+  // Feld hat sich geändert, siehe oben).
+  const geschrieben = await prisma.person.updateMany({
+    where: { id: person.id, statusCode: { not: STATUS.ANONYMISIERT } },
     data: {
       ...(mitgeschickt.telefon ? { telefon: werte.telefon } : {}),
       ...(mitgeschickt.strasse ? { strasse: werte.strasse } : {}),
@@ -99,6 +104,27 @@ export async function PUT(request: NextRequest) {
       ...(werte.iban ? { ibanVerschluesselt: verschluesseln(werte.iban) } : {}),
     },
   });
+  if (geschrieben.count !== 1) {
+    return fehler("Dein Konto wurde gerade geschlossen. Die Änderung wurde nicht gespeichert.", 409);
+  }
+
+  // Bankverbindung geändert: Hinweis an die hinterlegte Adresse der Person
+  // selbst. Die Mail an die Verwaltung erreicht sie nicht — und wer über eine
+  // übernommene Sitzung die IBAN tauscht, soll nicht unbemerkt bleiben.
+  // Gestartet VOR der Verwaltungsmeldung und erst danach abgewartet: Beide
+  // warten auf SMTP (bis zu 10 + 10 + 20 s) — nacheinander liefe die Anfrage in
+  // die 30-s-Grenze der Oberfläche, obwohl längst gespeichert ist, und ein
+  // Wiederholversuch löste beide Mails erneut aus. `null`, wenn es nichts zu
+  // melden gab. Der Helfer wirft nie; der catch hält trotzdem eine unerwartete
+  // Ablehnung ab, die sonst bis zum Abwarten unbehandelt stünde.
+  const bankFelder = geaendert.filter((f) => f === FELD_BEZEICHNUNG.iban || f === FELD_BEZEICHNUNG.kontoinhaber);
+  const hinweis =
+    bankFelder.length > 0
+      ? benachrichtigeKontoinhaberUeberBankverbindung(person, bankFelder).catch((ausnahme: unknown) => {
+          console.error("[MEINE-DATEN] Hinweis zur Bankverbindung fehlgeschlagen:", person.id, ausnahme);
+          return { gesendet: false };
+        })
+      : null;
 
   // Ab hier sind die Daten gespeichert. Protokoll und Meldung an die Verwaltung
   // sind Nachlauf: Scheitert davon etwas, sähe der Teilnehmer sonst einen 500
@@ -111,8 +137,10 @@ export async function PUT(request: NextRequest) {
       objektTyp: "Person",
       objektId: person.id,
       akteurId: person.id,
-      vorher,
-      nachher,
+      // Nur die Namen der geänderten Felder, nie die Werte (Code-Review 4, M6c):
+      // Das Audit-Log ist unlöschbar — eine Anschrift darin überlebte jede
+      // Anonymisierung.
+      nachher: { geaenderteFelder: geaenderteFeldnamen(vorher, nachher) },
       headers: request.headers,
     });
 
@@ -124,5 +152,7 @@ export async function PUT(request: NextRequest) {
     console.error("[MEINE-DATEN] Nachbereitung der Stammdatenänderung fehlgeschlagen:", person.id, ausnahme);
   }
 
-  return erfolg({ gespeichert: true, geaendert, mailGesendet });
+  const hinweisGesendet = hinweis ? (await hinweis).gesendet : null;
+
+  return erfolg({ gespeichert: true, geaendert, mailGesendet, hinweisGesendet });
 }

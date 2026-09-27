@@ -3,13 +3,24 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
-import { HONORAR_SATZ_MIN, HONORAR_SATZ_MAX } from "@/lib/honorar";
+import { euro, HONORAR_SATZ_MIN, HONORAR_SATZ_MAX } from "@/lib/honorar";
+import { dmsVersandText, type DmsVersand } from "@/lib/honorar-korrektur";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
-type Antwort = { belegNr: string; dmsGesendet: boolean };
+type Antwort = { belegNr: string; dmsGesendet: boolean; dmsVersand: DmsVersand };
+
+/** „JJJJ-MM-TT" aus dem Datumsfeld als „TT.MM.JJJJ" (reiner Kalendertag, ohne Zeitzone). */
+function tagDeutsch(iso: string): string {
+  const [jahr, monat, tag] = iso.split("-");
+  return `${tag}.${monat}.${jahr}`;
+}
 
 /**
  * Formular zum Genehmigen eines neuen Honorarsatzes. Das Absenden IST die
  * Genehmigung; nach Erfolg geht ein Beleg an das DMS (Rückmeldung mit Beleg-Nr).
+ * Deshalb mit Rückfrage, die Betrag und Gültig-ab nennt: Die Genehmigung ist
+ * lohnwirksam, der Beleg geht sofort raus, und zurücknehmen lässt sie sich nur
+ * über eine neue Genehmigung.
  */
 export function SatzForm() {
   const router = useRouter();
@@ -17,9 +28,17 @@ export function SatzForm() {
   const [gueltigAb, setGueltigAb] = useState("");
   const [notiz, setNotiz] = useState("");
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
   async function genehmigen() {
+    if (
+      !confirm(
+        `${euro(Number(betrag))} je Unterrichtsabend ab ${tagDeutsch(gueltigAb)} genehmigen? Der Beleg geht sofort ` +
+          `an das DMS; ändern lässt sich der Satz danach nur über eine neue Genehmigung.`,
+      )
+    ) {
+      return;
+    }
     setLaeuft(true);
     setMeldung(null);
 
@@ -38,10 +57,13 @@ export function SatzForm() {
       return;
     }
 
-    const dms = antwort.daten.dmsGesendet
-      ? `Beleg ${antwort.daten.belegNr} an das DMS gesendet.`
-      : `Beleg ${antwort.daten.belegNr} erzeugt — DMS-Versand steht aus (E-Mail noch nicht eingerichtet).`;
-    setMeldung({ art: "ok", text: `Satz genehmigt. ${dms}` });
+    // Der tatsächliche Ausgang statt einer pauschal vermuteten Ursache (M12):
+    // Nicht angekommen ist ein Hinweis (die Genehmigung gilt), mit Weg zum Nachsenden.
+    const { belegNr, dmsVersand } = antwort.daten;
+    setMeldung({
+      art: dmsVersand === "GESENDET" ? "ok" : "warnung",
+      text: `Satz genehmigt. ${dmsVersandText(belegNr, dmsVersand)}`,
+    });
     setBetrag("");
     setGueltigAb("");
     setNotiz("");
@@ -137,16 +159,7 @@ export function SatzForm() {
         </button>
       </form>
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok" ? "bg-credo-gruen/10 text-foreground" : "bg-credo-rot/10 text-foreground"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-3" />
     </div>
   );
 }

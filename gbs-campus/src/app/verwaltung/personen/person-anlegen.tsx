@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 const inputKlasse = "min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm";
 
@@ -13,7 +15,9 @@ export function PersonAnlegen() {
   const [offen, setOffen] = useState(false);
   const [felder, setFelder] = useState({ vorname: "", nachname: "", email: "", telefon: "" });
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  // `akteId`: Nach dem Anlegen führt ein Link in die Akte — dort liegen seit dem
+  // Redesign Anmeldelink und Rollen, nicht mehr in der Liste.
+  const [meldung, setMeldung] = useState<(Meldung & { akteId?: string }) | null>(null);
 
   function setze(feld: keyof typeof felder, wert: string) {
     setFelder((f) => ({ ...f, [feld]: wert }));
@@ -31,7 +35,8 @@ export function PersonAnlegen() {
     }
     setMeldung({
       art: "ok",
-      text: `${felder.vorname} ${felder.nachname} wurde angelegt. Unten in der Liste kannst du den Anmeldelink schicken und Rollen vergeben.`,
+      text: `${felder.vorname} ${felder.nachname} wurde angelegt. In der Akte der Person kannst du den Anmeldelink schicken und Rollen vergeben.`,
+      akteId: antwort.daten.id,
     });
     setFelder({ vorname: "", nachname: "", email: "", telefon: "" });
     setOffen(false);
@@ -83,7 +88,7 @@ export function PersonAnlegen() {
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Die Person startet als aktives Konto mit der Rolle Teilnehmer. Der Anmeldelink wird nicht
-            automatisch verschickt — das machst du unten in der Liste, sobald du die Person erkannt hast.
+            automatisch verschickt — das machst du in der Akte der Person, sobald du sie erkannt hast.
           </p>
           <button
             type="button"
@@ -96,14 +101,16 @@ export function PersonAnlegen() {
         </div>
       )}
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 rounded-lg px-3 py-2 text-sm ${meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"}`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-3">
+        {meldung?.akteId && (
+          <>
+            {" "}
+            <Link href={`/verwaltung/personen/${meldung.akteId}`} className="font-medium underline underline-offset-4">
+              Akte öffnen
+            </Link>
+          </>
+        )}
+      </MeldungsBox>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 /**
- * Gegenprobe für die Beitrags-Grundlagen (Release 0.1): der Ehepartner-Helfer
+ * Gegenprobe für die Beitrags-Grundlagen: der Ehepartner-Helfer
  * und die vier hinterlegten Beträge.
  *
  * Ohne Datenbank, ohne Test-Framework — läuft über `npm run pruefen` mit. Der
- * Einzug selbst kommt mit 0.3; hier wird geprüft, dass die Grundlage steht.
+ * Einzug selbst kommt mit einem künftigen Beitragslauf; hier wird geprüft, dass
+ * die Grundlage steht.
  *
  * ACHTUNG beim Erweitern: Eine Prüfung beweist erst dann etwas, wenn sie ROT
  * wird, sobald man die geprüfte Regel entfernt.

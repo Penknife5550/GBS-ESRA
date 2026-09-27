@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Ergebnis = { uebernommen: number; ohneTeilnahmeform: number };
 
@@ -14,7 +15,7 @@ type Ergebnis = { uebernommen: number; ohneTeilnahmeform: number };
 export function UebernehmenKnopf({ semesterId, anzahl }: { semesterId: string; anzahl: number }) {
   const router = useRouter();
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
   async function uebernehmen() {
     setLaeuft(true);
@@ -63,14 +64,7 @@ export function UebernehmenKnopf({ semesterId, anzahl }: { semesterId: string; a
         {laeuft ? "Wird übernommen …" : "Ins laufende Semester übernehmen"}
       </button>
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 rounded-lg px-3 py-2 ${meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"}`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-3" />
     </div>
   );
 }

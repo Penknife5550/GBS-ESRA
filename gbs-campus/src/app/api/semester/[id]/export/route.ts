@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { fehler, keineBerechtigung } from "@/lib/api";
+import { alsDownloadFehler, downloadFehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { EXPORT_SPALTEN, alsHeutigerTag, alsTagText } from "@/lib/semester";
 import { ladeTeilnehmer } from "@/lib/teilnehmerliste";
@@ -23,10 +23,13 @@ export const dynamic = "force-dynamic";
  *    Mailanhängen.
  *  - **Jeder Export steht im Audit-Log.** Hier verlassen personenbezogene
  *    Daten die Anwendung; das muss nachvollziehbar sein, wer wann getan hat.
+ *
+ * Fehler gehen über `downloadFehler`: Der Export ist ein Link, im Browser gibt
+ * es deshalb eine Fehlerseite bzw. die Anmeldung statt rohem JSON.
  */
 export async function GET(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_EXPORTIEREN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_EXPORTIEREN);
+  if (benutzer instanceof Response) return alsDownloadFehler(request, benutzer);
 
   const { id } = await kontext.params;
   // Beide Abfragen hängen nur an der Id, nicht voneinander — nacheinander war
@@ -35,7 +38,7 @@ export async function GET(request: NextRequest, kontext: { params: Promise<{ id:
     prisma.semester.findUnique({ where: { id } }),
     ladeTeilnehmer(id),
   ]);
-  if (!semester) return fehler("Dieses Semester gibt es nicht.", 404);
+  if (!semester) return downloadFehler(request, "Dieses Semester gibt es nicht.", 404);
 
   // Der Nachweis steht VOR der Auslieferung, und das ist keine Förmlichkeit:
   // `protokolliere` wirft bewusst nicht, es kann also keinen Fehler geben, der

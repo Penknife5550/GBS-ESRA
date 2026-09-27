@@ -4,9 +4,12 @@ import { prisma } from "@/lib/db";
 import { hatRecht, ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { EXPORT_SPALTEN, deutscherTag } from "@/lib/semester";
-import { ladeTeilnehmer, zaehleOhneTeilnahme } from "@/lib/teilnehmerliste";
+import { ladeTeilnehmer, zaehleAbgemeldete, zaehleOhneTeilnahme, type TeilnehmerZeile } from "@/lib/teilnehmerliste";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { LadeHinweis } from "@/components/ui/lade-hinweis";
 import { UebernehmenKnopf } from "./uebernehmen-knopf";
 
+export const metadata = { title: "Teilnehmerliste" };
 export const dynamic = "force-dynamic";
 
 export default async function TeilnehmerSeite() {
@@ -15,17 +18,18 @@ export default async function TeilnehmerSeite() {
 
   const semester = await prisma.semester.findFirst({ where: { istAktuell: true } });
 
-  const zeilen = semester ? await ladeTeilnehmer(semester.id) : [];
-  const ohneTeilnahme = semester ? await zaehleOhneTeilnahme(semester.id) : 0;
+  const [zeilen, ohneTeilnahme, abgemeldet] = await Promise.all([
+    semester ? ladeTeilnehmer(semester.id) : Promise.resolve([] as TeilnehmerZeile[]),
+    semester ? zaehleOhneTeilnahme(semester.id) : Promise.resolve(0),
+    semester ? zaehleAbgemeldete(semester.id) : Promise.resolve(0),
+  ]);
 
   const darfExportieren = hatRecht(benutzer, RECHT.PERSON_EXPORTIEREN);
   const darfSemesterVerwalten = hatRecht(benutzer, RECHT.SEMESTER_VERWALTEN);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Teilnehmerliste" />
 
       <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -64,6 +68,24 @@ export default async function TeilnehmerSeite() {
         <>
           {ohneTeilnahme > 0 && darfSemesterVerwalten && (
             <UebernehmenKnopf semesterId={semester.id} anzahl={ohneTeilnahme} />
+          )}
+
+          {abgemeldet > 0 && (
+            <p className="mt-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm">
+              {abgemeldet} {abgemeldet === 1 ? "Person ist" : "Personen sind"} für dieses Semester abgemeldet
+              („Ich bin raus“ oder keine Rückmeldung zur Semesterüberleitung) und{" "}
+              {abgemeldet === 1 ? "steht" : "stehen"} deshalb nicht in der Liste.
+              {darfSemesterVerwalten && (
+                <>
+                  {" "}
+                  Wieder aufnehmen lässt sich einzeln unter{" "}
+                  <Link href="/verwaltung/semesterueberleitung" className="underline underline-offset-4">
+                    Semesterüberleitung
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
           )}
 
           {zeilen.length === 0 ? (
@@ -106,6 +128,7 @@ export default async function TeilnehmerSeite() {
                                 className="font-medium text-foreground underline-offset-4 hover:underline"
                               >
                                 {spalte.wert(zeile) || "—"}
+                                <LadeHinweis className="ml-2" />
                               </Link>
                             ) : (
                               spalte.wert(zeile) || "—"

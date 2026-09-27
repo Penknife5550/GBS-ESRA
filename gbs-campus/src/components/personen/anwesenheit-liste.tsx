@@ -7,16 +7,9 @@
  * Server-Komponente ohne Interaktion.
  */
 
-import { anwesenheitName } from "@/lib/stundenplan";
 import { QuoteAmpel } from "@/components/ui/quote-ampel";
+import { AnwesenheitBadge } from "@/components/ui/badges";
 import type { EigeneTerminGruppe } from "@/lib/stundenplan-io";
-
-const ZUSTAND_TON: Record<string, string> = {
-  ANWESEND: "bg-credo-gruen/15 text-foreground",
-  NACHGEARBEITET: "bg-credo-blau/12 text-foreground",
-  GEFEHLT: "bg-credo-rot/12 text-foreground",
-  ENTSCHULDIGT: "bg-credo-gelb/25 text-foreground",
-};
 
 export function AnwesenheitListe({ gruppen }: { gruppen: EigeneTerminGruppe[] }) {
   if (gruppen.length === 0) {
@@ -32,7 +25,7 @@ export function AnwesenheitListe({ gruppen }: { gruppen: EigeneTerminGruppe[] })
       {gruppen.map((gruppe) => (
         <div key={gruppe.teilnahmeId}>
           <h3 className="mb-2 text-sm font-semibold">{gruppe.semesterBezeichnung}</h3>
-          <QuoteAmpel quote={gruppe.quote} />
+          <QuoteAmpel quote={gruppe.quote} sicht="verwaltung" />
           <ul className="mt-3 space-y-2">
             {gruppe.termine.map((termin) => (
               <li
@@ -41,15 +34,11 @@ export function AnwesenheitListe({ gruppen }: { gruppen: EigeneTerminGruppe[] })
               >
                 <div className="min-w-0">
                   <span className="text-sm font-medium">{termin.text}</span>
-                  {termin.fach && <span className="ml-2 text-sm text-muted-foreground">· {termin.fach}</span>}
+                  {termin.kurstitel && <span className="ml-2 text-sm text-muted-foreground">· {termin.kurstitel}</span>}
                 </div>
-                <span
-                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    termin.status ? ZUSTAND_TON[termin.status] ?? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {termin.status ? anwesenheitName(termin.status) : "noch offen"}
-                </span>
+                {/* Derselbe Badge wie in der Schüler-Akte — ein Abend hat für
+                    Schulleitung und Schüler dieselbe Farbe. */}
+                <AnwesenheitBadge status={termin.status} />
               </li>
             ))}
           </ul>

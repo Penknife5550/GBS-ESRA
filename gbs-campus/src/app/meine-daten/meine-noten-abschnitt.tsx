@@ -1,4 +1,5 @@
 import { type EigeneLeistungGruppe } from "@/lib/leistung-io";
+import { ErgebnisBadge } from "@/components/ui/badges";
 
 /**
  * Die eigenen Noten des Schülers — rein lesend (Recht PERSON_LESEN_EIGENE).
@@ -26,9 +27,7 @@ export function MeineNotenAbschnitt({ gruppen }: { gruppen: EigeneLeistungGruppe
                   <span className="ml-2 text-sm text-muted-foreground">· {leistung.titel}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                    {leistung.ergebnisText}
-                  </span>
+                  <ErgebnisBadge ergebnis={leistung.ergebnis} />
                   {leistung.punkte != null && (
                     <span className="text-sm text-muted-foreground">{leistung.punkte} Punkte</span>
                   )}

@@ -10,13 +10,14 @@
  * der übrigen Administratoren).
  */
 
+import { ROLLE } from "@/lib/constants";
+
 /**
  * Diese Rolle darf nicht versehentlich verschwinden: Ohne Administrator kommt
- * niemand mehr an Konten und Rollen. Der Wert spiegelt `ROLLE.ADMIN` aus
- * `constants.ts` — bewusst hier eigenständig, damit dieses Modul DB- und
- * importfrei bleibt.
+ * niemand mehr an Konten und Rollen. `constants.ts` ist selbst abhängigkeitsfrei,
+ * dieses Modul bleibt damit DB-frei.
  */
-export const ADMIN_ROLLE = "ADMIN";
+export const ADMIN_ROLLE = ROLLE.ADMIN;
 
 export type RollenDiff = { hinzu: string[]; weg: string[] };
 
@@ -46,6 +47,26 @@ export function sindRollenBekannt(gewuenscht: string[], bekannt: string[]): bool
 export function entziehtAdmin(diff: RollenDiff): boolean {
   return diff.weg.includes(ADMIN_ROLLE);
 }
+
+/**
+ * Verlöre das System mit diesem Schritt seinen letzten Administrator?
+ *
+ * Nicht nur der Rollenentzug nimmt den Zugang: Auch ein Endzustand
+ * (Statuswechsel von Hand) und die Anonymisierung sperren das Konto — die
+ * Sitzung verfällt, und aus dem Endzustand führt kein Weg zurück. Ohne diese
+ * Wache käme danach niemand mehr an Konten und Rollen; retten ließe sich das
+ * nur direkt in der Datenbank.
+ *
+ * `andereAdmins` zählt nur Konten, die selbst noch hineinkommen (kein
+ * Endzustand) — ein verstorbener Administrator ist keiner mehr.
+ */
+export function waereLetzterAdmin(e: { istAdmin: boolean; verliertZugang: boolean; andereAdmins: number }): boolean {
+  return e.istAdmin && e.verliertZugang && e.andereAdmins === 0;
+}
+
+export const MELDUNG_LETZTER_ADMIN =
+  "Das ist der letzte Administrator. Bitte zuerst einem anderen Konto die Rolle „Administrator“ geben — " +
+  "sonst käme niemand mehr an Konten und Rollen.";
 
 // -----------------------------------------------------------------------------
 // Person anlegen — Prüfung der Eingabe (DB-frei)

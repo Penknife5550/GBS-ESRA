@@ -1,4 +1,6 @@
-import { ladeEinwilligungstexte, ladeEntwurf, ladeVeroeffentlichteFassung } from "@/lib/anmeldung";
+import { ladeEinwilligungstexte, ladeVeroeffentlichteFassung } from "@/lib/anmeldung";
+import { EINRICHTUNG } from "@/lib/constants";
+import { aktenfeldVerlangtArt9 } from "@/lib/formular-optionen";
 import {
   EinwilligungsAngebot,
   OeffentlicherAbschnitt,
@@ -8,16 +10,19 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Anmeldung — Gemeindebibelschule Minden",
+  // Die öffentliche Anmeldung trägt den Namen der Schule, nicht den des Portals.
+  title: { absolute: `Anmeldung — ${EINRICHTUNG.name}` },
 };
 
-export default async function AnmeldungSeite({
-  searchParams,
-}: {
-  searchParams: Promise<{ fortsetzen?: string }>;
-}) {
-  const { fortsetzen } = await searchParams;
-
+/**
+ * Das öffentliche Anmeldeformular.
+ *
+ * Eine begonnene Anmeldung lädt das Formular selbst: Der Link zum Fortsetzen
+ * trägt den Token im Fragment (#fortsetzen=…), das nie beim Server ankommt —
+ * diese Seite sieht ihn deshalb gar nicht (und liest bewusst keine
+ * Query-Parameter mehr, siehe oeffentliches-formular.tsx).
+ */
+export default async function AnmeldungSeite() {
   const version = await ladeVeroeffentlichteFassung();
   if (!version) {
     return (
@@ -39,10 +44,6 @@ export default async function AnmeldungSeite({
     pflicht: t.pflicht,
   }));
 
-  // Angefangene Anmeldung fortsetzen. Ein ungültiger oder abgelaufener Token
-  // führt nicht zu einer Fehlermeldung — das Formular startet dann einfach leer.
-  const entwurf = fortsetzen ? await ladeEntwurf(fortsetzen) : null;
-
   const abschnitte: OeffentlicherAbschnitt[] = version.abschnitte.map((abschnitt) => ({
     titel: abschnitt.titel,
     beschreibung: abschnitt.beschreibung,
@@ -54,7 +55,10 @@ export default async function AnmeldungSeite({
       platzhalter: feld.platzhalter,
       pflicht: feld.pflicht,
       optionen: Array.isArray(feld.optionen) ? (feld.optionen as string[]) : null,
-      istArt9: feld.istArt9,
+      // Die Gemeinde gilt immer als Art. 9 — auch in einer Fassung, die vor
+      // dieser Regel ohne Häkchen veröffentlicht wurde (wie `giltAlsArt9` auf
+      // dem Server).
+      istArt9: feld.istArt9 || aktenfeldVerlangtArt9(feld.personFeld),
       personFeld: feld.personFeld,
     })),
   }));
@@ -62,15 +66,9 @@ export default async function AnmeldungSeite({
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        Gemeindebibelschule Minden · Christliches Werk Esra e.V.
+        {EINRICHTUNG.name} · {EINRICHTUNG.traeger}
       </p>
       <h1 className="mt-3 text-3xl font-bold tracking-tight">Anmeldung</h1>
-
-      {entwurf && (
-        <p className="mt-6 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Wir haben deine begonnene Anmeldung wiederhergestellt. Du kannst weitermachen, wo du aufgehört hast.
-        </p>
-      )}
 
       <div className="mt-10">
         <OeffentlichesFormular
@@ -78,8 +76,6 @@ export default async function AnmeldungSeite({
           einleitung={version.einleitung}
           abschnitte={abschnitte}
           einwilligungen={einwilligungen}
-          startAntworten={(entwurf?.antworten as Record<string, unknown>) ?? {}}
-          startToken={entwurf ? (fortsetzen ?? null) : null}
         />
       </div>
 

@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { MAIL_VORLAGE, RECHT } from "@/lib/constants";
 import { zahl } from "@/lib/einstellungen";
 import { hashePasswort, pruefePasswort } from "@/lib/passwort";
@@ -27,8 +27,8 @@ const schema = z.object({ passwort: z.string() });
  * jemand an seinem Konto war.
  */
 export async function PUT(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_BEARBEITEN_EIGENE);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_BEARBEITEN_EIGENE);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Bitte ein Passwort angeben.", 400);
@@ -78,8 +78,8 @@ export async function PUT(request: NextRequest) {
  * Wer es nicht mehr will, soll es loswerden können, ohne jemanden zu fragen.
  */
 export async function DELETE(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_BEARBEITEN_EIGENE);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_BEARBEITEN_EIGENE);
+  if (benutzer instanceof Response) return benutzer;
 
   const person = await prisma.person.findUnique({ where: { id: benutzer.id } });
   if (!person) return fehler("Deine Akte wurde nicht gefunden.", 404);

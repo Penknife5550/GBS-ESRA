@@ -3,13 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
-import { anwesenheitName, type QuoteModellA } from "@/lib/stundenplan";
+import { ANWESENHEIT_OPTIONEN, type QuoteModellA } from "@/lib/stundenplan";
+import { istSelbstStatusErlaubt } from "@/lib/selbstbestaetigung";
 import { QuoteAmpel } from "@/components/ui/quote-ampel";
+import { AnwesenheitBadge } from "@/components/ui/badges";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Termin = {
   id: string;
   text: string;
-  fach: string | null;
+  kurstitel: string | null;
   status: string | null;
   darfBestaetigen: boolean;
 };
@@ -19,10 +22,8 @@ type Gruppe = { semesterBezeichnung: string; teilnahmeId: string; quote: QuoteMo
 // Aktion. Ein Auswahlfeld dagegen speichert bei Tastaturbedienung schon beim
 // Durchtippen jeden übersprungenen Wert (WCAG 3.2.2) — hier soll nur gespeichert
 // werden, was der Teilnehmer wirklich anklickt.
-const OPTIONEN = [
-  { wert: "ANWESEND", label: "anwesend" },
-  { wert: "NACHGEARBEITET", label: "nachgearbeitet" },
-] as const;
+// Nur, was ein Teilnehmer selbst bestätigen darf (SELBST_STATUS).
+const OPTIONEN = ANWESENHEIT_OPTIONEN.filter((o) => istSelbstStatusErlaubt(o.wert));
 
 export function AnwesenheitAbschnitt({
   gruppen,
@@ -40,7 +41,7 @@ export function AnwesenheitAbschnitt({
     Object.fromEntries(gruppen.flatMap((g) => g.termine.map((t) => [t.id, t.status]))),
   );
   const [laeuft, setLaeuft] = useState<string | null>(null);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
   async function bestaetigen(terminId: string, neu: string) {
     if (status[terminId] === neu || laeuft) return; // schon so gesetzt oder gerade am Speichern
@@ -70,23 +71,14 @@ export function AnwesenheitAbschnitt({
           : "Hier siehst du deinen Anwesenheitsstand je Semester. Erfasst und geändert wird er von der Schule."}
       </p>
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-4 rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4" />
 
       {gruppen.map((gruppe) => (
         <div key={gruppe.teilnahmeId} className="mt-6">
           <h3 className="text-sm font-semibold">{gruppe.semesterBezeichnung}</h3>
 
           <div className="mt-2">
-            <QuoteAmpel quote={gruppe.quote} />
+            <QuoteAmpel quote={gruppe.quote} sicht="schueler" />
           </div>
 
           <ul className="mt-3 space-y-2">
@@ -99,7 +91,7 @@ export function AnwesenheitAbschnitt({
                 >
                   <div className="min-w-0">
                     <span className="text-sm font-medium">{termin.text}</span>
-                    {termin.fach && <span className="ml-2 text-sm text-muted-foreground">· {termin.fach}</span>}
+                    {termin.kurstitel && <span className="ml-2 text-sm text-muted-foreground">· {termin.kurstitel}</span>}
                   </div>
 
                   {zeigeKnoepfe ? (
@@ -129,13 +121,9 @@ export function AnwesenheitAbschnitt({
                       })}
                     </div>
                   ) : darfBearbeiten && termin.status ? (
-                    <span className="inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      von der Schule erfasst: {anwesenheitName(termin.status)}
-                    </span>
+                    <AnwesenheitBadge status={termin.status} vorsatz="von der Schule erfasst: " />
                   ) : (
-                    <span className="inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      {termin.status ? anwesenheitName(termin.status) : "noch offen"}
-                    </span>
+                    <AnwesenheitBadge status={termin.status} />
                   )}
                 </li>
               );

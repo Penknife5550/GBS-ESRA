@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 
 /**
@@ -15,8 +15,8 @@ import { RECHT } from "@/lib/constants";
  * bisherige verliert die Markierung dabei automatisch.
  */
 export async function POST(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { id } = await kontext.params;
   const semester = await prisma.semester.findUnique({ where: { id } });

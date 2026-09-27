@@ -24,6 +24,18 @@ import { zahl } from "@/lib/einstellungen";
 // In der Entwicklung laeuft die App ohne TLS, dort ist der Praefix nicht erlaubt.
 const COOKIE_NAME = process.env.NODE_ENV === "production" ? "__Host-gbs_sitzung" : "gbs_sitzung";
 
+// Gilt fuer das Setzen UND das Loeschen. Ein Set-Cookie fuer ein __Host-Cookie
+// ohne `secure` verwirft der Browser komplett — auch den Loeschversuch. Deshalb
+// stehen die Attribute nur hier und nicht zweimal von Hand.
+const COOKIE_ATTRIBUTE = {
+  httpOnly: true,
+  sameSite: "lax",
+  // In der Entwicklung laeuft die App ohne TLS — dort wuerde ein secure-Cookie
+  // nie ankommen und niemand kaeme hinein.
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+} as const;
+
 function getSchluessel(): Uint8Array {
   const geheim = process.env.SESSION_SECRET;
   if (!geheim || geheim.length < 32) {
@@ -54,12 +66,7 @@ export async function sitzungAnlegen(personId: string): Promise<void> {
 
   const speicher = await cookies();
   speicher.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    // In der Entwicklung laeuft die App ohne TLS — dort wuerde ein secure-Cookie
-    // nie ankommen und niemand kaeme hinein.
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    ...COOKIE_ATTRIBUTE,
     // Muss zur Laufzeit im Token passen: laeuft das Cookie spaeter ab als das
     // Token, sieht der Benutzer eine scheinbar gueltige Sitzung, die bei jeder
     // Anfrage abgewiesen wird.
@@ -67,9 +74,20 @@ export async function sitzungAnlegen(personId: string): Promise<void> {
   });
 }
 
+/**
+ * Beendet die Sitzung im Browser: leeres Cookie mit `maxAge: 0` und denselben
+ * Attributen wie beim Setzen.
+ *
+ * Vor dem Review stand hier `speicher.delete(COOKIE_NAME)`. Next baut daraus
+ * ein Set-Cookie nur mit Path und Expires, ohne `Secure`. Browser verwerfen
+ * jedes Set-Cookie mit __Host-Praefix ohne `Secure` — auch den Loeschversuch.
+ * In Produktion blieb die Sitzung nach dem Abmelden also bestehen, waehrend die
+ * Route „abgemeldet" meldete. In der Entwicklung heisst das Cookie ohne
+ * Praefix, dort fiel es nicht auf.
+ */
 export async function sitzungBeenden(): Promise<void> {
   const speicher = await cookies();
-  speicher.delete(COOKIE_NAME);
+  speicher.set(COOKIE_NAME, "", { ...COOKIE_ATTRIBUTE, maxAge: 0 });
 }
 
 export type Sitzung = {

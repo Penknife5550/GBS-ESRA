@@ -32,6 +32,25 @@ export function anwesenheitName(status: string | null | undefined): string {
   }
 }
 
+/** Alle vier Werte in der Reihenfolge der Auswahllisten — Quelle für das
+ * `z.enum` der Verwaltungsroute und für `ANWESENHEIT_OPTIONEN`. */
+export const ANWESENHEIT_WERTE = [
+  ANWESENHEIT.ANWESEND,
+  ANWESENHEIT.ENTSCHULDIGT,
+  ANWESENHEIT.GEFEHLT,
+  ANWESENHEIT.NACHGEARBEITET,
+] as const;
+
+/**
+ * Wert und Klartext für jede Erfassungsoberfläche (Verwaltung, Dozent,
+ * Selbstbestätigung). Jede filtert daraus, was sie setzen darf
+ * (`istDozentStatusErlaubt`, `istSelbstStatusErlaubt`) — vorher stand dieselbe
+ * Liste mit eigenen Klartexten in drei Client-Komponenten.
+ */
+export const ANWESENHEIT_OPTIONEN: readonly { wert: Anwesenheitswert; label: string }[] = ANWESENHEIT_WERTE.map(
+  (wert) => ({ wert, label: anwesenheitName(wert) }),
+);
+
 /** Zählt als teilgenommen: anwesend oder nachgearbeitet (Schulordnung). */
 export function zaehltAlsTeilgenommen(status: string | null | undefined): boolean {
   return status === "ANWESEND" || status === "NACHGEARBEITET";
@@ -76,6 +95,14 @@ export type QuoteErgebnis = {
  * Der Schwellenvergleich läuft ganzzahlig (`teilgenommen * 100 >= schwelle *
  * gesamt`), nicht über eine gerundete Prozentzahl: 4 von 5 (= 80 %) sollen die
  * 80-%-Schwelle erfüllen, 3 von 4 (= 75 %) nicht — ohne Rundungs-Grauzone.
+ *
+ * @deprecated Nicht für Anzeigen. Das ist die Quote über die ERFASSTEN Abende —
+ * das zweite Quotenmodell, das Code-Review 4 (SEM-quote-stundenplan) beseitigt
+ * hat: Mit ihr stünde „100 % erfüllt“ gegen „Noch offen“ in der Akte. Die
+ * fachliche Quote ist Modell A (`quoteModellA` / `quoteAusVergangenen`, in der
+ * Oberfläche QuoteChip und QuoteAmpel). Kein Produktivcode ruft diese Funktion
+ * mehr auf; sie bleibt nur, weil `pruefe-stundenplan.ts` den ganzzahligen
+ * Schwellenvergleich an ihr festhält.
  */
 export function anwesenheitsquote(status: string[], schwelleProzent: number): QuoteErgebnis {
   const gesamt = status.length;
@@ -91,9 +118,16 @@ export function anwesenheitsquote(status: string[], schwelleProzent: number): Qu
 
 /**
  * Ist die Schwelle mit `teilgenommen` von `gesamt` Abenden erfüllt? Ganzzahliger
- * Vergleich (wie in `anwesenheitsquote`) — die eine Wahrheit, damit die
- * Personen-Liste keine eigene Kopie der Kreuzmultiplikation führt. Ohne Abende
- * (gesamt 0) gilt sie als erfüllt.
+ * Vergleich, ohne Abende (gesamt 0) gilt sie als erfüllt.
+ *
+ * Die fachliche Quote ist Modell A (`quoteModellA` bzw. `quoteAusVergangenen`:
+ * Teilnahmen der vergangenen Abende gegen ALLE Abende des Semesters) — so zeigen
+ * sie Schüler-Akte, Detailakte, Personenliste und Stundenplan (QuoteChip bzw.
+ * QuoteAmpel). `quoteErfuellt` ist genau deren Zustand ERFUELLT
+ * (`teilgenommen >= benoetigt` ist derselbe Vergleich; die Prüfung in
+ * `pruefe-stundenplan.ts` hält beide deckungsgleich). Die Oberfläche ruft sie
+ * derzeit nicht mehr auf — sie bleibt als geprüfte Kurzform ohne die
+ * Unterscheidung OFFEN/NICHT_ERREICHBAR.
  */
 export function quoteErfuellt(teilgenommen: number, gesamt: number, schwelleProzent: number): boolean {
   if (gesamt <= 0) return true;
@@ -190,6 +224,26 @@ export function quoteAusVergangenen(
   return quoteModellA(gesamt, teilgenommen, versaeumt, schwelleProzent);
 }
 
+/**
+ * Modell-A-Quote einer Teilnahme aus der Anwesenheits-Matrix eines Semesters
+ * (terminId → teilnahmeId → Status) — für die Stundenplan-Übersicht der
+ * Verwaltung, die Abende und Anwesenheit ohnehin geladen hat. Dieselbe Rechnung
+ * wie in der Schüler-Akte: gezählt werden die Stati der VERGANGENEN Abende
+ * (ein im Voraus eingetragener künftiger Abend zählt noch nicht), der Nenner
+ * sind ALLE Abende des Semesters.
+ */
+export function quoteJeTeilnahme(
+  termine: { id: string; istVergangen: boolean }[],
+  anwesenheit: Record<string, Record<string, string>>,
+  teilnahmeId: string,
+  schwelleProzent: number,
+): QuoteModellA {
+  const vergangeneStati = termine
+    .filter((t) => t.istVergangen)
+    .map((t) => anwesenheit[t.id]?.[teilnahmeId] ?? null);
+  return quoteAusVergangenen(vergangeneStati, termine.length, schwelleProzent);
+}
+
 // -----------------------------------------------------------------------------
 // Quote-Klartext für die Ampel (DB-frei, damit `pruefe-quote-schueler.ts` den
 // schülerrelevanten Wortlaut gegenprüfen kann — nicht nur die Zahlen).
@@ -208,16 +262,28 @@ export function istQuoteDringend(q: QuoteModellA): boolean {
 }
 
 /**
+ * Wer die Quote liest: der Schüler selbst (/meine-daten) oder Verwaltung und
+ * Schulleitung in der Detailakte. Nur beim Zustand NICHT_ERREICHBAR
+ * unterscheidet sich der Text — der Schulleitung „Bitte wende dich an die
+ * Schulleitung." zu sagen, führte ins Leere.
+ */
+export type QuoteSicht = "schueler" | "verwaltung";
+
+/**
  * Der Klartext unter der Quote-Ampel — die eigentliche Aussage „bin ich auf Kurs".
  * Bewusst rein: ein falscher Zweig führt einen Schüler über seine Anwesenheit in
- * die Irre, und das ist ohne DB gegenprüfbar.
+ * die Irre, und das ist ohne DB gegenprüfbar. `sicht` ist Pflicht, damit keine
+ * Seite still den Schülertext bekommt.
  */
-export function quoteHinweis(q: QuoteModellA): string {
+export function quoteHinweis(q: QuoteModellA, sicht: QuoteSicht): string {
   if (q.zustand === "ERFUELLT") {
     return "Die Anwesenheitspflicht ist damit gesichert — bereits erfasste Teilnahmen zählen fest.";
   }
   if (q.zustand === "NICHT_ERREICHBAR") {
-    return "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. Bitte wende dich an die Schulleitung.";
+    return sicht === "verwaltung"
+      ? "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. " +
+          "Der Teilnehmer sieht dazu den Hinweis, sich an die Schulleitung zu wenden."
+      : "Die Anwesenheitspflicht ist in diesem Semester rechnerisch nicht mehr erreichbar. Bitte wende dich an die Schulleitung.";
   }
   if (q.darfNochFehlen <= 0) {
     return "Achtung: Es darf kein Abend mehr fehlen, sonst reißt die Grenze.";
@@ -225,16 +291,6 @@ export function quoteHinweis(q: QuoteModellA): string {
   return `Es dürfen noch ${q.darfNochFehlen} ${abendWort(q.darfNochFehlen)} fehlen.`;
 }
 
-/**
- * Die Dienstagabende eines Semesters: der erste Dienstag ab dem Semesterbeginn
- * (der Beginn selbst, wenn er ein Dienstag ist), dann wöchentlich, `anzahl` Mal,
- * jeweils um `stunde:minute` Ortszeit (Container Europe/Berlin) — die GBS
- * unterrichtet dienstags 19:00–21:30.
- *
- * `start` ist ein Kalendertag (@db.Date, UTC-Mitternacht); der Wochentag wird
- * deshalb in UTC bestimmt. Die Abende werden mit dem ÖRTLICHEN Konstruktor
- * gebaut (19:00 vor Ort), damit keine Zeitzonenverschiebung entsteht.
- */
 /** Ein Termin als Text „Di., 15.09.2026, 19:00" — in Europe/Berlin, weil `beginn`
  * ein echter Zeitpunkt ist (kein Kalendertag). */
 export function terminText(d: Date): string {
@@ -249,6 +305,18 @@ export function terminText(d: Date): string {
   }).format(d);
 }
 
+/**
+ * Die Dienstagabende eines Semesters: der erste Dienstag ab dem Semesterbeginn
+ * (der Beginn selbst, wenn er ein Dienstag ist), dann wöchentlich, `anzahl` Mal,
+ * jeweils um `stunde:minute` Ortszeit (Container Europe/Berlin) — die GBS
+ * unterrichtet dienstags 19:00–21:30.
+ *
+ * `start` ist ein Kalendertag (@db.Date, UTC-Mitternacht); der Wochentag wird
+ * deshalb in UTC bestimmt. Die Abende werden mit dem ÖRTLICHEN Konstruktor
+ * gebaut (19:00 vor Ort), damit keine Zeitzonenverschiebung entsteht — auch über
+ * die Umstellung auf Winter- bzw. Sommerzeit hinweg bleibt es 19:00 vor Ort
+ * (geprüft in `pruefe-stundenplan.ts`, das deshalb in Europe/Berlin laufen muss).
+ */
 export function dienstagstermine(start: Date, anzahl: number, stunde = 19, minute = 0): Date[] {
   const jahr = start.getUTCFullYear();
   const monat = start.getUTCMonth();
@@ -271,7 +339,15 @@ export function dienstagstermine(start: Date, anzahl: number, stunde = 19, minut
 // „Offene Aufgaben" des Dozenten testbar sind und nicht in der JSX-Seite hängen.
 // -----------------------------------------------------------------------------
 
-export type OffenerAbend = { semester: string; text: string; fach: string | null; erfasst: number; gesamt: number };
+export type OffenerAbend = {
+  /** Für den Sprung zum Abend im Stundenplan (Anker `#termin-<id>`). */
+  terminId: string;
+  semester: string;
+  text: string;
+  fach: string | null;
+  erfasst: number;
+  gesamt: number;
+};
 
 type ErfassungsGruppe = {
   semesterBezeichnung: string;
@@ -291,6 +367,7 @@ export function offeneErfassung(gruppen: ErfassungsGruppe[]): OffenerAbend[] {
     g.termine
       .filter((t) => t.istVergangen && g.teilnehmer.length > 0)
       .map((t) => ({
+        terminId: t.id,
         semester: g.semesterBezeichnung,
         text: t.text,
         fach: t.fach,

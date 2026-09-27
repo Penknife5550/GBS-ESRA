@@ -3,37 +3,49 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import type { DmsVersand } from "@/lib/honorar-korrektur";
 
-type Antwort = { belegNr: string; dmsGesendet: boolean };
+type Antwort = { belegNr: string; dmsGesendet: boolean; dmsVersand: DmsVersand };
 
 /**
  * Gibt die Abrechnung frei — dabei geht der Zahlungsbeleg mit IBAN an das DMS.
  * Bewusst mit Rückfrage, weil hier die Bankverbindung herausgegeben wird.
+ *
+ * `gesperrtGrund` (z. B. keine Bankverbindung hinterlegt) sperrt den Knopf und
+ * steht sichtbar darunter — statt einer Rückfrage, deren Anfrage sicher scheitert.
  */
-export function FreigebenKnopf({ abrechnungId }: { abrechnungId: string }) {
+export function FreigebenKnopf({
+  abrechnungId,
+  gesperrtGrund = null,
+}: {
+  abrechnungId: string;
+  gesperrtGrund?: string | null;
+}) {
   const router = useRouter();
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
 
   async function freigeben() {
+    if (gesperrtGrund) return;
     if (!confirm("Abrechnung freigeben? Der Zahlungsbeleg inkl. IBAN wird an das DMS gesendet.")) return;
     setLaeuft(true);
-    setMeldung(null);
+    setFehler(null);
 
     const antwort = await sendeAnfrage<Antwort>(`/api/honorar/abrechnungen/${abrechnungId}/freigeben`, {
       methode: "POST",
     });
-    setLaeuft(false);
 
     if (!antwort.ok) {
-      setMeldung({ art: "fehler", text: antwort.meldung });
+      setLaeuft(false);
+      setFehler(antwort.meldung);
       return;
     }
-    const dms = antwort.daten.dmsGesendet
-      ? `Beleg ${antwort.daten.belegNr} an das DMS gesendet.`
-      : `Beleg ${antwort.daten.belegNr} erzeugt — DMS-Versand steht aus (E-Mail noch nicht eingerichtet).`;
-    setMeldung({ art: "ok", text: `Freigegeben. ${dms}` });
-    router.refresh();
+    // Der tatsächliche Ausgang (M12) geht als ?freigabe=… an die Seite: Dieser
+    // Knopf steht nur bei OFFEN und hängt mit dem Statuswechsel aus — eine
+    // eigene Meldung wäre nach dem Neuladen sofort wieder weg. Die Seite zeigt ihn
+    // oben unter der Überschrift mit dmsVersandText an — dorthin springt
+    // router.replace ohnehin (Seitenanfang), die Meldung steht also im Blick.
+    router.replace(`/verwaltung/honorar/abrechnungen/${abrechnungId}?freigabe=${antwort.daten.dmsVersand}`);
   }
 
   return (
@@ -41,19 +53,20 @@ export function FreigebenKnopf({ abrechnungId }: { abrechnungId: string }) {
       <button
         type="button"
         onClick={freigeben}
-        disabled={laeuft}
+        disabled={laeuft || Boolean(gesperrtGrund)}
+        aria-describedby={gesperrtGrund ? "freigabe-gesperrt" : undefined}
         className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
       >
         {laeuft ? "Gebe frei …" : "Freigeben (Beleg mit IBAN ans DMS)"}
       </button>
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok" ? "bg-credo-gruen/10 text-foreground" : "bg-credo-rot/10 text-foreground"
-          }`}
-        >
-          {meldung.text}
+      {gesperrtGrund && (
+        <p id="freigabe-gesperrt" className="mt-1 text-xs text-muted-foreground">
+          {gesperrtGrund}
+        </p>
+      )}
+      {fehler && (
+        <p role="alert" className="mt-3 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm text-foreground">
+          {fehler}
         </p>
       )}
     </div>

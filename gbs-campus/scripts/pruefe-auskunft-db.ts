@@ -8,8 +8,8 @@
  * NICHT über das DB-freie `npm run pruefen`.
  *
  * Die DB muss migriert und geseedet sein (der TeilnehmerStatus wird als
- * Fremdschlüssel gebraucht). Das Skript legt eine Testperson an und räumt sie
- * am Ende wieder weg.
+ * Fremdschlüssel gebraucht). Das Skript legt eine Testperson und ein
+ * Testsemester (vergangen, nicht laufend) an und räumt beides am Ende wieder weg.
  */
 
 import { createHash, randomUUID } from "crypto";
@@ -31,11 +31,13 @@ function pruefe(bezeichnung: string, bedingung: boolean, zusatz?: unknown) {
 const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
 const EMAIL = "auskunft-roundtrip@example.invalid";
+const SEMESTER_CODE = "AUSKUNFT-ROUNDTRIP";
 
 async function lauf() {
   // Vorher aufräumen, falls ein früherer Lauf abgebrochen ist.
   await prisma.datenauskunft.deleteMany({ where: { person: { email: EMAIL } } });
   await prisma.person.deleteMany({ where: { email: EMAIL } });
+  await prisma.semester.deleteMany({ where: { code: SEMESTER_CODE } });
 
   const person = await prisma.person.create({
     data: {
@@ -101,6 +103,13 @@ async function lauf() {
     "keine Anmeldung vorhanden führt nicht zum Absturz",
     Array.isArray(daten?.anmeldungen) && daten!.anmeldungen.length === 0,
   );
+  pruefe(
+    "ohne Teilnahme, Noten, Zeugnis und Unterricht sind die Abschnitte leer (kein Absturz)",
+    daten !== null &&
+      [daten.teilnahmen, daten.anwesenheiten, daten.leistungen, daten.zeugnisse, daten.unterrichtsabende, daten.honorarAbrechnungen].every(
+        (liste) => Array.isArray(liste) && liste.length === 0,
+      ),
+  );
 
   const pdf = await erzeugeAuskunftPdf(person.id);
   pruefe("PDF wird aus echten Daten erzeugt und beginnt mit %PDF", pdf?.subarray(0, 5).toString("latin1") === "%PDF-");
@@ -118,10 +127,50 @@ async function lauf() {
     Boolean(datenKaputt?.stammdaten.find((s) => s.label === "IBAN")?.wert.includes("nicht lesbar")),
   );
 
-  // Aufräumen (Cascade entfernt die Auskunfts-Token mit).
-  await prisma.person.delete({ where: { id: person.id } });
+  console.log("\n5. Abgemeldete Teilnahme und selbst bestätigte Anwesenheit aus echten Daten");
+  // Code-Review 4: Rückmeldung zur Semesterüberleitung und Selbstbestätigung
+  // gehören in die Auskunft — eine abgemeldete Teilnahme darf dort nicht wie
+  // eine gewöhnliche aussehen.
+  const semester = await prisma.semester.create({
+    data: {
+      code: SEMESTER_CODE,
+      bezeichnung: "Auskunft-Testsemester",
+      start: new Date("2020-09-01T00:00:00Z"),
+      ende: new Date("2020-12-31T00:00:00Z"),
+    },
+  });
+  const teilnahme = await prisma.teilnahme.create({
+    data: {
+      personId: person.id,
+      semesterId: semester.id,
+      teilnahmeform: "SCHUELER",
+      eingeladenAm: new Date("2020-08-15T10:00:00Z"),
+      abgemeldetAm: new Date("2020-08-20T10:00:00Z"),
+      abmeldeGrund: "BIN_RAUS",
+    },
+  });
+  const termin = await prisma.unterrichtstermin.create({
+    data: { semesterId: semester.id, beginn: new Date("2020-09-08T17:00:00Z") },
+  });
+  await prisma.anwesenheit.create({
+    data: { terminId: termin.id, teilnahmeId: teilnahme.id, status: "ANWESEND", erfasstVonId: person.id },
+  });
+  const mitTeilnahme = await sammleAuskunft(person.id);
+  const t = mitTeilnahme?.teilnahmen[0];
+  pruefe(
+    "Einladung, Abmeldung und Abmeldegrund der Teilnahme stehen in den Auskunftsdaten",
+    t?.eingeladenAm != null && t.abgemeldetAm != null && t.abmeldeGrund === "BIN_RAUS",
+    t,
+  );
+  const a = mitTeilnahme?.anwesenheiten[0];
+  pruefe("eine selbst gesetzte Anwesenheit gilt als selbst bestätigt", a?.status === "ANWESEND" && a.selbstBestaetigt === true, a);
 
-  const ERWARTET = 15;
+  // Aufräumen (Cascade entfernt die Auskunfts-Token, Teilnahme und Anwesenheit
+  // mit; das Semester nimmt den Termin mit).
+  await prisma.person.delete({ where: { id: person.id } });
+  await prisma.semester.delete({ where: { id: semester.id } });
+
+  const ERWARTET = 18;
   const gelaufen = geprueft + 1;
   pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 }

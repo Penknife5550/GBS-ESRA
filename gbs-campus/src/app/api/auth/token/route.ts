@@ -11,9 +11,19 @@ const schema = z.object({ token: z.string().uuid() });
  * Löst einen Anmeldelink ein. Bewusst POST — siehe Kommentar in
  * src/app/anmelden/token/page.tsx (Link-Scanner und Login-CSRF).
  *
- * Reihenfolge: erst die Sitzung anlegen, dann entwerten. Umgekehrt wäre der Link
- * bei einem Fehler in `sitzungAnlegen` unwiederbringlich verbrannt, und jeder
- * neu angeforderte Link würde genauso verbrennen.
+ * Reihenfolge: erst entwerten, dann die Sitzung anlegen. Bis Code-Review 4
+ * behauptete dieser Kommentar das Gegenteil; der Code tat aber schon immer dies,
+ * und das ist die sichere Richtung: Das bedingte Entwerten in
+ * `loeseMagicLinkEin` stellt sicher, dass zwei gleichzeitige Aufrufe nicht
+ * beide eine Sitzung bekommen. Umgekehrt hinge die Einmaligkeit des Links
+ * daran, dass nach dem Anlegen der Sitzung nichts mehr schiefgeht.
+ *
+ * Der Preis: Scheitert `sitzungAnlegen` (praktisch nur bei fehlendem
+ * SESSION_SECRET, das der Startprüfer schon abfängt), ist der Link verbraucht.
+ * Er wird bewusst nicht wieder freigegeben — ein zurückgesetztes `benutztAm`
+ * könnte einen Link wiederbeleben, den eine Adressänderung durch die Verwaltung
+ * gerade entwertet hat. Stattdessen sagt die Antwort klar, dass ein neuer Link
+ * nötig ist.
  */
 export async function POST(request: NextRequest) {
   const geprueft = schema.safeParse(await request.json().catch(() => null));
@@ -33,7 +43,16 @@ export async function POST(request: NextRequest) {
     return fehler("Dieser Link ist abgelaufen oder wurde bereits benutzt.", 401);
   }
 
-  await sitzungAnlegen(personId);
+  try {
+    await sitzungAnlegen(personId);
+  } catch (f) {
+    console.error("[ANMELDUNG] Sitzung konnte nach dem Einlösen nicht angelegt werden:", f);
+    return fehler(
+      "Die Anmeldung hat nicht geklappt, und dieser Link ist dabei verbraucht worden. " +
+        "Bitte fordere einen neuen an.",
+      500,
+    );
+  }
 
   await protokolliere({
     aktion: "ANGEMELDET",

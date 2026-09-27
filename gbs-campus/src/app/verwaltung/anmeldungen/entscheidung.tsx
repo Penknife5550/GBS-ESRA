@@ -1,19 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
 
+/**
+ * Aufnehmen oder Ablehnen — in der Anmeldeliste und auf der Detailseite.
+ *
+ * Nach der Entscheidung bleibt eine Meldung stehen, bis der Bediener die
+ * Ansicht selbst aktualisiert. Vorher lud die Seite ohne Hinweise sofort neu:
+ * Der Abschnitt verschwand ohne Erfolgsmeldung, und der Fokus lag im Nichts.
+ */
 export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name: string }) {
   const router = useRouter();
   const [modus, setModus] = useState<"bereit" | "ablehnen">("bereit");
   const [grund, setGrund] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
-  // Ein Hinweis, der nach der Entscheidung stehen bleiben muss. Vorher stand er
-  // in `alert()` — ein Fenster, das mit einem Klick verschwindet und danach
-  // nirgends mehr nachlesbar ist.
-  const [hinweis, setHinweis] = useState<string | null>(null);
+  // Die Meldung nach der Entscheidung — sie muss stehen bleiben. Vorher stand
+  // ein Teil davon in `alert()`, ein Fenster, das mit einem Klick verschwindet
+  // und danach nirgends mehr nachlesbar ist.
+  const [ergebnis, setErgebnis] = useState<{ text: string; warnung: boolean } | null>(null);
+  const [aktualisiert, starteAktualisierung] = useTransition();
+  const ergebnisRef = useRef<HTMLParagraphElement>(null);
+
+  // Die Knöpfe, auf denen der Fokus lag, sind jetzt weg — er geht auf die Meldung.
+  useEffect(() => {
+    if (ergebnis) ergebnisRef.current?.focus();
+  }, [ergebnis]);
+
+  /**
+   * Mit dem Aktualisieren verschwindet dieser Abschnitt (Liste und Detailseite
+   * zeigen ihn nur bei EINGEREICHT) — samt dem Knopf, auf dem der Fokus liegt.
+   * Er fiele auf die Seite zurück, und Vorlesesoftware sagte nichts. Deshalb
+   * vorher auf die Seitenüberschrift: Sie bleibt beim Aktualisieren stehen.
+   */
+  function aktualisieren() {
+    const ueberschrift = document.querySelector<HTMLElement>("main h1") ?? document.querySelector<HTMLElement>("h1");
+    if (ueberschrift) {
+      ueberschrift.tabIndex = -1;
+      ueberschrift.focus();
+    }
+    starteAktualisierung(() => router.refresh());
+  }
 
   async function entscheiden(entscheidung: "ANNEHMEN" | "ABLEHNEN") {
     if (entscheidung === "ANNEHMEN" && !confirm(`${name} aufnehmen? Die Aufnahmebestätigung geht sofort per E-Mail raus.`)) {
@@ -38,6 +67,7 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
       return;
     }
 
+    const angenommen = entscheidung === "ANNEHMEN";
     const hinweise: string[] = [];
 
     // Der Schulleiter erfaehrt, wenn die Bestaetigung nicht rausging — sonst
@@ -71,32 +101,41 @@ export function Entscheidung({ anmeldungId, name }: { anmeldungId: string; name:
       );
     }
 
-    // Mit dem Neuladen verschwindet diese Karte aus der Arbeitsliste — und mit
-    // ihr der Hinweis. Deshalb erst lesen lassen, dann neu laden.
-    if (hinweise.length > 0) {
-      setLaeuft(false);
-      setHinweis(hinweise.join(" "));
-      return;
-    }
-
-    // Ladezustand bleibt gesetzt, bis die Seite neu geladen hat. Vorher waren
-    // die Knoepfe waehrend des Nachladens wieder aktiv und die Karte zeigte den
-    // alten Stand — ein zweiter Klick loeste eine zweite Mail aus.
-    router.refresh();
+    // Mit dem Aktualisieren verschwindet dieser Abschnitt (in der Liste die
+    // Karte, auf der Detailseite der Entscheidungsteil) — und mit ihm die
+    // Meldung. Deshalb bleibt sie stehen, bis der Bediener selbst aktualisiert.
+    // Die Knöpfe sind dann schon weg: Ein zweiter Klick, der eine zweite Mail
+    // auslöst, ist nicht möglich.
+    setLaeuft(false);
+    setErgebnis({
+      text:
+        hinweise.length > 0
+          ? hinweise.join(" ")
+          : angenommen
+            ? `${name} ist aufgenommen.`
+            : `Die Ablehnung für ${name} ist festgehalten.`,
+      warnung: hinweise.length > 0,
+    });
   }
 
-  if (hinweis) {
+  if (ergebnis) {
     return (
       <div className="mt-4">
-        <p role="status" className="rounded-lg bg-credo-gelb/15 px-3 py-2 text-sm">
-          {hinweis}
+        <p
+          ref={ergebnisRef}
+          role="status"
+          tabIndex={-1}
+          className={`rounded-lg px-3 py-2 text-sm outline-none ${ergebnis.warnung ? "bg-credo-gelb/15" : "bg-credo-gruen/15"}`}
+        >
+          {ergebnis.text}
         </p>
         <button
           type="button"
-          onClick={() => router.refresh()}
-          className="mt-3 min-h-11 rounded-lg border border-input px-4 py-2 text-sm font-medium"
+          onClick={aktualisieren}
+          disabled={aktualisiert}
+          className="mt-3 min-h-11 rounded-lg border border-input px-4 py-2 text-sm font-medium disabled:opacity-60"
         >
-          Gelesen — Liste aktualisieren
+          {aktualisiert ? "Wird aktualisiert …" : "Ansicht aktualisieren"}
         </button>
       </div>
     );

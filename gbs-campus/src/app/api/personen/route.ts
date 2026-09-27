@@ -2,11 +2,14 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT, ROLLE, STATUS } from "@/lib/constants";
 import { pruefeNeuePerson } from "@/lib/benutzerverwaltung";
+import { geaenderteFeldnamen } from "@/lib/anonymisierung";
+import { SYSTEM_GRUND } from "@/lib/status";
+import { erfasseErstenStatus } from "@/lib/status-io";
 
 const schema = z.object({
   vorname: z.string().nullish(),
@@ -25,8 +28,8 @@ const schema = z.object({
  * Knopf, erst nachdem die Person erkannt wurde.
  */
 export async function POST(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.BENUTZER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.BENUTZER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
@@ -55,8 +58,11 @@ export async function POST(request: NextRequest) {
       await tx.personRolle.create({ data: { personId: person.id, rolleCode: ROLLE.TEILNEHMER, erteiltVonId: benutzer.id } });
       // Auch der erste Status wird protokolliert — die Akte soll lückenlos zeigen,
       // wie jemand in den Zustand gekommen ist (wie beim Anmeldeweg).
-      await tx.statusWechsel.create({
-        data: { personId: person.id, nachCode: STATUS.AKTIV, grund: "Von der Verwaltung angelegt", ausgeloestVonId: benutzer.id },
+      await erfasseErstenStatus(tx, {
+        personId: person.id,
+        nachCode: STATUS.AKTIV,
+        grund: SYSTEM_GRUND.VON_HAND_ANGELEGT,
+        akteurId: benutzer.id,
       });
       return person.id;
     });
@@ -72,7 +78,10 @@ export async function POST(request: NextRequest) {
     objektTyp: "Person",
     objektId: personId,
     akteurId: benutzer.id,
-    nachher: { vorname: werte.vorname, nachname: werte.nachname, email: werte.email },
+    // Nur WELCHE Felder angegeben wurden, nicht ihre Werte: Das Audit-Log ist
+    // unlöschbar, Name und Adresse stehen in der Akte (und verschwinden dort
+    // bei einer Anonymisierung).
+    nachher: { status: STATUS.AKTIV, angegebeneFelder: geaenderteFeldnamen({}, werte) },
     headers: request.headers,
   });
 

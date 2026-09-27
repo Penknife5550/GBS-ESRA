@@ -39,7 +39,7 @@ model TeilnehmerStatus {
   istAktiv          Boolean @default(false)
   /// Endzustand — aus ihm fuehrt kein regulaerer Weg zurueck.
   istTerminal       Boolean @default(false)
-  /// Darf der Beitragslauf fuer diese Person Forderungen erzeugen? (relevant ab 0.3)
+  /// Darf der Beitragslauf fuer diese Person Forderungen erzeugen? (relevant fuer den kuenftigen Beitragslauf)
   beitragLaeuft     Boolean @default(false)
   /// Laeuft die Anwesenheits-Uhr? (relevant ab 0.2)
   anwesenheitZaehlt Boolean @default(false)
@@ -183,7 +183,7 @@ model Person {
   ehepartner    Person? @relation("Ehepaar", fields: [ehepartnerId], references: [id], onDelete: SetNull)
   ehepartnerVon Person? @relation("Ehepaar")
 
-  /// Nachlass auf den Semesterbeitrag. Greift ab Release 0.3 im Beitragslauf.
+  /// Nachlass auf den Semesterbeitrag. Greift im kuenftigen Beitragslauf.
   ermaessigungCode String?
   ermaessigung     Ermaessigung? @relation(fields: [ermaessigungCode], references: [code])
 
@@ -227,9 +227,9 @@ model Person {
 // Bewusst als Tabelle und nicht als fest verdrahtete „50 % fuer Ehepartner":
 // Ein Prozentsatz im Code laesst sich nur mit einem Deploy aendern, und die
 // Schule wird ueber die Jahre weitere Faelle haben (Geschwister, Haertefall,
-// Gemeinde als Zahler). Der Beitragslauf selbst kommt mit Release 0.3 — hier
-// steht nur die Grundlage, damit spaeter nichts nachtraeglich umgebaut werden
-// muss.
+// Gemeinde als Zahler). Der Beitragslauf selbst kommt in einem kuenftigen
+// Release — hier steht nur die Grundlage, damit spaeter nichts nachtraeglich
+// umgebaut werden muss.
 // =============================================================================
 
 model Ermaessigung {
@@ -309,19 +309,39 @@ model Teilnahme {
 
   /// Bestaetigungslink der Semesterueberleitung. Wie ueberall im System liegt nur
   /// der SHA-256-Hash des Tokens in der Datenbank; der Klartext existiert
-  /// ausschliesslich in der versendeten URL. Ein Token je Teilnahme — alle
-  /// Erinnerungen (T-14/-7/-3) tragen denselben Link, gueltig bis
-  /// `bestaetigungLaeuftAb`.
+  /// ausschliesslich in der versendeten URL. Ein gueltiger Token je Teilnahme,
+  /// gueltig bis `bestaetigungLaeuftAb` (Semesterstart). Jede ZUGESTELLTE
+  /// Erinnerung (T-14/-7/-3) traegt einen frischen Link und loest den alten ab;
+  /// eine gescheiterte laesst den bisherigen Link gueltig.
   bestaetigungTokenHash String?   @unique
   bestaetigungLaeuftAb  DateTime?
 
   /// Zeitpunkt der drei Erinnerungsstufen (Offsets als Einstellung, Bereich
   /// SEMESTER). Bewusst drei Spalten statt eines Zaehlers, damit der
-  /// Erinnerungslauf idempotent bleibt: gesetzt heisst „diese Stufe ist raus",
-  /// ein zweiter Lauf am selben Tag ueberspringt sie (bedingtes updateMany).
+  /// Erinnerungslauf idempotent bleibt: gesetzt heisst „diese Stufe wurde
+  /// versucht" (zugestellt oder gescheitert — eine gescheiterte wird nicht
+  /// wiederholt, die naechste Stufe versucht es erneut); ein zweiter Lauf am
+  /// selben Tag ueberspringt sie (bedingtes updateMany).
   erinnertStufe1Am DateTime?
   erinnertStufe2Am DateTime?
   erinnertStufe3Am DateTime?
+
+  /// Rueckmeldung zur Semesterueberleitung (M10). `eingeladenAm` ist gesetzt,
+  /// wenn die Ueberleitung zu dieser Teilnahme eingeladen hat — anders als der
+  /// Token ueberlebt die Markierung den Aufraeumlauf, deshalb bleiben Eingeladene
+  /// von direkt Aufgenommenen unterscheidbar.
+  eingeladenAm DateTime?
+  /// Gesetzt = die Teilnahme ZAEHLT NICHT: Sie faellt aus allen Listen dieses
+  /// Semesters (Teilnehmerliste/Excel, Anwesenheit, Noten, Zeugnislauf,
+  /// Kennzahlen). Filter „zaehlende Teilnahme": `TEILNAHME_ZAEHLT` aus
+  /// `src/lib/teilnahme-filter.ts`. Der Personenstatus bleibt davon unberuehrt.
+  abgemeldetAm DateTime?
+  /// Warum: "BIN_RAUS" (selbst abgesagt) oder "KEINE_RUECKMELDUNG" (bis
+  /// Semesterstart nicht geantwortet) — Konstanten `ABMELDEGRUND` in
+  /// `constants.ts`. Genau dann gesetzt, wenn `abgemeldetAm` gesetzt ist
+  /// (CHECK `teilnahmen_abmeldung_konsistent` in der Migration
+  /// `20260927110000_teilnahme_rueckmeldung`).
+  abmeldeGrund String?
 
   erstelltAm DateTime @default(now())
 
@@ -379,6 +399,8 @@ model Kurseinheit {
   halbjahr      Int // 1 = Herbst, 2 = Fruehling
   stunden       Int?
 
+  /// Kurseinheiten werden nur deaktiviert, nie geloescht: Bewertungen haengen
+  /// mit onDelete: Restrict daran (Modell `Leistung`).
   aktiv      Boolean @default(true)
   sortierung Int     @default(0)
 
@@ -503,7 +525,10 @@ model Leistung {
   teilnahme   Teilnahme @relation(fields: [teilnahmeId], references: [id], onDelete: Cascade)
 
   kurseinheitId String
-  kurseinheit   Kurseinheit @relation(fields: [kurseinheitId], references: [id], onDelete: Cascade)
+  // Restrict: Noten sind Nachweisdaten und duerfen nicht still mit einer
+  // Kurseinheit verschwinden. Kurseinheiten nur deaktivieren (aktiv = false),
+  // nie loeschen (Migration 20260927160500_leistung_kurseinheit_restrict).
+  kurseinheit   Kurseinheit @relation(fields: [kurseinheitId], references: [id], onDelete: Restrict)
 
   ergebnis Leistungsergebnis
 
@@ -544,6 +569,16 @@ model Leistung {
 // als Nachweis), ein neues mit hoeherer `version` und neuer Beleg-Nr tritt an
 // seine Stelle; `ersetztId` zeigt auf den Vorgaenger, der „ersetzt Beleg …"-
 // Vermerk steht im Snapshot.
+//
+// Eingefroren auf DB-Ebene (Trigger, Migration 20260927160000_belege_unveraenderlich):
+// Aenderbar sind nur status GUELTIG -> ERSETZT, dmsGesendetAm (leer -> Wert) und
+// im Snapshot der Schluessel `person` durch den Anonymisierungs-Scrub. gbs_app
+// hat kein direktes DELETE (prisma/setup-app-nutzer.ts). Das REVOKE sperrt aber
+// nur das direkte DELETE: Ueber das Loeschen der Person (auch als gbs_app, das
+// DELETE auf personen hat) verschwinden Zeugnisse per Cascade — Fremdschluessel-
+// Aktionen laufen als Tabelleneigentuemer. Heute loescht kein Code Personen
+// (Art. 17 = Anonymisierung). `prisma migrate dev` kennt Trigger nicht —
+// erzeugte Migrationen vor dem Committen ansehen.
 //
 // Eindeutigkeit (zwei partielle Unique-Indizes, siehe Migration): Semester-Zeugnis
 // und Bescheinigung sind je (Person, Semester, Typ) eindeutig; das
@@ -613,6 +648,10 @@ model Zeugnis {
 // den Versand fest. Korrekturen sind neue Zeilen, kein Update — deshalb bewusst
 // KEIN @@unique auf gueltigAb: die Aufloesung nimmt bei gleichem Datum die
 // zuletzt genehmigte Zeile.
+//
+// Durchgesetzt per Trigger (Migration 20260927160000_belege_unveraenderlich):
+// Ein Satz ist nach dem Anlegen eingefroren, nachtragen lassen sich nur
+// dmsBelegNr/dmsGesendetAm (leer -> Wert); kein DELETE, kein TRUNCATE.
 // =============================================================================
 
 model HonorarSatz {
@@ -647,6 +686,13 @@ model HonorarSatz {
 // freigegeben; dabei geht der Zahlungsbeleg mit IBAN an das DMS) -> AUSGEZAHLT
 // (als bezahlt markiert). Die IBAN wird erst bei der Belegerzeugung aus der
 // Person entschluesselt und NICHT in der Abrechnung gespeichert.
+//
+// Durchgesetzt per Trigger (Migration 20260927160000_belege_unveraenderlich):
+// Status nur in dieser Kette vorwaerts, Beleg-/Freigabe-/Auszahlungs-/DMS-Felder
+// nur leer -> Wert, Summe und Kopf fest; loeschen (Storno) nur OFFEN. Posten
+// sind unveraenderlich und verschwinden nur mit dem Storno ihrer Abrechnung;
+// neue Posten nur zu einer OFFENEN Abrechnung (beim Anlegen), und beim Commit
+// muss `summe` der Summe der Posten entsprechen (verzoegerter Constraint-Trigger).
 // =============================================================================
 
 enum HonorarAbrechnungStatus {
@@ -934,6 +980,16 @@ model FormularFeld {
 /// Der Einwilligungstext ist versioniert. Aendert er sich, entsteht eine neue
 /// Version; alte Einwilligungen bleiben an ihrer Fassung haengen und damit
 /// nachweisbar.
+///
+/// ACHTUNG: Eine Fassung ist nach dem Anlegen eingefroren, durchgesetzt per
+/// Trigger aus der Migration `20260927100000_einwilligungstexte_unveraenderlich`
+/// (einwilligungs_text_nur_aktiv_bis, _kein_delete, _kein_truncate): Aenderbar
+/// ist nur `aktivBis` (Fassung ausser Kraft setzen); Titel, Text, istArt9,
+/// pflicht oder aktivAb zu aendern heisst, eine neue Fassung (version + 1)
+/// anzulegen. `gbs_app` hat zusaetzlich kein UPDATE/DELETE/TRUNCATE auf der
+/// Tabelle (prisma/setup-app-nutzer.ts); der Seed legt Fassungen nur an.
+/// `prisma migrate dev` kennt Trigger nicht — erzeugte Migrationen vor dem
+/// Committen ansehen und die Trigger nie droppen.
 model EinwilligungsText {
   id      String @id @default(uuid())
   code    String // DATENSCHUTZ, GLAUBENSANGABEN, FOTOS
@@ -1058,10 +1114,11 @@ model MagicLink {
 /// Eine beantragte Aenderung der E-Mail-Adresse.
 ///
 /// Sie wirkt erst, wenn der Link aus der Bestaetigungsmail an die NEUE Adresse
-/// eingeloest ist. Grund: Die E-Mail-Adresse IST der Kontoschluessel — es gibt
-/// kein Passwort und (in Release 0.1) auch keine Oberflaeche, mit der die
-/// Verwaltung eine vertippte Adresse korrigieren koennte. Eine sofort wirksame
-/// Aenderung wuerde bei einem Tippfehler das Konto dauerhaft aussperren.
+/// eingeloest ist. Grund: Die E-Mail-Adresse ist der Kontoschluessel — ueber sie
+/// laufen Anmelde- und Auskunftslink, ein Passwort ist nur ein freiwilliger
+/// zweiter Weg. Eine vertippte Adresse kann die Verwaltung zwar korrigieren
+/// (/api/personen/[id]/email), aber erst nach Erkennen der Person; eine sofort
+/// wirksame Aenderung wuerde das Konto bis dahin aussperren.
 ///
 /// Wie beim Magic-Link liegt nur der SHA-256-Hash des Tokens in der Datenbank.
 model EmailAenderung {
@@ -1128,8 +1185,8 @@ enum EmailStatus {
 }
 
 /// Versandprotokoll. Bounces landen hier und damit sichtbar in der Akte —
-/// eine tote Adresse darf nicht stillschweigend verschwinden, weil der
-/// Magic-Link der einzige Kontoschluessel ist.
+/// eine tote Adresse darf nicht stillschweigend verschwinden, weil fuer alle
+/// ohne Passwort der Magic-Link der einzige Kontoschluessel ist.
 model EmailVersand {
   id String @id @default(uuid())
 

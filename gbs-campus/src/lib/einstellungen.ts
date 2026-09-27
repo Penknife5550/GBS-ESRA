@@ -282,12 +282,15 @@ export const EINSTELLUNGEN = {
     sortierung: 40,
   },
   // Die vier Beträge stehen bewusst als Regler und nicht als Konstante im Code:
-  // Preise ändern sich, und der eigentliche Beitragslauf (Release 0.3) soll sie
-  // hier finden statt in einer Codezeile. In 0.1 wird noch nichts eingezogen —
-  // die Werte spiegeln den Hinweistext des Bewerbungsformulars.
+  // Preise ändern sich, und der künftige Beitragslauf soll sie hier finden statt
+  // in einer Codezeile. Eingezogen wird bisher nichts — die Werte spiegeln den
+  // Hinweistext des Bewerbungsformulars. Die Beschreibungen stehen in
+  // /verwaltung/einstellungen, deshalb dort keine Releasenummern (Code-Review 4).
+  // Kurz halten: scripts/pruefe-beitrag.ts sucht den Standardwert höchstens 300
+  // Zeichen hinter dem Schlüssel.
   BEITRAG_REGULAER_MONATLICH: {
     bezeichnung: "Beitrag monatlich (regulär)",
-    beschreibung: "Monatlicher Semesterbeitrag ohne Ermäßigung. Einzug ab Release 0.3.",
+    beschreibung: "Monatlicher Semesterbeitrag ohne Ermäßigung. Wird derzeit nicht eingezogen.",
     bereich: "BEITRAG",
     typ: EinstellungTyp.ZAHL,
     standard: 20,
@@ -298,7 +301,7 @@ export const EINSTELLUNGEN = {
   },
   BEITRAG_REGULAER_HALBJAEHRLICH: {
     bezeichnung: "Beitrag halbjährlich (regulär)",
-    beschreibung: "Halbjährlicher Semesterbeitrag ohne Ermäßigung. Einzug ab Release 0.3.",
+    beschreibung: "Halbjährlicher Semesterbeitrag ohne Ermäßigung. Wird derzeit nicht eingezogen.",
     bereich: "BEITRAG",
     typ: EinstellungTyp.ZAHL,
     standard: 120,
@@ -311,7 +314,7 @@ export const EINSTELLUNGEN = {
     bezeichnung: "Beitrag monatlich (mit Ehepartner)",
     beschreibung:
       "Monatlicher Beitrag bei gemeinsamer Anmeldung mit dem Ehepartner (zweiter Partner 50 %). " +
-      "Einzug ab Release 0.3.",
+      "Wird derzeit nicht eingezogen.",
     bereich: "BEITRAG",
     typ: EinstellungTyp.ZAHL,
     standard: 30,
@@ -324,7 +327,7 @@ export const EINSTELLUNGEN = {
     bezeichnung: "Beitrag halbjährlich (mit Ehepartner)",
     beschreibung:
       "Halbjährlicher Beitrag bei gemeinsamer Anmeldung mit dem Ehepartner (zweiter Partner 50 %). " +
-      "Einzug ab Release 0.3.",
+      "Wird derzeit nicht eingezogen.",
     bereich: "BEITRAG",
     typ: EinstellungTyp.ZAHL,
     standard: 180,
@@ -341,6 +344,19 @@ export const EINSTELLUNGEN = {
 } as const satisfies Record<string, ZahlDefinition>;
 
 export type EinstellungSchluessel = keyof typeof EINSTELLUNGEN;
+
+/**
+ * Ob ein Schlüssel von außen (API, Formular) eine der hier definierten
+ * Einstellungen ist.
+ *
+ * `Object.hasOwn` statt `in`: `in` folgt der Prototypkette, und
+ * `"constructor" in EINSTELLUNGEN` ist wahr. `setzeZahl` bekam dann die
+ * Object-Funktion als Definition — ohne Grenzen und ohne Bezeichnung —, und der
+ * upsert endete in einem 500 statt in einem 404 (Code-Review 4).
+ */
+export function istEinstellungSchluessel(schluessel: string): schluessel is EinstellungSchluessel {
+  return Object.hasOwn(EINSTELLUNGEN, schluessel);
+}
 
 /**
  * Liest einen Zahlenwert. Fällt bei jedem Problem auf den Standard zurück.

@@ -5,13 +5,17 @@ import { ladeMitRecht, hatRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeHonorarUebersicht } from "@/lib/honorar-io";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { LadeHinweis } from "@/components/ui/lade-hinweis";
 
+export const metadata = { title: "Dozentenhonorar" };
 export const dynamic = "force-dynamic";
 
 /**
  * Read-only Honorar-Übersicht je Semester: gehaltene Unterrichtsabende je Dozent,
  * jeder Abend zu dem Satz, der zu seinem Datum galt (Satz-Historie). Die
- * Genehmigung der Sätze läuft über die Unterseite „Sätze"; die Auszahlung folgt.
+ * Genehmigung der Sätze läuft über die Unterseite „Sätze"; Abrechnen, Freigeben
+ * (Zahlungsbeleg ans DMS) und das Festhalten der Auszahlung über „Abrechnungen".
  */
 export default async function HonorarSeite({
   searchParams,
@@ -27,9 +31,7 @@ export default async function HonorarSeite({
   if (semesters.length === 0) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-12">
-        <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Verwaltung
-        </Link>
+        <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Dozentenhonorar" />
         <h1 className="mt-6 text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
         <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
           Noch ist kein Semester angelegt.
@@ -46,9 +48,7 @@ export default async function HonorarSeite({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Dozentenhonorar" />
       <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Dozentenhonorar</h1>
         <div className="flex flex-wrap gap-2">
@@ -58,6 +58,7 @@ export default async function HonorarSeite({
               className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
             >
               Abrechnungen
+              <LadeHinweis className="ml-2" />
             </Link>
           )}
           {hatRecht(benutzer, RECHT.HONORAR_SATZ_GENEHMIGEN) && (
@@ -66,6 +67,7 @@ export default async function HonorarSeite({
               className="min-h-11 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary"
             >
               Sätze verwalten
+              <LadeHinweis className="ml-2" />
             </Link>
           )}
         </div>
@@ -73,9 +75,9 @@ export default async function HonorarSeite({
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Gehaltene Unterrichtsabende je Dozent, jeder Abend zu dem Satz, der zu seinem Datum galt (aktuell
         {" "}
-        {euro(uebersicht.aktuellerSatz)} je Abend). Nur zur Übersicht — die Auszahlung folgt in einem
-        späteren Schritt. Die Sätze werden unter „Sätze verwalten" genehmigt; die Zuordnung der Dozenten
-        läuft über den Stundenplan.
+        {euro(uebersicht.aktuellerSatz)} je Abend). Diese Seite ist nur die Übersicht — abgerechnet, zur
+        Auszahlung freigegeben und als ausgezahlt markiert wird unter „Abrechnungen“. Die Sätze werden unter
+        „Sätze verwalten" genehmigt; die Zuordnung der Dozenten läuft über den Stundenplan.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -91,6 +93,7 @@ export default async function HonorarSeite({
             }`}
           >
             {s.bezeichnung}
+            <LadeHinweis className="ml-2" />
           </Link>
         ))}
       </div>

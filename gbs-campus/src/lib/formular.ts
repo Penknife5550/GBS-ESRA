@@ -16,6 +16,8 @@
 import { FeldTyp, FormularVersionStatus, PersonFeld, Prisma, Teilnahmeform } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { istIbanGueltig } from "@/lib/pruefwerte";
+import { aktenfeldVerlangtArt9 } from "@/lib/formular-optionen";
+import { alsTagesdatum } from "@/lib/datum";
 
 // -----------------------------------------------------------------------------
 // Typen
@@ -144,15 +146,29 @@ export function pruefeFelddefinition(felder: FeldEingabe[]): PruefFehler[] {
         });
       }
 
+      // Die Art.-9-Sperre haengt allein an istArt9 (pruefeAntworten,
+      // bereinigeEntwurf). Fuer die Gemeindezugehoerigkeit darf sie deshalb
+      // nicht abwaehlbar sein — sonst landete die Angabe ohne gesonderte
+      // Einwilligung in Akte und Zwischenstand.
+      if (aktenfeldVerlangtArt9(feld.personFeld) && !feld.istArt9) {
+        fehler.push({
+          feldCode: feld.code,
+          meldung:
+            "Die Gemeindezugehörigkeit ist eine Angabe nach Art. 9 DSGVO — das Feld muss als „Besonders geschützt“ gekennzeichnet sein.",
+        });
+      }
+
       // Die Teilnahmeform wurde frueher aus dem Optionstext geraten
       // (Suche nach "hoerer"/"gast"). Das lag bei plausiblen Beschriftungen
       // falsch — "Gast-Schueler mit Pruefung" ergab Hoerer — und der Schulleiter
       // sah nirgends, welche Zuordnung seine Beschriftung erzeugt. Daran haengen
-      // Pruefungspflicht, Zeugnis und ab Release 0.3 der Beitrag. Deshalb muss
+      // Pruefungspflicht, Zeugnis und kuenftig der Beitrag. Deshalb muss
       // die Zuordnung jetzt ausdruecklich je Antwortmoeglichkeit angegeben werden.
       if (feld.personFeld === PersonFeld.TEILNAHMEFORM) {
         const zuordnung = feld.teilnahmeformZuordnung ?? {};
-        const ohneZuordnung = (feld.optionen ?? []).filter((o) => !zuordnung[o]);
+        // Object.hasOwn: Eine Antwort „constructor" oder „toString" faende sonst
+        // die geerbte Methode und gaelte als zugeordnet.
+        const ohneZuordnung = (feld.optionen ?? []).filter((o) => !(Object.hasOwn(zuordnung, o) && zuordnung[o]));
         if (ohneZuordnung.length > 0) {
           fehler.push({
             feldCode: feld.code,
@@ -222,6 +238,18 @@ export function pruefeVeroeffentlichung(felder: FeldEingabe[]): string[] {
 // -----------------------------------------------------------------------------
 
 /**
+ * Art.-9-Sperre zur LAUFZEIT: das Häkchen des Felds ODER ein Aktenfeld, das
+ * immer Art. 9 ist (Gemeinde). `pruefeFelddefinition` erzwingt das Häkchen erst
+ * beim Speichern und Veröffentlichen — eine vorher veröffentlichte Fassung mit
+ * abgewähltem Häkchen sammelte die Gemeinde sonst weiter ohne Art.-9-
+ * Einwilligung, bis jemand neu veröffentlicht. Bewusst NICHT in
+ * `alsFeldEingaben`: Dann liefe die Prüfung beim Veröffentlichen ins Leere.
+ */
+export function giltAlsArt9(feld: { istArt9: boolean; personFeld: string }): boolean {
+  return feld.istArt9 || aktenfeldVerlangtArt9(feld.personFeld);
+}
+
+/**
  * Prüft eingereichte Antworten gegen die Felddefinition einer Version.
  *
  * @param art9Eingewilligt Liegt die getrennte Einwilligung nach Art. 9 DSGVO
@@ -241,7 +269,9 @@ export function pruefeAntworten(
     if (feld.typ === FeldTyp.HINWEIS) continue;
 
     // Art.-9-Sperre: ohne Einwilligung wird der Wert verworfen, nicht gespeichert.
-    if (feld.istArt9 && !art9Eingewilligt) {
+    // Die Gemeinde gilt auch dann als Art. 9, wenn eine vor dieser Regel
+    // veröffentlichte Fassung das Häkchen nicht trägt (`giltAlsArt9`).
+    if (giltAlsArt9(feld) && !art9Eingewilligt) {
       werte[feld.code] = null;
       continue;
     }
@@ -307,10 +337,10 @@ function pruefeFeld(feld: FeldEingabe, roh: unknown): { wert: Antwortwert } | { 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
         return { fehler: "Bitte ein Datum im Format JJJJ-MM-TT angeben." };
       }
-      const datum = new Date(`${text}T00:00:00.000Z`);
-      if (Number.isNaN(datum.getTime())) return { fehler: "Das Datum ist ungültig." };
-      // Gegenprobe, damit der 31.02. nicht stillschweigend zum 03.03. wird.
-      if (datum.toISOString().slice(0, 10) !== text) return { fehler: "Dieses Datum gibt es nicht." };
+      // Dieselbe Prüfung wie überall (datum.ts): Der 31.02. wird nicht
+      // stillschweigend zum 03.03.
+      const datum = alsTagesdatum(text);
+      if (!datum) return { fehler: "Dieses Datum gibt es nicht." };
       // Plausibilitaet: ein Geburtsjahr 2090 oder 1000 ist ein Tippfehler, kein Datum.
       const jahr = datum.getUTCFullYear();
       if (jahr < DATUM_MIN_JAHR || jahr > DATUM_MAX_JAHR) {
@@ -424,7 +454,7 @@ export function bereinigeEntwurf(
 
   for (const feld of felder) {
     if (feld.typ === FeldTyp.HINWEIS) continue;
-    if (feld.istArt9) continue;
+    if (giltAlsArt9(feld)) continue;
     if (geheim.has(feld.code)) continue;
 
     const roh = eingabe[feld.code];
@@ -474,8 +504,11 @@ function uebernehmeInAkte(feld: FeldEingabe, wert: Antwortwert, ziel: PersonUebe
     case PersonFeld.TEILNAHMEFORM: {
       // Ausdrückliche Zuordnung statt Raten am Text — siehe pruefeFelddefinition.
       // Fehlt sie, wird nichts gesetzt: lieber keine Teilnahmeform als eine
-      // falsche, denn daran hängen Prüfungspflicht, Zeugnis und Beitrag.
-      const gewaehlt = feld.teilnahmeformZuordnung?.[text];
+      // falsche, denn daran hängen Prüfungspflicht, Zeugnis und Beitrag. Nur
+      // eigene Einträge (Object.hasOwn): Bei „constructor" käme sonst eine
+      // Funktion als Teilnahmeform heraus, und die Aufnahme scheiterte an Prisma.
+      const zuordnung = feld.teilnahmeformZuordnung;
+      const gewaehlt = zuordnung && Object.hasOwn(zuordnung, text) ? zuordnung[text] : undefined;
       if (gewaehlt) ziel.teilnahmeform = gewaehlt;
       break;
     }
@@ -548,7 +581,7 @@ export async function holeOderErzeugeEntwurf(formularId: string): Promise<string
   });
 }
 
-/** Wandelt die Felder einer Version in die Form, die die Prüffunktionen erwarten. */
+/** Ein Formularfeld, wie es aus der Datenbank kommt. */
 type FeldAusDatenbank = {
   code: string;
   typ: FeldTyp;
@@ -576,6 +609,7 @@ export function leseTeilnahmeformZuordnung(validierung: unknown): Record<string,
   return Object.keys(ergebnis).length > 0 ? ergebnis : null;
 }
 
+/** Wandelt die Felder einer Version in die Form, die die Prüffunktionen erwarten. */
 export function alsFeldEingaben(abschnitte: { felder: FeldAusDatenbank[] }[]): FeldEingabe[] {
   return abschnitte.flatMap((abschnitt) =>
     abschnitt.felder.map((feld) => ({
@@ -592,4 +626,53 @@ export function alsFeldEingaben(abschnitte: { felder: FeldAusDatenbank[] }[]): F
       teilnahmeformZuordnung: leseTeilnahmeformZuordnung(feld.validierung),
     })),
   );
+}
+
+/** Ein Abschnitt so, wie ihn der Builder (`formular-builder.tsx`) lädt. */
+export type BuilderAbschnittDaten = {
+  titel: string;
+  beschreibung: string | null;
+  felder: {
+    code: string;
+    typ: FeldTyp;
+    label: string;
+    hilfetext: string | null;
+    platzhalter: string | null;
+    pflicht: boolean;
+    optionen: string[] | null;
+    personFeld: PersonFeld;
+    istArt9: boolean;
+    teilnahmeformZuordnung: Record<string, Teilnahmeform> | null;
+  }[];
+};
+
+/**
+ * Die Abschnitte einer Version so, wie die Builder-Seite sie an den Builder
+ * gibt — über `alsFeldEingaben`, also dieselbe Abbildung, mit der Speichern,
+ * Veröffentlichen und die Anmeldung die Felder lesen.
+ *
+ * Steht hier und nicht in der Seite, damit das Prüfskript genau diese Abbildung
+ * prüfen kann (Code-Review 4, M17): Die Seite bildete die Felder vorher von Hand
+ * ab und ließ die Teilnahmeform-Zuordnung aus `validierung` weg — im Builder
+ * stand dann jede Antwort auf „— bitte wählen —", und jedes Speichern scheiterte.
+ */
+export function alsBuilderAbschnitte(
+  abschnitte: { titel: string; beschreibung: string | null; felder: FeldAusDatenbank[] }[],
+): BuilderAbschnittDaten[] {
+  return abschnitte.map((abschnitt) => ({
+    titel: abschnitt.titel,
+    beschreibung: abschnitt.beschreibung,
+    felder: alsFeldEingaben([abschnitt]).map((feld) => ({
+      code: feld.code,
+      typ: feld.typ,
+      label: feld.label,
+      hilfetext: feld.hilfetext ?? null,
+      platzhalter: feld.platzhalter ?? null,
+      pflicht: feld.pflicht,
+      optionen: feld.optionen ?? null,
+      personFeld: feld.personFeld,
+      istArt9: feld.istArt9,
+      teilnahmeformZuordnung: feld.teilnahmeformZuordnung ?? null,
+    })),
+  }));
 }

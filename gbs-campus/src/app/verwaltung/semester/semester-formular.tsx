@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type SemesterEingabefelder = {
   code: string;
@@ -11,6 +12,10 @@ export type SemesterEingabefelder = {
   ende: string;
   anmeldungVon: string;
   anmeldungBis: string;
+  /** "" = nicht im Kursraster verortet, sonst "1" bis "3". */
+  lehrjahr: string;
+  /** "" = nicht verortet, "1" = Herbst, "2" = Frühling. */
+  halbjahr: string;
 };
 
 const LEER: SemesterEingabefelder = {
@@ -20,7 +25,19 @@ const LEER: SemesterEingabefelder = {
   ende: "",
   anmeldungVon: "",
   anmeldungBis: "",
+  lehrjahr: "",
+  halbjahr: "",
 };
+
+const LEHRJAHRE = [
+  { wert: "1", text: "1. Lehrjahr" },
+  { wert: "2", text: "2. Lehrjahr" },
+  { wert: "3", text: "3. Lehrjahr" },
+];
+const HALBJAHRE = [
+  { wert: "1", text: "Herbst (1. Halbjahr)" },
+  { wert: "2", text: "Frühling (2. Halbjahr)" },
+];
 
 type Eigenschaften = {
   /** Gesetzt beim Bearbeiten, leer beim Anlegen. */
@@ -41,7 +58,7 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
   const [felder, setFelder] = useState<SemesterEingabefelder>(vorbelegung ?? LEER);
   const [alsAktuell, setAlsAktuell] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
 
   // Das Anlegeformular steht immer im Dokument, und jedes aufgeklappte
@@ -75,6 +92,8 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
       ende: felder.ende,
       anmeldungVon: felder.anmeldungVon || null,
       anmeldungBis: felder.anmeldungBis || null,
+      lehrjahr: felder.lehrjahr ? Number(felder.lehrjahr) : null,
+      halbjahr: felder.halbjahr ? Number(felder.halbjahr) : null,
       ...(id ? {} : { istAktuell: alsAktuell }),
     };
 
@@ -113,9 +132,14 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
           praefix={praefix}
           name="code"
           label="Kürzel"
-          hinweis="Kurz und eindeutig, z. B. 2026-H"
+          hinweis={
+            id
+              ? "Das Kürzel steht in Protokollen und Exporten und lässt sich nach dem Anlegen nicht mehr ändern."
+              : "Kurz und eindeutig, z. B. 2026-H. Nach dem Anlegen nicht mehr änderbar."
+          }
           wert={felder.code}
           fehler={feldFehler.code}
+          nurLesen={Boolean(id)}
           onAendern={(wert) => aendere("code", wert)}
         />
         <Feld
@@ -164,6 +188,26 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
           fehler={feldFehler.anmeldungBis}
           onAendern={(wert) => aendere("anmeldungBis", wert)}
         />
+        <Auswahl
+          praefix={praefix}
+          name="lehrjahr"
+          label="Lehrjahr im Kursraster"
+          optionen={LEHRJAHRE}
+          hinweis="Bestimmt die Fächer des Semesters. Abschlusszeugnisse gibt es gesammelt nur im 3. Lehrjahr, Frühling."
+          wert={felder.lehrjahr}
+          fehler={feldFehler.lehrjahr}
+          onAendern={(wert) => aendere("lehrjahr", wert)}
+        />
+        <Auswahl
+          praefix={praefix}
+          name="halbjahr"
+          label="Halbjahr im Kursraster"
+          optionen={HALBJAHRE}
+          hinweis="Lehrjahr und Halbjahr beide angeben oder beide leer lassen (Sondersemester)."
+          wert={felder.halbjahr}
+          fehler={feldFehler.halbjahr}
+          onAendern={(wert) => aendere("halbjahr", wert)}
+        />
       </div>
 
       {mitAktuellSchalter && (
@@ -184,16 +228,7 @@ export function SemesterFormular({ id, vorbelegung, mitAktuellSchalter, onAbbrec
         </label>
       )}
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-4 rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4" />
 
       <div className="mt-5 flex flex-wrap gap-3">
         <button
@@ -227,6 +262,7 @@ function Feld({
   typ = "text",
   hinweis,
   fehler,
+  nurLesen = false,
 }: {
   praefix: string;
   name: string;
@@ -236,6 +272,7 @@ function Feld({
   typ?: "text" | "date";
   hinweis?: string;
   fehler?: string;
+  nurLesen?: boolean;
 }) {
   const feldId = `${praefix}-${name}`;
   const hinweisId = `${feldId}-hinweis`;
@@ -251,10 +288,65 @@ function Feld({
         type={typ}
         value={wert}
         onChange={(e) => onAendern(e.target.value)}
+        readOnly={nurLesen}
+        aria-invalid={fehler ? true : undefined}
+        aria-describedby={hinweis || fehler ? hinweisId : undefined}
+        className={`mt-1.5 min-h-11 w-full rounded-lg border border-input px-4 py-2.5 text-sm ${
+          nurLesen ? "bg-muted text-muted-foreground" : "bg-background"
+        }`}
+      />
+      {(fehler || hinweis) && (
+        <p id={hinweisId} className={`mt-1 text-xs ${fehler ? "text-credo-rot" : "text-muted-foreground"}`}>
+          {fehler ?? hinweis}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Auswahl({
+  praefix,
+  name,
+  label,
+  optionen,
+  wert,
+  onAendern,
+  hinweis,
+  fehler,
+}: {
+  praefix: string;
+  name: string;
+  label: string;
+  optionen: { wert: string; text: string }[];
+  wert: string;
+  onAendern: (wert: string) => void;
+  hinweis?: string;
+  fehler?: string;
+}) {
+  const feldId = `${praefix}-${name}`;
+  const hinweisId = `${feldId}-hinweis`;
+
+  return (
+    <div>
+      <label htmlFor={feldId} className="block text-sm font-medium">
+        {label}
+      </label>
+      <select
+        id={feldId}
+        name={name}
+        value={wert}
+        onChange={(e) => onAendern(e.target.value)}
         aria-invalid={fehler ? true : undefined}
         aria-describedby={hinweis || fehler ? hinweisId : undefined}
         className="mt-1.5 min-h-11 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm"
-      />
+      >
+        <option value="">— nicht zugeordnet</option>
+        {optionen.map((o) => (
+          <option key={o.wert} value={o.wert}>
+            {o.text}
+          </option>
+        ))}
+      </select>
       {(fehler || hinweis) && (
         <p id={hinweisId} className={`mt-1 text-xs ${fehler ? "text-credo-rot" : "text-muted-foreground"}`}>
           {fehler ?? hinweis}

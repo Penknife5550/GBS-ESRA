@@ -3,12 +3,14 @@
  *
  * Eine klickbare Bereichs-Karte mit dezentem Linien-Icon, echter Kennzahl und
  * optionalem Handlungs-Pill (z. B. „3 neu") — die Kacheln der Verwaltungs-Übersicht.
+ * Solange die Zielseite lädt, steht „Wird geladen …" neben dem Titel.
  * (Die Dozenten-Übersicht nutzt eigene, nicht-klickbare KPI-Kacheln.)
  */
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/icons";
+import { LadeHinweis } from "./lade-hinweis";
 
 export type PillTon = "blau" | "rot" | "gelb" | "gruen";
 
@@ -51,6 +53,7 @@ export function Kachel({
               {pill.text}
             </span>
           )}
+          <LadeHinweis />
         </span>
         <span className="mt-1 block text-sm text-muted-foreground">{text}</span>
         {metric != null && metric !== "" && (

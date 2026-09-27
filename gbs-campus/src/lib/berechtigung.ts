@@ -10,8 +10,11 @@
  * ausblendet, ist Bequemlichkeit — verlassen darf man sich nur hierauf.
  */
 
+import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { angemeldetePersonId } from "@/lib/session";
+import { keineBerechtigung, nichtAngemeldet } from "@/lib/api";
+import type { RechtCode } from "@/lib/constants";
 
 export type AngemeldeteBenutzer = {
   id: string;
@@ -96,14 +99,43 @@ export async function ladeAngemeldeten(): Promise<AngemeldeteBenutzer | null> {
 
 /**
  * Liefert den angemeldeten Benutzer, wenn er das Recht hat — sonst null.
- * Der Aufrufer entscheidet, ob er umleitet (Seite) oder 401/403 liefert (API).
+ * Für Seiten, die in beiden Fällen zur Anmeldung umleiten. API-Routen nehmen
+ * `pruefeZugriff`, weil sie „nicht angemeldet" und „nicht berechtigt"
+ * unterscheiden müssen.
+ *
+ * `recht` ist als `RechtCode` typisiert: Ein vertippter Code wäre sonst kein
+ * Compile-Fehler, sondern lautloser Rechteentzug (siehe constants.ts).
  */
-export async function ladeMitRecht(recht: string): Promise<AngemeldeteBenutzer | null> {
+export async function ladeMitRecht(recht: RechtCode): Promise<AngemeldeteBenutzer | null> {
   const benutzer = await ladeAngemeldeten();
   if (!benutzer) return null;
   return benutzer.rechte.has(recht) ? benutzer : null;
 }
 
-export function hatRecht(benutzer: AngemeldeteBenutzer | null, recht: string): boolean {
+/**
+ * Zugriffsprüfung für API-Routen: Liefert den Benutzer, wenn er angemeldet ist
+ * und das Recht hat — sonst die fertige Fehlerantwort.
+ *
+ *  - 401 „nicht angemeldet": keine gültige Sitzung (abgelaufen, widerrufen oder
+ *    Endzustand). Der Browser-Client meldet daraufhin, dass die Sitzung
+ *    abgelaufen ist und die Eingaben stehen bleiben.
+ *  - 403 „Keine Berechtigung.": angemeldet, aber ohne dieses Recht.
+ *
+ * Vorher lieferte `ladeMitRecht` für beides null, und jede Route antwortete mit
+ * 403 — wer nach der Mittagspause auf „Speichern" drückte, las „Keine
+ * Berechtigung." statt „bitte neu anmelden".
+ *
+ * Aufruf:
+ *   const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+ *   if (benutzer instanceof Response) return benutzer;
+ */
+export async function pruefeZugriff(recht: RechtCode): Promise<AngemeldeteBenutzer | NextResponse> {
+  const benutzer = await ladeAngemeldeten();
+  if (!benutzer) return nichtAngemeldet();
+  if (!benutzer.rechte.has(recht)) return keineBerechtigung();
+  return benutzer;
+}
+
+export function hatRecht(benutzer: AngemeldeteBenutzer | null, recht: RechtCode): boolean {
   return benutzer?.rechte.has(recht) ?? false;
 }

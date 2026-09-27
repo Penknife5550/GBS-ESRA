@@ -1,18 +1,27 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { bestaetigeTeilnahme } from "@/lib/ueberleitung";
+import { beantworteEinladung } from "@/lib/ueberleitung";
 import { protokolliere } from "@/lib/audit";
 import { erfolg, fehler } from "@/lib/api";
+import { ABMELDEGRUND } from "@/lib/constants";
 
-const schema = z.object({ token: z.string().uuid() });
+// Ohne `antwort` gilt „dabei" — so bleiben ältere Aufrufer (und der Durchstich)
+// gültig, die nur den Token schicken.
+const schema = z.object({
+  token: z.string().uuid(),
+  antwort: z.enum(["dabei", "raus"]).default("dabei"),
+});
 
 /**
- * Löst einen „Ich bin dabei"-Link ein und setzt `Teilnahme.bestaetigtAm`.
+ * Löst einen Überleitungs-Link ein: „Ich bin dabei" setzt
+ * `Teilnahme.bestaetigtAm`, „Ich bin raus" meldet die Teilnahme ab
+ * (`abgemeldetAm` + BIN_RAUS). Bis zum Tag vor Semesterbeginn (einschließlich,
+ * `rueckmeldeFrist`) darf eine spätere Antwort die frühere ändern.
  *
  * Bewusst OHNE Login und OHNE Sitzung: Der Besitz des Fragment-Links ist der
  * Nachweis; ein Klick meldet niemanden an. POST von einer Bestätigungsseite aus
  * — wie beim Anmelde- und Auskunftslink —, damit Link-Scanner den Token nicht
- * vorab einlösen. Die Entscheidung liegt in `bestaetigeTeilnahme` (ohne HTTP
+ * vorab einlösen. Die Entscheidung liegt in `beantworteEinladung` (ohne HTTP
  * testbar), race-sicher und idempotent.
  */
 export async function POST(request: NextRequest) {
@@ -21,14 +30,23 @@ export async function POST(request: NextRequest) {
     return fehler("Dieser Link ist ungültig.", 400);
   }
 
-  const ergebnis = await bestaetigeTeilnahme(geprueft.data.token);
+  const ergebnis = await beantworteEinladung(geprueft.data.token, geprueft.data.antwort);
 
   if (ergebnis.status === "ungueltig") {
-    return fehler("Dieser Link ist abgelaufen oder ungültig. Bitte wende dich an die Schulverwaltung.", 401);
+    return fehler(
+      "Dieser Link ist abgelaufen oder ungültig. Bitte nimm den Link aus der neuesten E-Mail oder wende dich an die Schulverwaltung.",
+      401,
+    );
+  }
+  if (ergebnis.status === "geschlossen") {
+    return fehler(
+      "Das Semester hat bereits begonnen — die Rückmeldung über diesen Link ist geschlossen. Bitte wende dich an die Schulverwaltung.",
+      409,
+    );
   }
 
-  // Nur die tatsächlich neu gesetzte Bestätigung wird protokolliert; ein
-  // wiederholter Klick (schon_bestaetigt) erzeugt keinen zweiten Eintrag.
+  // Nur die tatsächlich geänderte Antwort wird protokolliert; ein wiederholter
+  // Klick (schon_…) erzeugt keinen zweiten Eintrag.
   if (ergebnis.status === "ok") {
     await protokolliere({
       aktion: "TEILNAHME_BESTAETIGT",
@@ -36,7 +54,18 @@ export async function POST(request: NextRequest) {
       objektId: ergebnis.teilnahmeId,
       akteurId: ergebnis.personId,
       quelle: "WEB",
-      nachher: { semester: ergebnis.semester },
+      nachher: { semester: ergebnis.semester, vorher: ergebnis.vorher },
+      headers: request.headers,
+    });
+  }
+  if (ergebnis.status === "abgemeldet") {
+    await protokolliere({
+      aktion: "TEILNAHME_ABGEMELDET",
+      objektTyp: "Teilnahme",
+      objektId: ergebnis.teilnahmeId,
+      akteurId: ergebnis.personId,
+      quelle: "WEB",
+      nachher: { semester: ergebnis.semester, grund: ABMELDEGRUND.BIN_RAUS, vorher: ergebnis.vorher },
       headers: request.headers,
     });
   }
@@ -46,5 +75,8 @@ export async function POST(request: NextRequest) {
     semester: ergebnis.semester,
     vorname: ergebnis.vorname,
     faecher: ergebnis.faecher,
+    // Bis zu diesem Tag (einschließlich) lässt sich die Antwort ändern — die
+    // Seite nennt das Datum statt eines ungenauen „bis zum Semesterstart".
+    frist: ergebnis.frist,
   });
 }

@@ -5,16 +5,13 @@ import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeAbrechnungsUebersicht, abrechnungStatusText } from "@/lib/honorar-abrechnung-io";
-import type { HonorarAbrechnungStatus } from "@prisma/client";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { ABRECHNUNG_TON } from "@/components/ui/badges";
+import { LadeHinweis } from "@/components/ui/lade-hinweis";
 import { AbrechnenKnopf } from "./abrechnen-knopf";
 
+export const metadata = { title: "Honorar-Abrechnungen" };
 export const dynamic = "force-dynamic";
-
-const BADGE: Record<HonorarAbrechnungStatus, string> = {
-  OFFEN: "bg-credo-gelb/15 text-foreground",
-  FREIGEGEBEN: "bg-credo-blau/15 text-foreground",
-  AUSGEZAHLT: "bg-credo-gruen/15 text-foreground",
-};
 
 export default async function AbrechnungenSeite({ searchParams }: { searchParams: Promise<{ semester?: string }> }) {
   const benutzer = await ladeMitRecht(RECHT.HONORAR_ABRECHNEN);
@@ -26,9 +23,7 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
   if (semesters.length === 0) {
     return (
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <Link href="/verwaltung/honorar" className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Dozentenhonorar
-        </Link>
+        <ZurueckLeiste href="/verwaltung/honorar" label="Dozentenhonorar" breadcrumb="Verwaltung · Dozentenhonorar · Abrechnungen" />
         <h1 className="mt-6 text-2xl font-bold tracking-tight">Honorar-Abrechnungen</h1>
         <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
           Noch ist kein Semester angelegt.
@@ -45,9 +40,7 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      <Link href="/verwaltung/honorar" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Dozentenhonorar
-      </Link>
+      <ZurueckLeiste href="/verwaltung/honorar" label="Dozentenhonorar" breadcrumb="Verwaltung · Dozentenhonorar · Abrechnungen" />
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Honorar-Abrechnungen</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Je Dozent die gehaltenen Abende, davon die noch offenen (nicht abgerechneten), und die bestehenden
@@ -111,9 +104,10 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
                           <Link
                             key={a.id}
                             href={`/verwaltung/honorar/abrechnungen/${a.id}`}
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium hover:underline ${BADGE[a.status]}`}
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium hover:underline ${ABRECHNUNG_TON[a.status]}`}
                           >
                             {abrechnungStatusText(a.status)} · {euro(a.summe)}
+                            <LadeHinweis className="ml-1" />
                           </Link>
                         ))}
                       </div>
@@ -121,7 +115,14 @@ export default async function AbrechnungenSeite({ searchParams }: { searchParams
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     {z.offenAbende > 0 && (
-                      <AbrechnenKnopf dozentId={z.dozentId} semesterId={semester.id} />
+                      <AbrechnenKnopf
+                        dozentId={z.dozentId}
+                        semesterId={semester.id}
+                        dozentName={z.name}
+                        abende={z.offenAbende}
+                        summe={z.offenBetrag}
+                        betrag={euro(z.offenBetrag)}
+                      />
                     )}
                   </td>
                 </tr>

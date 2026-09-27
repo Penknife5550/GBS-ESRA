@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { gruppiereRaster, halbjahrName, type Kurs } from "@/lib/faecher";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 
+export const metadata = { title: "Fächer & Kursraster" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -38,9 +39,7 @@ export default async function FaecherSeite() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Fächer & Kursraster" />
 
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Fächer &amp; Kursraster</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">

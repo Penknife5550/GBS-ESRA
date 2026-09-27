@@ -3,12 +3,13 @@
  *
  * Der eine, überall gleiche Rückweg + eine optionale Krümelspur. Übernimmt exakt
  * die seit Beginn genutzte Back-Link-Optik (Unicode-„←", unterstrichen), damit die
- * neuen Seiten sich nicht von den bestehenden abheben. Kein Icon — bewusst, wie im
- * ganzen Projekt.
+ * neuen Seiten sich nicht von den bestehenden abheben. Bewusst ohne Icon, wie alle
+ * Rück-Links; Icons nur auf Kacheln.
  */
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LadeHinweis } from "./lade-hinweis";
 
 export function ZurueckLeiste({
   href,
@@ -24,6 +25,7 @@ export function ZurueckLeiste({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <Link href={href} className="text-sm text-muted-foreground underline underline-offset-4">
         ← {label}
+        <LadeHinweis className="ml-2" />
       </Link>
       {breadcrumb && <span className="text-xs text-muted-foreground">{breadcrumb}</span>}
     </div>

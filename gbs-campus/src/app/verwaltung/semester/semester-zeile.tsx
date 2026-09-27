@@ -13,6 +13,8 @@ export type SemesterAnzeige = {
   anmeldefenster: string | null;
   istAktuell: boolean;
   teilnehmer: number;
+  /** Verortung im Kursraster als Text („1. Lehrjahr · Herbst") oder null. */
+  raster: string | null;
   felder: SemesterEingabefelder;
 };
 
@@ -69,6 +71,9 @@ export function SemesterZeile({
           {semester.anmeldefenster && (
             <p className="text-sm text-muted-foreground">Anmeldung: {semester.anmeldefenster}</p>
           )}
+          <p className="text-sm text-muted-foreground">
+            Kursraster: {semester.raster ?? "nicht zugeordnet"}
+          </p>
           <p className="mt-2 text-sm">
             {semester.teilnehmer === 0
               ? "Noch niemand zugeordnet"

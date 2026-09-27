@@ -231,10 +231,39 @@ async function main() {
     { drosselStelle, pruefStelle },
   );
 
+  console.log("\n6. Die Drossel zählt atomar (Sperre je Schlüssel)");
+  let magicLink = "";
+  let anmeldung = "";
+  try {
+    magicLink = readFileSync("src/lib/magic-link.ts", "utf8");
+    anmeldung = readFileSync("src/app/api/anmeldung/route.ts", "utf8");
+  } catch {
+    // leer lassen — die Prüfungen unten werden dann rot
+  }
+  const drossel = magicLink.slice(
+    magicLink.indexOf("export async function drosselUeberschritten("),
+    magicLink.indexOf("export type LinkErgebnis"),
+  );
+  // Ohne Sperre lasen gleichzeitige Anfragen denselben Stand „noch unter der
+  // Grenze" und kamen alle durch. Zählen und Schreiben müssen deshalb in einer
+  // Transaktion HINTER der Sperre stehen, und zwar über `tx`, nicht `prisma`.
+  pruefe(
+    "Zählen und Schreiben laufen in einer Transaktion hinter pg_advisory_xact_lock je Schlüssel",
+    /return prisma\.\$transaction\(async \(tx\) => \{\s*await tx\.\$executeRaw`SELECT pg_advisory_xact_lock\(hashtextextended\(\$\{schluessel\}, 0\)\)`;\s*const bisher = await tx\.rateLimit\.count\(/.test(
+      drossel,
+    ) &&
+      /await tx\.rateLimit\.create\(/.test(drossel) &&
+      !/prisma\.rateLimit\./.test(drossel),
+  );
+  pruefe(
+    "das Anmeldeformular hat keine eigene Drossel-Kopie mehr (nutzt drosselUeberschritten)",
+    anmeldung.length > 0 && /drosselUeberschritten\(/.test(anmeldung) && !/rateLimit\.(count|create)\(/.test(anmeldung),
+  );
+
   // Soll-Anzahl: Ein nicht gelaufener Test schlägt nicht fehl, er fehlt nur —
   // und die Schlusszeile meldete trotzdem „0 fehlgeschlagen". Beim Ergänzen
   // einer Prüfung gehört diese Zahl mit angehoben.
-  const ERWARTET = 36;
+  const ERWARTET = 38;
   // `geprueft` steht beim Auswerten der Bedingung noch auf dem Stand VOR dieser
   // Zeile — `pruefe` zählt erst im Rumpf hoch. Deshalb hier um eins
   // vorgegriffen, damit sich die Prüfung selbst mitzählt.

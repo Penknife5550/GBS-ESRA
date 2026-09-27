@@ -3,10 +3,12 @@ import type { ReactNode } from "react";
 import { prisma } from "@/lib/db";
 import { ladeAngemeldeten, hatRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
+import { PERSON_ZAEHLT_AKTIV, TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
 import { Kachel, type PillTon } from "@/components/ui/kachel";
 import type { IconName } from "@/components/icons";
-import { AbmeldenKnopf } from "./abmelden-knopf";
+import { AbmeldenKnopf } from "@/components/ui/abmelden-knopf";
 
+export const metadata = { title: "Verwaltung" };
 export const dynamic = "force-dynamic";
 
 type KategorieCode = "schueler" | "semester" | "finanzen" | "system" | "konto";
@@ -48,13 +50,17 @@ export default async function VerwaltungSeite() {
   const [gesamtPersonen, aktivePersonen, offeneAnmeldungen, emailFehler, auditAnzahl, semesterAnzahl, aktiveTeilnahmen] =
     await Promise.all([
       darfPersonen ? prisma.person.count() : Promise.resolve(0),
-      darfPersonen ? prisma.person.count({ where: { status: { istAktiv: true } } }) : Promise.resolve(0),
+      darfPersonen ? prisma.person.count({ where: PERSON_ZAEHLT_AKTIV }) : Promise.resolve(0),
       darfAnmeldungen ? prisma.anmeldung.count({ where: { status: "EINGEREICHT" } }) : Promise.resolve(0),
       darfSystem ? prisma.emailVersand.count({ where: { status: { in: ["FEHLER", "BOUNCE"] } } }) : Promise.resolve(0),
       darfAudit ? prisma.auditLog.count() : Promise.resolve(0),
       darfSemester ? prisma.semester.count() : Promise.resolve(0),
+      // Dieselbe Menge wie die Teilnehmerliste: aktiv und für das Semester nicht
+      // abgemeldet.
       aktuelles
-        ? prisma.teilnahme.count({ where: { semesterId: aktuelles.id, person: { status: { istAktiv: true } } } })
+        ? prisma.teilnahme.count({
+            where: { semesterId: aktuelles.id, ...TEILNAHME_ZAEHLT, person: PERSON_ZAEHLT_AKTIV },
+          })
         : Promise.resolve(0),
     ]);
 
@@ -173,7 +179,7 @@ export default async function VerwaltungSeite() {
     },
     {
       titel: "Betrieb",
-      text: "Nicht zugestellte E-Mails. Ohne Mail kommt niemand ins Portal.",
+      text: "Nicht zugestellte E-Mails, offene DMS-Belege. Ohne Mail kommt, wer kein Passwort hat, nicht ins Portal.",
       pfad: "/verwaltung/betrieb",
       icon: "betrieb",
       kategorie: "system",

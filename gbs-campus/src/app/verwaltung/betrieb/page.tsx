@@ -2,8 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
-import { MINUTE_MS, RECHT, ROLLE } from "@/lib/constants";
+import { MINUTE_MS, RECHT, ROLLE, STUNDE_MS } from "@/lib/constants";
+import { datumZeit } from "@/lib/datum";
+import { dmsAdresse } from "@/lib/konfiguration";
+import { zaehleOffeneDmsArchivierungen } from "@/lib/zeugnis-io";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 
+export const metadata = { title: "Betrieb" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -18,14 +23,24 @@ export const dynamic = "force-dynamic";
 const WARTEND_GRENZE_MS = 5 * MINUTE_MS;
 
 /** Ab wann der Aufräumlauf als überfällig gilt — er läuft höchstens stündlich. */
-const AUFRAEUMEN_GRENZE_MS = 48 * 60 * MINUTE_MS;
+const AUFRAEUMEN_GRENZE_MS = 48 * STUNDE_MS;
+
+/**
+ * Ab wann der Worker als ausgefallen gilt. Er schreibt sein Lebenszeichen ins
+ * Protokoll bei jeder Löschung, sonst spätestens alle 12 Stunden
+ * (HEARTBEAT_ABSTAND_MS) — 26 Stunden heißen also: mindestens zwei
+ * Lebenszeichen fehlen. Dieselbe Grenze gilt für einen gescheiterten Lauf;
+ * „jünger als das letzte Lebenszeichen" bliebe nach einem einmaligen Fehler bis
+ * zu 12 Stunden rot.
+ */
+const WORKER_GRENZE_MS = 26 * STUNDE_MS;
 
 /**
  * Betriebsansicht für den Mailversand.
  *
  * Der Grund für diese Seite: Fehlgeschlagene Mails wurden zwar sauber in
  * `email_versand` protokolliert — aber keine Oberfläche las diese Tabelle. Fiel
- * SMTP aus, kam niemand mehr ins Portal (der Magic-Link ist der einzige Zugang),
+ * SMTP aus, kam niemand mehr ins Portal (damals war der Magic-Link der einzige Zugang),
  * alle sahen die beruhigende Meldung „Link ist unterwegs", und die einzige Spur
  * war ein `console.error` im Container-Log, das bei einem Ein-Personen-Betrieb
  * niemand liest.
@@ -33,7 +48,9 @@ const AUFRAEUMEN_GRENZE_MS = 48 * 60 * MINUTE_MS;
  * Nach demselben Leitsatz stehen hier drei weitere Dinge, die es vorher nur im
  * Log oder gar nicht gab: hängengebliebene WARTEND-Zeilen, die Zahl der
  * Personen, die Verwaltungsmeldungen überhaupt erreichen, und der letzte
- * Aufräumlauf.
+ * Aufräumlauf. Dazu die Belege, die noch nicht beim DMS angekommen sind
+ * (Honorarsatz, Zahlungsbeleg, Zeugnis-Archivkopie) samt fehlender DMS_EMAIL —
+ * die Meldungen dieser Bereiche verweisen hierher.
  */
 export default async function BetriebSeite() {
   const benutzer = await ladeMitRecht(RECHT.SYSTEM_EINSTELLUNGEN);
@@ -41,7 +58,19 @@ export default async function BetriebSeite() {
 
   const jetzt = Date.now();
 
-  const [fehlgeschlagen, wartend, letzte, anzahlFehler, empfaengerVerwaltung, letzterLauf] = await Promise.all([
+  const [
+    fehlgeschlagen,
+    wartend,
+    letzte,
+    anzahlFehler,
+    empfaengerVerwaltung,
+    letzterLauf,
+    offeneZahlungsbelege,
+    offeneSatzBelege,
+    offeneZeugnisse,
+    letzterWorkerLauf,
+    letzterWorkerFehler,
+  ] = await Promise.all([
     prisma.emailVersand.findMany({
       where: { status: { in: ["FEHLER", "BOUNCE"] } },
       orderBy: { erstelltAm: "desc" },
@@ -75,21 +104,51 @@ export default async function BetriebSeite() {
       orderBy: { erstelltAm: "desc" },
       select: { erstelltAm: true },
     }),
+    // Offene DMS-Belege — dieselben Bedingungen wie die Nachsende-Knöpfe
+    // (pruefeAbrechnungNachversand / pruefeSatzNachversand in
+    // lib/honorar-korrektur.ts, offenImDms in lib/zeugnis-io.ts).
+    prisma.honorarAbrechnung.count({
+      where: { status: { not: "OFFEN" }, belegNr: { not: null }, dmsGesendetAm: null },
+    }),
+    prisma.honorarSatz.count({ where: { dmsBelegNr: { not: null }, dmsGesendetAm: null } }),
+    zaehleOffeneDmsArchivierungen(),
+    // Lebenszeichen des Workers (scripts/worker.ts) — getrennt von den
+    // gelegentlichen Läufen der App (objektId APP).
+    prisma.auditLog.findFirst({
+      where: { aktion: "AUFRAEUMEN_GELAUFEN", objektTyp: "System", objektId: "WORKER" },
+      orderBy: { erstelltAm: "desc" },
+      select: { erstelltAm: true },
+    }),
+    // Gescheiterte Teilläufe aus Worker oder Cron-Endpunkt; `nachher` trägt nur
+    // die Namen der Teilläufe, keine Fehlermeldung.
+    prisma.auditLog.findFirst({
+      where: { aktion: "WORKER_LAUF_FEHLGESCHLAGEN" },
+      orderBy: { erstelltAm: "desc" },
+      select: { erstelltAm: true, objektId: true, nachher: true },
+    }),
   ]);
 
   const aufraeumenUeberfaellig =
     !letzterLauf || jetzt - letzterLauf.erstelltAm.getTime() > AUFRAEUMEN_GRENZE_MS;
+  const workerAusgefallen =
+    !letzterWorkerLauf || jetzt - letzterWorkerLauf.erstelltAm.getTime() > WORKER_GRENZE_MS;
+  const workerFehlerFrisch =
+    letzterWorkerFehler !== null && jetzt - letzterWorkerFehler.erstelltAm.getTime() <= WORKER_GRENZE_MS;
+  const fehlerTeillaeufe = (() => {
+    const nachher = letzterWorkerFehler?.nachher as { teillaeufe?: unknown } | null | undefined;
+    return Array.isArray(nachher?.teillaeufe) ? nachher.teillaeufe.map(String).join(", ") : "";
+  })();
+  const dmsOffen = offeneZahlungsbelege + offeneSatzBelege + offeneZeugnisse;
+  const dmsEingerichtet = dmsAdresse() !== null;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Betrieb" />
 
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Betrieb</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-        Der Anmeldelink per E-Mail ist der einzige Weg ins Portal. Wenn hier Fehler stehen, kommen die
-        betroffenen Personen nicht hinein — und merken es selbst nicht.
+        Für alle ohne Passwort ist der Anmeldelink per E-Mail der einzige Weg ins Portal. Wenn hier
+        Fehler stehen, kommen die betroffenen Personen nicht hinein — und merken es selbst nicht.
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -102,7 +161,7 @@ export default async function BetriebSeite() {
         <div className="rounded-lg border border-border bg-card p-5">
           <p className="text-lg font-semibold leading-tight">
             {letzte?.gesendetAm
-              ? letzte.gesendetAm.toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })
+              ? datumZeit(letzte.gesendetAm)
               : "noch keine"}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">zuletzt erfolgreich versendet</p>
@@ -137,16 +196,73 @@ export default async function BetriebSeite() {
         >
           <p className={`text-lg font-semibold leading-tight ${aufraeumenUeberfaellig ? "text-credo-rot" : ""}`}>
             {letzterLauf
-              ? letzterLauf.erstelltAm.toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })
+              ? datumZeit(letzterLauf.erstelltAm)
               : "noch nie"}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">zuletzt aufgeräumt</p>
           {aufraeumenUeberfaellig && (
             <p className="mt-3 text-xs text-credo-rot">
               Der Aufräumlauf ist die einzige Stelle, die abgelaufene Anmeldeentwürfe mit ihren
-              personenbezogenen Angaben löscht (Art. 5 Abs. 1 lit. e DSGVO). Er hängt an der Anforderung
-              eines Anmeldelinks — kommt lange keine, läuft er auch nicht. Bleibt das trotz Anmeldungen
-              so, steht der Grund im Container-Log unter „[AUFRAEUMEN]".
+              personenbezogenen Angaben löscht (Art. 5 Abs. 1 lit. e DSGVO). Er läuft stündlich im Worker
+              und steht im Protokoll, wenn er etwas gelöscht hat, sonst spätestens alle 12 Stunden je
+              Herkunft. Fehlt der Eintrag so lange, steht der Grund im Container-Log unter „[WORKER]"
+              bzw. „[AUFRAEUMEN]".
+            </p>
+          )}
+        </div>
+
+        <div
+          className={`rounded-lg border bg-card p-5 sm:col-span-2 ${
+            workerAusgefallen || workerFehlerFrisch ? "border-credo-rot/50" : "border-border"
+          }`}
+        >
+          <p className={`text-lg font-semibold leading-tight ${workerAusgefallen ? "text-credo-rot" : ""}`}>
+            {letzterWorkerLauf ? datumZeit(letzterWorkerLauf.erstelltAm) : "noch nie"}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Worker zuletzt gelaufen (Erinnerungen der Semesterüberleitung und Aufräumlauf)
+          </p>
+          {workerAusgefallen && (
+            <p className="mt-3 text-xs text-credo-rot">
+              Seit über 26 Stunden kein Lebenszeichen des Workers. Ohne ihn gehen keine Erinnerungen zur
+              Semesterüberleitung raus, und abgelaufene Anmeldeentwürfe werden nicht gelöscht. Bitte den
+              Dienst „worker" auf dem Server prüfen (Container-Log unter „[WORKER]").
+            </p>
+          )}
+          {workerFehlerFrisch && letzterWorkerFehler && (
+            <p className="mt-3 text-xs text-credo-rot">
+              Am {datumZeit(letzterWorkerFehler.erstelltAm)} ist ein Lauf gescheitert (
+              {letzterWorkerFehler.objektId === "CRON" ? "Cron-Endpunkt" : "Worker"}
+              {fehlerTeillaeufe ? `, Teilläufe: ${fehlerTeillaeufe}` : ""}). Einzelheiten stehen im
+              Container-Log.
+            </p>
+          )}
+        </div>
+
+        <div
+          className={`rounded-lg border bg-card p-5 sm:col-span-2 ${
+            dmsOffen > 0 || !dmsEingerichtet ? "border-credo-rot/50" : "border-border"
+          }`}
+        >
+          <p className={`text-3xl font-bold leading-none ${dmsOffen > 0 ? "text-credo-rot" : ""}`}>{dmsOffen}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Belege noch nicht im DMS — Zahlungsbelege (Honorar-Abrechnung): {offeneZahlungsbelege} ·
+            Honorarsatz-Belege: {offeneSatzBelege} · Zeugnis-Archivkopien: {offeneZeugnisse}
+          </p>
+          {!dmsEingerichtet && (
+            <p className="mt-3 text-xs text-credo-rot">
+              Es ist keine DMS-Adresse eingerichtet (DMS_EMAIL). Honorar-Belege und Zeugnis-Archivkopien
+              werden erzeugt, aber nicht zugestellt, und bleiben hier als offen stehen. Bitte DMS_EMAIL in
+              der .env auf dem Server eintragen und den Server neu starten — danach lassen sie sich
+              nachsenden.
+            </p>
+          )}
+          {dmsEingerichtet && dmsOffen > 0 && (
+            <p className="mt-3 text-xs text-credo-rot">
+              Nachsenden können die jeweils Berechtigten: Honorarsatz-Belege unter Dozentenhonorar →
+              Honorarsätze, Zahlungsbelege in der einzelnen Abrechnung (Dozentenhonorar →
+              Honorar-Abrechnungen), Zeugnisse unter Zeugnisse („An das DMS nachsenden"). Warum der Versand
+              gescheitert ist, steht unten unter „Nicht zugestellt".
             </p>
           )}
         </div>
@@ -178,7 +294,7 @@ export default async function BetriebSeite() {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium">{eintrag.empfaenger}</span>
                   <span className="text-xs text-muted-foreground">
-                    {eintrag.erstelltAm.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}
+                    {datumZeit(eintrag.erstelltAm)}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{eintrag.betreff}</p>
@@ -200,7 +316,7 @@ export default async function BetriebSeite() {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-medium">{eintrag.empfaenger}</span>
                 <span className="text-xs text-muted-foreground">
-                  {eintrag.erstelltAm.toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}
+                  {datumZeit(eintrag.erstelltAm)}
                 </span>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{eintrag.betreff}</p>

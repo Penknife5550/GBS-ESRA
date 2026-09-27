@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 /**
  * Liest den Auskunfts-Token aus dem URL-FRAGMENT (#token=…) und lädt die PDF per
@@ -19,8 +20,9 @@ export function AuskunftAbrufen() {
   const [token, setToken] = useState<string | null>(null);
   const [bereit, setBereit] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
-  const [fehlerText, setFehlerText] = useState<string | null>(null);
-  const [fertig, setFertig] = useState(false);
+  // Erfolg und Fehler über die MeldungsBox — beide Live-Regionen stehen immer
+  // im DOM, sonst sagen Screenreader die erst eingefügte Meldung oft nicht an.
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
   useEffect(() => {
     const hash = window.location.hash.replace(/^#/, "");
@@ -32,7 +34,7 @@ export function AuskunftAbrufen() {
   async function herunterladen() {
     if (!token) return;
     setLaeuft(true);
-    setFehlerText(null);
+    setMeldung(null);
 
     let antwort: Response;
     try {
@@ -44,35 +46,48 @@ export function AuskunftAbrufen() {
       });
     } catch {
       setLaeuft(false);
-      setFehlerText("Die Verbindung ist abgerissen. Bitte versuche es noch einmal.");
+      setMeldung({ art: "fehler", text: "Die Verbindung ist abgerissen. Bitte versuche es noch einmal." });
       return;
     }
 
     if (!antwort.ok) {
-      let meldung = "Der Abruf hat nicht geklappt. Bitte fordere die Auskunft erneut an.";
+      let text = "Der Abruf hat nicht geklappt. Bitte fordere die Auskunft erneut an.";
       try {
         const inhalt = (await antwort.json()) as { error?: string };
-        if (inhalt?.error) meldung = inhalt.error;
+        if (inhalt?.error) text = inhalt.error;
       } catch {
         /* Bei 5xx kommt HTML statt JSON — die Vorgabemeldung passt. */
       }
       setLaeuft(false);
-      setFehlerText(meldung);
+      setMeldung({ art: "fehler", text });
       return;
     }
 
-    const blob = await antwort.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "Datenauskunft-GBS-Campus.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-
-    setLaeuft(false);
-    setFertig(true);
+    // Auch das Lesen des Rumpfs kann scheitern — die 30-Sekunden-Grenze läuft
+    // weiter, und eine abreißende Verbindung wirft erst hier. Ohne diesen Block
+    // stünde der Knopf dauerhaft auf „Wird erstellt …“ (Code-Review 4).
+    try {
+      const blob = await antwort.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Datenauskunft-GBS-Campus.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMeldung({
+        art: "ok",
+        text: "Die Auskunft wurde heruntergeladen. Solange der Link gilt, kannst du sie erneut abrufen.",
+      });
+    } catch {
+      setMeldung({
+        art: "fehler",
+        text: "Der Download ist abgebrochen. Bitte versuche es noch einmal — der Link gilt weiterhin.",
+      });
+    } finally {
+      setLaeuft(false);
+    }
   }
 
   // Vor dem Auslesen des Fragments nichts anzeigen — verhindert ein Aufblitzen
@@ -99,17 +114,7 @@ export function AuskunftAbrufen() {
         {laeuft ? "Wird erstellt …" : "Auskunft als PDF herunterladen"}
       </button>
 
-      {fertig && (
-        <p role="status" className="mt-4 rounded-lg bg-credo-gruen/10 px-3 py-2 text-sm">
-          Die Auskunft wurde heruntergeladen. Solange der Link gilt, kannst du sie erneut abrufen.
-        </p>
-      )}
-
-      {fehlerText && (
-        <p role="alert" className="mt-4 rounded-lg bg-credo-rot/10 px-3 py-2 text-sm">
-          {fehlerText}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4" />
     </div>
   );
 }

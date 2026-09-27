@@ -6,8 +6,16 @@
  * Eine Zeile je Fach der laufenden Kurseinheiten, für GENAU diese Person. Anders
  * als die Matrix (viele Teilnehmer × ein Fach) ist das hier ein Teilnehmer × viele
  * Fächer — dasselbe Erfassungs-Payload (`/api/noten`, ein Eintrag je Kurseinheit),
- * nur die Achse ist gedreht. Overlay-/Entwurf-Muster wie in der Matrix: nur
- * geänderte Zeilen werden gesendet, „ungespeichert"/„gespeichert" sichtbar.
+ * nur die Achse ist gedreht. Overlay-Muster wie in der Matrix: Angezeigt wird der
+ * gespeicherte Stand aus den Props, darüber liegen nur die berührten Zeilen. Nach
+ * dem Speichern fallen die gesendeten Zeilen aus dem Overlay, und die Anzeige
+ * zeigt wieder, was in der Datenbank steht. Vorher wurde der Entwurf nur beim
+ * ersten Rendern gesetzt — nach `router.refresh()` konnte die Zeile „nicht
+ * bewertet" zeigen, während die Datenbank „bestanden" hielt (Code-Review 4, M18).
+ *
+ * Eine gesetzte Bewertung lässt sich ändern, aber nicht entfernen — die API kennt
+ * kein Leeren (`ergebnis` ist Pflicht). Die leere Option ist bei bewerteten
+ * Fächern deshalb gesperrt, statt still verworfen zu werden.
  *
  * Recht: nur Schulleitung (NOTEN_VERWALTEN) sieht diese Komponente überhaupt.
  */
@@ -15,9 +23,15 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
-import { LEISTUNG_ERGEBNISSE, ergebnisName } from "@/lib/leistung";
-
-type LeistungWert = { ergebnis: string; punkte: number | null; note: string | null };
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
+import {
+  ERGEBNIS_OPTIONEN,
+  NOTE_MAX_LAENGE,
+  PUNKTE_MAX,
+  PUNKTE_MIN,
+  punkteGueltig,
+  type LeistungWert,
+} from "@/lib/leistung";
 
 type Kurs = {
   kurseinheitId: string;
@@ -42,6 +56,24 @@ function gleich(a: Entwurf, b: Entwurf): boolean {
   return a.ergebnis === b.ergebnis && a.punkte.trim() === b.punkte.trim() && a.note.trim() === b.note.trim();
 }
 
+/**
+ * Was die Zeile zeigt: der Overlay-Eintrag, sonst der gespeicherte Stand. Fehlt
+ * der Eintrag — etwa weil nach dem Neuladen eine Kurseinheit dazugekommen ist —,
+ * gilt einfach der gespeicherte Stand; ein fehlender Schlüssel darf das Rendern
+ * nicht abbrechen.
+ *
+ * Ein bewertetes Fach zeigt nie „nicht bewertet": Ein leerer Overlay-Eintrag
+ * (entstanden, solange das Fach noch unbewertet war) weicht dem gespeicherten
+ * Ergebnis, sobald die Datenbank eines hat.
+ */
+function angezeigt(k: Kurs, overlay: Record<string, Entwurf>): Entwurf {
+  const gespeichert = ausWert(k.wert);
+  const eintrag = overlay[k.kurseinheitId];
+  if (!eintrag) return gespeichert;
+  if (eintrag.ergebnis === "" && gespeichert.ergebnis !== "") return gespeichert;
+  return eintrag;
+}
+
 export function NotenInline({
   semesterId,
   teilnahmeId,
@@ -52,40 +84,65 @@ export function NotenInline({
   kurseinheiten: Kurs[];
 }) {
   const router = useRouter();
-  const ausgangswerte: Record<string, Entwurf> = Object.fromEntries(
-    kurseinheiten.map((k) => [k.kurseinheitId, ausWert(k.wert)]),
-  );
-  const [entwurf, setEntwurf] = useState<Record<string, Entwurf>>(ausgangswerte);
+  // kurseinheitId → Zeilen-Entwurf, nur für berührte Zeilen (Overlay).
+  const [entwurf, setEntwurf] = useState<Record<string, Entwurf>>({});
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
+  const hinweisId = `noten-hinweis-${teilnahmeId}`;
 
-  function setzen(id: string, teil: Partial<Entwurf>) {
-    setEntwurf((e) => ({ ...e, [id]: { ...e[id], ...teil } }));
+  function setzen(k: Kurs, teil: Partial<Entwurf>) {
+    setEntwurf((e) => {
+      const neu = { ...angezeigt(k, e), ...teil };
+      const rest = { ...e };
+      // Zurückgedreht auf den gespeicherten Stand? Dann gehört die Zeile nicht
+      // mehr ins Overlay — sonst verdeckte sie einen späteren Server-Stand.
+      if (gleich(neu, ausWert(k.wert))) delete rest[k.kurseinheitId];
+      else rest[k.kurseinheitId] = neu;
+      return rest;
+    });
     setMeldung(null);
+  }
+
+  /** Nimmt genau die gesendeten Zeilen aus dem Overlay — außer, sie wurden während des Speicherns weiter bearbeitet. */
+  function overlayLeeren(gesendet: Map<string, Entwurf>) {
+    setEntwurf((e) => {
+      const rest = { ...e };
+      for (const [id, zeile] of gesendet) {
+        if (rest[id] === zeile) delete rest[id];
+      }
+      return rest;
+    });
   }
 
   // Zu sichern sind geänderte Zeilen MIT gesetztem Ergebnis (ohne Ergebnis gibt es
   // nichts zu speichern — Punkte/Note allein sind keine Bewertung).
   const zuSichern = kurseinheiten.filter((k) => {
-    const jetzt = entwurf[k.kurseinheitId];
-    return jetzt.ergebnis !== "" && !gleich(jetzt, ausgangswerte[k.kurseinheitId]);
+    const jetzt = angezeigt(k, entwurf);
+    return jetzt.ergebnis !== "" && !gleich(jetzt, ausWert(k.wert));
   });
 
   async function speichern() {
     if (zuSichern.length === 0) return;
 
-    // Erst ALLE Eingaben prüfen (Ganzzahl + Bereich 0–100), bevor ein Fach
+    // Erst ALLE Eingaben prüfen (Ganzzahl + Bereich, `punkteGueltig`), bevor ein Fach
     // committet wird. Sonst bliebe bei einem ungültigen späteren Fach ein Teil
     // gespeichert und der Rest nicht — inkonsistenter Zwischenstand.
     const fertig: { fach: string; kurseinheitId: string; ergebnis: string; punkte: number | null; note: string | null }[] = [];
+    // Der Overlay-Eintrag, so wie er gesendet wird — nach dem Speichern fällt er
+    // nur heraus, wenn er inzwischen nicht weiter bearbeitet wurde.
+    const gesendet = new Map<string, Entwurf>();
     for (const k of zuSichern) {
-      const jetzt = entwurf[k.kurseinheitId];
+      const jetzt = angezeigt(k, entwurf);
+      gesendet.set(k.kurseinheitId, jetzt);
       const punkteText = jetzt.punkte.trim();
       let punkte: number | null = null;
       if (punkteText !== "") {
         const n = Number(punkteText);
-        if (!Number.isInteger(n) || n < 0 || n > 100) {
-          setMeldung({ art: "fehler", text: `„${k.fach}": Punkte müssen eine ganze Zahl von 0 bis 100 sein.` });
+        if (!punkteGueltig(n)) {
+          setMeldung({
+            art: "fehler",
+            text: `„${k.fach}": Punkte müssen eine ganze Zahl von ${PUNKTE_MIN} bis ${PUNKTE_MAX} sein.`,
+          });
           return;
         }
         punkte = n;
@@ -103,6 +160,7 @@ export function NotenInline({
     setMeldung(null);
 
     let gesetzt = 0;
+    const gespeichert = new Map<string, Entwurf>();
     for (const f of fertig) {
       const antwort = await sendeAnfrage<{ gesetzt: number }>("/api/noten", {
         methode: "POST",
@@ -124,15 +182,26 @@ export function NotenInline({
               ? `${gesetzt} ${gesetzt === 1 ? "Fach" : "Fächer"} gespeichert. Bei „${f.fach}": ${antwort.meldung}`
               : `„${f.fach}": ${antwort.meldung}`,
         });
-        startTransition(() => router.refresh());
+        startTransition(() => {
+          overlayLeeren(gespeichert);
+          router.refresh();
+        });
         return;
       }
       gesetzt += antwort.daten.gesetzt;
+      const zeile = gesendet.get(f.kurseinheitId);
+      if (zeile) gespeichert.set(f.kurseinheitId, zeile);
     }
 
     setLaeuft(false);
     setMeldung({ art: "ok", text: `Noten gespeichert (${gesetzt} ${gesetzt === 1 ? "Fach" : "Fächer"}).` });
-    startTransition(() => router.refresh());
+    // Overlay leeren und Server-Stand neu laden gemeinsam als Transition (wie in
+    // der Matrix) — die Ansicht hält den alten Stand, bis die frischen Props da
+    // sind, und zeigt danach genau das, was gespeichert ist.
+    startTransition(() => {
+      overlayLeeren(gespeichert);
+      router.refresh();
+    });
   }
 
   if (kurseinheiten.length === 0) {
@@ -158,8 +227,9 @@ export function NotenInline({
           </thead>
           <tbody>
             {kurseinheiten.map((k) => {
-              const jetzt = entwurf[k.kurseinheitId];
-              const geaendert = jetzt.ergebnis !== "" && !gleich(jetzt, ausgangswerte[k.kurseinheitId]);
+              const jetzt = angezeigt(k, entwurf);
+              const geaendert = jetzt.ergebnis !== "" && !gleich(jetzt, ausWert(k.wert));
+              const bewertet = Boolean(k.wert?.ergebnis);
               return (
                 <tr key={k.kurseinheitId} className="border-t border-border align-top">
                   <td className="px-4 py-2.5">
@@ -178,13 +248,18 @@ export function NotenInline({
                     <select
                       id={`erg-${k.kurseinheitId}`}
                       value={jetzt.ergebnis}
-                      onChange={(e) => setzen(k.kurseinheitId, { ergebnis: e.target.value })}
+                      onChange={(e) => setzen(k, { ergebnis: e.target.value })}
+                      aria-describedby={bewertet ? hinweisId : undefined}
                       className={feldKlasse}
                     >
-                      <option value="">— nicht bewertet</option>
-                      {LEISTUNG_ERGEBNISSE.map((erg) => (
-                        <option key={erg} value={erg}>
-                          {ergebnisName(erg)}
+                      {/* Bei bewerteten Fächern gesperrt: Die API kann eine Bewertung
+                          nicht leeren — wählbar wäre sie nur scheinbar. */}
+                      <option value="" disabled={bewertet}>
+                        — nicht bewertet
+                      </option>
+                      {ERGEBNIS_OPTIONEN.map((o) => (
+                        <option key={o.wert} value={o.wert}>
+                          {o.label}
                         </option>
                       ))}
                     </select>
@@ -197,10 +272,10 @@ export function NotenInline({
                       id={`pkt-${k.kurseinheitId}`}
                       type="number"
                       inputMode="numeric"
-                      min={0}
-                      max={100}
+                      min={PUNKTE_MIN}
+                      max={PUNKTE_MAX}
                       value={jetzt.punkte}
-                      onChange={(e) => setzen(k.kurseinheitId, { punkte: e.target.value })}
+                      onChange={(e) => setzen(k, { punkte: e.target.value })}
                       disabled={jetzt.ergebnis === ""}
                       className={`${feldKlasse} w-20 disabled:opacity-50`}
                     />
@@ -212,9 +287,9 @@ export function NotenInline({
                     <input
                       id={`note-${k.kurseinheitId}`}
                       type="text"
-                      maxLength={40}
+                      maxLength={NOTE_MAX_LAENGE}
                       value={jetzt.note}
-                      onChange={(e) => setzen(k.kurseinheitId, { note: e.target.value })}
+                      onChange={(e) => setzen(k, { note: e.target.value })}
                       disabled={jetzt.ergebnis === ""}
                       placeholder="z. B. gut"
                       className={`${feldKlasse} w-28 disabled:opacity-50`}
@@ -236,17 +311,11 @@ export function NotenInline({
         >
           {laeuft ? "Wird gespeichert …" : "Noten speichern"}
         </button>
-        <span className="text-xs text-muted-foreground">
-          Pflicht ist nur das Ergebnis; Punkte und Note sind optional (nur wo benotet wird).
+        <span id={hinweisId} className="text-xs text-muted-foreground">
+          Pflicht ist nur das Ergebnis; Punkte und Note sind optional (nur wo benotet wird). Eine gesetzte Bewertung
+          lässt sich ändern, aber nicht entfernen.
         </span>
-        {meldung && (
-          <p
-            role={meldung.art === "ok" ? "status" : "alert"}
-            className={`w-full rounded-lg px-3 py-2 text-sm ${meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"}`}
-          >
-            {meldung.text}
-          </p>
-        )}
+        <MeldungsBox meldung={meldung} className="w-full" />
       </div>
     </div>
   );

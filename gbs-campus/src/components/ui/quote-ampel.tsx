@@ -11,7 +11,13 @@
  * trägt zusätzlich ein Zeichen + ein (ggf. nur für Screenreader sichtbares) Wort.
  */
 
-import { quoteHinweis, istQuoteDringend, type QuoteModellA, type QuoteZustand } from "@/lib/stundenplan";
+import {
+  quoteHinweis,
+  istQuoteDringend,
+  type QuoteModellA,
+  type QuoteSicht,
+  type QuoteZustand,
+} from "@/lib/stundenplan";
 
 export const QUOTE_STIL: Record<QuoteZustand, { label: string; zeichen: string; badge: string; balken: string }> = {
   ERFUELLT: { label: "Erfüllt", zeichen: "✓", badge: "bg-credo-gruen/15 text-foreground", balken: "bg-credo-gruen" },
@@ -19,8 +25,11 @@ export const QUOTE_STIL: Record<QuoteZustand, { label: string; zeichen: string; 
   NICHT_ERREICHBAR: { label: "Nicht mehr erreichbar", zeichen: "✕", badge: "bg-credo-rot/15 text-foreground", balken: "bg-credo-rot" },
 };
 
-/** Die volle Quote-Box mit Balken und Klartext (sachlich, rollenneutral). */
-export function QuoteAmpel({ quote }: { quote: QuoteModellA }) {
+/**
+ * Die volle Quote-Box mit Balken und Klartext. `sicht` wählt den Klartext: Der
+ * Schüler liest „Bitte wende dich an die Schulleitung.", die Detailakte nicht.
+ */
+export function QuoteAmpel({ quote, sicht }: { quote: QuoteModellA; sicht: QuoteSicht }) {
   const stil = QUOTE_STIL[quote.zustand] ?? QUOTE_STIL.OFFEN;
   const dringend = istQuoteDringend(quote);
   const breite = Math.min(100, Math.max(0, quote.prozent));
@@ -38,7 +47,7 @@ export function QuoteAmpel({ quote }: { quote: QuoteModellA }) {
         <div className={`h-full ${stil.balken}`} style={{ width: `${breite}%` }} />
       </div>
       <p className={`mt-1.5 text-xs ${dringend ? "font-medium text-foreground" : "text-muted-foreground"}`}>
-        Nötig sind {quote.benoetigt} von {quote.gesamt} Abenden ({quote.schwelleProzent}&nbsp;%). {quoteHinweis(quote)}
+        Nötig sind {quote.benoetigt} von {quote.gesamt} Abenden ({quote.schwelleProzent}&nbsp;%). {quoteHinweis(quote, sicht)}
       </p>
     </div>
   );
@@ -46,8 +55,8 @@ export function QuoteAmpel({ quote }: { quote: QuoteModellA }) {
 
 /**
  * Kompakter Kopf-Fakt: Zeichen + „X/Y" mit Tint. Das Zeichen (✓/•/✕) und das
- * sr-only-Wort tragen die Aussage auch ohne Farbe. Geteilt von Detailakte-Kopf und
- * Schüler-Akte-Kopf (drei Zustände inkl. rot).
+ * sr-only-Wort tragen die Aussage auch ohne Farbe. Geteilt von Detailakte-Kopf,
+ * Schüler-Akte-Kopf und Personenliste (drei Zustände inkl. rot).
  */
 export function QuoteChip({ quote }: { quote: QuoteModellA }) {
   const stil = QUOTE_STIL[quote.zustand] ?? QUOTE_STIL.OFFEN;
@@ -59,35 +68,6 @@ export function QuoteChip({ quote }: { quote: QuoteModellA }) {
       <span aria-hidden="true">{stil.zeichen}</span>
       {quote.teilgenommen}/{quote.gesamt}
       <span className="sr-only"> — {stil.label}</span>
-    </span>
-  );
-}
-
-/**
- * Kompakte Quote für eine Tabellenzelle: Zeichen + „X/Y" mit Tint nach erfüllt/nicht.
- * Die Liste rechnet ohne Modell-A-Zustand (nur erfasste Abende gegen die Gesamtzahl),
- * deshalb primitive Props statt QuoteModellA. Das Häkchen/Wort ersetzt die reine
- * Farbe (WCAG 1.4.1).
- */
-export function QuoteKurz({
-  teilgenommen,
-  gesamt,
-  erfuellt,
-}: {
-  teilgenommen: number;
-  gesamt: number | null;
-  erfuellt: boolean;
-}) {
-  if (gesamt === null || gesamt === 0) return <span className="text-muted-foreground">—</span>;
-  const ton = erfuellt ? "bg-credo-gruen/15 text-foreground" : "bg-credo-gelb/25 text-foreground";
-  return (
-    <span
-      title={erfuellt ? "Soll erfüllt" : "unter Soll"}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${ton}`}
-    >
-      <span aria-hidden="true">{erfuellt ? "✓" : "•"}</span>
-      {teilgenommen}/{gesamt}
-      <span className="sr-only"> — {erfuellt ? "Soll erfüllt" : "unter Soll"}</span>
     </span>
   );
 }

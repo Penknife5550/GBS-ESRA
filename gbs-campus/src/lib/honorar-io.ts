@@ -8,19 +8,37 @@
  *  - die read-only Honorar-Uebersicht je Semester (Abende je Dozent, jeder Abend
  *    zu dem Satz, der zu seinem Datum galt),
  *  - die Satz-Historie und das Genehmigen eines neuen Satzes — samt Beleg, der
- *    nach der Genehmigung an das DMS geht.
+ *    nach der Genehmigung an das DMS geht, und dessen Nachversand, falls er dort
+ *    nicht angekommen ist,
+ *  - (Sperre und Versand eines DMS-Belegs liegen in `dms.ts`, die Namen der
+ *    Akteure in `personen-namen.ts` — gemeinsam mit Abrechnung und Zeugnis.)
  */
 
 import { randomUUID } from "crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ROLLE } from "@/lib/constants";
 import { protokolliere } from "@/lib/audit";
 import { erzeugePdf } from "@/lib/pdf";
-import { sendeMail } from "@/lib/mailer";
 import { dmsAdresse } from "@/lib/konfiguration";
+import { mitDmsSperre, sendeBelegAnDms } from "@/lib/dms";
+import { ladeAkteurNamen } from "@/lib/personen-namen";
 import { datum } from "@/lib/datum";
-import { euro, satzFuer, HONORAR_SATZ_MIN, HONORAR_SATZ_MAX, type SatzZeile } from "@/lib/honorar";
-import { baueHonorarBelegBloecke, type BelegSatz, type BelegTag } from "@/lib/honorar-beleg";
+import { euro, honorarBelegNr, satzFuer, HONORAR_SATZ_MIN, HONORAR_SATZ_MAX, type SatzZeile } from "@/lib/honorar";
+import {
+  baueHonorarBelegBloecke,
+  baueSatzDmsMail,
+  historieBis,
+  type BelegSatz,
+  type BelegTag,
+} from "@/lib/honorar-beleg";
+import {
+  nachversandErgebnis,
+  pruefeSatzNachversand,
+  type BelegAusgang,
+  type DmsVersand,
+  type NachversandErgebnis,
+} from "@/lib/honorar-korrektur";
 
 export type DozentAuswahl = { id: string; name: string };
 
@@ -72,7 +90,10 @@ export async function ladeSatzZeilen(): Promise<SatzZeile[]> {
  *
  * Weil der Satz eine Historie hat, kann er zwischen Abenden wechseln; deshalb
  * wird je Abend über `satzFuer(beginn)` aufgelöst und summiert — nicht
- * `Anzahl × ein Satz`.
+ * `Anzahl × ein Satz`. Ein schon abgerechneter Abend zählt dagegen mit seinem
+ * eingefrorenen Posten-Betrag: Ein später rückdatierter Satz ändert eine
+ * bestehende Abrechnung nicht, und die Übersicht soll denselben Betrag zeigen
+ * wie der Zahlungsbeleg.
  */
 export async function ladeHonorarUebersicht(semesterId: string): Promise<HonorarUebersicht> {
   const jetzt = new Date();
@@ -80,7 +101,7 @@ export async function ladeHonorarUebersicht(semesterId: string): Promise<Honorar
     ladeSatzZeilen(),
     prisma.unterrichtstermin.findMany({
       where: { semesterId, dozentId: { not: null }, beginn: { lte: jetzt } },
-      select: { dozentId: true, beginn: true },
+      select: { dozentId: true, beginn: true, abrechnungPosten: { select: { betrag: true } } },
     }),
   ]);
 
@@ -92,7 +113,7 @@ export async function ladeHonorarUebersicht(semesterId: string): Promise<Honorar
     if (!t.dozentId) continue;
     const eintrag = proDozent.get(t.dozentId) ?? { abende: 0, betrag: 0 };
     eintrag.abende += 1;
-    eintrag.betrag += satzFuer(t.beginn, saetze);
+    eintrag.betrag += t.abrechnungPosten ? t.abrechnungPosten.betrag : satzFuer(t.beginn, saetze);
     proDozent.set(t.dozentId, eintrag);
   }
 
@@ -121,17 +142,6 @@ export type HonorarSatzAnzeige = {
   dmsGesendetAm: Date | null;
 };
 
-/** Ordnet Akteur-/Personen-Ids lesbare Namen („Nachname, Vorname") zu. */
-export async function ladeAkteurNamen(ids: string[]): Promise<Map<string, string>> {
-  const eindeutige = [...new Set(ids.filter(Boolean))];
-  if (eindeutige.length === 0) return new Map();
-  const personen = await prisma.person.findMany({
-    where: { id: { in: eindeutige } },
-    select: { id: true, vorname: true, nachname: true },
-  });
-  return new Map(personen.map((p) => [p.id, `${p.nachname}, ${p.vorname}`]));
-}
-
 /** Die komplette Satz-Historie, jüngster Satz zuerst, mit aufgelösten Genehmiger-Namen. */
 export async function ladeHonorarSaetze(): Promise<HonorarSatzAnzeige[]> {
   const rows = await prisma.honorarSatz.findMany({
@@ -151,13 +161,22 @@ export async function ladeHonorarSaetze(): Promise<HonorarSatzAnzeige[]> {
 }
 
 /**
- * Baut die Beleg-Daten (komplette Historie + alle Unterrichtstage mit geltendem
- * Satz) aus dem aktuellen Datenbestand. Rein lesend.
+ * Baut die Beleg-Daten (Historie bis zu dieser Genehmigung + alle
+ * Unterrichtstage mit geltendem Satz) aus dem aktuellen Datenbestand. Rein
+ * lesend, ueber `client` (unter der DMS-Sperre deren Transaktion). Die Historie
+ * endet bei `genehmigtAm` (historieBis): beim Erstversand ist das die ganze, beim
+ * Nachversand bleiben spaeter genehmigte Saetze draussen.
  */
-async function ladeBelegDaten(belegNr: string, anlass: string, genehmigtVon: string | null, genehmigtAm: Date) {
-  const [saetzeRows, termine] = await Promise.all([
-    prisma.honorarSatz.findMany({ orderBy: [{ gueltigAb: "desc" }, { genehmigtAm: "desc" }] }),
-    prisma.unterrichtstermin.findMany({
+async function ladeBelegDaten(
+  client: Prisma.TransactionClient,
+  belegNr: string,
+  anlass: string,
+  genehmigtVon: string | null,
+  genehmigtAm: Date,
+) {
+  const [alleSaetze, termine] = await Promise.all([
+    client.honorarSatz.findMany({ orderBy: [{ gueltigAb: "desc" }, { genehmigtAm: "desc" }] }),
+    client.unterrichtstermin.findMany({
       orderBy: { beginn: "asc" },
       select: {
         beginn: true,
@@ -167,7 +186,8 @@ async function ladeBelegDaten(belegNr: string, anlass: string, genehmigtVon: str
     }),
   ]);
 
-  const namen = await ladeAkteurNamen(saetzeRows.map((r) => r.genehmigtVonId ?? ""));
+  const saetzeRows = historieBis(alleSaetze, genehmigtAm);
+  const namen = await ladeAkteurNamen(saetzeRows.map((r) => r.genehmigtVonId ?? ""), client);
   const saetzeZeilen: SatzZeile[] = saetzeRows.map((r) => ({
     betrag: r.betrag,
     gueltigAb: r.gueltigAb,
@@ -200,12 +220,6 @@ async function ladeBelegDaten(belegNr: string, anlass: string, genehmigtVon: str
   };
 }
 
-/** Eindeutige, im DMS wiederauffindbare Beleg-Nummer, z. B. HON-2026-07-30-1A2B3C4D. */
-function neueBelegNr(am: Date): string {
-  const tag = am.toISOString().slice(0, 10); // YYYY-MM-DD (UTC — reine Referenz, keine Anzeige)
-  return `HON-${tag}-${randomUUID().slice(0, 8).toUpperCase()}`;
-}
-
 export type GenehmigenEingabe = {
   betrag: number;
   gueltigAb: Date;
@@ -215,7 +229,7 @@ export type GenehmigenEingabe = {
 };
 
 export type GenehmigenErgebnis =
-  | { ok: true; satzId: string; belegNr: string; dmsGesendet: boolean }
+  | { ok: true; satzId: string; belegNr: string; dmsGesendet: boolean; dmsVersand: DmsVersand }
   | { ok: false; meldung: string };
 
 /**
@@ -226,8 +240,9 @@ export type GenehmigenErgebnis =
  * Reihenfolge und Fehlerverhalten bewusst wie beim Mailer: Die Genehmigung ist
  * die fachliche Tatsache und wird NICHT zurückgerollt, wenn der Beleg-Versand
  * scheitert. Ein fehlgeschlagener oder mangels DMS-Adresse ausgebliebener
- * Versand bleibt sichtbar (dmsGesendetAm bleibt leer) und lässt sich später
- * nachholen.
+ * Versand bleibt sichtbar (dmsGesendetAm bleibt leer, `dmsVersand` nennt den
+ * Ausgang) und wird über `sendeSatzBelegNach` — Knopf „Beleg erneut senden“ auf
+ * der Sätze-Seite — mit derselben Beleg-Nr nachgeholt.
  */
 export async function genehmigeHonorarSatz(eingabe: GenehmigenEingabe): Promise<GenehmigenErgebnis> {
   if (!Number.isInteger(eingabe.betrag)) {
@@ -245,7 +260,7 @@ export async function genehmigeHonorarSatz(eingabe: GenehmigenEingabe): Promise<
   // Fehlerzweig existieren (der Satz erscheint dann als „Versand steht aus"),
   // nicht erst nach erfolgreichem Versand — sonst ginge ein bereits gesendeter
   // Beleg bei einem DB-Fehler nach dem Versand unsichtbar verloren.
-  const belegNr = neueBelegNr(new Date());
+  const belegNr = honorarBelegNr("HON", new Date(), randomUUID());
   const satz = await prisma.honorarSatz.create({
     data: {
       betrag: eingabe.betrag,
@@ -267,35 +282,109 @@ export async function genehmigeHonorarSatz(eingabe: GenehmigenEingabe): Promise<
 
   // Beleg erzeugen und an das DMS geben. Scheitert das, bleibt der Satz genehmigt
   // und der Beleg als offener Versand sichtbar (dmsGesendetAm bleibt leer).
-  let dmsGesendet = false;
+  let dmsVersand: DmsVersand = "FEHLGESCHLAGEN";
   try {
-    const genehmiger = eingabe.akteurId ? (await ladeAkteurNamen([eingabe.akteurId])).get(eingabe.akteurId) ?? null : null;
-    const anlass = `${euro(satz.betrag)} je Unterrichtsabend, gültig ab ${datum(satz.gueltigAb)}`;
-    const daten = await ladeBelegDaten(belegNr, anlass, genehmiger, satz.genehmigtAm);
-    const pdf = erzeugePdf(baueHonorarBelegBloecke(daten));
-
-    const an = dmsAdresse();
-    if (an) {
-      const ergebnis = await sendeMail({
-        an,
-        betreff: `Honorarsatz-Beleg ${belegNr} — ${anlass}`,
-        text:
-          `Automatischer Beleg der Gemeindebibelschule Minden.\n\n` +
-          `Anlass: ${anlass}\nGenehmigt von: ${genehmiger ?? "—"}\nBeleg-Nr.: ${belegNr}\n\n` +
-          `Die vollständige Historie und die Unterrichtstage mit geltendem Satz stehen im angehängten PDF.`,
-        anhaenge: [{ dateiname: `${belegNr}.pdf`, inhalt: pdf, typ: "application/pdf" }],
-      });
-      dmsGesendet = ergebnis.gesendet;
-    }
-
-    // Nur den echten Versand festhalten — die Beleg-Nr steht schon seit dem
-    // create. Ein Fehler hier lässt den Satz als „Versand steht aus" stehen.
-    if (dmsGesendet) {
-      await prisma.honorarSatz.update({ where: { id: satz.id }, data: { dmsGesendetAm: new Date() } });
-    }
+    const ausgang = await versendeSatzBeleg(satz.id, false);
+    dmsVersand = ausgang === "SCHON_GESENDET" ? "GESENDET" : ausgang;
   } catch (fehler) {
     console.error("[HONORAR] DMS-Beleg konnte nicht erzeugt/versendet werden für Satz", satz.id, fehler);
   }
 
-  return { ok: true, satzId: satz.id, belegNr, dmsGesendet };
+  return { ok: true, satzId: satz.id, belegNr, dmsGesendet: dmsVersand === "GESENDET", dmsVersand };
+}
+
+// -----------------------------------------------------------------------------
+// DMS-Versand unter Sperre, Satz-Beleg und Nachversand (M12)
+// -----------------------------------------------------------------------------
+
+/** Kurzbeschreibung einer Genehmigung, z. B. „65 € je Unterrichtsabend, gültig ab 01.09.2026“. */
+function satzAnlass(betrag: number, gueltigAb: Date): string {
+  return `${euro(betrag)} je Unterrichtsabend, gültig ab ${datum(gueltigAb)}`;
+}
+
+/**
+ * Erzeugt den Honorarsatz-Beleg und schickt ihn an das DMS — gemeinsamer Weg
+ * fuer die Genehmigung und den Nachversand. Unter der DMS-Sperre wird der Satz
+ * frisch gelesen: Ist der Beleg inzwischen gesendet, geht er nicht noch einmal
+ * raus. Nur der echte Versand setzt `dmsGesendetAm` (die Beleg-Nr steht schon
+ * seit dem create) — notfalls ausserhalb der Sperre nachgetragen (siehe
+ * `mitDmsSperre`).
+ */
+async function versendeSatzBeleg(satzId: string, nachversand: boolean): Promise<BelegAusgang> {
+  const an = dmsAdresse();
+  if (!an) return "KEINE_ADRESSE";
+
+  // Gesetzt, sobald der Mailserver den Beleg angenommen hat.
+  let gesendetAm = null as Date | null;
+  try {
+    return await mitDmsSperre(`honorar-satz:${satzId}`, async (tx): Promise<BelegAusgang> => {
+      const satz = await tx.honorarSatz.findUnique({ where: { id: satzId } });
+      if (!satz?.dmsBelegNr) return "FEHLGESCHLAGEN";
+      if (satz.dmsGesendetAm) return "SCHON_GESENDET";
+
+      const genehmiger = satz.genehmigtVonId
+        ? (await ladeAkteurNamen([satz.genehmigtVonId], tx)).get(satz.genehmigtVonId) ?? null
+        : null;
+      const anlass = satzAnlass(satz.betrag, satz.gueltigAb);
+      const daten = { ...(await ladeBelegDaten(tx, satz.dmsBelegNr, anlass, genehmiger, satz.genehmigtAm)), nachversand };
+      const pdf = erzeugePdf(baueHonorarBelegBloecke(daten));
+      const mail = baueSatzDmsMail({ belegNr: satz.dmsBelegNr, anlass, genehmigtVon: genehmiger }, nachversand);
+
+      const gesendet = await sendeBelegAnDms(an, { betreff: mail.betreff, text: mail.text, dateiname: mail.dateiname, pdf });
+      if (!gesendet) return "FEHLGESCHLAGEN";
+
+      gesendetAm = new Date();
+      await tx.honorarSatz.update({ where: { id: satz.id }, data: { dmsGesendetAm: gesendetAm } });
+      return "GESENDET";
+    });
+  } catch (fehler) {
+    const am = gesendetAm;
+    if (!am) throw fehler;
+    // Der Beleg ist draussen, nur das Festhalten unter der Sperre scheiterte.
+    console.error("[HONORAR] Satz-Beleg gesendet, Festhalten unter der Sperre gescheitert — wird nachgetragen:", satzId, fehler);
+    try {
+      await prisma.honorarSatz.updateMany({ where: { id: satzId, dmsGesendetAm: null }, data: { dmsGesendetAm: am } });
+    } catch (nachtragFehler) {
+      console.error("[HONORAR] dmsGesendetAm nicht nachgetragen — der Beleg ist trotzdem gesendet:", satzId, nachtragFehler);
+    }
+    return "GESENDET";
+  }
+}
+
+/**
+ * Sendet den Beleg eines genehmigten Satzes erneut an das DMS, wenn er dort nicht
+ * angekommen ist (`dmsGesendetAm` leer) — mit derselben Beleg-Nr und der
+ * Historie bis zu dieser Genehmigung. Jeder Versuch, der bis zum Versand kommt,
+ * steht im Audit-Log (auch ein gescheiterter: wer hat wann nachgesendet).
+ */
+export async function sendeSatzBelegNach(satzId: string, akteurId: string, headers?: Headers): Promise<NachversandErgebnis> {
+  const satz = await prisma.honorarSatz.findUnique({
+    where: { id: satzId },
+    select: { dmsBelegNr: true, dmsGesendetAm: true },
+  });
+  if (!satz) return { ok: false, code: "fehlt", meldung: "Diesen Honorarsatz gibt es nicht." };
+  const sperre = pruefeSatzNachversand(satz);
+  if (sperre !== null || !satz.dmsBelegNr) {
+    return { ok: false, code: "konflikt", meldung: sperre ?? "Dieser Satz hat keine Beleg-Nr." };
+  }
+
+  let ausgang: BelegAusgang = "FEHLGESCHLAGEN";
+  try {
+    ausgang = await versendeSatzBeleg(satzId, true);
+  } catch (fehler) {
+    console.error("[HONORAR] Nachversand des DMS-Belegs fehlgeschlagen für Satz", satzId, fehler);
+  }
+
+  if (ausgang === "GESENDET" || ausgang === "FEHLGESCHLAGEN") {
+    await protokolliere({
+      aktion: "HONORAR_SATZ_BELEG_NACHVERSAND",
+      objektTyp: "HonorarSatz",
+      objektId: satzId,
+      akteurId,
+      nachher: { belegNr: satz.dmsBelegNr, ausgang },
+      headers,
+    });
+  }
+
+  return nachversandErgebnis(satz.dmsBelegNr, ausgang);
 }

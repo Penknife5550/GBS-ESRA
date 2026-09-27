@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { istDozent } from "@/lib/honorar-io";
+import { dozentWechselSperre } from "@/lib/honorar-korrektur";
 
 const putSchema = z.object({
   kurseinheitId: z.string().uuid().nullable().optional(),
@@ -15,8 +16,8 @@ const putSchema = z.object({
 
 /** Ordnet einem Termin ein Fach (Kurseinheit), einen Dozenten und/oder ein Thema zu. */
 export async function PUT(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { id } = await kontext.params;
   const geprueft = putSchema.safeParse(await request.json().catch(() => null));
@@ -46,9 +47,43 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
     daten.thema = geprueft.data.thema?.trim() || null;
   }
 
-  // updateMany statt update: kein P2025-500, wenn den Termin gerade jemand gelöscht hat.
-  const geaendert = await prisma.unterrichtstermin.updateMany({ where: { id }, data: daten });
-  if (geaendert.count === 0) return fehler("Diesen Termin gibt es nicht.", 404);
+  // Ein bereits abgerechneter Abend darf keinem anderen Dozenten zugeordnet
+  // werden — dieselbe Sperre wie im DELETE (M11). Sonst bliebe der eingefrorene
+  // Posten in der Abrechnung des bisherigen Dozenten; beim neuen zählte der Abend
+  // als gehalten, ließe sich aber nie abrechnen (terminId ist @unique). Gesperrt
+  // wird nur eine echte Änderung der Zuordnung (dozentWechselSperre): Die
+  // Stundenplan-Seite schickt Fach und Dozent immer gemeinsam.
+  //
+  // Die anderen Felder bleiben frei: kurseinheitId ist honorar-neutral (der
+  // Betrag hängt nur am Datum, das Fach steht eingefroren im Posten), thema
+  // ebenso. `beginn` lässt sich über diese Route gar nicht ändern (fehlt im
+  // Schema) — käme es hinzu, müsste es genauso gesperrt werden, weil Satz und
+  // „gehalten“ am Datum hängen und der Posten das Datum eingefroren hat.
+  //
+  // Zeilensperre (FOR UPDATE) statt Prüfen-dann-Schreiben: Ein paralleles
+  // Abrechnen legt seinen Posten mit Fremdschlüssel-Sperre auf diesen Termin an —
+  // entweder wartet es auf uns (und seine Gegenprobe sieht den neuen Dozenten),
+  // oder wir warten auf es und sehen danach den Posten. Die gesperrte Zeile kann
+  // auch nicht mehr verschwinden, deshalb ist das update danach sicher.
+  const ausgang = await prisma.$transaction(async (tx) => {
+    const zeilen = await tx.$queryRaw<{ dozentId: string | null }[]>`
+      SELECT "dozentId" FROM "unterrichtstermine" WHERE "id" = ${id} FOR UPDATE`;
+    if (zeilen.length === 0) return { art: "fehlt" as const };
+
+    if (daten.dozentId !== undefined) {
+      const posten = await tx.honorarAbrechnungPosten.findUnique({
+        where: { terminId: id },
+        select: { abrechnung: { select: { status: true } } },
+      });
+      const sperre = dozentWechselSperre(zeilen[0].dozentId, daten.dozentId, posten?.abrechnung.status ?? null);
+      if (sperre) return { art: "gesperrt" as const, meldung: sperre };
+    }
+
+    await tx.unterrichtstermin.update({ where: { id }, data: daten });
+    return { art: "geaendert" as const };
+  });
+  if (ausgang.art === "fehlt") return fehler("Diesen Termin gibt es nicht.", 404);
+  if (ausgang.art === "gesperrt") return fehler(ausgang.meldung, 409);
 
   await protokolliere({
     aktion: "STUNDENPLAN_TERMIN_GEAENDERT",
@@ -64,8 +99,8 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
 
 /** Löscht einen Termin (samt seiner Anwesenheiten über Cascade). */
 export async function DELETE(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { id } = await kontext.params;
 

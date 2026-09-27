@@ -1,12 +1,12 @@
 /**
- * GBS Campus — Semesterbeitrag: Grundlagen für Release 0.1
+ * GBS Campus — Semesterbeitrag: Grundlagen für den künftigen Beitragslauf
  *
- * Der eigentliche Beitragslauf (Einzug, Rechnung) kommt mit Release 0.3. Hier
- * steht nur, was 0.1 schon braucht: die vier Beträge liegen als konfigurierbare
- * Einstellungen (siehe `EINSTELLUNGEN` in `src/lib/einstellungen.ts`, Bereich
- * BEITRAG), und bei der Aufnahme wird die Ehepartner-Ermäßigung am Konto
- * vermerkt, wenn die Anmeldung eine gemeinsame Anmeldung mit dem Ehepartner
- * angibt.
+ * Der eigentliche Beitragslauf (Einzug, Rechnung) kommt in einem künftigen
+ * Release. Hier steht nur, was heute schon gebraucht wird: die vier Beträge
+ * liegen als konfigurierbare Einstellungen (siehe `EINSTELLUNGEN` in
+ * `src/lib/einstellungen.ts`, Bereich BEITRAG), und bei der Aufnahme wird die
+ * Ehepartner-Ermäßigung am Konto vermerkt, wenn die Anmeldung eine gemeinsame
+ * Anmeldung mit dem Ehepartner angibt.
  *
  * Bewusst reines Modul ohne Datenbank-Import — so ist der Helfer per Prüfskript
  * ohne DB und mutationssicher testbar (Projektregel 2).

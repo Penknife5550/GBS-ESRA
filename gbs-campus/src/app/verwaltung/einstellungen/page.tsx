@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
+import { RECHT } from "@/lib/constants";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { EinstellungsFeld } from "./einstellungs-feld";
 
+export const metadata = { title: "Einstellungen" };
 export const dynamic = "force-dynamic";
 
 const BEREICH_NAME: Record<string, string> = {
@@ -13,7 +15,7 @@ const BEREICH_NAME: Record<string, string> = {
 };
 
 export default async function EinstellungenSeite() {
-  const benutzer = await ladeMitRecht("SYSTEM_EINSTELLUNGEN");
+  const benutzer = await ladeMitRecht(RECHT.SYSTEM_EINSTELLUNGEN);
   if (!benutzer) redirect("/anmelden");
 
   const einstellungen = await prisma.einstellung.findMany({
@@ -24,9 +26,7 @@ export default async function EinstellungenSeite() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Einstellungen" />
 
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Einstellungen</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">

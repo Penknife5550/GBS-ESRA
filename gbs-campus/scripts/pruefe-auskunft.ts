@@ -15,6 +15,8 @@ import {
   formatiereWert,
   mappeAntworten,
   baueAuskunftBloecke,
+  teilnahmeText,
+  anwesenheitText,
   type AuskunftDaten,
   type FeldInfo,
 } from "../src/lib/auskunft-inhalt";
@@ -104,6 +106,7 @@ const daten: AuskunftDaten = {
       eingereichtAm: new Date("2026-07-01T09:00:00Z"),
       entschiedenAm: null,
       teilnahmeform: "SCHUELER",
+      ablehnungsgrundVorhanden: false,
       antworten: [
         { label: "Motivation", wert: "Ich möchte tiefer einsteigen", istArt9: true },
         { label: "Beruf", wert: "Lehrer", istArt9: false },
@@ -114,7 +117,66 @@ const daten: AuskunftDaten = {
     { titel: "Datenschutz", version: 1, istArt9: false, erteilt: true, zeitpunkt: new Date("2026-07-01T09:00:00Z"), ipAdresse: "203.0.113.7" },
   ],
   statusWechsel: [{ von: null, nach: "Interessent", grund: null, automatisch: false, zeitpunkt: new Date("2026-07-01T09:00:00Z") }],
-  teilnahmen: [{ semester: "Herbstsemester 2026", teilnahmeform: "Schüler (mit Prüfung und Zeugnis)", bestaetigtAm: null }],
+  teilnahmen: [
+    {
+      semester: "Herbstsemester 2026",
+      teilnahmeform: "Schüler (mit Prüfung und Zeugnis)",
+      eingeladenAm: null,
+      bestaetigtAm: null,
+      abgemeldetAm: null,
+      abmeldeGrund: null,
+    },
+    {
+      semester: "Frühlingssemester 2027",
+      teilnahmeform: "Schüler (mit Prüfung und Zeugnis)",
+      eingeladenAm: new Date("2027-01-10T10:00:00Z"),
+      bestaetigtAm: null,
+      abgemeldetAm: new Date("2027-01-20T10:00:00Z"),
+      abmeldeGrund: "BIN_RAUS",
+    },
+  ],
+  anwesenheiten: [
+    { beginn: new Date("2026-09-15T17:00:00Z"), fach: "AT-Bibelkunde", status: "NACHGEARBEITET", selbstBestaetigt: true, vermerk: false },
+    { beginn: new Date("2026-09-22T17:00:00Z"), fach: null, status: "GEFEHLT", selbstBestaetigt: false, vermerk: false },
+  ],
+  leistungen: [
+    { semester: "Herbstsemester 2026", fach: "Bibelkunde", titel: "AT-Bibelkunde", ergebnis: "BESTANDEN", punkte: 12, note: "2" },
+  ],
+  zeugnisse: [
+    {
+      belegNr: "ZEU-2026-12-01-AAAA1111",
+      typ: "SEMESTER",
+      status: "ERSETZT",
+      version: 1,
+      semester: "Herbstsemester 2026",
+      ausgestelltAm: new Date("2026-12-01T10:00:00Z"),
+      dmsGesendetAm: null,
+    },
+    {
+      belegNr: "ZEU-2026-12-05-BBBB2222",
+      typ: "SEMESTER",
+      status: "GUELTIG",
+      version: 2,
+      semester: "Herbstsemester 2026",
+      ausgestelltAm: new Date("2026-12-05T10:00:00Z"),
+      dmsGesendetAm: new Date("2026-12-05T10:05:00Z"),
+    },
+  ],
+  unterrichtsabende: [{ beginn: new Date("2026-10-06T17:00:00Z"), semester: "Herbstsemester 2026", fach: "Dogmatik I" }],
+  honorarAbrechnungen: [
+    {
+      semester: "Herbstsemester 2026",
+      statusText: "Ausgezahlt",
+      summe: 60,
+      belegNr: "HON-2026-12-10-CCCC3333",
+      erstelltAm: new Date("2026-12-10T10:00:00Z"),
+      freigegebenAm: new Date("2026-12-11T10:00:00Z"),
+      ausgezahltAm: new Date("2026-12-15T00:00:00Z"),
+      dmsGesendetAm: new Date("2026-12-11T10:05:00Z"),
+      vermerk: true,
+      posten: [{ datum: new Date("2026-10-06T17:00:00Z"), fach: "Dogmatik I", betrag: 60 }],
+    },
+  ],
 };
 const bloecke = baueAuskunftBloecke(daten);
 const kv = (label: string) => bloecke.find((b): b is Extract<PdfBlock, { art: "kv" }> => b.art === "kv" && b.label === label);
@@ -137,14 +199,143 @@ pruefe(
 pruefe("Begleitangabe Beschwerderecht ist enthalten", Boolean(kv("Beschwerderecht")));
 pruefe("Begleitangabe zu automatisierten Entscheidungen ist enthalten", Boolean(kv("Automatisierte Entscheidungen")));
 pruefe(
-  "alle sechs Abschnitts-Überschriften sind vorhanden",
-  ["1. Stammdaten", "2. Anmeldungen", "3. Einwilligungen", "4. Statusverlauf", "5. Teilnahmen", "6. Angaben nach Art. 15"].every(
-    (t) => bloecke.some((b) => b.art === "h2" && b.text.startsWith(t)),
-  ),
+  "alle zehn Abschnitts-Überschriften sind vorhanden",
+  [
+    "1. Stammdaten",
+    "2. Anmeldungen",
+    "3. Einwilligungen",
+    "4. Statusverlauf",
+    "5. Teilnahmen",
+    "6. Anwesenheit",
+    "7. Leistungen",
+    "8. Zeugnisse",
+    "9. Unterricht als Dozent",
+    "10. Angaben nach Art. 15",
+  ].every((t) => bloecke.some((b) => b.art === "h2" && b.text.startsWith(t))),
 );
 pruefe(
   "vorhandener interner Vermerk wird als 'gesondert herausgegeben' ausgewiesen",
   bloecke.some((b) => b.art === "klein" && b.text.includes("interner Freitext-Vermerk") && b.text.includes("gesondert")),
+);
+
+// ---------------------------------------------------------------------------
+// Code-Review 4: Teilnahme-Rückmeldung, Anwesenheit (auch selbst bestätigt),
+// Noten, Zeugnisse und Honorarabrechnungen gehören zur vollständigen Auskunft.
+console.log("\n3a. Teilnahmen mit Rückmeldung und Abmeldung");
+const kvWerte = (label: string) =>
+  bloecke.filter((b): b is Extract<PdfBlock, { art: "kv" }> => b.art === "kv" && b.label === label).map((b) => b.wert);
+const abgemeldet = kvWerte("Frühlingssemester 2027")[0] ?? "";
+pruefe(
+  "eine abgemeldete Teilnahme nennt Datum und Grund im Klartext (abmeldegrundText)",
+  abgemeldet.includes("abgemeldet am 20.01.2027") && abgemeldet.includes("Ich bin raus"),
+  abgemeldet,
+);
+pruefe("die Einladung zur Rückmeldung wird mit Datum ausgewiesen", abgemeldet.includes("eingeladen am 10.01.2027"), abgemeldet);
+pruefe(
+  "eine gewöhnliche Teilnahme erscheint nicht als abgemeldet",
+  !(kvWerte("Herbstsemester 2026")[0] ?? "abgemeldet").includes("abgemeldet"),
+  kvWerte("Herbstsemester 2026"),
+);
+pruefe(
+  "„keine Rückmeldung bis Semesterstart“ wird als Grund benannt",
+  teilnahmeText({ ...daten.teilnahmen[1], abmeldeGrund: "KEINE_RUECKMELDUNG" }).includes("keine Rückmeldung bis Semesterstart"),
+);
+pruefe(
+  "zu abgemeldeten Teilnahmen steht der Hinweis, dass sie nicht zählen",
+  bloecke.some((b) => b.art === "klein" && b.text.startsWith("Eine abgemeldete Teilnahme zählt")),
+);
+
+console.log("\n3b. Anwesenheit, Noten, Zeugnisse, Honorar");
+const anwesenheitZeile = bloecke.find(
+  (b): b is Extract<PdfBlock, { art: "kv" }> => b.art === "kv" && b.label.includes("15.09.2026"),
+);
+pruefe(
+  "eine selbst bestätigte Anwesenheit steht mit Abend, Klartext-Status und „selbst bestätigt“ in der Auskunft",
+  Boolean(anwesenheitZeile?.wert.includes("nachgearbeitet") && anwesenheitZeile.wert.includes("selbst bestätigt")),
+  anwesenheitZeile,
+);
+pruefe(
+  "eine von der Schule erfasste Anwesenheit wird als solche ausgewiesen",
+  anwesenheitText(daten.anwesenheiten[1]).includes("von der Schule erfasst") &&
+    !anwesenheitText(daten.anwesenheiten[1]).includes("selbst"),
+  anwesenheitText(daten.anwesenheiten[1]),
+);
+pruefe(
+  "ein Freitext-Vermerk der Schule zur Anwesenheit wird benannt (gesondert herausgegeben)",
+  anwesenheitText({ ...daten.anwesenheiten[1], vermerk: true }).includes("gesondert"),
+);
+pruefe(
+  "eine Bewertung steht mit Semester, Fach, Ergebnis, Punkten und Note in der Auskunft",
+  kvWerte("Herbstsemester 2026 · Bibelkunde")[0] === "AT-Bibelkunde: bestanden · 12 Punkte · Note 2",
+  kvWerte("Herbstsemester 2026 · Bibelkunde"),
+);
+const ersetzt = kvWerte("Beleg-Nr. ZEU-2026-12-01-AAAA1111")[0] ?? "";
+const gueltig = kvWerte("Beleg-Nr. ZEU-2026-12-05-BBBB2222")[0] ?? "";
+pruefe(
+  "Zeugnisse stehen mit Beleg-Nr., Typ und Stand in der Auskunft — auch ersetzte Fassungen",
+  ersetzt.startsWith("Zeugnis") && ersetzt.includes("ersetzt") && gueltig.includes("Fassung 2, gültig"),
+  [ersetzt, gueltig],
+);
+pruefe("die Übermittlung eines Zeugnisses an das DMS wird mit Datum ausgewiesen", gueltig.includes("DMS") && !ersetzt.includes("DMS"));
+pruefe(
+  "ein Unterrichtsabend als Dozent steht mit Semester und Fach in der Auskunft",
+  bloecke.some((b) => b.art === "kv" && b.label.includes("06.10.2026") && b.wert === "Herbstsemester 2026 · Dogmatik I"),
+);
+pruefe(
+  "eine Honorarabrechnung steht mit Stand, Posten und Summe in der Auskunft",
+  kvWerte("Stand")[0] === "Ausgezahlt" &&
+    kvWerte("06.10.2026 · Dogmatik I")[0] === "60 €" &&
+    kvWerte("Summe (1 Abend)")[0] === "60 €",
+  [kvWerte("Stand"), kvWerte("06.10.2026 · Dogmatik I"), kvWerte("Summe (1 Abend)")],
+);
+pruefe("der Vermerk an einer Honorarabrechnung wird nur benannt", (kvWerte("Vermerk")[0] ?? "").includes("gesondert"));
+pruefe(
+  "die Übermittlung des Zahlungsbelegs (mit IBAN) an das DMS wird mit Datum ausgewiesen",
+  kvWerte("An das Dokumentenarchiv (DMS) übermittelt am")[0] === "11.12.2026",
+  kvWerte("An das Dokumentenarchiv (DMS) übermittelt am"),
+);
+pruefe(
+  "der Zeugnis-Hinweis verweist nicht allein aufs Portal (Endzustände haben keinen Zugang mehr)",
+  bloecke.some(
+    (b) => b.art === "klein" && b.text.includes("auf Anfrage bei der Schulverwaltung") && b.text.includes("solange Ihr Portalzugang besteht"),
+  ),
+);
+
+console.log("\n3c. Ablehnungsgrund einer Anmeldung");
+const mitGrund = baueAuskunftBloecke({ ...daten, anmeldungen: [{ ...daten.anmeldungen[0], status: "ABGELEHNT", ablehnungsgrundVorhanden: true }] });
+const grundZeilen = mitGrund.filter((b): b is Extract<PdfBlock, { art: "kv" }> => b.art === "kv" && b.label === "Ablehnungsgrund");
+pruefe(
+  "ein vorhandener Ablehnungsgrund wird benannt (gesondert herausgegeben), nicht abgedruckt",
+  grundZeilen.length === 1 && grundZeilen[0].wert.includes("gesondert"),
+  grundZeilen,
+);
+pruefe("ohne Ablehnungsgrund steht keine Zeile dazu in der Auskunft", !kv("Ablehnungsgrund"));
+
+const leer = baueAuskunftBloecke({
+  ...daten,
+  teilnahmen: [],
+  anwesenheiten: [],
+  leistungen: [],
+  zeugnisse: [],
+  unterrichtsabende: [],
+  honorarAbrechnungen: [],
+});
+const leerTexte = leer.filter((b) => b.art === "absatz").map((b) => (b as { text: string }).text);
+pruefe(
+  "leere Abschnitte sagen ausdrücklich „keine“ statt zu fehlen",
+  [
+    "Es ist keine Semesterteilnahme gespeichert.",
+    "Es ist keine Anwesenheit gespeichert.",
+    "Es ist keine Bewertung gespeichert.",
+    "Es ist kein Zeugnis und keine Bescheinigung gespeichert.",
+    "Sie sind keinem Unterrichtsabend als Dozent zugeordnet.",
+    "Es ist keine Honorarabrechnung gespeichert.",
+  ].every((t) => leerTexte.includes(t)),
+  leerTexte,
+);
+pruefe(
+  "ohne abgemeldete Teilnahme kein Hinweis auf abgemeldete Teilnahmen",
+  !leer.some((b) => b.art === "klein" && b.text.startsWith("Eine abgemeldete Teilnahme")),
 );
 
 // ---------------------------------------------------------------------------
@@ -181,7 +372,7 @@ pruefe("nicht abbildbare Zeichen (Emoji) lassen den Erzeuger nicht abstürzen", 
 // ---------------------------------------------------------------------------
 // Soll-Anzahl — beim Ergänzen einer Prüfung mit anheben. `geprueft` steht hier
 // noch auf dem Stand VOR dieser Zeile, deshalb +1.
-const ERWARTET = 32;
+const ERWARTET = 52;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

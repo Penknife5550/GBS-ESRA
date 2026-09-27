@@ -15,18 +15,27 @@
  * Meldungen: Ein Semester mit einem zweiten Fehler bestünde sonst jede Prüfung.
  */
 
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
+import { join } from "path";
 import {
+  abmeldegrundText,
   alsHeutigerTag,
   alsTagesdatum,
   deutscherTag,
   erinnerungsFeld,
+  erledigteStufenBeiEinladung,
   EXPORT_SPALTEN,
   ExportZeile,
   faelligeErinnerungsstufe,
+  KUERZEL_FEST,
+  pruefeKuerzelUnveraendert,
   pruefeSemester,
+  rueckmeldeFrist,
+  rueckmeldeStand,
+  rueckmeldungsWirkung,
   SemesterDaten,
   semesterDaten,
+  semesterHatBegonnen,
   SemesterKandidat,
   semesterFuerAnmeldung,
   semesterZeitraum,
@@ -34,6 +43,8 @@ import {
   UeberleitungKandidat,
   waehleUeberzuleitende,
 } from "../src/lib/semester";
+import { PERSON_ZAEHLT_AKTIV, TEILNAHME_ZAEHLT } from "../src/lib/teilnahme-filter";
+import { HEARTBEAT_ABSTAND_MS, heartbeatFaellig } from "../src/lib/aufraeumen-regel";
 
 let geprueft = 0;
 let fehlgeschlagen = 0;
@@ -52,6 +63,23 @@ function pruefe(bezeichnung: string, bedingung: boolean, zusatz?: unknown) {
 /** Kurzform: Enthält die Mängelliste eine Meldung mit diesem Textbaustein? */
 function meldetJemand(meldungen: { feld?: string; meldung: string }[], baustein: string): boolean {
   return meldungen.some((m) => m.meldung.includes(baustein));
+}
+
+/** Liest eine Quelldatei für die Quelltextprüfungen — leer, wenn sie fehlt (dann wird die Prüfung rot). */
+function lies(datei: string): string {
+  try {
+    return readFileSync(datei, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+/** Ausschnitt ab `kopf` bis vor die nächste exportierte Deklaration (Rumpf einer Funktion). */
+function rumpf(quelle: string, kopf: string): string {
+  const a = quelle.indexOf(kopf);
+  if (a < 0) return "";
+  const b = quelle.indexOf("\nexport ", a + kopf.length);
+  return quelle.slice(a, b < 0 ? undefined : b);
 }
 
 const GUELTIG = {
@@ -374,10 +402,365 @@ pruefe(
 );
 pruefe("ohne Datumsangaben bleibt der Zeitraum leer", semesterZeitraum(null, null) === "");
 
+console.log("\n9. Semesterpflege — Kursraster (Lehrjahr/Halbjahr) und festes Kürzel");
+pruefe(
+  "Lehrjahr 3 / Halbjahr 2 meldet nichts",
+  pruefeSemester({ ...GUELTIG, lehrjahr: 3, halbjahr: 2 }).length === 0,
+  pruefeSemester({ ...GUELTIG, lehrjahr: 3, halbjahr: 2 }),
+);
+pruefe("Lehrjahr 4 wird abgewiesen", meldetJemand(pruefeSemester({ ...GUELTIG, lehrjahr: 4, halbjahr: 1 }), "Lehrjahr ist 1, 2 oder 3"));
+pruefe("Lehrjahr 0 wird abgewiesen", meldetJemand(pruefeSemester({ ...GUELTIG, lehrjahr: 0, halbjahr: 1 }), "Lehrjahr ist 1, 2 oder 3"));
+pruefe("Halbjahr 3 wird abgewiesen", meldetJemand(pruefeSemester({ ...GUELTIG, lehrjahr: 1, halbjahr: 3 }), "Halbjahr ist 1"));
+pruefe(
+  "nur ein Lehrjahr ohne Halbjahr wird abgewiesen",
+  meldetJemand(pruefeSemester({ ...GUELTIG, lehrjahr: 2, halbjahr: null }), "beide angeben"),
+);
+pruefe(
+  "nur ein Halbjahr ohne Lehrjahr wird abgewiesen",
+  meldetJemand(pruefeSemester({ ...GUELTIG, halbjahr: 1 }), "beide angeben"),
+);
+{
+  const mitRaster = semesterDaten({ ...GUELTIG, lehrjahr: 3, halbjahr: 2 });
+  pruefe("die Rasterverortung wird übernommen", mitRaster.lehrjahr === 3 && mitRaster.halbjahr === 2, mitRaster);
+  const geleert = semesterDaten({ ...GUELTIG, lehrjahr: null, halbjahr: null });
+  pruefe("null leert die Rasterverortung", geleert.lehrjahr === null && geleert.halbjahr === null, geleert);
+  // Ein Aufrufer ohne die neuen Felder (älterer Client, curl) darf beim Ändern
+  // die gespeicherte Verortung nicht löschen — der Schlüssel fehlt dann ganz.
+  const ohne = semesterDaten(GUELTIG);
+  pruefe("ohne Angabe bleibt die Rasterverortung unberührt", !("lehrjahr" in ohne) && !("halbjahr" in ohne), ohne);
+}
+pruefe("dasselbe Kürzel (andere Schreibweise) gilt als unverändert", pruefeKuerzelUnveraendert("2026-H", " 2026-h ") === null);
+{
+  const anders = pruefeKuerzelUnveraendert("2026-H", "2027-F");
+  pruefe("ein anderes Kürzel wird feldgenau abgewiesen", anders?.feld === "code" && anders.meldung === KUERZEL_FEST, anders);
+}
+
+console.log("\n10. Semesterüberleitung — bin dabei / bin raus / keine Rückmeldung");
+// Semesterbeginn 15.09.2026; „heute" aus der ÖRTLICHEN Zeit (lokaler Konstruktor).
+pruefe("am Vortag um 23:30 hat das Semester nicht begonnen", semesterHatBegonnen(start, new Date(2026, 8, 14, 23, 30)) === false);
+pruefe("am Starttag um 00:30 hat das Semester begonnen", semesterHatBegonnen(start, new Date(2026, 8, 15, 0, 30)) === true);
+pruefe("Tage danach hat das Semester begonnen", semesterHatBegonnen(start, new Date(2026, 9, 1, 12, 0)) === true);
+{
+  // Jede Stufe, deren Stichtag heute oder früher liegt, erledigt die Einladung
+  // mit — sonst folgte am selben Tag eine Erinnerung, deren frischer Link den
+  // der Einladung entwertete (vorher nur für T-14 gelöst, nicht für T-7/T-3).
+  const stufen = (jetzt: Date) => JSON.stringify(erledigteStufenBeiEinladung(start, jetzt, [14, 7, 3]));
+  pruefe("Einladung 20 Tage vorher erledigt keine Stufe", stufen(new Date(2026, 7, 26, 9, 0)) === "[]", stufen(new Date(2026, 7, 26, 9, 0)));
+  pruefe("Einladung am T-14-Stichtag erledigt Stufe 1", stufen(new Date(2026, 8, 1, 9, 0)) === "[1]", stufen(new Date(2026, 8, 1, 9, 0)));
+  pruefe("Einladung zwischen T-14 und T-7 erledigt nur Stufe 1", stufen(new Date(2026, 8, 5, 9, 0)) === "[1]", stufen(new Date(2026, 8, 5, 9, 0)));
+  pruefe("Einladung am T-7-Stichtag erledigt Stufe 1 und 2", stufen(new Date(2026, 8, 8, 9, 0)) === "[1,2]", stufen(new Date(2026, 8, 8, 9, 0)));
+  pruefe("Einladung am Vortag von T-3 um 23:30 lässt Stufe 3 offen", stufen(new Date(2026, 8, 11, 23, 30)) === "[1,2]", stufen(new Date(2026, 8, 11, 23, 30)));
+  pruefe("Einladung am T-3-Stichtag erledigt alle drei Stufen", stufen(new Date(2026, 8, 12, 9, 0)) === "[1,2,3]", stufen(new Date(2026, 8, 12, 9, 0)));
+}
+{
+  // Die Frist in Mail und Seite ist der Vortag des Starts — genau der letzte
+  // Tag, an dem `semesterHatBegonnen` die Antwort noch annimmt.
+  const frist = rueckmeldeFrist(start);
+  pruefe("die Antwortfrist ist der Vortag des Semesterstarts", deutscherTag(frist) === "14.09.2026", deutscherTag(frist));
+  pruefe(
+    "die Antwortfrist rechnet über den Monatswechsel",
+    deutscherTag(rueckmeldeFrist(alsTagesdatum("2026-10-01")!)) === "30.09.2026" &&
+      deutscherTag(rueckmeldeFrist(alsTagesdatum("2027-03-01")!)) === "28.02.2027",
+  );
+  const fristTag = (stunde: number, minute: number, plusTage = 0) =>
+    new Date(frist.getUTCFullYear(), frist.getUTCMonth(), frist.getUTCDate() + plusTage, stunde, minute);
+  pruefe("am Frist-Tag um 23:30 ist die Rückmeldung noch offen", semesterHatBegonnen(start, fristTag(23, 30)) === false);
+  pruefe("am Tag nach der Frist um 00:30 ist sie geschlossen", semesterHatBegonnen(start, fristTag(0, 30, 1)) === true);
+}
+{
+  const offen = { bestaetigtAm: null, abgemeldetAm: null, abmeldeGrund: null };
+  const dabei = { bestaetigtAm: new Date(), abgemeldetAm: null, abmeldeGrund: null };
+  const raus = { bestaetigtAm: null, abgemeldetAm: new Date(), abmeldeGrund: "BIN_RAUS" };
+  const still = { bestaetigtAm: null, abgemeldetAm: new Date(), abmeldeGrund: "KEINE_RUECKMELDUNG" };
+  pruefe("offen + dabei → setzen", rueckmeldungsWirkung(offen, "dabei") === "setzen");
+  pruefe("offen + raus → setzen", rueckmeldungsWirkung(offen, "raus") === "setzen");
+  pruefe("bestätigt + dabei → schon (idempotent)", rueckmeldungsWirkung(dabei, "dabei") === "schon");
+  pruefe("bestätigt + raus → setzen (Antwort ändern)", rueckmeldungsWirkung(dabei, "raus") === "setzen");
+  pruefe("abgesagt + dabei → setzen (Antwort ändern)", rueckmeldungsWirkung(raus, "dabei") === "setzen");
+  pruefe("abgesagt + raus → schon (idempotent)", rueckmeldungsWirkung(raus, "raus") === "schon");
+  pruefe("keine Rückmeldung + dabei → gesperrt (nur die Schulleitung nimmt wieder auf)", rueckmeldungsWirkung(still, "dabei") === "gesperrt");
+  pruefe("keine Rückmeldung + raus → schon", rueckmeldungsWirkung(still, "raus") === "schon");
+}
+{
+  const t = new Date();
+  pruefe("eingeladen ohne Antwort → offen", rueckmeldeStand({ eingeladenAm: t, bestaetigtAm: null, abgemeldetAm: null }) === "offen");
+  pruefe("eingeladen und bestätigt → bestätigt", rueckmeldeStand({ eingeladenAm: t, bestaetigtAm: t, abgemeldetAm: null }) === "bestaetigt");
+  pruefe(
+    "abgemeldet schlägt bestätigt",
+    rueckmeldeStand({ eingeladenAm: t, bestaetigtAm: t, abgemeldetAm: t }) === "abgemeldet",
+  );
+  pruefe(
+    "direkt aufgenommen (ohne Einladung) ist weder offen noch bestätigt",
+    rueckmeldeStand({ eingeladenAm: null, bestaetigtAm: null, abgemeldetAm: null }) === "ohne_einladung",
+  );
+}
+pruefe("Grund BIN_RAUS wird als Absage benannt", abmeldegrundText("BIN_RAUS").includes("Ich bin raus"));
+pruefe("Grund KEINE_RUECKMELDUNG wird benannt", abmeldegrundText("KEINE_RUECKMELDUNG").includes("keine Rückmeldung"));
+pruefe(
+  "TEILNAHME_ZAEHLT filtert auf abgemeldetAm = null (und nur darauf)",
+  JSON.stringify(TEILNAHME_ZAEHLT) === JSON.stringify({ abgemeldetAm: null }),
+  TEILNAHME_ZAEHLT,
+);
+
+console.log("\n11. Zählende Teilnahme im Quelltext — jede Liste des Semesters filtert");
+// Die Filter selbst brauchen eine Datenbank; geprüft wird deshalb, dass jede
+// bekannte Teilnahme-Abfrage den gemeinsamen Filter einmischt. Gezählt werden
+// nur Verwendungen im Code (`...TEILNAHME_ZAEHLT` bzw. `where: TEILNAHME_ZAEHLT`),
+// weder die Import-Zeile noch Kommentare — fällt eine Stelle weg, wird die
+// Zeile rot.
+const FILTER_STELLEN: [string, number][] = [
+  ["src/lib/teilnehmerliste.ts", 1], // Liste + Excel
+  ["src/lib/stundenplan-io.ts", 4], // Erfassung, Selbstbestätigung, Dozent (Teilnehmer + Anwesenheit)
+  ["src/lib/leistung-io.ts", 1], // Notenmatrix (Verwaltung + Dozent)
+  ["src/lib/zeugnis-io.ts", 4], // Abschluss-Leistungen, Sammellauf, Vorschau, Übersicht
+  ["src/lib/ueberleitung.ts", 1], // Quelle der Überleitung
+  ["src/app/verwaltung/page.tsx", 1], // Kennzahl „Teilnehmer"
+  ["src/app/verwaltung/personen/page.tsx", 3], // Filter Teilnahmeform + Spalten
+  ["src/app/verwaltung/stundenplan/page.tsx", 1], // Erfassungszeilen
+  ["src/app/verwaltung/semester/page.tsx", 1], // „N Personen zugeordnet"
+];
+for (const [datei, mindestens] of FILTER_STELLEN) {
+  let anzahl = -1;
+  try {
+    anzahl = (readFileSync(datei, "utf8").match(/(?:\.\.\.|where:\s*)TEILNAHME_ZAEHLT\b/g) ?? []).length;
+  } catch {
+    anzahl = -1;
+  }
+  pruefe(`${datei} filtert mit TEILNAHME_ZAEHLT (mind. ${mindestens}×)`, anzahl >= mindestens, anzahl);
+}
+{
+  // „Aktive Person" hat EINE Quelle. Vorher stand `status: { istAktiv: true }`
+  // vierzehnmal im Code; eine Abfrage, die es vergisst oder anders schreibt,
+  // zeigte Ausgeschiedene in Listen und Kennzahlen.
+  pruefe(
+    "PERSON_ZAEHLT_AKTIV filtert auf status.istAktiv = true (und nur darauf)",
+    JSON.stringify(PERSON_ZAEHLT_AKTIV) === JSON.stringify({ status: { istAktiv: true } }),
+    PERSON_ZAEHLT_AKTIV,
+  );
+  const alleDateien = (ordner: string): string[] => {
+    try {
+      return readdirSync(ordner).flatMap((eintrag) => {
+        const pfad = join(ordner, eintrag);
+        if (statSync(pfad).isDirectory()) return alleDateien(pfad);
+        return /\.(ts|tsx)$/.test(pfad) ? [pfad] : [];
+      });
+    } catch {
+      return [];
+    }
+  };
+  const quellen = alleDateien("src").filter((pfad) => !pfad.endsWith("teilnahme-filter.ts"));
+  const inline = quellen.filter((pfad) => /status:\s*\{\s*istAktiv:\s*true\s*\}/.test(readFileSync(pfad, "utf8")));
+  const nutzer = quellen.filter((pfad) => /PERSON_ZAEHLT_AKTIV\b(?![^\n]*from ")/.test(readFileSync(pfad, "utf8")));
+  pruefe(
+    "kein Filter status: { istAktiv: true } außerhalb von teilnahme-filter.ts — alle nutzen PERSON_ZAEHLT_AKTIV",
+    inline.length === 0 && nutzer.length >= 6,
+    { inline, nutzer: nutzer.length },
+  );
+}
+{
+  let aufraeumen = "";
+  let ueberleitung = "";
+  try {
+    aufraeumen = readFileSync("src/lib/aufraeumen.ts", "utf8");
+    ueberleitung = readFileSync("src/lib/ueberleitung.ts", "utf8");
+  } catch {
+    // leer lassen — die Prüfungen unten werden dann rot
+  }
+  pruefe(
+    "der Aufräumlauf schreibt weder eingeladenAm noch abgemeldetAm/abmeldeGrund",
+    aufraeumen.length > 0 && !/(eingeladenAm|abgemeldetAm|abmeldeGrund)\s*:/.test(aufraeumen),
+  );
+  const anfang = ueberleitung.indexOf("export async function starteUeberleitung");
+  const versand = ueberleitung.indexOf("export async function versendeEinladungen");
+  pruefe(
+    "starteUeberleitung setzt eingeladenAm und verschickt selbst nichts (Versand nach der Antwort)",
+    anfang >= 0 &&
+      versand > anfang &&
+      ueberleitung.slice(anfang, versand).includes("eingeladenAm: jetzt") &&
+      !ueberleitung.slice(anfang, versand).includes("sendeMail("),
+  );
+  const lauf = ueberleitung.slice(ueberleitung.indexOf("export async function fuehreErinnerungslauf"));
+  // Genau zwei Schreibzugriffe je Teilnahme: Marke beanspruchen und — nur nach
+  // Zustellung — Link tauschen. Ein dritter wäre die alte Rücknahme der Marke,
+  // die bei SMTP-Ausfall stündlich ohne Obergrenze wiederholte.
+  pruefe(
+    "der Erinnerungslauf tauscht den Link erst NACH dem Versand und lässt die Marke bei Fehlschlag stehen",
+    lauf.includes("sendeMail(") &&
+      lauf.indexOf("sendeMail(") < lauf.indexOf("bestaetigungTokenHash: hashToken(token)") &&
+      (lauf.match(/prisma\.teilnahme\.updateMany\(/g) ?? []).length === 2 &&
+      /if \(!ok\) continue;/.test(lauf),
+  );
+  pruefe(
+    "SEMESTER_ERINNERUNG_GELAUFEN steht nur im Audit, wenn etwas zugestellt wurde",
+    /if \(gesendet > 0\) \{\s*await protokolliere\(\{\s*aktion: "SEMESTER_ERINNERUNG_GELAUFEN"/.test(lauf),
+  );
+  pruefe("Einladungen gehen höchstens zu dritt parallel raus", /const VERSAND_PARALLEL = 3;/.test(ueberleitung));
+  const startRumpf = ueberleitung.slice(anfang, versand);
+  pruefe(
+    "starteUeberleitung lädt nur tatsächlich angelegte Teilnahmen ein (paralleler Doppelstart)",
+    startRumpf.includes("createManyAndReturn(") &&
+      !startRumpf.includes("teilnahme.createMany(") &&
+      /anzulegen\.filter\(\(a\) => neuAngelegt\.has\(a\.person\.id\)\)/.test(startRumpf),
+  );
+  pruefe(
+    "starteUeberleitung markiert jede schon erreichte Erinnerungsstufe (T-14, T-7, T-3)",
+    startRumpf.includes("erledigteStufenBeiEinladung(") &&
+      /erinnertStufe1Am: erledigtAm\(1\)/.test(startRumpf) &&
+      /erinnertStufe2Am: erledigtAm\(2\)/.test(startRumpf) &&
+      /erinnertStufe3Am: erledigtAm\(3\)/.test(startRumpf),
+  );
+}
+
+// Die Verdrahtung der Fachentscheidung 2: Jede dieser Stellen könnte wegfallen,
+// ohne dass eine reine Funktion rot würde — deshalb Quelltextprüfungen.
+{
+  const erstAbmeldenDannErinnern = (quelle: string) => {
+    const abmelden = quelle.indexOf("schliesseRueckmeldungen(");
+    const erinnern = quelle.indexOf("fuehreErinnerungslauf(");
+    return abmelden >= 0 && erinnern > abmelden;
+  };
+  // (a) Ohne diesen Aufruf fiele ab Semesterstart niemand mehr heraus.
+  pruefe("der Worker meldet ab, BEVOR er erinnert", erstAbmeldenDannErinnern(lies("scripts/worker.ts")));
+  pruefe(
+    "der Cron-Endpunkt meldet ab, BEVOR er erinnert",
+    erstAbmeldenDannErinnern(lies("src/app/api/cron/erinnerungen/route.ts")),
+  );
+  const ueb = lies("src/lib/ueberleitung.ts");
+  // (b) Kalendertag-Grenze und nur Eingeladene ohne Antwort.
+  const schliessen = rumpf(ueb, "export async function schliesseRueckmeldungen");
+  pruefe(
+    "schliesseRueckmeldungen greift ab Semesterstart und nur bei offenen Einladungen",
+    schliessen.includes("semesterHatBegonnen(") && (schliessen.match(/\.\.\.OFFENE_EINLADUNG/g) ?? []).length >= 2,
+  );
+  // (c) Erinnert werden nur Eingeladene ohne Antwort.
+  pruefe(
+    "der Erinnerungslauf filtert auf offene Einladungen",
+    (rumpf(ueb, "export async function fuehreErinnerungslauf").match(/\.\.\.OFFENE_EINLADUNG/g) ?? []).length >= 2,
+  );
+  // (d) Die drei Sperren, die nicht über TEILNAHME_ZAEHLT laufen.
+  pruefe(
+    "die Selbstbestätigung sperrt eine abgemeldete Teilnahme",
+    /if \(!teilnahme \|\| teilnahme\.abgemeldetAm\) return \{ fehler: "nicht_eingeschrieben" \}/.test(
+      rumpf(lies("src/lib/stundenplan-io.ts"), "export async function bestaetigeEigeneAnwesenheit"),
+    ),
+  );
+  pruefe(
+    "ladePersonNoten liefert für eine abgemeldete Teilnahme nichts",
+    /teilnahme\.abgemeldetAm\)\s*return null/.test(rumpf(lies("src/lib/leistung-io.ts"), "export async function ladePersonNoten")),
+  );
+  pruefe(
+    "stelleZeugnisAus lehnt eine abgemeldete Teilnahme ab",
+    /if \(teilnahme\.abgemeldetAm\) return \{ fehler: "abgemeldet" \}/.test(
+      rumpf(lies("src/lib/zeugnis-io.ts"), "export async function stelleZeugnisAus"),
+    ),
+  );
+  // (e) „dabei" hebt nur die EIGENE Absage auf, nie „keine Rückmeldung".
+  const antwort = rumpf(ueb, "export async function beantworteEinladung");
+  pruefe(
+    "„Ich bin dabei“ hebt nur BIN_RAUS auf, nicht KEINE_RUECKMELDUNG",
+    /OR: \[\{ bestaetigtAm: null, abgemeldetAm: null \}, \{ abmeldeGrund: ABMELDEGRUND\.BIN_RAUS \}\]/.test(antwort) &&
+      !/abmeldeGrund: ABMELDEGRUND\.KEINE_RUECKMELDUNG/.test(antwort),
+  );
+  // (f) Die Route reicht die Antwort durch — sonst wäre jedes „raus" ein „dabei".
+  pruefe(
+    "die Rückmelde-Route reicht die Antwort an beantworteEinladung durch",
+    lies("src/app/api/ueberleitung/bestaetigen/route.ts").includes(
+      "beantworteEinladung(geprueft.data.token, geprueft.data.antwort)",
+    ),
+  );
+  // Verschobener Semesterstart: Linkfrist in derselben Transaktion nachziehen,
+  // Vorziehen auf heute bei offenen Einladungen abweisen.
+  const semesterPut = lies("src/app/api/semester/[id]/route.ts");
+  pruefe(
+    "ein geänderter Semesterstart zieht die Linkfrist mit und schließt offene Rückmeldungen nicht still",
+    /\$transaction\([\s\S]*ziehLinkfristNach\(tx,/.test(semesterPut) &&
+      semesterPut.includes("zaehleOffeneEinladungen(") &&
+      // Oben kurz, die Einzelheit nur am Feld — sonst stünde sie doppelt im Formular.
+      /return fehler\("Bitte prüfe den Semesterbeginn\.", 409, \[\{ feld: "start", meldung \}\]\)/.test(semesterPut),
+  );
+  // Startet die Überleitung am letzten Stichtag oder später, erledigt die
+  // Einladung alle Stufen — eine nicht zugestellte wird nie wiederholt. Das
+  // muss beim Start sichtbar sein.
+  pruefe(
+    "die Überleitungsseite warnt beim Start, wenn für das Ziel keine Erinnerung mehr folgt",
+    /keineErinnerungMehr: erledigteStufenBeiEinladung\(s\.start, jetzt, \[o1, o2, o3\]\)\.length === 3/.test(
+      lies("src/app/verwaltung/semesterueberleitung/page.tsx"),
+    ) && /\{ziel\?\.keineErinnerungMehr && \(/.test(lies("src/app/verwaltung/semesterueberleitung/ueberleitung-starten.tsx")),
+  );
+}
+
+console.log("\n12. Aufräumlauf und Worker — Lebenszeichen ohne Audit-Flut");
+{
+  const jetzt = new Date(2026, 8, 27, 12, 0);
+  const vor = (ms: number) => new Date(jetzt.getTime() - ms);
+  pruefe(
+    "ein Lauf mit Löschungen wird immer protokolliert",
+    heartbeatFaellig({ summe: 3, letzterLauf: vor(60_000), jetzt }) === true,
+  );
+  pruefe("der erste Lauf einer Herkunft wird protokolliert", heartbeatFaellig({ summe: 0, letzterLauf: null, jetzt }) === true);
+  pruefe(
+    "ein leerer Lauf knapp vor zwölf Stunden bleibt ohne Eintrag",
+    heartbeatFaellig({ summe: 0, letzterLauf: vor(HEARTBEAT_ABSTAND_MS - 60_000), jetzt }) === false,
+  );
+  pruefe(
+    "nach zwölf Stunden schreibt auch ein leerer Lauf das Lebenszeichen",
+    HEARTBEAT_ABSTAND_MS === 12 * 60 * 60 * 1000 &&
+      heartbeatFaellig({ summe: 0, letzterLauf: vor(HEARTBEAT_ABSTAND_MS), jetzt }) === true,
+  );
+
+  const aufraeumen = lies("src/lib/aufraeumen.ts");
+  const worker = lies("scripts/worker.ts");
+  const cron = lies("src/app/api/cron/erinnerungen/route.ts");
+  pruefe(
+    "der Aufräumlauf schreibt sein Lebenszeichen nur per heartbeatFaellig und je Herkunft",
+    /if \(heartbeatFaellig\(/.test(aufraeumen) &&
+      aufraeumen.indexOf("heartbeatFaellig(") < aufraeumen.indexOf('aktion: "AUFRAEUMEN_GELAUFEN",\n      objektTyp') &&
+      /aktion: "AUFRAEUMEN_GELAUFEN", objektTyp: "System", objektId: herkunft/.test(aufraeumen) &&
+      /objektId: herkunft,/.test(aufraeumen),
+  );
+  pruefe(
+    "Worker und App räumen unter getrennter Herkunft auf (WORKER / APP)",
+    worker.includes('raeumeAuf("WORKER")') && aufraeumen.includes('raeumeAuf("APP")'),
+  );
+  // laufeEinmal endet mit dem Lebenszeichen — nach allen Teilläufen, auch nach
+  // einem gescheiterten (dafür gibt es den Audit-Eintrag darüber). Aber nur,
+  // wenn mindestens einer gelungen ist: Erreicht der Worker die Datenbank gar
+  // nicht, stünde der Healthcheck sonst dauerhaft auf grün.
+  const laufAnfang = worker.indexOf("async function laufeEinmal");
+  const lauf = laufAnfang < 0 ? "" : worker.slice(laufAnfang, worker.indexOf("\n}\n", laufAnfang) + 3);
+  pruefe(
+    "der Worker schreibt nach jedem Lauf mit mindestens einem gelungenen Teillauf sein Lebenszeichen (Docker-Healthcheck)",
+    worker.includes('const LEBENSZEICHEN_DATEI = "/tmp/gbs-worker-lebenszeichen";') &&
+      /if \(gelungen > 0\) \{\s*schreibeLebenszeichen\(\);\s*\} else \{[^}]*\}\s*\}\s*$/.test(lauf) &&
+      (lauf.match(/gelungen \+= 1;/g) ?? []).length === 3 &&
+      (lauf.match(/schreibeLebenszeichen\(\)/g) ?? []).length === 1,
+    lauf.slice(-200),
+  );
+  pruefe(
+    "Worker und Cron protokollieren gescheiterte Teilläufe — und nur dann",
+    [worker, cron].every(
+      (q) =>
+        /if \(fehlgeschlagen\.length > 0\) \{\s*(?:\/\/[^\n]*\n\s*)*await protokolliere\(\{\s*aktion: "WORKER_LAUF_FEHLGESCHLAGEN"/.test(q) &&
+        (q.match(/aktion: "WORKER_LAUF_FEHLGESCHLAGEN"/g) ?? []).length === 1,
+    ),
+  );
+  // Bereit ist das Schema erst, wenn keine mitgelieferte Migration mehr fehlt —
+  // und ohne Schema läuft kein Lauf („starte trotzdem" gibt es nicht mehr).
+  const warten = worker.slice(worker.indexOf("async function warteAufSchema"), worker.indexOf("function schlafe"));
+  pruefe(
+    "der Worker wartet auf alle mitgelieferten Migrationen (nicht nur auf eine Tabelle)",
+    worker.includes('readdirSync(join(process.cwd(), "prisma", "migrations")') &&
+      /FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL/.test(worker) &&
+      /const fehlen = erwartet \? await fehlendeMigrationen\(erwartet\) : \[\];\s*if \(fehlen\.length === 0\) return true;/.test(warten) &&
+      /if \(!\(await warteAufSchema\(\)\)\) \{[\s\S]{0,600}process\.exit\(1\);/.test(worker) &&
+      !worker.includes("starte trotzdem"),
+  );
+}
+
 // Soll-Anzahl: Nur so fällt auf, wenn eine Prüfung beim Umbauen herausfällt.
 // Ein nicht gelaufener Test schlägt nicht fehl — er fehlt einfach, und die
 // Schlusszeile meldet trotzdem „0 fehlgeschlagen". Beim Ergänzen mit anheben.
-const ERWARTET = 72;
+const ERWARTET = 149;
 // `geprueft` steht beim Auswerten der Bedingung noch auf dem Stand VOR dieser
 // Zeile — `pruefe` zählt erst im Rumpf hoch. Deshalb hier um eins vorgegriffen,
 // damit sich die Prüfung selbst mitzählt.

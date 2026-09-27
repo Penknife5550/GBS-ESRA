@@ -18,7 +18,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import { fuelleVorlage, sendeMail } from "@/lib/mailer";
+import { fehlerFuersLog, fuelleVorlage, sendeMail } from "@/lib/mailer";
 import type { RolleCode } from "@/lib/constants";
 
 export type VerteilerAuftrag = {
@@ -78,7 +78,12 @@ export async function sendeAnRollen(auftrag: VerteilerAuftrag): Promise<Verteile
       empfaenger.map((ziel) =>
         sendeMail({ an: ziel.email, personId: ziel.id, vorlageCode: auftrag.vorlageCode, betreff, text }).catch(
           (fehler) => {
-            console.error("[VERTEILER] Versand an", ziel.email, "fehlgeschlagen:", fehler);
+            // Person-ID statt Adresse: Das Container-Log erreicht keine
+            // Anonymisierung (siehe mailer.ts, ohneAdressen).
+            console.error(
+              `[VERTEILER] Versand fehlgeschlagen (Person ${ziel.id}, Vorlage ${auftrag.vorlageCode}):`,
+              fehlerFuersLog(fehler),
+            );
             return { gesendet: false };
           },
         ),

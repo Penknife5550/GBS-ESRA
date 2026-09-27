@@ -16,20 +16,31 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { protokolliere } from "@/lib/audit";
-import { ergebnisName, pruefeLeistung, type LeistungNormal } from "@/lib/leistung";
+import {
+  ergebnisName,
+  pruefeLeistung,
+  pruefeNotenZiele,
+  wirdBenotet,
+  type LeistungNormal,
+  type LeistungWert,
+} from "@/lib/leistung";
+import { PERSON_ZAEHLT_AKTIV, TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
 
 // -----------------------------------------------------------------------------
 // Ladeansichten (Matrix je Kurseinheit)
 // -----------------------------------------------------------------------------
 
-export type LeistungWert = { ergebnis: string; punkte: number | null; note: string | null };
+// Der Typ selbst liegt DB-frei in `leistung.ts` (die Oberfläche braucht ihn ohne
+// Prisma); hier nur weitergereicht, damit bestehende Importe aus dem IO-Teil gelten.
+export type { LeistungWert };
 export type NotenTeilnehmer = { teilnahmeId: string; name: string };
 
 export type NotenKurseinheit = {
   kurseinheitId: string;
   fach: string;
   titel: string;
-  /** Aktive Teilnehmer des Semesters — die Zeilen der Erfassungs-Matrix. */
+  /** Aktive Schüler des Semesters (ohne Hörer und Abgemeldete) — die Zeilen der
+   * Erfassungs-Matrix. */
   teilnehmer: NotenTeilnehmer[];
   /** teilnahmeId → bereits gespeicherte Bewertung. */
   leistungen: Record<string, LeistungWert>;
@@ -55,6 +66,11 @@ type KursZeile = {
  * (semesterId, kurseinheitId), lädt die aktiven Teilnehmer der Semester und die
  * bereits erfassten Leistungen und ordnet beide der jeweiligen Kurseinheit zu.
  *
+ * Zeilen sind nur Schüler, deren Teilnahme zählt: Hörer fallen aus jeder
+ * Prüfungsautomatik (Bauregel), und für das Semester Abgemeldete stehen in
+ * keiner Liste dieses Semesters (`TEILNAHME_ZAEHLT`). Den Schreibweg sichert
+ * `pruefeNotenZiele` genauso ab.
+ *
  * Wichtig: Dieselbe Kurseinheit (Fach×Rasterplatz) kann in mehreren
  * Kalendersemestern laufen — die Leistungen werden je Semester nur den
  * Teilnahmen DIESES Semesters zugeordnet (eine Teilnahme gehört zu genau einem
@@ -78,7 +94,12 @@ async function baueNotenGruppen(zeilen: KursZeile[]): Promise<NotenSemesterGrupp
 
   const [teilnahmen, leistungen] = await Promise.all([
     prisma.teilnahme.findMany({
-      where: { semesterId: { in: semesterIds }, person: { status: { istAktiv: true } } },
+      where: {
+        semesterId: { in: semesterIds },
+        teilnahmeform: "SCHUELER",
+        ...TEILNAHME_ZAEHLT,
+        person: PERSON_ZAEHLT_AKTIV,
+      },
       orderBy: [{ person: { nachname: "asc" } }, { person: { vorname: "asc" } }],
       select: { id: true, semesterId: true, person: { select: { vorname: true, nachname: true } } },
     }),
@@ -211,15 +232,17 @@ export type PersonNoten = {
  * Die Kurseinheiten des Semesters mit der Bewertung GENAU DIESER Person — für die
  * Inline-Noteneingabe auf der Detailakte. Baut auf `ladeNotenUebersicht`
  * (Schulleitungssicht) auf und projiziert daraus nur die Teilnahme der Person; das
- * Erfassungs-Payload ist identisch zur Matrix (`/api/noten`). `null`, wenn die
- * Person in diesem Semester keine Teilnahme hat (dann gibt es nichts zu benoten).
+ * Erfassungs-Payload ist identisch zur Matrix (`/api/noten`). `null`, wenn es in
+ * diesem Semester nichts zu benoten gibt: keine Teilnahme, eine Hörer-Teilnahme
+ * (Hörer werden nicht benotet) oder eine für das Semester abgemeldete — dieselbe
+ * Menge, die auch in der Notenmatrix fehlt.
  */
 export async function ladePersonNoten(personId: string, semesterId: string): Promise<PersonNoten | null> {
   const teilnahme = await prisma.teilnahme.findUnique({
     where: { personId_semesterId: { personId, semesterId } },
-    select: { id: true, semester: { select: { bezeichnung: true } } },
+    select: { id: true, teilnahmeform: true, abgemeldetAm: true, semester: { select: { bezeichnung: true } } },
   });
-  if (!teilnahme) return null;
+  if (!teilnahme || !wirdBenotet(teilnahme.teilnahmeform) || teilnahme.abgemeldetAm) return null;
 
   // Nur die Kurseinheiten DIESES Semesters + die Leistungen DIESER einen Teilnahme
   // laden — nicht die ganze Semester-Kohorte (das täte `ladeNotenUebersicht`).
@@ -272,8 +295,10 @@ function normalisiereEintraege(eintraege: LeistungEintrag[]): (LeistungNormal & 
  * Schreibt die Noten mehrerer Teilnehmer zu EINER Kurseinheit — der gemeinsame
  * Kern von `erfasseNoteAlsDozent` und `erfasseNote`. Nur Teilnahmen desselben
  * Semesters werden angenommen (Whitelist vor der Transaktion); fremde werden
- * still übersprungen. Alle Upserts laufen in EINER Transaktion
- * (alles-oder-nichts): verschwindet die Kurseinheit oder eine Teilnahme in der
+ * still übersprungen. Ein Eintrag für einen Hörer (`hoerer`, Route 400) oder
+ * eine für das Semester abgemeldete Teilnahme (`abgemeldet`, Route 409) lehnt
+ * die ganze Erfassung ab (`pruefeNotenZiele`). Alle Upserts laufen in EINER
+ * Transaktion (alles-oder-nichts): verschwindet die Kurseinheit oder eine Teilnahme in der
  * Lücke, meldet der Fremdschlüssel P2003/P2025 — das kommt als
  * `{ fehler: "kontext_fehlt" }` zurück (der Aufrufer antwortet 404) statt als 500.
  */
@@ -282,10 +307,18 @@ async function schreibeLeistungen(
   semesterId: string,
   eintraege: (LeistungNormal & { teilnahmeId: string })[],
   erfasstVonId: string,
-): Promise<{ gesetzt: number } | { fehler: "kontext_fehlt" }> {
-  const gueltig = new Set(
-    (await prisma.teilnahme.findMany({ where: { semesterId }, select: { id: true } })).map((t) => t.id),
-  );
+): Promise<{ gesetzt: number } | { fehler: "kontext_fehlt" | "hoerer" | "abgemeldet" }> {
+  // Teilnahmen von Personen im Endzustand (ausgeschieden, verstorben,
+  // anonymisiert) sind keine Ziele: Sie stehen in keiner Notenliste, und für sie
+  // entsteht kein Zeugnis mehr — ein Eintrag dafür wird wie ein semesterfremder
+  // übersprungen (Code-Review 4).
+  const ziele = await prisma.teilnahme.findMany({
+    where: { semesterId, person: { status: { istTerminal: false } } },
+    select: { id: true, teilnahmeform: true, abgemeldetAm: true },
+  });
+  const pruefung = pruefeNotenZiele(eintraege.map((e) => e.teilnahmeId), ziele);
+  if ("fehler" in pruefung) return pruefung;
+  const gueltig = pruefung.gueltig;
 
   try {
     const gesetzt = await prisma.$transaction(
@@ -317,7 +350,9 @@ async function schreibeLeistungen(
   }
 }
 
-export type NotenErfassErgebnis = { fehler: "kontext_fehlt" | "fremd" | "ungueltig" } | { gesetzt: number };
+export type NotenErfassErgebnis =
+  | { fehler: "kontext_fehlt" | "fremd" | "ungueltig" | "hoerer" | "abgemeldet" }
+  | { gesetzt: number };
 
 /**
  * Der Dozent erfasst Noten für EINE seiner eigenen Kurseinheiten in einem
@@ -326,14 +361,24 @@ export type NotenErfassErgebnis = { fehler: "kontext_fehlt" | "fremd" | "unguelt
  * Kurseinheit UND diesem Semester existieren — sonst `fremd` (die Route
  * antwortet 403). Das Recht öffnet nur die Tür. Mehrere Dozenten je Kurseinheit
  * sind möglich; wer mindestens einen Abend hält, darf erfassen.
+ *
+ * Ein Options-Objekt statt fünf Positionsparametern: Die Geschwisterfunktion
+ * `erfasseNote` hatte dieselben Ids in anderer Reihenfolge — eine vertauschte
+ * Kurseinheit/Semester-Id fiele keinem Compiler auf.
  */
-export async function erfasseNoteAlsDozent(
-  dozentId: string,
-  kurseinheitId: string,
-  semesterId: string,
-  eintraege: LeistungEintrag[],
-  headers: Headers,
-): Promise<NotenErfassErgebnis> {
+export async function erfasseNoteAlsDozent({
+  dozentId,
+  kurseinheitId,
+  semesterId,
+  eintraege,
+  headers,
+}: {
+  dozentId: string;
+  kurseinheitId: string;
+  semesterId: string;
+  eintraege: LeistungEintrag[];
+  headers: Headers;
+}): Promise<NotenErfassErgebnis> {
   const eigenerAbend = await prisma.unterrichtstermin.findFirst({
     where: { dozentId, kurseinheitId, semesterId },
     select: { id: true },
@@ -358,21 +403,29 @@ export async function erfasseNoteAlsDozent(
   return ergebnis;
 }
 
-export type NotenVerwaltenErgebnis = { fehler: "kontext_fehlt" | "ungueltig" } | { gesetzt: number };
+export type NotenVerwaltenErgebnis =
+  | { fehler: "kontext_fehlt" | "ungueltig" | "hoerer" | "abgemeldet" }
+  | { gesetzt: number };
 
 /**
  * Die Schulleitung erfasst Noten für EINE Kurseinheit in einem Semester, alle
  * Fächer (Recht NOTEN_VERWALTEN). Kein `fremd` — geprüft wird nur, dass die
  * Kurseinheit in diesem Semester überhaupt unterrichtet wird (sonst
- * `kontext_fehlt`).
+ * `kontext_fehlt`). Options-Objekt wie `erfasseNoteAlsDozent`.
  */
-export async function erfasseNote(
-  kurseinheitId: string,
-  semesterId: string,
-  eintraege: LeistungEintrag[],
-  akteurId: string,
-  headers: Headers,
-): Promise<NotenVerwaltenErgebnis> {
+export async function erfasseNote({
+  kurseinheitId,
+  semesterId,
+  eintraege,
+  akteurId,
+  headers,
+}: {
+  kurseinheitId: string;
+  semesterId: string;
+  eintraege: LeistungEintrag[];
+  akteurId: string;
+  headers: Headers;
+}): Promise<NotenVerwaltenErgebnis> {
   const abend = await prisma.unterrichtstermin.findFirst({
     where: { kurseinheitId, semesterId },
     select: { id: true },

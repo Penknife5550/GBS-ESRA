@@ -1,8 +1,9 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { ANWESENHEIT_OPTIONEN, istDozentStatusErlaubt } from "@/lib/stundenplan";
 
 type Termin = { id: string; text: string; fach: string | null; istVergangen: boolean };
 type Teilnehmer = { teilnahmeId: string; name: string };
@@ -18,10 +19,8 @@ type Gruppe = {
 // nachgearbeitet, „entschuldigt" entscheidet die Schule.
 const OPTIONEN = [
   { wert: "", label: "— (nicht erfasst)" },
-  { wert: "ANWESEND", label: "anwesend" },
-  { wert: "GEFEHLT", label: "gefehlt" },
-  { wert: "NACHGEARBEITET", label: "nachgearbeitet" },
-] as const;
+  ...ANWESENHEIT_OPTIONEN.filter((o) => istDozentStatusErlaubt(o.wert)),
+];
 
 export function StundenplanDozent({
   gruppen,
@@ -42,6 +41,32 @@ export function StundenplanDozent({
   const [overlay, setOverlay] = useState<Record<string, Record<string, string>>>({});
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ terminId: string; art: "ok" | "fehler"; text: string } | null>(null);
+
+  // Sprung aus „Offene Aufgaben" (Anker `#termin-<id>`): den Abend aufklappen
+  // und hinscrollen — beim Laden der Seite (Link von außen) und bei jedem
+  // späteren Klick (hashchange). Ob der Abend erfassbar ist, steht am Element
+  // (`data-erfassbar`); so hängt der Effekt nicht an den Props und klappt nach
+  // einem router.refresh nicht ungefragt wieder auf.
+  useEffect(() => {
+    function oeffneAusAnker() {
+      const treffer = /^#termin-([\w-]+)$/.exec(window.location.hash);
+      if (!treffer) return;
+      const abend = document.getElementById(`termin-${treffer[1]}`);
+      if (!abend) return;
+      if (abend.dataset.erfassbar === "ja") {
+        setMeldung(null);
+        setOffen(treffer[1]);
+      }
+      abend.scrollIntoView({ block: "start" });
+      // Den Anker wieder aus der Adresse nehmen: Bliebe er stehen, änderte ein
+      // zweiter Klick auf denselben Link das Fragment nicht — kein hashchange,
+      // der zugeklappte Abend bliebe zu (auch nach router.refresh).
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    oeffneAusAnker();
+    window.addEventListener("hashchange", oeffneAusAnker);
+    return () => window.removeEventListener("hashchange", oeffneAusAnker);
+  }, []);
 
   function anzeigeWert(gruppe: Gruppe, terminId: string, teilnahmeId: string): string {
     return overlay[terminId]?.[teilnahmeId] ?? gruppe.anwesenheit[terminId]?.[teilnahmeId] ?? "";
@@ -99,7 +124,12 @@ export function StundenplanDozent({
               const erfasst = gruppe.teilnehmer.filter((t) => gruppe.anwesenheit[termin.id]?.[t.teilnahmeId]).length;
               const zeigtMeldung = meldung?.terminId === termin.id;
               return (
-                <li key={termin.id} className="rounded-lg border border-border bg-card p-3">
+                <li
+                  key={termin.id}
+                  id={`termin-${termin.id}`}
+                  data-erfassbar={kannErfassen ? "ja" : undefined}
+                  className="scroll-mt-6 rounded-lg border border-border bg-card p-3"
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <span className="text-sm font-medium">{termin.text}</span>

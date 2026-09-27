@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 /**
  * Passwort setzen, ändern oder entfernen.
@@ -25,7 +26,7 @@ export function PasswortAbschnitt({
   const [passwort, setPasswort] = useState("");
   const [wiederholung, setWiederholung] = useState("");
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "warnung" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
   const stimmtUeberein = passwort.length > 0 && passwort === wiederholung;
 
@@ -182,20 +183,7 @@ export function PasswortAbschnitt({
         </p>
       )}
 
-      {meldung && (
-        <p
-          role={meldung.art === "fehler" ? "alert" : "status"}
-          className={`mt-4 max-w-prose rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok"
-              ? "bg-credo-gruen/10"
-              : meldung.art === "warnung"
-                ? "bg-credo-gelb/15"
-                : "bg-credo-rot/10"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4 max-w-prose" />
     </form>
   );
 }

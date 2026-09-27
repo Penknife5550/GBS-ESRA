@@ -13,8 +13,16 @@ RUN npx prisma generate
 # --- Stage 2: Build ----------------------------------------------------------
 FROM node:24-alpine AS builder
 WORKDIR /app
+# Die Pruefskripte rechnen mit Berliner Datumsgrenzen (Sommerzeit, Mitternacht,
+# Abendtermine). In UTC blieben sie gruen, ohne etwas zu beweisen — deshalb
+# dieselbe Zeitzone wie die Laufzeit-Stufe und der Server.
+ENV TZ=Europe/Berlin
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Ohne gruene Pruefungen kein Image: die DB-freien Prueflaeufe (Sekunden) gaten
+# den Build. Ein rotes Skript bricht hier ab, statt erst beim naechsten
+# manuellen Lauf aufzufallen.
+RUN npm run pruefen
 RUN npm run build
 
 # Seed nach JavaScript bundeln. Ohne diesen Schritt liefe im Container

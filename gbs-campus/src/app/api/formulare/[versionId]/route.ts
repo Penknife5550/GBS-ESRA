@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { FeldTyp, FormularVersionStatus, PersonFeld, Prisma, Teilnahmeform } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
+import { RECHT } from "@/lib/constants";
 import { protokolliere } from "@/lib/audit";
 import { alsFeldEingaben, pruefeFelddefinition } from "@/lib/formular";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { bereinigeOptionenUndZuordnung } from "@/lib/formular-optionen";
+import { erfolg, fehler } from "@/lib/api";
 
 const feldSchema = z.object({
   code: z.string().min(2).max(50),
@@ -37,10 +39,8 @@ const speichernSchema = z.object({
  * das ist die Regel, die die Versionierung überhaupt erst etwas wert macht.
  */
 export async function PUT(request: NextRequest, kontext: { params: Promise<{ versionId: string }> }) {
-  const benutzer = await ladeMitRecht("FORMULAR_BEARBEITEN");
-  if (!benutzer) {
-    return keineBerechtigung();
-  }
+  const benutzer = await pruefeZugriff(RECHT.FORMULAR_BEARBEITEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { versionId } = await kontext.params;
 
@@ -61,7 +61,18 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ ver
     return fehler("Die Formulardefinition ist unvollständig oder fehlerhaft.", 400);
   }
 
-  const felder = geprueft.data.abschnitte.flatMap((abschnitt, abschnittIndex) =>
+  // Dieselbe Bereinigung wie im Builder (zumSenden): Antwortmoeglichkeiten
+  // getrimmt, Leerzeilen weg, die Teilnahmeform-Zuordnung auf die vorhandenen
+  // Antworten beschnitten und nur bei einem Teilnahmeform-Feld behalten. Auch
+  // hier, weil nicht jeder Client der Builder ist — sonst landeten verwaiste
+  // Schluessel im validierung-JSON. Geprueft UND gespeichert wird ausschliesslich
+  // diese bereinigte Fassung.
+  const abschnitte = geprueft.data.abschnitte.map((abschnitt) => ({
+    ...abschnitt,
+    felder: abschnitt.felder.map((feld) => ({ ...feld, ...bereinigeOptionenUndZuordnung(feld) })),
+  }));
+
+  const felder = abschnitte.flatMap((abschnitt, abschnittIndex) =>
     abschnitt.felder.map((feld, feldIndex) => ({
       ...feld,
       hilfetext: feld.hilfetext ?? null,
@@ -89,7 +100,7 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ ver
     // ausgefüllt worden, es hängen keine Antworten daran.
     await tx.formularAbschnitt.deleteMany({ where: { versionId } });
 
-    for (const [abschnittIndex, abschnitt] of geprueft.data.abschnitte.entries()) {
+    for (const [abschnittIndex, abschnitt] of abschnitte.entries()) {
       await tx.formularAbschnitt.create({
         data: {
           versionId,
@@ -142,7 +153,7 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ ver
     objektId: versionId,
     akteurId: benutzer.id,
     vorher,
-    nachher: { abschnitte: geprueft.data.abschnitte.length, felder: felder.length },
+    nachher: { abschnitte: abschnitte.length, felder: felder.length },
     headers: request.headers,
   });
 
@@ -150,10 +161,8 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ ver
 }
 
 export async function GET(_request: NextRequest, kontext: { params: Promise<{ versionId: string }> }) {
-  const benutzer = await ladeMitRecht("FORMULAR_BEARBEITEN");
-  if (!benutzer) {
-    return keineBerechtigung();
-  }
+  const benutzer = await pruefeZugriff(RECHT.FORMULAR_BEARBEITEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { versionId } = await kontext.params;
   const version = await prisma.formularVersion.findUnique({

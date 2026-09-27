@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type EinstellungsAnzeige = {
   schluessel: string;
@@ -16,7 +17,7 @@ export type EinstellungsAnzeige = {
 export function EinstellungsFeld({ einstellung }: { einstellung: EinstellungsAnzeige }) {
   const [wert, setWert] = useState(einstellung.wert);
   const [gespeichert, setGespeichert] = useState(einstellung.wert);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
   const [laeuft, setLaeuft] = useState(false);
 
   const geaendert = wert !== gespeichert;
@@ -81,16 +82,7 @@ export function EinstellungsFeld({ einstellung }: { einstellung: EinstellungsAnz
         </button>
       </div>
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok" ? "bg-credo-gruen/10 text-foreground" : "bg-credo-rot/10 text-foreground"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-3" />
     </div>
   );
 }

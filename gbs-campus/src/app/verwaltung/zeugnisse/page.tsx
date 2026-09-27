@@ -1,21 +1,27 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { datum } from "@/lib/datum";
+import { dmsAdresse } from "@/lib/konfiguration";
 import { teilnahmeformName } from "@/lib/semester";
 import { istGewaehlterTyp, zeugnisTitel, type GewaehlterTyp } from "@/lib/zeugnis";
-import { ladeZeugnisUebersicht } from "@/lib/zeugnis-io";
+import { ladeSammelVorschau, ladeZeugnisUebersicht, zaehleOffeneDmsArchivierungen } from "@/lib/zeugnis-io";
+import { sammellaufRueckfrage, sammellaufSperre } from "@/lib/zeugnis-sammellauf";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { DmsNachversand } from "./dms-nachversand";
 import { ZeugnisClient } from "./zeugnis-client";
 
+export const metadata = { title: "Zeugnisse" };
 export const dynamic = "force-dynamic";
 
 /**
  * Zeugnis-Verwaltung der Schulleitung (Recht NOTEN_VERWALTEN). Je Semester und
  * gewähltem Typ (Semester-Zeugnis bzw. Abschlusszeugnis) die aktiven Teilnehmer
  * mit ihrem aktuell gültigen Zeugnis. Ausstellen (einzeln/gesammelt),
- * neu ausstellen (Storno) und Serien-/Einzeldruck laufen im Client.
+ * neu ausstellen (Storno) und Serien-/Einzeldruck laufen im Client; die Zahlen
+ * für die Rückfrage vor dem Sammellauf und die Zahl der noch nicht im DMS
+ * archivierten Zeugnisse ermittelt die Seite serverseitig.
  */
 export default async function ZeugnisSeite({
   searchParams,
@@ -31,9 +37,7 @@ export default async function ZeugnisSeite({
   if (semesters.length === 0) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-12">
-        <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Verwaltung
-        </Link>
+        <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Zeugnisse" />
         <h1 className="mt-6 text-2xl font-bold tracking-tight">Zeugnisse</h1>
         <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
           Noch ist kein Semester angelegt.
@@ -47,13 +51,14 @@ export default async function ZeugnisSeite({
   const semester = semesters.find((s) => s.id === gewaehltId) ?? semesters[0];
   const typ: GewaehlterTyp = istGewaehlterTyp(sp.typ ?? "") ? (sp.typ as GewaehlterTyp) : "SEMESTER";
 
-  const zeilen = await ladeZeugnisUebersicht(semester.id, typ);
+  const [zeilen, offenImDms] = await Promise.all([ladeZeugnisUebersicht(semester.id, typ), zaehleOffeneDmsArchivierungen()]);
+  // Rückfrage vor „Alle ausstellen“: die Zahlen hier serverseitig ermitteln, nicht
+  // im Browser schätzen.
+  const vorschau = await ladeSammelVorschau(semester, typ, zeilen);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Zeugnisse" />
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Zeugnisse</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Ein ausgestelltes Zeugnis wird eingefroren (der Notenstand zum Zeitpunkt der Ausstellung). Eine
@@ -61,10 +66,17 @@ export default async function ZeugnisSeite({
         Ausfertigung ersetzt. Hörer bekommen eine Teilnahmebescheinigung, kein Zeugnis.
       </p>
 
+      <DmsNachversand offen={offenImDms} dmsEingerichtet={dmsAdresse() !== null} />
+
       <ZeugnisClient
         semesters={semesters.map((s) => ({ id: s.id, bezeichnung: s.bezeichnung }))}
         gewaehltId={semester.id}
         typ={typ}
+        sammellauf={{
+          rueckfrage: sammellaufRueckfrage(vorschau, typ, semester.bezeichnung),
+          sperre: sammellaufSperre(typ, semester),
+          auszustellen: vorschau.zeugnisse + vorschau.bescheinigungen,
+        }}
         zeilen={zeilen.map((z) => ({
           personId: z.personId,
           name: z.name,

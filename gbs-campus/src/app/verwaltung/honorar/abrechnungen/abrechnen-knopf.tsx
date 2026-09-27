@@ -9,15 +9,39 @@ type Antwort = { abrechnungId: string; abende: number; summe: number };
 /**
  * Erstellt eine Abrechnung für einen Dozenten im Semester (friert die offenen
  * Abende ein) und springt danach in die Detailansicht. Bewusst mit Rückfrage,
- * weil die Abrechnung die Beträge festschreibt.
+ * weil die Abrechnung die Beträge festschreibt — die Rückfrage nennt Dozent,
+ * Abende und Betrag, das aria-label den Dozenten (in der Liste steht der Knopf in
+ * jeder Zeile). Abende und Summe gehen mit: Hat sich der Stand seit dem Laden
+ * geändert, legt der Server nichts an (409) — festgeschrieben wird nur, was die
+ * Rückfrage genannt hat.
  */
-export function AbrechnenKnopf({ dozentId, semesterId }: { dozentId: string; semesterId: string }) {
+export function AbrechnenKnopf({
+  dozentId,
+  semesterId,
+  dozentName,
+  abende,
+  summe,
+  betrag,
+}: {
+  dozentId: string;
+  semesterId: string;
+  dozentName: string;
+  abende: number;
+  /** Summe in Euro (ganzzahlig), wie sie `betrag` formatiert nennt. */
+  summe: number;
+  betrag: string;
+}) {
   const router = useRouter();
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
 
   async function abrechnen() {
-    if (!confirm("Alle offenen Abende dieses Dozenten zu einer Abrechnung zusammenfassen und die Beträge festschreiben?")) {
+    if (
+      !confirm(
+        `Abrechnung für ${dozentName} erstellen (${abende === 1 ? "1 Abend" : `${abende} Abende`}, ${betrag})? ` +
+          `Alle offenen Abende dieses Dozenten im Semester werden zusammengefasst und die Beträge festgeschrieben.`,
+      )
+    ) {
       return;
     }
     setLaeuft(true);
@@ -25,7 +49,7 @@ export function AbrechnenKnopf({ dozentId, semesterId }: { dozentId: string; sem
 
     const antwort = await sendeAnfrage<Antwort>("/api/honorar/abrechnungen", {
       methode: "POST",
-      rumpf: { dozentId, semesterId },
+      rumpf: { dozentId, semesterId, erwarteteAbende: abende, erwarteteSumme: summe },
     });
 
     if (!antwort.ok) {
@@ -42,6 +66,7 @@ export function AbrechnenKnopf({ dozentId, semesterId }: { dozentId: string; sem
         type="button"
         onClick={abrechnen}
         disabled={laeuft}
+        aria-label={`Abrechnen: ${dozentName}`}
         className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
       >
         {laeuft ? "Rechne ab …" : "Abrechnen"}

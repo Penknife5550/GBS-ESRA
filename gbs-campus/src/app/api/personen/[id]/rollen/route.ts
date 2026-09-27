@@ -1,11 +1,18 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
-import { RECHT, ROLLE, STATUS } from "@/lib/constants";
-import { entziehtAdmin, rollenDiff, sindRollenBekannt } from "@/lib/benutzerverwaltung";
+import { erfolg, fehler } from "@/lib/api";
+import { RECHT, STATUS } from "@/lib/constants";
+import {
+  entziehtAdmin,
+  MELDUNG_LETZTER_ADMIN,
+  rollenDiff,
+  sindRollenBekannt,
+  waereLetzterAdmin,
+} from "@/lib/benutzerverwaltung";
+import { zaehleAndereAdmins } from "@/lib/status-io";
 
 const schema = z.object({
   rollen: z.array(z.string().min(1).max(40)).max(20),
@@ -18,8 +25,8 @@ const schema = z.object({
  * die angehakten Rollen schicken, und der Server rechnet den Unterschied aus.
  */
 export async function PUT(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.BENUTZER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.BENUTZER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { id } = await kontext.params;
   const geprueft = schema.safeParse(await request.json().catch(() => null));
@@ -47,27 +54,35 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
   // Den letzten Administrator schützen: Ohne ihn kommt niemand mehr an Konten
   // und Rollen. Wird ADMIN entzogen und trägt sonst niemand mehr diese Rolle,
   // wird abgelehnt — auch wenn ein Administrator es bei sich selbst versucht.
+  // Gezählt werden nur Konten, die selbst noch hineinkommen (kein Endzustand).
   if (entziehtAdmin(diff)) {
-    const andereAdmins = await prisma.personRolle.count({
-      where: { rolleCode: ROLLE.ADMIN, personId: { not: person.id } },
-    });
-    if (andereAdmins === 0) {
-      return fehler("Das ist der letzte Administrator — diese Rolle lässt sich nicht entziehen.", 409);
+    const andereAdmins = await zaehleAndereAdmins(person.id);
+    if (waereLetzterAdmin({ istAdmin: true, verliertZugang: true, andereAdmins })) {
+      return fehler(MELDUNG_LETZTER_ADMIN, 409);
     }
   }
 
-  await prisma.$transaction([
-    ...(diff.weg.length > 0
-      ? [prisma.personRolle.deleteMany({ where: { personId: person.id, rolleCode: { in: diff.weg } } })]
-      : []),
-    ...(diff.hinzu.length > 0
-      ? [
-          prisma.personRolle.createMany({
-            data: diff.hinzu.map((rolleCode) => ({ personId: person.id, rolleCode, erteiltVonId: benutzer.id })),
-          }),
-        ]
-      : []),
-  ]);
+  const geschrieben = await prisma.$transaction(async (tx) => {
+    // Erst die Personenzeile bedingt sperren: Eine zeitgleiche Anonymisierung
+    // (sie sperrt dieselbe Zeile und entzieht alle Rollen) läuft so ganz davor
+    // oder ganz danach — nie dazwischen, sonst stünden die Rollen danach wieder
+    // am anonymisierten Konto.
+    const offen = await tx.person.updateMany({
+      where: { id: person.id, statusCode: { not: STATUS.ANONYMISIERT } },
+      data: { aktualisiertAm: new Date() },
+    });
+    if (offen.count !== 1) return false;
+    if (diff.weg.length > 0) {
+      await tx.personRolle.deleteMany({ where: { personId: person.id, rolleCode: { in: diff.weg } } });
+    }
+    if (diff.hinzu.length > 0) {
+      await tx.personRolle.createMany({
+        data: diff.hinzu.map((rolleCode) => ({ personId: person.id, rolleCode, erteiltVonId: benutzer.id })),
+      });
+    }
+    return true;
+  });
+  if (!geschrieben) return fehler("Für eine anonymisierte Person lassen sich keine Rollen ändern.", 409);
 
   await protokolliere({
     aktion: "ROLLEN_GEAENDERT",

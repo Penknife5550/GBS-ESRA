@@ -12,8 +12,10 @@
  * (`raeumeGelegentlichAuf`) bleibt als Rückfall bestehen, falls der Worker
  * einmal steht — höchstens stündlich und nicht blockierend.
  *
- * Jeder Lauf hinterlässt einen Audit-Eintrag `AUFRAEUMEN_GELAUFEN`, den die
- * Betriebsansicht als „zuletzt aufgeräumt" liest. Vorher war der einzige
+ * Der Lauf hinterlässt einen Audit-Eintrag `AUFRAEUMEN_GELAUFEN` (objektId =
+ * Herkunft WORKER bzw. APP), den die Betriebsansicht als „zuletzt aufgeräumt"
+ * liest — sobald etwas gelöscht wurde, sonst höchstens alle zwölf Stunden je
+ * Herkunft (Regel und Begründung: `aufraeumen-regel.ts`). Vorher war der einzige
  * Fehlerkanal ein `console.error` — bei Bus-Faktor 1 heißt das: Der einzige
  * Löschmechanismus für personenbezogene Entwürfe hätte monatelang tot sein
  * können, ohne dass es jemandem auffällt.
@@ -21,9 +23,10 @@
 
 import { prisma } from "@/lib/db";
 import { AnmeldungStatus } from "@prisma/client";
-import { MINUTE_MS, TAG_MS } from "@/lib/constants";
+import { STUNDE_MS, TAG_MS } from "@/lib/constants";
 import { zahl } from "@/lib/einstellungen";
 import { protokolliere } from "@/lib/audit";
+import { heartbeatFaellig, type AufraeumHerkunft } from "@/lib/aufraeumen-regel";
 
 export type AufraeumErgebnis = {
   drosselzeilen: number;
@@ -34,16 +37,28 @@ export type AufraeumErgebnis = {
   bestaetigungsLinks: number;
 };
 
-export async function raeumeAuf(): Promise<AufraeumErgebnis> {
+/**
+ * Ein Aufräumlauf. `herkunft` sagt, wer ihn angestoßen hat (Worker oder App) —
+ * das Lebenszeichen im Audit-Log wird je Herkunft geführt, damit die
+ * Betriebsansicht den Worker getrennt beurteilen kann.
+ */
+export async function raeumeAuf(herkunft: AufraeumHerkunft): Promise<AufraeumErgebnis> {
   const jetzt = Date.now();
 
   // Die Fristen sind Regler und keine Codekonstanten: Wie lange
   // personenbezogene Spuren stehen bleiben, ist eine Frage der
   // Datenschutzerklärung und nicht des nächsten Deploys. `zahl()` fällt bei
-  // jedem Problem auf den Standard zurück (1 bzw. 7 Tage).
-  const [drosselTage, tokenTage] = await Promise.all([
+  // jedem Problem auf den Standard zurück (1 bzw. 7 Tage). Dazu der letzte
+  // Eintrag derselben Herkunft (Index objektTyp/objektId) für die Frage, ob
+  // dieser Lauf ein Lebenszeichen schreiben muss.
+  const [drosselTage, tokenTage, letzterLauf] = await Promise.all([
     zahl("AUFRAEUMEN_DROSSEL_TAGE"),
     zahl("AUFRAEUMEN_TOKEN_TAGE"),
+    prisma.auditLog.findFirst({
+      where: { aktion: "AUFRAEUMEN_GELAUFEN", objektTyp: "System", objektId: herkunft },
+      orderBy: { erstelltAm: "desc" },
+      select: { erstelltAm: true },
+    }),
   ]);
 
   const drosselGrenze = new Date(jetzt - drosselTage * TAG_MS);
@@ -72,6 +87,11 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
     // Token entwerten, die Teilnahme selbst bleibt. `bestaetigtAm` ist der
     // Re-Enrollment-Nachweis und fließt in die DSGVO-Auskunft — der wird nie
     // gelöscht. Der Token gilt bis Semesterstart, danach ist er wertlos.
+    // Ebenso unberührt bleiben `eingeladenAm`, `abgemeldetAm` und
+    // `abmeldeGrund`: Aus ihnen bildet die Überleitungsseite den Stand
+    // (bestätigt / offen / abgemeldet), und an `abgemeldetAm` hängt, ob die
+    // Teilnahme in den Listen zählt. Hier werden deshalb ausdrücklich nur die
+    // beiden Token-Spalten geschrieben.
     prisma.teilnahme.updateMany({
       where: { bestaetigungLaeuftAb: { lt: tokenGrenze } },
       data: { bestaetigungTokenHash: null, bestaetigungLaeuftAb: null },
@@ -87,20 +107,24 @@ export async function raeumeAuf(): Promise<AufraeumErgebnis> {
     bestaetigungsLinks: bestaetigungsLinks.count,
   };
 
-  // Auch der Lauf, der nichts gefunden hat, wird festgehalten. Genau das ist
-  // die Aussage, die der Betrieb braucht: nicht „es wurde gelöscht", sondern
-  // „der Lauf lebt noch". `protokolliere` wirft nie.
-  await protokolliere({
-    aktion: "AUFRAEUMEN_GELAUFEN",
-    objektTyp: "System",
-    quelle: "SYSTEM",
-    nachher: { ...ergebnis, drosselTage, tokenTage },
-  });
+  // Auch ein Lauf, der nichts gefunden hat, wird festgehalten — aber nur als
+  // Lebenszeichen alle zwölf Stunden je Herkunft (`heartbeatFaellig`). Genau das
+  // ist die Aussage, die der Betrieb braucht: nicht „es wurde gelöscht", sondern
+  // „der Lauf lebt noch". Ein Lauf MIT Löschungen steht immer im Protokoll.
+  // `protokolliere` wirft nie.
+  const summe = Object.values(ergebnis).reduce((a, b) => a + b, 0);
+  if (heartbeatFaellig({ summe, letzterLauf: letzterLauf?.erstelltAm ?? null, jetzt: new Date(jetzt) })) {
+    await protokolliere({
+      aktion: "AUFRAEUMEN_GELAUFEN",
+      objektTyp: "System",
+      objektId: herkunft,
+      quelle: "SYSTEM",
+      nachher: { ...ergebnis, drosselTage, tokenTage, herkunft },
+    });
+  }
 
   return ergebnis;
 }
-
-const STUNDE_MS = 60 * MINUTE_MS;
 
 /** Zeitpunkt des letzten ERFOLGREICH begonnenen Laufs. */
 let zuletzt = 0;
@@ -120,7 +144,7 @@ export function raeumeGelegentlichAuf(): void {
   const vorheriger = zuletzt;
   zuletzt = jetzt;
 
-  void raeumeAuf()
+  void raeumeAuf("APP")
     .then((e) => {
       if (e.drosselzeilen + e.magicLinks + e.entwuerfe + e.emailAenderungen + e.datenauskuenfte + e.bestaetigungsLinks > 0) {
         console.log("[AUFRAEUMEN]", e);

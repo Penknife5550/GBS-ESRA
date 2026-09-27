@@ -5,13 +5,17 @@ import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
 import { RECHT, STATUS } from "@/lib/constants";
 import { zahl } from "@/lib/einstellungen";
-import { zaehltAlsTeilgenommen, quoteErfuellt } from "@/lib/stundenplan";
+import { quoteAusVergangenen } from "@/lib/stundenplan";
+import { terminVergangen } from "@/lib/selbstbestaetigung";
 import { giltAlsBestanden } from "@/lib/leistung";
+import { TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { StatusBadge, TeilnahmeformBadge } from "@/components/ui/badges";
-import { QuoteKurz } from "@/components/ui/quote-ampel";
+import { QuoteChip } from "@/components/ui/quote-ampel";
+import { LadeHinweis } from "@/components/ui/lade-hinweis";
 import { PersonAnlegen } from "./person-anlegen";
 
+export const metadata = { title: "Personen" };
 export const dynamic = "force-dynamic";
 
 /** Mehr Treffer helfen niemandem — dann lieber genauer suchen oder filtern. */
@@ -61,15 +65,23 @@ export default async function PersonenSeite({
   }
   if (statusFilter) bedingungen.push({ status: { code: statusFilter } });
   if (formFilter) {
+    // Nur zählende Teilnahmen: Wer für das Semester abgemeldet ist, ist dort
+    // weder Schüler noch Hörer.
     bedingungen.push({
-      teilnahmen: { some: effektivSemesterId ? { semesterId: effektivSemesterId, teilnahmeform: formFilter } : { teilnahmeform: formFilter } },
+      teilnahmen: {
+        some: effektivSemesterId
+          ? { semesterId: effektivSemesterId, teilnahmeform: formFilter, ...TEILNAHME_ZAEHLT }
+          : { teilnahmeform: formFilter, ...TEILNAHME_ZAEHLT },
+      },
     });
   }
 
   // Die Teilnahme des gewählten Semesters immer mitladen (leer, wenn keine
   // besteht) — ein statisches select lässt Prisma den Ergebnistyp exakt ableiten,
   // ohne Cast. Ohne gewähltes Semester ("alle") matcht der leere Scope nichts, und
-  // die Quote-/Noten-Spalten bleiben leer.
+  // die Quote-/Noten-Spalten bleiben leer. Eine für das Semester abgemeldete
+  // Teilnahme zählt nicht (`TEILNAHME_ZAEHLT`): Teilnahme, Noten und Quote
+  // bleiben dann leer wie bei „nicht eingeschrieben".
   const semesterScope = effektivSemesterId ?? "";
 
   const [personen, gesamtTermine] = await Promise.all([
@@ -82,10 +94,10 @@ export default async function PersonenSeite({
         email: true,
         status: { select: { code: true, bezeichnung: true } },
         teilnahmen: {
-          where: { semesterId: semesterScope },
+          where: { semesterId: semesterScope, ...TEILNAHME_ZAEHLT },
           select: {
             teilnahmeform: true,
-            anwesenheiten: { select: { status: true } },
+            anwesenheiten: { select: { status: true, termin: { select: { beginn: true } } } },
             leistungen: { select: { ergebnis: true } },
           },
         },
@@ -96,9 +108,15 @@ export default async function PersonenSeite({
     effektivSemesterId ? prisma.unterrichtstermin.count({ where: { semesterId: effektivSemesterId } }) : Promise.resolve(0),
   ]);
 
+  // Quote wie in der Detailakte (Modell A): nur vergangene Abende zählen als
+  // teilgenommen/versäumt, künftige bleiben offen — gegen alle Abende gerechnet
+  // stünde fast das ganze Semester jeder „unter Soll“ (Code-Review 4).
+  const jetzt = new Date();
   const zeilen = personen.map((p) => {
     const t = p.teilnahmen[0];
-    const teilgenommen = t ? t.anwesenheiten.filter((a) => zaehltAlsTeilgenommen(a.status)).length : 0;
+    const vergangeneStati = t
+      ? t.anwesenheiten.filter((a) => terminVergangen(a.termin.beginn, jetzt)).map((a) => a.status)
+      : [];
     const bestanden = t ? t.leistungen.filter((l) => giltAlsBestanden(l.ergebnis)).length : 0;
     return {
       id: p.id,
@@ -108,9 +126,7 @@ export default async function PersonenSeite({
       statusCode: p.status.code,
       statusLabel: p.status.bezeichnung,
       form: t?.teilnahmeform ?? null,
-      quote: t && effektivSemesterId && gesamtTermine > 0
-        ? { teilgenommen, gesamt: gesamtTermine, erfuellt: quoteErfuellt(teilgenommen, gesamtTermine, schwelle) }
-        : null,
+      quote: t && effektivSemesterId && gesamtTermine > 0 ? quoteAusVergangenen(vergangeneStati, gesamtTermine, schwelle) : null,
       noten: darfNoten && t && t.leistungen.length > 0 ? { bestanden, gesamt: t.leistungen.length } : null,
     };
   });
@@ -213,6 +229,7 @@ export default async function PersonenSeite({
                         className="font-medium text-foreground underline-offset-4 hover:underline"
                       >
                         {z.nachname}, {z.vorname}
+                        <LadeHinweis className="ml-2" />
                       </Link>
                       <span className="block text-xs text-muted-foreground">{z.email}</span>
                     </td>
@@ -234,11 +251,7 @@ export default async function PersonenSeite({
                       </td>
                     )}
                     <td className={td}>
-                      <QuoteKurz
-                        teilgenommen={z.quote?.teilgenommen ?? 0}
-                        gesamt={z.quote?.gesamt ?? null}
-                        erfuellt={z.quote?.erfuellt ?? false}
-                      />
+                      {z.quote ? <QuoteChip quote={z.quote} /> : <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className={`${td} text-right`}>
                       <Link
@@ -247,6 +260,7 @@ export default async function PersonenSeite({
                         className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-primary"
                       >
                         →
+                        <LadeHinweis className="ml-1" />
                       </Link>
                     </td>
                   </tr>

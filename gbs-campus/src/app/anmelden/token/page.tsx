@@ -14,7 +14,15 @@ import { AnmeldungBestaetigen } from "./bestaetigen";
  *     Weiterleitung auf seinen eigenen Token schicken; das Opfer arbeitete dann
  *     unbemerkt im fremden Konto.
  *
- * Ein Klick auf einen Knopf, der ein POST auslöst, entschärft beides.
+ * Wer was abfängt: Gegen die Link-Scanner hilft der Knopf — eingelöst wird erst
+ * per POST nach einem Klick, ein bloßer Abruf dieser Seite (Scanner, Bild-Tag,
+ * Weiterleitung) löst nichts ein. Gegen Login-CSRF genügt der POST allein
+ * nicht: Eine fremde Seite kann /api/auth/token mit einem automatisch
+ * abgeschickten Formular genauso per POST aufrufen. Das fängt die
+ * Herkunftsprüfung ab (src/middleware.ts, lib/herkunft.ts) — ein POST von
+ * fremder Seite trägt einen fremden Origin und wird mit 403 abgewiesen, bevor
+ * der Token angefasst wird. Was bleibt, setzt Mitwirkung voraus: Wer einen
+ * fremden Anmeldelink selbst öffnet und hier bestätigt, landet im fremden Konto.
  *
  * Der Token steht im URL-FRAGMENT (#token=…), das der Browser nicht an den
  * Server schickt: Diese Seite kennt ihn also gar nicht, die Client-Komponente

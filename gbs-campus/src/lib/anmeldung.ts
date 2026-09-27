@@ -25,25 +25,16 @@ import { zahl } from "@/lib/einstellungen";
 import { semesterFuerAnmeldung } from "@/lib/semester";
 import { alsFeldEingaben, bereinigeEntwurf, geheimeFeldcodes, ohneGeheimeAntworten, pruefeAntworten } from "@/lib/formular";
 import { protokolliere } from "@/lib/audit";
-import { MAIL_VORLAGE, ROLLE } from "@/lib/constants";
+import { EINRICHTUNG, MAIL_VORLAGE, ROLLE, STATUS, TAG_MS } from "@/lib/constants";
 import { sendeAnRollen } from "@/lib/verteiler";
-
-const ART9_CODE = "GLAUBENSANGABEN";
+import { SYSTEM_GRUND } from "@/lib/status";
+import { erfasseErstenStatus } from "@/lib/status-io";
+import { art9Eingewilligt } from "@/lib/anmeldung-antworten";
 
 /** Wohin die Verwaltung in den Meldungen geschickt wird. */
 function anmeldungenUrl(): string {
   return `${process.env.APP_URL ?? ""}/verwaltung/anmeldungen`;
 }
-
-/**
- * Für die Meldung über eine abgefangene Doppelanmeldung gibt es im Seed (noch)
- * keine Vorlage — `ANMELDUNG_VERWALTUNG` passt nicht, die meldet eine NEUE
- * Anmeldung. Deshalb steht der Code hier und nicht in `constants.ts`: Dort steht
- * nur, was der Seed wirklich anlegt. Bis dahin greift der Ersatztext; der Code
- * landet trotzdem im Versandprotokoll, und sobald jemand die Vorlage unter
- * diesem Code anlegt, wird sie ohne Codeänderung benutzt.
- */
-const VORLAGE_DOPPELT_VERWALTUNG = "ANMELDUNG_DOPPELT_VERWALTUNG";
 
 /** Die aktuell gültige Fassung samt Abschnitten und Feldern. */
 export async function ladeVeroeffentlichteFassung(formularCode = "ANMELDUNG") {
@@ -107,7 +98,7 @@ export async function speichereEntwurf(
   const sauber = bereinigeEntwurf(alsFeldEingaben(version.abschnitte), antworten);
 
   const tage = await zahl("ANMELDUNG_FORTSETZEN_TAGE");
-  const laeuftAb = new Date(Date.now() + tage * 24 * 60 * 60 * 1000);
+  const laeuftAb = new Date(Date.now() + tage * TAG_MS);
 
   if (vorhandenerToken) {
     const bestehend = await prisma.anmeldung.findUnique({
@@ -196,11 +187,13 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
     };
   }
 
-  const art9Eingewilligt = erteilt.has(ART9_CODE);
+  // Alle angebotenen Art.-9-Texte, nicht ein fest verdrahteter Code — dieselbe
+  // Regel, nach der das Formular die Art.-9-Abschnitte freischaltet.
+  const art9Erteilt = art9Eingewilligt(texte, erteilt);
 
   // --- Antworten prüfen ------------------------------------------------------
   const felder = alsFeldEingaben(version.abschnitte);
-  const geprueft = pruefeAntworten(felder, eingabe.antworten, art9Eingewilligt);
+  const geprueft = pruefeAntworten(felder, eingabe.antworten, art9Erteilt);
   if (!geprueft.ok) {
     return { ok: false, status: 400, meldung: "Bitte prüfe die markierten Felder.", felder: geprueft.fehler };
   }
@@ -227,7 +220,8 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
       objektTyp: "Person",
       objektId: vorhanden.id,
       quelle: "SYSTEM",
-      nachher: { email: personDaten.email },
+      // Ohne die Adresse: Die Person steht über objektId fest, und das Audit-Log
+      // ist unlöschbar (Code-Review 4, M6c).
       ipAdresse: eingabe.ipAdresse,
       userAgent: eingabe.userAgent,
     });
@@ -246,19 +240,21 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
       text: fuelleVorlage(
         doppelt?.textMd ??
           "Hallo {{vorname}},\n\n" +
-            "du hast gerade eine Anmeldung zur Gemeindebibelschule Minden abgeschickt. Zu deiner " +
+            `du hast gerade eine Anmeldung zur ${EINRICHTUNG.name} abgeschickt. Zu deiner ` +
             "E-Mail-Adresse ist bei uns aber schon eine Anmeldung hinterlegt, deshalb haben wir keine " +
             "zweite angelegt.\n\n" +
             "Wenn das ein Versehen war, kannst du diese Nachricht ignorieren. Andernfalls melde dich " +
             "einfach bei der Schulleitung.\n\n" +
-            "Gemeindebibelschule Minden",
+            EINRICHTUNG.name,
         werteDoppelt,
       ),
     });
 
     await sendeAnRollen({
       rollen: [ROLLE.VERWALTUNG],
-      vorlageCode: VORLAGE_DOPPELT_VERWALTUNG,
+      // Die Vorlage legt der Seed an; der Ersatztext greift nur, wenn sie in
+      // einer Installation fehlt.
+      vorlageCode: MAIL_VORLAGE.ANMELDUNG_DOPPELT_VERWALTUNG,
       werte: { email: personDaten.email!, link: anmeldungenUrl() },
       ersatzBetreff: "Doppelte Anmeldung abgefangen",
       ersatzText:
@@ -283,9 +279,9 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
   // „Absenden": Beide Anfragen sehen keine Person, die zweite laeuft in den
   // Unique-Index auf der E-Mail. Ohne Behandlung saehe der Anmeldende einen 500
   // und wuesste nicht, ob seine Anmeldung angekommen ist — obwohl sie es ist.
-  let anmeldungId: string;
+  let angelegt: { anmeldungId: string; personId: string };
   try {
-    anmeldungId = await prisma.$transaction(async (tx) => {
+    angelegt = await prisma.$transaction(async (tx) => {
       const person = await tx.person.create({
         data: {
           vorname: personDaten.vorname!,
@@ -300,16 +296,19 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
           kontoinhaber: personDaten.kontoinhaber ?? null,
           ibanVerschluesselt: personDaten.iban ? verschluesseln(personDaten.iban) : null,
           teilnahmeform: personDaten.teilnahmeform ?? null,
-          statusCode: "INTERESSENT",
+          statusCode: STATUS.INTERESSENT,
         },
       });
 
-      await tx.personRolle.create({ data: { personId: person.id, rolleCode: "TEILNEHMER" } });
+      await tx.personRolle.create({ data: { personId: person.id, rolleCode: ROLLE.TEILNEHMER } });
 
       // Auch der erste Status wird protokolliert — die Akte soll lückenlos zeigen,
       // wie jemand in den Zustand gekommen ist, in dem er steht.
-      await tx.statusWechsel.create({
-        data: { personId: person.id, nachCode: "INTERESSENT", grund: "Anmeldung eingegangen", automatisch: true },
+      await erfasseErstenStatus(tx, {
+        personId: person.id,
+        nachCode: STATUS.INTERESSENT,
+        grund: SYSTEM_GRUND.ANMELDUNG_EINGEGANGEN,
+        automatisch: true,
       });
 
       const bestehenderEntwurf = eingabe.fortsetzenToken
@@ -347,7 +346,7 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
         });
       }
 
-      return anmeldung.id;
+      return { anmeldungId: anmeldung.id, personId: person.id };
     });
   } catch (fehler) {
     if (fehler instanceof Prisma.PrismaClientKnownRequestError && fehler.code === "P2002") {
@@ -355,7 +354,8 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
         aktion: "ANMELDUNG_DOPPELT_VERSUCHT",
         objektTyp: "Person",
         quelle: "SYSTEM",
-        nachher: { email: personDaten.email, grund: "zeitgleiche Einreichung" },
+        // Ohne die Adresse — siehe oben; der Grund reicht als Spur.
+        nachher: { grund: "zeitgleiche Einreichung" },
         ipAdresse: eingabe.ipAdresse,
         userAgent: eingabe.userAgent,
       });
@@ -368,18 +368,19 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
   // Statuswechsel stehen. Was jetzt noch scheitert (Protokoll, Mailversand),
   // darf den Anmeldenden nicht mehr mit einem Fehler behelligen — seine
   // Anmeldung IST angekommen. Also laut loggen, aber Erfolg melden.
+  const { anmeldungId, personId } = angelegt;
   try {
     await protokolliere({
       aktion: "ANMELDUNG_EINGEREICHT",
       objektTyp: "Anmeldung",
       objektId: anmeldungId,
       quelle: "SYSTEM",
-      nachher: { formularVersion: version.version, art9Eingewilligt },
+      nachher: { formularVersion: version.version, art9Eingewilligt: art9Erteilt },
       ipAdresse: eingabe.ipAdresse,
       userAgent: eingabe.userAgent,
     });
 
-    await sendeBestaetigung(personDaten.vorname!, personDaten.email!);
+    await sendeBestaetigung(personDaten.vorname!, personDaten.email!, personId);
 
     // Direkter Wunsch aus dem Interview: Die Verwaltung soll von neuen
     // Anmeldungen erfahren, ohne nachsehen zu müssen. An alle mit der Rolle
@@ -396,7 +397,9 @@ export async function nimmAnmeldungEntgegen(eingabe: AbsendeEingabe): Promise<Ab
         teilnahmeform: personDaten.teilnahmeform ?? "nicht angegeben",
         link: anmeldungenUrl(),
       },
-      ersatzBetreff: "Neue Anmeldung: {{name}}",
+      // Ohne Namen, wie die Vorlage im Seed: Der Betreff steht im
+      // Versandprotokoll an der personId der EMPFÄNGER (Code-Review 4, M6b).
+      ersatzBetreff: "Neue Anmeldung eingegangen",
       ersatzText:
         "Es ist eine neue Anmeldung eingegangen:\n\n" +
         "{{name}}, {{email}}\nTeilnahmeform: {{teilnahmeform}}\n\n" +
@@ -421,11 +424,14 @@ async function ermittleSemester(): Promise<string | null> {
   return semesterFuerAnmeldung(kandidaten, new Date());
 }
 
-async function sendeBestaetigung(vorname: string, email: string): Promise<void> {
-  const vorlage = await prisma.emailVorlage.findUnique({ where: { code: "ANMELDUNG_EINGEGANGEN" } });
+async function sendeBestaetigung(vorname: string, email: string, personId: string): Promise<void> {
+  const vorlage = await prisma.emailVorlage.findUnique({ where: { code: MAIL_VORLAGE.ANMELDUNG_EINGEGANGEN } });
   await sendeMail({
     an: email,
-    vorlageCode: "ANMELDUNG_EINGEGANGEN",
+    // Mit Personenbezug, damit die Anonymisierung die Zeile findet (vorher
+    // hing die Eingangsbestätigung an niemandem).
+    personId,
+    vorlageCode: MAIL_VORLAGE.ANMELDUNG_EINGEGANGEN,
     betreff: vorlage?.betreff ?? "Deine Anmeldung ist angekommen",
     text: fuelleVorlage(vorlage?.textMd ?? "Hallo {{vorname}},\n\ndeine Anmeldung ist eingegangen.", { vorname }),
   });

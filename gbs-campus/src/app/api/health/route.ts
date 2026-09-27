@@ -29,12 +29,12 @@ export async function GET() {
     datenbank = "nicht erreichbar";
   }
 
-  // Ohne Mailversand kommt in Produktion niemand ins Portal — das ist eine
-  // Störung, kein Hinweis.
+  // Ohne Mailversand kommt in Produktion nur hinein, wer ein Passwort hat — das
+  // ist eine Störung, kein Hinweis.
   const stoerungen = [
     ...befunde.map((b) => `${b.name}: ${b.problem}`),
     ...(datenbank === "nicht erreichbar" ? ["Datenbank nicht erreichbar"] : []),
-    ...(!smtp && inProduktion ? ["SMTP nicht konfiguriert — es kann sich niemand anmelden"] : []),
+    ...(!smtp && inProduktion ? ["SMTP nicht konfiguriert — ohne Passwort kann sich niemand anmelden"] : []),
   ];
 
   if (stoerungen.length > 0) {

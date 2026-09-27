@@ -13,7 +13,9 @@
  * Bewusst klein gehalten: nur die 14 Standard-Fonts (Helvetica, hier als
  * Arial-Ersatz gemaess CREDO-Fallback), kein Einbetten, kein Bild, keine Farbe
  * ausser Grau fuer Kleingedrucktes. Umlaute kommen ueber WinAnsiEncoding
- * (deckungsgleich mit Latin-1 fuer die deutschen Sonderzeichen).
+ * (deckungsgleich mit Latin-1 fuer die deutschen Sonderzeichen); was WinAnsi
+ * darueber hinaus kennt (Š, Ž, Œ …), wird ueber eine Tabelle abgebildet, der
+ * Rest transliteriert (ł -> l, ř -> r, ş -> s) — siehe `pdfText`.
  */
 
 export type PdfBlock =
@@ -37,13 +39,100 @@ const UNTEN = RAND;
 type Zeile = { text: string; size: number; bold: boolean; gray: boolean; umbruch?: boolean };
 
 /**
- * Ersetzt Zeichen ausserhalb von Latin-1 durch nahe Entsprechungen, escaped die
- * PDF-Sonderzeichen ( ) \ und gibt die Bytes zurueck. Zeichen, die sich nicht
- * abbilden lassen (z. B. Emoji aus einer Freitextantwort), werden zu „?" — der
- * Erzeuger darf an keiner Nutzereingabe scheitern.
+ * WinAnsiEncoding weicht nur in 0x80–0x9F von Latin-1 ab: Dort liegen einige
+ * Buchstaben und Zeichen, deren Unicode-Codepoint ueber 0xFF liegt. Ohne diese
+ * Tabelle wurde aus „Šimić" ein „?imi?" — auf einem eingefrorenen Zeugnis.
+ * Nicht enthalten: € (bleibt bewusst „EUR") sowie Anfuehrungszeichen, Striche
+ * und … (ersetzt `pdfText` vorher durch ASCII).
  */
-function pdfText(s: string): Buffer {
+const WINANSI_80_9F: Record<string, number> = {
+  "ƒ": 0x83,
+  "†": 0x86,
+  "‡": 0x87,
+  "ˆ": 0x88,
+  "‰": 0x89,
+  "Š": 0x8a,
+  "‹": 0x8b,
+  "Œ": 0x8c,
+  "Ž": 0x8e,
+  "˜": 0x98,
+  "™": 0x99,
+  "š": 0x9a,
+  "›": 0x9b,
+  "œ": 0x9c,
+  "ž": 0x9e,
+  "Ÿ": 0x9f,
+};
+
+/**
+ * Zeichen, die sich nicht in Grundbuchstabe + Akzent zerlegen lassen (NFKD
+ * greift nicht), aber in Namen vorkommen — polnisch ł, kroatisch/serbisch đ,
+ * tuerkisch ı —, dazu seltene Striche/Apostrophe und unsichtbare Zeichen aus
+ * kopiertem Text (die sonst als „?" mitten im Namen stuenden).
+ */
+const TRANSLITERATION: Record<string, string> = {
+  "Ł": "L",
+  "ł": "l",
+  "Đ": "D",
+  "đ": "d",
+  "ı": "i",
+  "Ħ": "H",
+  "ħ": "h",
+  "Ŧ": "T",
+  "ŧ": "t",
+  "Ŋ": "N",
+  "ŋ": "n",
+  "ĸ": "k",
+  "ẞ": "SS",
+  "ʻ": "'",
+  "ʼ": "'",
+  "‛": "'",
+  "′": "'",
+  "″": '"',
+  "‐": "-",
+  "‑": "-",
+  "‒": "-",
+  "―": "-",
+  "−": "-",
+  "​": "",
+  "‌": "",
+  "‍": "",
+  "⁠": "",
+  "﻿": "",
+};
+
+/** Die WinAnsi-Bytes eines einzelnen Zeichens (Codepoint). */
+function zeichenBytes(ch: string, zerlegen: boolean): number[] {
+  const code = ch.codePointAt(0)!;
+  if (code === 0x28 || code === 0x29 || code === 0x5c) return [0x5c, code]; // ( ) \  escapen
+  // Steuerzeichen -> Leerzeichen, auch DEL und C1 (0x80–0x9F): Als Byte stuende
+  // dort in WinAnsi ein sichtbares Zeichen (Š, Œ …), das nie im Text war.
+  if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return [0x20];
+  if (code <= 0xff) return [code];
+  const winAnsi = WINANSI_80_9F[ch];
+  if (winAnsi !== undefined) return [winAnsi];
+  if (/\p{M}/u.test(ch)) return []; // alleinstehendes Akzentzeichen faellt weg
+  const ersatz = TRANSLITERATION[ch];
+  if (ersatz !== undefined) return [...ersatz].flatMap((c) => zeichenBytes(c, false));
+  if (zerlegen) {
+    // ř -> r + ˇ, ş -> s + ¸, İ -> I + ˙: der Akzent faellt oben weg.
+    const teile = ch.normalize("NFKD");
+    if (teile !== ch) return [...teile].flatMap((c) => zeichenBytes(c, false));
+  }
+  return [0x3f]; // ? als Rueckfall
+}
+
+/**
+ * Wandelt Text in WinAnsi-Bytes: Latin-1 direkt, die WinAnsi-Zeichen aus
+ * 0x80–0x9F ueber die Tabelle, alles andere transliteriert (ł -> l, ř -> r,
+ * ş -> s), und escaped die PDF-Sonderzeichen ( ) \. Zeichen, die sich nicht
+ * abbilden lassen (z. B. Emoji aus einer Freitextantwort), werden zu „?" — der
+ * Erzeuger darf an keiner Nutzereingabe scheitern. Vorab NFC: Ein zerlegt
+ * gespeichertes „é" (e + Akzent, etwa von macOS) wird wieder ein Latin-1-Zeichen.
+ */
+export function pdfText(s: string): Buffer {
   const ersetzt = s
+    .normalize("NFC")
     .replace(/€/g, "EUR")
     .replace(/[‘’‚]/g, "'")
     .replace(/[“”„]/g, '"')
@@ -52,16 +141,7 @@ function pdfText(s: string): Buffer {
     .replace(/[•·]/g, "-");
 
   const bytes: number[] = [];
-  for (const ch of ersetzt) {
-    let code = ch.codePointAt(0)!;
-    if (code === 0x28 || code === 0x29 || code === 0x5c) {
-      bytes.push(0x5c, code); // ( ) \  escapen
-      continue;
-    }
-    if (code > 0xff) code = 0x3f; // ? als Rueckfall
-    else if (code < 0x20) code = 0x20; // Steuerzeichen -> Leerzeichen
-    bytes.push(code);
-  }
+  for (const ch of ersetzt) bytes.push(...zeichenBytes(ch, true));
   return Buffer.from(bytes);
 }
 

@@ -1,11 +1,17 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
-import { NOTE_MAX_LAENGE, PUNKTE_MAX, PUNKTE_MIN } from "@/lib/leistung";
+import {
+  ERGEBNIS_OPTIONEN,
+  NOTE_MAX_LAENGE,
+  PUNKTE_MAX,
+  PUNKTE_MIN,
+  punkteGueltig,
+  type LeistungWert,
+} from "@/lib/leistung";
 
-type LeistungWert = { ergebnis: string; punkte: number | null; note: string | null };
 type Teilnehmer = { teilnahmeId: string; name: string };
 type Kurseinheit = {
   kurseinheitId: string;
@@ -15,15 +21,10 @@ type Kurseinheit = {
   leistungen: Record<string, LeistungWert>;
 };
 
-// Reihenfolge wie im Modell; "" = nicht erfasst (eine bereits gesetzte Bewertung
-// lässt sich ändern, aber über die Matrix nicht wieder leeren).
-const ERGEBNIS_OPTIONEN = [
-  { wert: "", label: "— nicht erfasst —" },
-  { wert: "TEILGENOMMEN", label: "teilgenommen" },
-  { wert: "ERFOLGREICH_TEILGENOMMEN", label: "erfolgreich teilgenommen" },
-  { wert: "BESTANDEN", label: "bestanden" },
-  { wert: "NICHT_BESTANDEN", label: "nicht bestanden" },
-] as const;
+// Reihenfolge wie im Modell (`ERGEBNIS_OPTIONEN` aus leistung.ts); "" = nicht
+// erfasst (eine bereits gesetzte Bewertung lässt sich ändern, aber über die
+// Matrix nicht wieder leeren).
+const AUSWAHL = [{ wert: "", label: "— nicht erfasst —" }, ...ERGEBNIS_OPTIONEN];
 
 const selectKlasse = "min-h-11 rounded-lg border border-input bg-background px-2 py-1.5 text-sm";
 const inputKlasse = "min-h-11 rounded-lg border border-input bg-background px-2 py-1.5 text-sm";
@@ -76,9 +77,9 @@ export function NotenMatrix({
     });
   }
 
-  // Hat diese Kurseinheit ungespeicherte Änderungen? (Ein Semesterwechsel oder
-  // Zuklappen verwirft den Entwurf nicht — aber die Navigation über die
-  // Semesterwahl schon; deshalb wird der Zustand sichtbar markiert.)
+  // Hat diese Kurseinheit ungespeicherte Änderungen? (Zuklappen verwirft den
+  // Entwurf nicht — ein Seitenwechsel schon; deshalb wird der Zustand sichtbar
+  // markiert, und der Browser fragt vorher nach, siehe unten.)
   function istGeaendert(k: Kurseinheit): boolean {
     const beruehrt = entwurf[k.kurseinheitId];
     if (!beruehrt) return false;
@@ -87,6 +88,22 @@ export function NotenMatrix({
       return z.ergebnis !== g.ergebnis || z.punkte !== g.punkte || z.note !== g.note;
     });
   }
+
+  // Ungespeicherte Noten nicht still verwerfen: Neuladen, Schließen und die
+  // Semesterwahl (ein GET-Formular, also ein echter Seitenwechsel) fragen über
+  // `beforeunload` nach. Ein Link innerhalb der App (Client-Navigation) löst das
+  // Ereignis nicht aus — dafür bleibt die „ungespeichert“-Markierung.
+  const hatUngespeichertes = kurseinheiten.some((k) => istGeaendert(k));
+  useEffect(() => {
+    if (!hatUngespeichertes) return;
+    function warnen(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      // Ältere Browser zeigen die Rückfrage nur mit gesetztem returnValue.
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnen);
+    return () => window.removeEventListener("beforeunload", warnen);
+  }, [hatUngespeichertes]);
 
   async function speichern(k: Kurseinheit) {
     const beruehrt = entwurf[k.kurseinheitId] ?? {};
@@ -103,7 +120,7 @@ export function NotenMatrix({
       let punkte: number | null = null;
       if (punkteRoh !== "") {
         const zahl = Number(punkteRoh);
-        if (!Number.isInteger(zahl) || zahl < PUNKTE_MIN || zahl > PUNKTE_MAX) {
+        if (!punkteGueltig(zahl)) {
           punkteFehler = `Punkte bei ${nameVon.get(teilnahmeId) ?? "einem Teilnehmer"} müssen eine ganze Zahl zwischen ${PUNKTE_MIN} und ${PUNKTE_MAX} sein.`;
           break;
         }
@@ -217,7 +234,7 @@ export function NotenMatrix({
                               onChange={(e) => setFeld(k, t.teilnahmeId, "ergebnis", e.target.value)}
                               className={selectKlasse}
                             >
-                              {ERGEBNIS_OPTIONEN.map((o) => (
+                              {AUSWAHL.map((o) => (
                                 <option key={o.wert} value={o.wert}>
                                   {o.label}
                                 </option>

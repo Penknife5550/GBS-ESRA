@@ -14,6 +14,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { ADMIN_ROLLE, entziehtAdmin, rollenDiff } from "@/lib/benutzerverwaltung";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Rolle = { code: string; bezeichnung: string };
 
@@ -40,6 +42,7 @@ export function PersonAktionen({
   darfAnonymisieren,
   darfRollenVerwalten,
   alleRollen,
+  istEigeneAkte,
 }: {
   person: PersonAktionenDaten;
   darfAendern: boolean;
@@ -47,6 +50,8 @@ export function PersonAktionen({
   darfAnonymisieren: boolean;
   darfRollenVerwalten: boolean;
   alleRollen: Rolle[];
+  /** Die Akte des Bedienenden selbst — für die Warnung beim Entzug der eigenen Rechte. */
+  istEigeneAkte: boolean;
 }) {
   const router = useRouter();
   const [modus, setModus] = useState<"ruhe" | "email" | "rollen" | "stammdaten">("ruhe");
@@ -65,18 +70,19 @@ export function PersonAktionen({
   // Umschalter werden währenddessen gesperrt.
   const [laeuft, setLaeuft] = useState<null | "email" | "link" | "auskunft" | "anonym" | "rollen" | "stammdaten">(null);
   const beschaeftigt = laeuft !== null;
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
-  const rollenGeaendert =
-    gewaehlt.length !== person.rollenCodes.length ||
-    [...gewaehlt].sort().join(",") !== [...person.rollenCodes].sort().join(",");
+  // Derselbe Diff wie auf dem Server (`/api/personen/[id]/rollen`) — Grundlage
+  // für den Knopf und für die Rückfrage.
+  const diff = rollenDiff(gewaehlt, person.rollenCodes);
+  const rollenGeaendert = diff.hinzu.length > 0 || diff.weg.length > 0;
 
   async function adresseAendern() {
     if (
       !confirm(
         `Die Anmeldeadresse von ${person.name} wirklich auf ${neueEmail.trim()} ändern?\n\n` +
-          "Ab dann läuft der Zugang über diese Adresse. Ein gesetztes Passwort und alle offenen " +
-          "Anmeldelinks werden dabei entwertet.\n\n" +
+          "Ab dann läuft der Zugang über diese Adresse. Ein gesetztes Passwort sowie alle offenen " +
+          "Anmelde- und Auskunftslinks werden dabei entwertet.\n\n" +
           "Bitte vorher sicherstellen, dass die Person wirklich die ist, für die sie sich ausgibt.",
       )
     ) {
@@ -100,7 +106,8 @@ export function PersonAktionen({
       text:
         (antwort.daten.mailGesendet
           ? "Adresse geändert. Alte und neue Adresse wurden benachrichtigt."
-          : "Adresse geändert. Die Benachrichtigung konnte aber nicht zugestellt werden — siehe Verwaltung → Betrieb.") +
+          : "Adresse geändert. Die Benachrichtigung konnte aber nicht zugestellt werden — die Ursache sieht der " +
+            "Administrator im Versandprotokoll (Verwaltung → Betrieb).") +
         (antwort.daten.passwortEntfernt ? " Ein gesetztes Passwort wurde dabei entfernt." : ""),
     });
     router.refresh();
@@ -109,14 +116,28 @@ export function PersonAktionen({
   async function anmeldelinkSchicken() {
     setLaeuft("link");
     setMeldung(null);
-    const antwort = await sendeAnfrage<{ empfaenger: string }>(`/api/personen/${person.id}/anmeldelink`, {
-      methode: "POST",
-    });
+    const antwort = await sendeAnfrage<{ empfaenger: string; gesendet: boolean }>(
+      `/api/personen/${person.id}/anmeldelink`,
+      { methode: "POST" },
+    );
     setLaeuft(null);
+    if (!antwort.ok) {
+      setMeldung({ art: "fehler", text: antwort.meldung });
+      return;
+    }
+    // Der Server meldet den echten Ausgang des Versands — „verschickt" steht nur
+    // da, wenn der Mailserver die Nachricht angenommen hat.
     setMeldung(
-      antwort.ok
+      antwort.daten.gesendet
         ? { art: "ok", text: `Anmeldelink an ${antwort.daten.empfaenger} verschickt.` }
-        : { art: "fehler", text: antwort.meldung },
+        : {
+            art: "fehler",
+            // Die Betriebsansicht verlangt SYSTEM_EINSTELLUNGEN — das hat nur der
+            // Administrator, nicht wer diesen Knopf bedient.
+            text:
+              `Der Anmeldelink an ${antwort.daten.empfaenger} konnte nicht zugestellt werden — die Ursache ` +
+              "sieht der Administrator im Versandprotokoll (Verwaltung → Betrieb).",
+          },
     );
   }
 
@@ -146,7 +167,8 @@ export function PersonAktionen({
       art: "ok",
       text: antwort.daten.gesendet
         ? `Auskunft-Link an ${antwort.daten.empfaenger} verschickt. Der Link gilt 3 Tage.`
-        : "Der Auskunft-Link konnte nicht zugestellt werden — siehe Verwaltung → Betrieb.",
+        : "Der Auskunft-Link konnte nicht zugestellt werden — die Ursache sieht der Administrator im " +
+          "Versandprotokoll (Verwaltung → Betrieb).",
     });
   }
 
@@ -155,8 +177,11 @@ export function PersonAktionen({
       !confirm(
         `${person.name} wirklich unwiderruflich anonymisieren (Löschung nach Art. 17 DSGVO)?\n\n` +
           "Alle personenbezogenen Daten werden überschrieben: Name, E-Mail, Telefon, Adresse, " +
-          "Geburtsdatum, Gemeinde, IBAN und die Anmelde-Antworten. Der Zugang erlischt.\n\n" +
-          "Als Nachweis erhalten bleiben — ohne Personenbezug — das Protokoll und die Einwilligungen.\n\n" +
+          "Geburtsdatum, Gemeinde, IBAN, die Anmelde-Antworten sowie Name und Geburtsdatum auf " +
+          "ausgestellten Zeugnissen. Offene Anmeldungen werden geschlossen, Rollen entzogen, der " +
+          "Zugang erlischt.\n\n" +
+          "Als Nachweis erhalten bleiben — ohne Personenbezug — das Protokoll, die Einwilligungen und " +
+          "die Zeugnisse (Beleg-Nr. und Fächer).\n\n" +
           "Das lässt sich NICHT rückgängig machen.",
       )
     ) {
@@ -182,6 +207,22 @@ export function PersonAktionen({
   }
 
   async function rollenSpeichern() {
+    // Nichts geändert — keine Anfrage (der Knopf ist dann ohnehin gesperrt).
+    if (!rollenGeaendert) return;
+    const bezeichnung = (code: string) => alleRollen.find((r) => r.code === code)?.bezeichnung ?? code;
+    const zeilen = [
+      diff.weg.length > 0 ? `Entzogen: ${diff.weg.map(bezeichnung).join(", ")}` : null,
+      diff.hinzu.length > 0 ? `Hinzu: ${diff.hinzu.map(bezeichnung).join(", ")}` : null,
+    ].filter(Boolean);
+    const selbstWarnung =
+      istEigeneAkte && entziehtAdmin(diff)
+        ? `\n\nAchtung: Das ist dein eigenes Konto. Ohne die Rolle „${bezeichnung(ADMIN_ROLLE)}“ kommst du danach ` +
+          "nicht mehr an Konten und Rollen — zurückgeben kann sie dir nur ein anderer Administrator."
+        : istEigeneAkte
+          ? "\n\nDas ist dein eigenes Konto — die Änderung wirkt sofort."
+          : "";
+    if (!confirm(`Rollen von ${person.name} ändern?\n\n${zeilen.join("\n")}${selbstWarnung}`)) return;
+
     setLaeuft("rollen");
     setMeldung(null);
     const antwort = await sendeAnfrage<{ geaendert: boolean }>(`/api/personen/${person.id}/rollen`, {
@@ -223,7 +264,7 @@ export function PersonAktionen({
       <h2 className="text-sm font-semibold">Verwaltung dieser Person</h2>
 
       <div className="mt-3 flex flex-wrap gap-3">
-        {darfAendern && (
+        {darfAendern && !person.istAnonym && (
           <button
             type="button"
             onClick={() => {
@@ -266,7 +307,7 @@ export function PersonAktionen({
             {laeuft === "link" ? "Läuft …" : "Anmeldelink schicken"}
           </button>
         )}
-        {darfAuskunft && (
+        {darfAuskunft && !person.istAnonym && (
           <button type="button" onClick={auskunftSenden} disabled={beschaeftigt} className={`${knopf} disabled:opacity-60`}>
             {laeuft === "auskunft" ? "Läuft …" : "DSGVO-Auskunft senden"}
           </button>
@@ -287,16 +328,6 @@ export function PersonAktionen({
             {modus === "rollen" ? "Abbrechen" : "Rollen verwalten"}
           </button>
         )}
-        {darfAnonymisieren && !person.istAnonym && (
-          <button
-            type="button"
-            onClick={anonymisieren}
-            disabled={beschaeftigt}
-            className="min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
-          >
-            {laeuft === "anonym" ? "Läuft …" : "Anonymisieren (Art. 17 DSGVO)"}
-          </button>
-        )}
       </div>
 
       {person.istTerminal && darfAendern && (
@@ -310,7 +341,7 @@ export function PersonAktionen({
         </p>
       )}
 
-      {modus === "email" && (
+      {modus === "email" && !person.istAnonym && (
         <div id={`adresse-${person.id}`} className="mt-4 rounded-lg border border-border bg-muted p-4">
           <label htmlFor={`email-${person.id}`} className="mb-1.5 block text-sm font-medium">
             Neue Anmeldeadresse
@@ -372,8 +403,8 @@ export function PersonAktionen({
             ))}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            E-Mail-Adresse und Bankverbindung laufen über eigene Wege; Geburtsdatum, Gemeinde und Status
-            ändert die Schulleitung an anderer Stelle.
+            E-Mail-Adresse und Bankverbindung laufen über eigene Wege. Geburtsdatum, Gemeinde, Teilnahmeform und
+            Status ändert die Schulleitung im Abschnitt „Ausbildungsdaten &amp; Status“ dieser Akte.
           </p>
           <button
             type="button"
@@ -414,23 +445,33 @@ export function PersonAktionen({
         </div>
       )}
 
-      {darfAuskunft && (
+      {darfAuskunft && !person.istAnonym && (
         <p className="mt-3 text-xs text-muted-foreground">
           Die DSGVO-Auskunft schickt der Person einen persönlichen Link, über den sie ihre gespeicherten Daten
           nach Art. 15 DSGVO als PDF abrufen kann.
         </p>
       )}
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-3 break-words rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"
-          }`}
-        >
-          {meldung.text}
-        </p>
+      {/* Unumkehrbar — deshalb abgesetzt von den Alltagsaktionen oben, nicht in derselben Knopfreihe. */}
+      {darfAnonymisieren && !person.istAnonym && (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="text-sm font-medium">Löschung nach Art. 17 DSGVO</h3>
+          <p id={`anonym-hinweis-${person.id}`} className="mt-1 text-xs text-muted-foreground">
+            Überschreibt alle personenbezogenen Daten dieser Person. Das lässt sich nicht rückgängig machen.
+          </p>
+          <button
+            type="button"
+            onClick={anonymisieren}
+            disabled={beschaeftigt}
+            aria-describedby={`anonym-hinweis-${person.id}`}
+            className="mt-3 min-h-11 rounded-lg border border-credo-rot/40 px-4 py-2 text-sm font-medium text-credo-rot hover:bg-credo-rot/5 disabled:opacity-60"
+          >
+            {laeuft === "anonym" ? "Läuft …" : "Anonymisieren (Art. 17 DSGVO)"}
+          </button>
+        </div>
       )}
+
+      <MeldungsBox meldung={meldung} className="mt-3 break-words" />
     </div>
   );
 }

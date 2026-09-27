@@ -20,26 +20,20 @@
  *     Tag gegen Tag, nie Zeitpunkt gegen Mitternacht.
  */
 
+import { ABMELDEGRUND, KURSRASTER, TAG_MS } from "@/lib/constants";
+import { alsTagesdatum } from "@/lib/datum";
+
 export type Pruefmeldung = { feld?: string; meldung: string };
 
 /** Höchstlänge eines Semesters. Ein Tippfehler im Jahr fällt damit sofort auf. */
 const MAX_DAUER_TAGE = 366 * 2;
-const TAG_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Wandelt „JJJJ-MM-TT" in einen Kalendertag um (UTC-Mitternacht) oder liefert
- * null. Die Gegenprobe über `toISOString()` ist nötig, weil JavaScript den
- * 31.02. stillschweigend zum 03.03. macht — dieselbe Prüfung steht aus
- * demselben Grund in `formular.ts`.
+ * „JJJJ-MM-TT" → Kalendertag (UTC-Mitternacht) oder null. Liegt in datum.ts
+ * (auch das Anmeldeformular nutzt sie); hier weitergereicht, damit bestehende
+ * Importe aus `@/lib/semester` gültig bleiben.
  */
-export function alsTagesdatum(text: unknown): Date | null {
-  if (typeof text !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(text.trim())) return null;
-  const sauber = text.trim();
-  const datum = new Date(`${sauber}T00:00:00.000Z`);
-  if (Number.isNaN(datum.getTime())) return null;
-  if (datum.toISOString().slice(0, 10) !== sauber) return null;
-  return datum;
-}
+export { alsTagesdatum };
 
 /** Kalendertag als „JJJJ-MM-TT" — für Formularfelder vom Typ `date`. */
 export function alsTagText(datum: Date | null | undefined): string {
@@ -62,7 +56,19 @@ export type SemesterEingabe = {
   ende: string;
   anmeldungVon?: string | null;
   anmeldungBis?: string | null;
+  /** Verortung im Kursraster: 1-3. Fehlt der Schlüssel (undefined), bleibt ein
+   * gespeicherter Wert beim Ändern unberührt; null leert ihn. */
+  lehrjahr?: number | null;
+  /** 1 = Herbst, 2 = Frühling. Gleiche Regel wie `lehrjahr`. */
+  halbjahr?: number | null;
 };
+
+/** Das dreijährige Kursraster: Lehrjahr 1-3, je zwei Halbjahre (constants.ts). */
+const LEHRJAHR_MAX = KURSRASTER.LEHRJAHRE;
+const HALBJAHR_MAX = KURSRASTER.HALBJAHRE;
+
+/** Meldung, wenn beim Ändern ein anderes Kürzel ankommt — siehe `pruefeKuerzelUnveraendert`. */
+export const KUERZEL_FEST = "Das Kürzel lässt sich nach dem Anlegen nicht mehr ändern.";
 
 /**
  * Prüft die Eingabe des Semesterformulars. Liefert eine leere Liste, wenn alles
@@ -118,7 +124,40 @@ export function pruefeSemester(eingabe: SemesterEingabe): Pruefmeldung[] {
     meldungen.push({ feld: "anmeldungBis", meldung: "Der Anmeldeschluss darf nicht nach dem Semesterende liegen." });
   }
 
+  // Die Verortung im Kursraster ist freiwillig (Sondersemester) — aber wenn,
+  // dann vollständig: An (lehrjahr, halbjahr) hängen die Fächer des Semesters
+  // und die Sperre des Abschluss-Sammellaufs, und ein halber Wert wäre an
+  // beiden Stellen lautlos wirkungslos.
+  const lehrjahr = eingabe.lehrjahr ?? null;
+  const halbjahr = eingabe.halbjahr ?? null;
+  if (lehrjahr !== null && !(Number.isInteger(lehrjahr) && lehrjahr >= 1 && lehrjahr <= LEHRJAHR_MAX)) {
+    meldungen.push({ feld: "lehrjahr", meldung: "Das Lehrjahr ist 1, 2 oder 3." });
+  }
+  if (halbjahr !== null && !(Number.isInteger(halbjahr) && halbjahr >= 1 && halbjahr <= HALBJAHR_MAX)) {
+    meldungen.push({ feld: "halbjahr", meldung: "Das Halbjahr ist 1 (Herbst) oder 2 (Frühling)." });
+  }
+  if ((lehrjahr === null) !== (halbjahr === null)) {
+    meldungen.push({
+      feld: lehrjahr === null ? "lehrjahr" : "halbjahr",
+      meldung: "Lehrjahr und Halbjahr bitte beide angeben oder beide leer lassen.",
+    });
+  }
+
   return meldungen;
+}
+
+/**
+ * Das Kürzel ist nach dem Anlegen fest. Es steht in jedem Audit-Eintrag rund um
+ * das Semester (Anlage, Export, Überleitung, Erinnerungen), als Blattname in der
+ * Excel-Datei und in deren Dateiname — ein umbenanntes Kürzel machte diese
+ * Spuren mehrdeutig, sobald ein anderes Semester das alte Kürzel bekommt.
+ * Verglichen wird wie beim Speichern: ohne Randleerzeichen, in Großbuchstaben.
+ * Null = unverändert.
+ */
+export function pruefeKuerzelUnveraendert(bisher: string, eingabe: string): Pruefmeldung | null {
+  return eingabe.trim().toUpperCase() === bisher.trim().toUpperCase()
+    ? null
+    : { feld: "code", meldung: KUERZEL_FEST };
 }
 
 /** Die geprüften Werte, wie sie in der Datenbank stehen. */
@@ -129,6 +168,11 @@ export type SemesterDaten = {
   ende: Date;
   anmeldungVon: Date | null;
   anmeldungBis: Date | null;
+  /** Nur vorhanden, wenn die Eingabe den Schlüssel trug — sonst bleibt der
+   * gespeicherte Wert beim Ändern stehen (ein älterer Aufrufer ohne diese
+   * Felder löscht die Rasterverortung nicht). */
+  lehrjahr?: number | null;
+  halbjahr?: number | null;
 };
 
 /**
@@ -150,6 +194,8 @@ export function semesterDaten(eingabe: SemesterEingabe): SemesterDaten {
     ende: alsTagesdatum(eingabe.ende)!,
     anmeldungVon: eingabe.anmeldungVon ? alsTagesdatum(eingabe.anmeldungVon) : null,
     anmeldungBis: eingabe.anmeldungBis ? alsTagesdatum(eingabe.anmeldungBis) : null,
+    ...(eingabe.lehrjahr !== undefined ? { lehrjahr: eingabe.lehrjahr } : {}),
+    ...(eingabe.halbjahr !== undefined ? { halbjahr: eingabe.halbjahr } : {}),
   };
 }
 
@@ -325,4 +371,123 @@ export function waehleUeberzuleitende(
 /** Feldname der Erinnerungs-Zeitspalte auf `Teilnahme` zu einer Stufe. */
 export function erinnerungsFeld(stufe: Erinnerungsstufe): "erinnertStufe1Am" | "erinnertStufe2Am" | "erinnertStufe3Am" {
   return (["erinnertStufe1Am", "erinnertStufe2Am", "erinnertStufe3Am"] as const)[stufe - 1];
+}
+
+// -----------------------------------------------------------------------------
+// Semesterüberleitung — „bin dabei" / „bin raus" und Herausfallen (M10)
+// -----------------------------------------------------------------------------
+
+/** Kalendertag eines @db.Date-Werts als UTC-Mitternacht in Millisekunden. */
+function tagMs(datum: Date): number {
+  return Date.UTC(datum.getUTCFullYear(), datum.getUTCMonth(), datum.getUTCDate());
+}
+
+/**
+ * Hat das Semester begonnen? Tag gegen Tag wie überall in dieser Datei: `heute`
+ * aus der örtlichen Wanduhr (Container auf Europe/Berlin), `start` als
+ * Kalendertag. Am Starttag selbst gilt es als begonnen.
+ *
+ * An dieser EINEN Grenze hängen drei Regeln der Überleitung, damit sie nie
+ * auseinanderlaufen: Bis zum Vortag lässt sich über den Link antworten und die
+ * Antwort ändern; ab dem Starttag setzt der Worker Eingeladene ohne Antwort auf
+ * „keine Rückmeldung"; und in ein begonnenes Semester lädt keine Überleitung
+ * mehr ein (dessen Links wären sofort abgelaufen).
+ */
+export function semesterHatBegonnen(start: Date, jetzt: Date): boolean {
+  return alsHeutigerTag(jetzt).getTime() >= tagMs(start);
+}
+
+/**
+ * Welche Erinnerungsstufen erledigt die Einladung gleich mit? Jede, deren
+ * Stichtag (T-14/-7/-3, Offsets aus den Einstellungen) heute oder früher liegt.
+ * Sonst schickte der stündliche Lauf am selben Tag eine Erinnerung hinterher —
+ * und weil jede zugestellte Erinnerung einen frischen Link trägt, wäre der Link
+ * der gerade verschickten Einladung binnen einer Stunde ungültig. Das gilt für
+ * jeden Stichtag, nicht nur für T-14: Wer genau an T-7 einlädt, erledigt Stufe 1
+ * und 2, wer an T-3 einlädt, alle drei.
+ *
+ * Wer früher einlädt, bekommt die Erinnerungen weiterhin; die Regler
+ * SEMESTER_ERINNERUNG_*_TAGE behalten damit ihre Bedeutung. Tag gegen Tag wie
+ * `faelligeErinnerungsstufe`.
+ */
+export function erledigteStufenBeiEinladung(
+  start: Date,
+  jetzt: Date,
+  offsetsTage: [number, number, number],
+): Erinnerungsstufe[] {
+  const heute = alsHeutigerTag(jetzt).getTime();
+  const stufen: Erinnerungsstufe[] = [];
+  offsetsTage.forEach((offset, i) => {
+    if (heute >= tagMs(start) - offset * TAG_MS) stufen.push((i + 1) as Erinnerungsstufe);
+  });
+  return stufen;
+}
+
+/**
+ * Der letzte Tag, an dem sich über den Link antworten lässt: der Vortag des
+ * Semesterstarts (Kalendertag, UTC-Mitternacht). Ab dem Starttag ist die
+ * Rückmeldung geschlossen (`semesterHatBegonnen`). Mail und Seite nennen deshalb
+ * dieses Datum („bis einschließlich …") statt „bis zum Semesterstart" — wer am
+ * ersten Abend noch zusagen wollte, stand sonst vor einer geschlossenen Tür.
+ */
+export function rueckmeldeFrist(start: Date): Date {
+  return new Date(tagMs(start) - TAG_MS);
+}
+
+export type RueckmeldeAntwort = "dabei" | "raus";
+
+export type RueckmeldeZustand = {
+  bestaetigtAm: Date | null;
+  abgemeldetAm: Date | null;
+  abmeldeGrund: string | null;
+};
+
+/**
+ * Was bewirkt eine Antwort über den Link? `setzen` = die Antwort ändert den
+ * Zustand, `schon` = sie steht bereits so (idempotent, kein zweiter
+ * Audit-Eintrag), `gesperrt` = die Antwort ist nicht mehr zulässig.
+ *
+ * Eine spätere Antwort darf die frühere ändern — „raus" nach „dabei" und
+ * umgekehrt —, solange das Semester nicht begonnen hat (das prüft der Aufrufer
+ * mit `semesterHatBegonnen`). Vor dem Start hängt an der Antwort noch nichts
+ * (keine Anwesenheit, keine Noten), und wer es sich anders überlegt, soll dafür
+ * nicht bei der Verwaltung anrufen müssen. Eine vom Worker gesetzte „keine
+ * Rückmeldung" hebt dagegen nur die Schulleitung auf („Wieder aufnehmen"):
+ * Dann läuft das Semester schon, und ein stilles Wiederauftauchen in den Listen
+ * der Dozenten wäre eine Überraschung.
+ */
+export function rueckmeldungsWirkung(
+  zustand: RueckmeldeZustand,
+  antwort: RueckmeldeAntwort,
+): "setzen" | "schon" | "gesperrt" {
+  if (antwort === "raus") return zustand.abgemeldetAm ? "schon" : "setzen";
+  if (zustand.abmeldeGrund === ABMELDEGRUND.KEINE_RUECKMELDUNG) return "gesperrt";
+  if (zustand.bestaetigtAm && !zustand.abgemeldetAm) return "schon";
+  return "setzen";
+}
+
+export type RueckmeldeStand = "bestaetigt" | "offen" | "abgemeldet" | "ohne_einladung";
+
+/**
+ * Stand einer Teilnahme für die Übersicht der Überleitung — gebildet aus den
+ * Zeitstempeln, NICHT aus dem Token (den der Aufräumlauf nach Semesterstart
+ * löscht). Die drei Zustände schließen sich aus: Abgemeldet schlägt alles,
+ * danach bestätigt, danach offen (eingeladen, keine Antwort).
+ */
+export function rueckmeldeStand(t: {
+  eingeladenAm: Date | null;
+  bestaetigtAm: Date | null;
+  abgemeldetAm: Date | null;
+}): RueckmeldeStand {
+  if (t.abgemeldetAm) return "abgemeldet";
+  if (t.bestaetigtAm) return "bestaetigt";
+  if (t.eingeladenAm) return "offen";
+  return "ohne_einladung";
+}
+
+/** Klartext zum Abmeldegrund für die Übersicht der Schulleitung. */
+export function abmeldegrundText(grund: string | null | undefined): string {
+  if (grund === ABMELDEGRUND.BIN_RAUS) return "hat abgesagt („Ich bin raus“)";
+  if (grund === ABMELDEGRUND.KEINE_RUECKMELDUNG) return "keine Rückmeldung bis Semesterstart";
+  return "abgemeldet";
 }

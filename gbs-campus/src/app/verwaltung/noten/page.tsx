@@ -1,12 +1,13 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { ladeNotenUebersicht } from "@/lib/leistung-io";
-import { NotenMatrix } from "./noten-matrix";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { NotenMatrix } from "@/components/noten/noten-matrix";
 import { SemesterWahl } from "./semesterwahl";
 
+export const metadata = { title: "Noten" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -28,9 +29,7 @@ export default async function NotenSeite({
   if (semesters.length === 0) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-12">
-        <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-          ← Verwaltung
-        </Link>
+        <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Noten" />
         <h1 className="mt-6 text-2xl font-bold tracking-tight">Noten</h1>
         <p className="mt-4 rounded-lg border border-border bg-muted px-4 py-8 text-center text-sm text-muted-foreground">
           Noch ist kein Semester angelegt.
@@ -47,14 +46,13 @@ export default async function NotenSeite({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Noten" />
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Noten</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Bewertung je Fach eines Semesters. Pflicht ist nur das Ergebnis (teilgenommen, erfolgreich
         teilgenommen, bestanden, nicht bestanden); Punkte und Note sind optional — real wird nur die
-        Bibelkunde benotet, der Rest verbal.
+        Bibelkunde benotet, der Rest verbal. Hörer stehen hier nicht: Sie werden nicht benotet und bekommen
+        eine Teilnahmebescheinigung. Für das Semester Abgemeldete fehlen ebenfalls.
       </p>
 
       <div className="mt-6">

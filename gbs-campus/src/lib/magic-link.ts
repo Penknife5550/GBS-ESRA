@@ -21,6 +21,8 @@ import { prisma } from "@/lib/db";
 import { fuelleVorlage, sendeMail } from "@/lib/mailer";
 import { zahl } from "@/lib/einstellungen";
 import { raeumeGelegentlichAuf } from "@/lib/aufraeumen";
+import { MAIL_VORLAGE, MINUTE_MS } from "@/lib/constants";
+import { drosselSchluesselFuerIp } from "@/lib/request-kontext";
 
 export function hashToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
@@ -32,17 +34,47 @@ export function hashToken(token: string): string {
  *
  * Exportiert, weil die E-Mail-Änderung dieselbe Drossel braucht: Auch dort
  * verschickt das System auf Zuruf eine Mail an eine frei gewählte Adresse.
+ * Alle Drosseln des Systems laufen hierüber (auch die des Anmeldeformulars).
+ *
+ * Zählen und Schreiben stehen in EINER Transaktion unter einer Sperre je
+ * Schlüssel (`pg_advisory_xact_lock`, Muster wie `mitDmsSperre` in
+ * dms.ts, hier aber wartend). Vorher lasen gleichzeitige Anfragen alle
+ * denselben Stand „noch unter der Grenze" und kamen alle durch — mit parallelen
+ * Anfragen ließ sich jede Drossel um ein Vielfaches überschreiten. Die Sperre
+ * gilt nur für diesen einen Schlüssel und endet mit der Transaktion; sie wird
+ * per `$executeRaw` genommen, weil `$queryRaw` den Rückgabetyp void nicht lesen
+ * kann.
+ *
+ * Für Schlüssel je Anschluss die Adresse über `drosselSchluesselFuerIp`
+ * kürzen (IPv6 → /64), sonst bekommt jedes Gerät mit IPv6 beliebig viele
+ * Kontingente.
  */
 export async function drosselUeberschritten(schluessel: string, hoechstzahl: number, fensterMinuten: number): Promise<boolean> {
-  const seit = new Date(Date.now() - fensterMinuten * 60 * 1000);
-  const bisher = await prisma.rateLimit.count({ where: { schluessel, zeitpunkt: { gte: seit } } });
-  if (bisher >= hoechstzahl) return true;
+  const seit = new Date(Date.now() - fensterMinuten * MINUTE_MS);
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${schluessel}, 0))`;
+    const bisher = await tx.rateLimit.count({ where: { schluessel, zeitpunkt: { gte: seit } } });
+    if (bisher >= hoechstzahl) return true;
 
-  await prisma.rateLimit.create({ data: { schluessel } });
-  return false;
+    await tx.rateLimit.create({ data: { schluessel } });
+    return false;
+  });
 }
 
-export type LinkErgebnis = { gedrosselt: boolean };
+/**
+ * `gedrosselt` ist alles, was die öffentliche Route `/api/auth/anmelden`
+ * auswertet — sie darf nichts darüber sagen, ob es die Adresse gibt.
+ * `drossel` und `gesendet` sind für den Weg der Verwaltung
+ * (`/api/personen/[id]/anmeldelink`): Die Person ist dort bekannt, und wer am
+ * Telefon „ist unterwegs" sagt, muss wissen, ob das stimmt (Code-Review 4).
+ */
+export type LinkErgebnis = {
+  gedrosselt: boolean;
+  /** Welche Drossel gegriffen hat: je Adresse oder je Anschluss (IP); sonst null. */
+  drossel: "ADRESSE" | "IP" | null;
+  /** Ob die Mail den Mailserver erreicht hat. false auch bei unbekannter Adresse oder Endzustand. */
+  gesendet: boolean;
+};
 
 /**
  * „30 Minuten" statt „90 Minuten", wenn der Wert glatt in Stunden aufgeht.
@@ -125,10 +157,13 @@ export async function fordereMagicLinkAn(
   // Antwort (429), und eine langsame Drossel hält niemanden auf, der sowieso
   // abgewiesen wird.
   if (await drosselUeberschritten(`MAGIC_LINK:${adresse}`, maxProAdresse, fensterMinuten)) {
-    return { gedrosselt: true };
+    return { gedrosselt: true, drossel: "ADRESSE", gesendet: false };
   }
-  if (ipAdresse && (await drosselUeberschritten(`MAGIC_LINK_IP:${ipAdresse}`, maxProIp, fensterMinuten))) {
-    return { gedrosselt: true };
+  if (
+    ipAdresse &&
+    (await drosselUeberschritten(`MAGIC_LINK_IP:${drosselSchluesselFuerIp(ipAdresse)}`, maxProIp, fensterMinuten))
+  ) {
+    return { gedrosselt: true, drossel: "IP", gesendet: false };
   }
 
   const person = await prisma.person.findUnique({ where: { email: adresse }, include: { status: true } });
@@ -138,7 +173,7 @@ export async function fordereMagicLinkAn(
   // steht vor jedem weiteren `return` die Mindestlaufzeit.
   if (!person || person.status.istTerminal) {
     await warteAufMindestlaufzeit(begonnen);
-    return { gedrosselt: false };
+    return { gedrosselt: false, drossel: null, gesendet: false };
   }
 
   const token = randomUUID();
@@ -146,7 +181,7 @@ export async function fordereMagicLinkAn(
     data: {
       personId: person.id,
       tokenHash: hashToken(token),
-      laeuftAb: new Date(Date.now() + gueltigMinuten * 60 * 1000),
+      laeuftAb: new Date(Date.now() + gueltigMinuten * MINUTE_MS),
       angefordertVonIp: ipAdresse,
       userAgent,
     },
@@ -160,17 +195,17 @@ export async function fordereMagicLinkAn(
   // der die URL vorab abruft, bekommt den Token damit gar nicht erst zu sehen.
   const link = `${basis}/anmelden/token#token=${token}`;
 
-  const vorlage = await prisma.emailVorlage.findUnique({ where: { code: "MAGIC_LINK" } });
+  const vorlage = await prisma.emailVorlage.findUnique({ where: { code: MAIL_VORLAGE.MAGIC_LINK } });
   const werte = {
     vorname: person.vorname,
     link,
     gueltigkeit: gueltigkeitAlsText(gueltigMinuten),
   };
 
-  await sendeMail({
+  const { gesendet } = await sendeMail({
     an: person.email,
     personId: person.id,
-    vorlageCode: "MAGIC_LINK",
+    vorlageCode: MAIL_VORLAGE.MAGIC_LINK,
     betreff: fuelleVorlage(vorlage?.betreff ?? "Dein Zugang zu GBS Campus", werte),
     text: fuelleVorlage(vorlage?.textMd ?? `Hallo {{vorname}},\n\n{{link}}`, werte),
   });
@@ -179,13 +214,16 @@ export async function fordereMagicLinkAn(
   // gewartet. Der Aufruf steht trotzdem da: Antwortet der Mailserver einmal
   // ungewöhnlich schnell, wäre der bekannte Fall sonst der kürzere.
   await warteAufMindestlaufzeit(begonnen);
-  return { gedrosselt: false };
+  return { gedrosselt: false, drossel: null, gesendet };
 }
 
 /**
  * Löst einen Token ein. Liefert die Personen-ID oder null.
  * Das Entwerten läuft als bedingtes Update: Zwei gleichzeitige Aufrufe mit
  * demselben Token können nicht beide gewinnen.
+ *
+ * Entwertet wird hier, also VOR dem Anlegen der Sitzung in
+ * api/auth/token — Begründung dort.
  */
 export async function loeseMagicLinkEin(token: string): Promise<string | null> {
   const eintrag = await prisma.magicLink.findUnique({ where: { tokenHash: hashToken(token) } });

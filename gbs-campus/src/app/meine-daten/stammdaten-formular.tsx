@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type StammdatenFelder = {
   telefon: string;
@@ -12,7 +13,13 @@ export type StammdatenFelder = {
   kontoinhaber: string;
 };
 
-type Antwort = { gespeichert: boolean; geaendert: string[]; mailGesendet: boolean | null };
+type Antwort = {
+  gespeichert: boolean;
+  geaendert: string[];
+  mailGesendet: boolean | null;
+  /** Hinweis an die eigene Adresse bei geänderter Bankverbindung; null = nichts zu melden. */
+  hinweisGesendet: boolean | null;
+};
 
 /**
  * Selbstpflege der eigenen Stammdaten.
@@ -24,15 +31,18 @@ type Antwort = { gespeichert: boolean; geaendert: string[]; mailGesendet: boolea
 export function StammdatenFormular({
   vorbelegung,
   hatBankverbindung,
+  istDozent = false,
 }: {
   vorbelegung: StammdatenFelder;
   hatBankverbindung: boolean;
+  /** Dozenten brauchen die IBAN für die Überweisung des Honorars, nicht für einen Lastschrifteinzug. */
+  istDozent?: boolean;
 }) {
   const router = useRouter();
   const [felder, setFelder] = useState<StammdatenFelder>(vorbelegung);
   const [iban, setIban] = useState("");
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "warnung" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
 
   function aendere(feld: keyof StammdatenFelder, wert: string) {
@@ -72,7 +82,15 @@ export function StammdatenFormular({
     }
 
     setIban("");
-    const { geaendert, mailGesendet } = antwort.daten;
+    const { geaendert, mailGesendet, hinweisGesendet } = antwort.daten;
+    // Bei geänderter Bankverbindung geht zusätzlich ein Sicherheitshinweis an
+    // die eigene Adresse — ob er zugestellt wurde, steht dabei.
+    const hinweis =
+      hinweisGesendet === true
+        ? " Zur Sicherheit haben wir dir einen Hinweis auf die geänderte Bankverbindung geschickt."
+        : hinweisGesendet === false
+          ? " Der Sicherheitshinweis an deine E-Mail-Adresse konnte aber nicht zugestellt werden — die Änderung gilt trotzdem."
+          : "";
     // Die Seite verspricht „Die Verwaltung wird über jede Änderung informiert".
     // Wenn die Mail nicht rausging, darf hier nicht dasselbe stehen.
     setMeldung(
@@ -83,9 +101,13 @@ export function StammdatenFormular({
               art: "warnung",
               text:
                 `Gespeichert: ${geaendert.join(", ")}. Die Verwaltung konnte aber nicht benachrichtigt ` +
-                "werden — bitte gib der Schulleitung selbst Bescheid.",
+                "werden — bitte gib der Schulleitung selbst Bescheid." +
+                hinweis,
             }
-          : { art: "ok", text: `Gespeichert: ${geaendert.join(", ")}. Die Verwaltung ist informiert.` },
+          : {
+              art: hinweisGesendet === false ? "warnung" : "ok",
+              text: `Gespeichert: ${geaendert.join(", ")}. Die Verwaltung ist informiert.${hinweis}`,
+            },
     );
     router.refresh();
   }
@@ -132,7 +154,9 @@ export function StammdatenFormular({
       <p className="mt-1 max-w-prose text-sm text-muted-foreground">
         {hatBankverbindung
           ? "Es ist eine Bankverbindung hinterlegt. Sie wird aus Sicherheitsgründen nicht angezeigt. Das Feld nur ausfüllen, wenn sich die IBAN geändert hat — leer lassen ändert nichts."
-          : "Es ist noch keine Bankverbindung hinterlegt. Der Semesterbeitrag wird per Lastschrift eingezogen."}
+          : istDozent
+            ? "Es ist noch keine Bankverbindung hinterlegt. Sie wird für die Überweisung des Dozentenhonorars benötigt."
+            : "Es ist noch keine Bankverbindung hinterlegt. Der Semesterbeitrag wird per Lastschrift eingezogen."}
       </p>
 
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -166,20 +190,7 @@ export function StammdatenFormular({
         </button>
       </div>
 
-      {meldung && (
-        <p
-          role={meldung.art === "fehler" ? "alert" : "status"}
-          className={`mt-4 max-w-prose rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok"
-              ? "bg-credo-gruen/10"
-              : meldung.art === "warnung"
-                ? "bg-credo-gelb/15"
-                : "bg-credo-rot/10"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4 max-w-prose" />
     </form>
   );
 }

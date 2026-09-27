@@ -6,15 +6,17 @@
  * (Datum, Fach, Betrag) und die Gesamtsumme —, damit die Finanzbuchhaltung ohne
  * Rueckfrage ueberweisen und ein Dritter alles nachvollziehen kann.
  *
- * DB-frei: baut nur die PDF-Bloecke aus uebergebenen Daten. Die IBAN wird vom
- * IO-Teil (`honorar-abrechnung-io.ts`) aus der Person entschluesselt und hier
- * als Klartext hereingereicht. Kein QR (abhaengigkeitsfreier PDF-Erzeuger) —
- * die DMS-Referenz ist die Beleg-Nummer.
+ * DB-frei: baut nur die PDF-Bloecke und die Begleitmail ans DMS aus uebergebenen
+ * Daten. Die IBAN wird vom IO-Teil (`honorar-abrechnung-io.ts`) aus der Person
+ * entschluesselt und hier als Klartext hereingereicht. Kein QR
+ * (abhaengigkeitsfreier PDF-Erzeuger) — die DMS-Referenz ist die Beleg-Nummer.
  */
 
 import type { PdfBlock } from "@/lib/pdf";
+import type { DmsMail } from "@/lib/honorar-korrektur";
 import { euro } from "@/lib/honorar";
 import { datum, datumZeit } from "@/lib/datum";
+import { EINRICHTUNG } from "@/lib/constants";
 
 export type AbrechnungPosten = { datum: Date; fach: string | null; betrag: number };
 
@@ -33,6 +35,13 @@ export type AbrechnungBelegDaten = {
   posten: AbrechnungPosten[];
   summe: number;
   notiz: string | null;
+  /**
+   * Nachversand eines nicht angekommenen Belegs (M12): Das PDF traegt dann einen
+   * sichtbaren Kopie-Vermerk. Uebernimmt der DMS-Eingang nur den Anhang, stuende
+   * die Warnung aus der Mail sonst nirgends — und ging der erste Versand doch
+   * durch, laegen zwei gleich aussehende Zahlungsbelege im DMS.
+   */
+  nachversand?: boolean;
 };
 
 /** IBAN in Vierergruppen fuer die Lesbarkeit: „DE12 3456 7890 …". */
@@ -47,8 +56,18 @@ export function baueAbrechnungBelegBloecke(daten: AbrechnungBelegDaten): PdfBloc
   b.push({ art: "titel", text: "Honorar-Abrechnung — Zahlungsbeleg" });
   b.push({
     art: "klein",
-    text: `Beleg-Nr. ${daten.belegNr} · erzeugt am ${datumZeit(daten.erzeugtAm)} · Gemeindebibelschule Minden · Christliches Werk Esra e.V.`,
+    text: `Beleg-Nr. ${daten.belegNr} · erzeugt am ${datumZeit(daten.erzeugtAm)} · ${EINRICHTUNG.name} · ${EINRICHTUNG.traeger}`,
   });
+  if (daten.nachversand) {
+    b.push({ art: "h2", text: `NACHVERSAND – Kopie des Belegs ${daten.belegNr}, nicht erneut anweisen` });
+    b.push({
+      art: "absatz",
+      text:
+        "Dieser Zahlungsbeleg ist bei der Freigabe nicht im DMS angekommen und wird mit unveränderter Beleg-Nr. " +
+        "nachgereicht. Liegt der Beleg dort bereits vor, ist dies eine Kopie — die Auszahlung bitte nicht ein zweites " +
+        "Mal anweisen. Die Bankverbindung ist der beim Nachversand hinterlegte Stand.",
+    });
+  }
   b.push({
     art: "absatz",
     text:
@@ -96,4 +115,34 @@ export function baueAbrechnungBelegBloecke(daten: AbrechnungBelegDaten): PdfBloc
   });
 
   return b;
+}
+
+/**
+ * Betreff, Text und Anhangname der DMS-Mail zum Zahlungsbeleg — gemeinsam fuer
+ * die Freigabe und den Nachversand (M12), damit beide Wege dieselbe Regel tragen.
+ *
+ * Kein Dozentenname im Betreff: `email_versand.betreff` bleibt in unserer
+ * Datenbank stehen und wuerde von der Anonymisierung (Art. 17) nicht erfasst.
+ * Der Name steht im PDF und im Text; Beleg-Nr + Semester genuegen zur Zuordnung.
+ *
+ * Beim Nachversand traegt der Betreff den Vermerk „Nachversand“ und der Text den
+ * Hinweis, dass es dieselbe Beleg-Nr ist: Ging der erste Versand doch durch und
+ * nur das Festhalten scheiterte, darf die Finanzbuchhaltung nicht doppelt anweisen.
+ */
+export function baueAbrechnungDmsMail(daten: AbrechnungBelegDaten, nachversand: boolean): DmsMail {
+  const vermerk = nachversand
+    ? `NACHVERSAND mit unveränderter Beleg-Nr.: Dieser Zahlungsbeleg ist bei der Freigabe nicht im DMS angekommen ` +
+      `und wird hiermit nachgereicht. Liegt der Beleg ${daten.belegNr} dort bereits vor, ist dies eine Kopie — ` +
+      `bitte nicht erneut anweisen. Die Positionen sind die bei der Abrechnung festgeschriebenen; die Bankverbindung ` +
+      `ist der beim Nachversand hinterlegte Stand.\n\n`
+    : "";
+  return {
+    betreff: `Honorar-Abrechnung ${daten.belegNr} — ${daten.semester}${nachversand ? " (Nachversand)" : ""}`,
+    text:
+      vermerk +
+      `Zahlungsbeleg der ${EINRICHTUNG.name} zur Freigabe der Dozentenhonorar-Auszahlung.\n\n` +
+      `Dozent: ${daten.dozent}\nSemester: ${daten.semester}\nSumme: ${daten.summe} EUR\nBeleg-Nr.: ${daten.belegNr}\n\n` +
+      `Der vollständige Beleg mit Zahlungsempfänger (inkl. IBAN) und allen Positionen liegt im angehängten PDF.`,
+    dateiname: `${daten.belegNr}.pdf`,
+  };
 }

@@ -6,7 +6,7 @@ import { protokolliere } from "@/lib/audit";
 import { sitzungAnlegen } from "@/lib/session";
 import { zahl } from "@/lib/einstellungen";
 import { drosselUeberschritten } from "@/lib/magic-link";
-import { ermittleRequestKontext } from "@/lib/request-kontext";
+import { drosselSchluesselFuerIp, ermittleRequestKontext } from "@/lib/request-kontext";
 import { PASSWORT_MAX_LAENGE, passwortStimmt, verbrenneZeitWieEinePruefung } from "@/lib/passwort";
 import { raeumeGelegentlichAuf } from "@/lib/aufraeumen";
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   // nicht noch das Kontingent fremder Adressen aufbraucht.
   const zuOft =
     !ipAdresse ||
-    (await drosselUeberschritten(`PASSWORT_IP:${ipAdresse}`, maxProIp, fensterMinuten)) ||
+    (await drosselUeberschritten(`PASSWORT_IP:${drosselSchluesselFuerIp(ipAdresse)}`, maxProIp, fensterMinuten)) ||
     (await drosselUeberschritten(`PASSWORT:${email}`, maxVersuche, fensterMinuten));
 
   if (zuOft) {
@@ -101,12 +101,16 @@ export async function POST(request: NextRequest) {
   // und alles nach derselben Rechenzeit.
   if (!person || !person.passwortHash || person.status.istTerminal) {
     await verbrenneZeitWieEinePruefung();
+    // Ohne die eingegebene Adresse (Code-Review 4, M6c): Das Audit-Log ist
+    // unlöschbar — Person-Id plus Klaradresse aus jedem vertippten Versuch
+    // erreichte keine Anonymisierung mehr, und bei unbekannter Adresse könnte
+    // jeder beliebigen Text hineinschreiben. Bei einem vorhandenen Konto genügt
+    // die objektId als Spur.
     await protokolliere({
       aktion: "PASSWORT_ANMELDUNG_FEHLGESCHLAGEN",
       objektTyp: "Person",
       objektId: person?.id ?? null,
       quelle: "SYSTEM",
-      nachher: { email },
       ipAdresse,
       userAgent,
     });
@@ -119,7 +123,6 @@ export async function POST(request: NextRequest) {
       objektTyp: "Person",
       objektId: person.id,
       quelle: "SYSTEM",
-      nachher: { email },
       ipAdresse,
       userAgent,
     });

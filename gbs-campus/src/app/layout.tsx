@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import { EINRICHTUNG } from "@/lib/constants";
 import "./globals.css";
 
 /**
@@ -18,9 +19,16 @@ const montserrat = Montserrat({
   variable: "--font-montserrat",
 });
 
+/**
+ * Jede Seite setzt ihren eigenen Titel (`export const metadata = { title }`),
+ * die Vorlage hängt „· GBS Campus" an — so unterscheiden sich Tabs, Verlauf und
+ * die Ansage des Screenreaders (WCAG 2.4.2). Vorher erbten 24 von 32 Seiten
+ * nur „GBS Campus". Personennamen stehen bewusst nicht im Titel: Er landet im
+ * Browserverlauf und bei synchronisierten Browsern auch beim Anbieter.
+ */
 export const metadata: Metadata = {
-  title: "GBS Campus",
-  description: "Verwaltung der Gemeindebibelschule Minden",
+  title: { default: "GBS Campus", template: "%s · GBS Campus" },
+  description: `Verwaltung der ${EINRICHTUNG.name}`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

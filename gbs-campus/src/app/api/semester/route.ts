@@ -2,9 +2,9 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { pruefeSemester, semesterDaten } from "@/lib/semester";
 
@@ -15,6 +15,10 @@ const schema = z.object({
   ende: z.string(),
   anmeldungVon: z.string().nullish(),
   anmeldungBis: z.string().nullish(),
+  // Verortung im Kursraster, freiwillig. Zod prüft nur die Form (ganze Zahl oder
+  // leer); Bereich und „beide oder keins" meldet `pruefeSemester` feldgenau.
+  lehrjahr: z.number().int().nullish(),
+  halbjahr: z.number().int().nullish(),
   istAktuell: z.boolean().optional(),
 });
 
@@ -24,8 +28,8 @@ const schema = z.object({
  * vor jedem Jahrgang.
  */
 export async function POST(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
@@ -55,7 +59,13 @@ export async function POST(request: NextRequest) {
       objektTyp: "Semester",
       objektId: semester.id,
       akteurId: benutzer.id,
-      nachher: { code: semester.code, bezeichnung: semester.bezeichnung, istAktuell: semester.istAktuell },
+      nachher: {
+        code: semester.code,
+        bezeichnung: semester.bezeichnung,
+        istAktuell: semester.istAktuell,
+        lehrjahr: semester.lehrjahr,
+        halbjahr: semester.halbjahr,
+      },
       headers: request.headers,
     });
 

@@ -2,25 +2,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
+import { RECHT } from "@/lib/constants";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { FormularStatusBadge } from "@/components/ui/badges";
+import { LadeHinweis } from "@/components/ui/lade-hinweis";
 import { EntwurfOeffnen } from "./entwurf-oeffnen";
 
+export const metadata = { title: "Formulare" };
 export const dynamic = "force-dynamic";
 
-const STATUS_STIL: Record<string, string> = {
-  ENTWURF: "bg-credo-gelb/15 text-foreground",
-  VEROEFFENTLICHT: "bg-credo-gruen/15 text-foreground",
-  ARCHIVIERT: "bg-muted text-muted-foreground",
-};
-
-const STATUS_NAME: Record<string, string> = {
-  ENTWURF: "Entwurf",
-  VEROEFFENTLICHT: "Veröffentlicht",
-  ARCHIVIERT: "Archiviert",
-};
-
 export default async function FormulareSeite() {
-  const benutzer = await ladeMitRecht("FORMULAR_BEARBEITEN");
+  const benutzer = await ladeMitRecht(RECHT.FORMULAR_BEARBEITEN);
   if (!benutzer) redirect("/anmelden");
 
   const formulare = await prisma.formular.findMany({
@@ -58,9 +50,7 @@ export default async function FormulareSeite() {
               return (
                 <li key={version.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
                   <span className="w-20 font-medium">Fassung {version.version}</span>
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STIL[version.status]}`}>
-                    {STATUS_NAME[version.status]}
-                  </span>
+                  <FormularStatusBadge status={version.status} />
                   <span className="text-sm text-muted-foreground">
                     {version.abschnitte.length} Abschnitte · {felder} Felder
                     {version._count.anmeldungen > 0 && ` · ${version._count.anmeldungen} Anmeldungen`}
@@ -70,6 +60,7 @@ export default async function FormulareSeite() {
                     className="ml-auto rounded-lg border border-input px-3 py-1.5 text-sm font-medium"
                   >
                     {version.status === "ENTWURF" ? "Bearbeiten" : "Ansehen"}
+                    <LadeHinweis className="ml-2" />
                   </Link>
                 </li>
               );

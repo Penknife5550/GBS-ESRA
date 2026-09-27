@@ -16,6 +16,8 @@
  */
 
 import { ergebnisName } from "@/lib/leistung";
+import { belegNummer } from "@/lib/beleg-nr";
+import { EINRICHTUNG } from "@/lib/constants";
 
 export const ZEUGNISTYP = {
   SEMESTER: "SEMESTER",
@@ -25,7 +27,7 @@ export const ZEUGNISTYP = {
 export type Zeugnistypwert = (typeof ZEUGNISTYP)[keyof typeof ZEUGNISTYP];
 
 /** Ausstellungsort auf allen Dokumenten. */
-export const ZEUGNIS_ORT = "Minden";
+export const ZEUGNIS_ORT = EINRICHTUNG.ort;
 
 /** Version des Snapshot-Formats — mitgeschrieben, damit sich Altbestände bei
  * künftigen Erweiterungen erkennen lassen. */
@@ -68,12 +70,14 @@ export function belegNrPraefix(typ: string): string {
 }
 
 /**
- * Beleg-Nummer, z. B. „ZEU-2026-07-30-1A2B3C4D". Der Zufallsteil wird
- * hereingereicht (der IO-Teil gibt `randomUUID().slice(0, 8)`), damit die
- * Formatregel DB-frei prüfbar bleibt.
+ * Beleg-Nummer, z. B. „ZEU-2026-07-30-1A2B3C4D", mit dem Berliner Kalendertag
+ * der Ausstellung — wie das Ausstellungsdatum im Snapshot (`datum()`). Der
+ * Zufallsteil wird hereingereicht (der IO-Teil gibt `randomUUID().slice(0, 8)`),
+ * damit die Formatregel DB-frei prüfbar bleibt; die Regel selbst steht für alle
+ * Belege in `beleg-nr.ts`.
  */
 export function neueBelegNr(typ: string, am: Date, zufall: string): string {
-  return `${belegNrPraefix(typ)}-${am.toISOString().slice(0, 10)}-${zufall.toUpperCase()}`;
+  return belegNummer(belegNrPraefix(typ), am, zufall);
 }
 
 /** Eine Fach-Zeile, wie sie der IO-Teil in den Snapshot hereinreicht (ohne den

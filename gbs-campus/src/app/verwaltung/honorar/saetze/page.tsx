@@ -1,12 +1,16 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { euro } from "@/lib/honorar";
 import { ladeHonorarSaetze } from "@/lib/honorar-io";
+import { DMS_NICHT_EINGERICHTET, pruefeSatzNachversand } from "@/lib/honorar-korrektur";
+import { dmsAdresse } from "@/lib/konfiguration";
 import { datum, datumZeit } from "@/lib/datum";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
+import { BelegNachsendenKnopf } from "../beleg-nachsenden-knopf";
 import { SatzForm } from "./satz-form";
 
+export const metadata = { title: "Honorarsätze" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -18,17 +22,18 @@ export default async function HonorarSaetzeSeite() {
   if (!benutzer) redirect("/anmelden");
 
   const saetze = await ladeHonorarSaetze();
+  // Ohne DMS-Adresse endete „Beleg erneut senden“ sicher in einer 500 — dann der Grund statt des Knopfs.
+  const dmsEingerichtet = dmsAdresse() !== null;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung/honorar" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Dozentenhonorar
-      </Link>
+      <ZurueckLeiste href="/verwaltung/honorar" label="Dozentenhonorar" breadcrumb="Verwaltung · Dozentenhonorar · Honorarsätze" />
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Honorarsätze</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
         Der Honorarsatz je Unterrichtsabend führt eine Historie: jeder Abend wird zu dem Satz gerechnet, der
-        zu seinem Datum galt. Eine spätere Änderung verändert vergangene Beträge nicht. Wer einen Satz
-        einträgt, genehmigt ihn.
+        zu seinem Datum galt. Eine spätere Änderung verändert bereits abgerechnete Beträge nicht; ein Satz mit
+        einem Gültig-ab in der Vergangenheit gilt aber für die noch nicht abgerechneten Abende ab diesem Datum.
+        Wer einen Satz einträgt, genehmigt ihn.
       </p>
 
       <div className="mt-6">
@@ -71,6 +76,16 @@ export default async function HonorarSaetzeSeite() {
                         <span className="text-xs">
                           {s.dmsGesendetAm ? `gesendet ${datum(s.dmsGesendetAm)}` : "Versand steht aus"}
                         </span>
+                        {/* Nachversand eines nicht angekommenen Belegs (M12) — dieselbe Regel wie die Route. */}
+                        {pruefeSatzNachversand(s) === null &&
+                          (dmsEingerichtet ? (
+                            <BelegNachsendenKnopf
+                              pfad={`/api/honorar/saetze/${s.id}/beleg-senden`}
+                              rueckfrage={`Beleg ${s.dmsBelegNr} erneut an das DMS senden? Er trägt dieselbe Beleg-Nr.`}
+                            />
+                          ) : (
+                            <span className="mt-1 block text-xs">{DMS_NICHT_EINGERICHTET}</span>
+                          ))}
                       </>
                     ) : (
                       "—"

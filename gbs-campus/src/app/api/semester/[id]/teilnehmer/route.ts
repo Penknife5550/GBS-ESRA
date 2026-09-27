@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { nochNichtImSemester } from "@/lib/teilnehmerliste";
 
@@ -17,11 +17,15 @@ import { nochNichtImSemester } from "@/lib/teilnehmerliste";
  *
  * Wer keine Teilnahmeform hinterlegt hat, wird ausgelassen und gezählt.
  * Geraten wird nichts: An der Teilnahmeform hängen Prüfungspflicht, Zeugnis
- * und ab Release 0.3 der Beitrag.
+ * und künftig der Beitrag.
+ *
+ * Für dieses Semester Abgemeldete („bin raus", keine Rückmeldung) HABEN eine
+ * Teilnahme und werden deshalb nicht neu angelegt (`nochNichtImSemester`) —
+ * zurück kommen sie nur über „Wieder aufnehmen" auf der Überleitungsseite.
  */
 export async function POST(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { id } = await kontext.params;
   const semester = await prisma.semester.findUnique({ where: { id } });

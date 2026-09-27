@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { HilfeFormular } from "./hilfe-formular";
 
 export const metadata = { title: "Ich komme nicht mehr ins Portal" };
@@ -6,9 +7,7 @@ export const metadata = { title: "Ich komme nicht mehr ins Portal" };
 export default function HilfeSeite() {
   return (
     <main className="mx-auto max-w-md px-6 py-24">
-      <Link href="/anmelden" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Zur Anmeldung
-      </Link>
+      <ZurueckLeiste href="/anmelden" label="Zur Anmeldung" />
 
       <h1 className="mt-6 text-3xl font-bold tracking-tight">Ich komme nicht mehr rein</h1>
 

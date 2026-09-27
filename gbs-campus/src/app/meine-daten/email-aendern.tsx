@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 export type OffenerEmailAntrag = {
   neueEmail: string;
@@ -25,7 +26,7 @@ export function EmailAendern({
 }) {
   const [email, setEmail] = useState("");
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "warnung" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
 
   async function beantragen(ereignis: React.FormEvent) {
     ereignis.preventDefault();
@@ -113,20 +114,7 @@ export function EmailAendern({
         {laeuft ? "Wird gesendet …" : "Bestätigungslink anfordern"}
       </button>
 
-      {meldung && (
-        <p
-          role={meldung.art === "fehler" ? "alert" : "status"}
-          className={`mt-4 max-w-prose rounded-lg px-3 py-2 text-sm ${
-            meldung.art === "ok"
-              ? "bg-credo-gruen/10"
-              : meldung.art === "warnung"
-                ? "bg-credo-gelb/15"
-                : "bg-credo-rot/10"
-          }`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4 max-w-prose" />
     </form>
   );
 }

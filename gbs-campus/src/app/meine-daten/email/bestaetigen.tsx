@@ -4,12 +4,39 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { sendeAnfrage } from "@/lib/api-client";
 
+const TOKEN_MUSTER = /^[0-9a-f-]{36}$/i;
+
+/**
+ * Liest den Token aus dem URL-FRAGMENT (#token=…) — wie beim Anmelde-,
+ * Auskunfts- und Dabei-Link: Das Fragment schickt der Browser nicht an den
+ * Server, der Token landet also in keinem Zugriffslog.
+ *
+ * Übergang: Bis Code-Review 4 stand der Token als `?token=…` in der Adresse.
+ * Solche Links aus bereits verschickten Mails gelten bis zu ihrem Ablauf weiter.
+ * Der Token wird dann gelesen und per `history.replaceState` aus dem
+ * Query-String ins Fragment verschoben — ein Neuladen schickt ihn so nicht noch
+ * einmal an den Server.
+ */
+function leseToken(): string | null {
+  const ausFragment = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token");
+  if (ausFragment && TOKEN_MUSTER.test(ausFragment)) return ausFragment;
+
+  const ausAdresse = new URLSearchParams(window.location.search).get("token");
+  if (ausAdresse && TOKEN_MUSTER.test(ausAdresse)) {
+    window.history.replaceState(null, "", `${window.location.pathname}#token=${ausAdresse}`);
+    return ausAdresse;
+  }
+  return null;
+}
+
 /**
  * Ein Klick, ein POST. Dasselbe Muster wie beim Anmeldelink: Ein GET würde von
  * Link-Scannern in Mail-Sicherheitslösungen abgerufen und der Token wäre
  * verbraucht, bevor der Empfänger überhaupt klickt.
  */
-export function EmailBestaetigen({ token }: { token: string }) {
+export function EmailBestaetigen() {
+  const [token, setToken] = useState<string | null>(null);
+  const [bereit, setBereit] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [neueAdresse, setNeueAdresse] = useState<string | null>(null);
@@ -22,7 +49,13 @@ export function EmailBestaetigen({ token }: { token: string }) {
     if (neueAdresse) erfolgRef.current?.focus();
   }, [neueAdresse]);
 
+  useEffect(() => {
+    setToken(leseToken());
+    setBereit(true);
+  }, []);
+
   async function bestaetigen() {
+    if (!token) return;
     setLaeuft(true);
     setFehler(null);
 
@@ -37,6 +70,24 @@ export function EmailBestaetigen({ token }: { token: string }) {
       return;
     }
     setNeueAdresse(antwort.daten.email);
+  }
+
+  // Vor dem Auslesen des Fragments nichts anzeigen — verhindert ein Aufblitzen
+  // der „unvollständig"-Meldung, bevor der Token gelesen ist.
+  if (!bereit) return null;
+
+  // Ohne Token gilt der Einleitungssatz („Danach läuft dein Zugang …“) nicht —
+  // eigene Überschrift statt eines Widerspruchs auf derselben Seite.
+  if (!token) {
+    return (
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">Der Link war unvollständig</h2>
+        <p className="mt-3 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+          Bitte öffne den Link aus der E-Mail vollständig, oder beantrage die Änderung im Portal unter „Meine Daten“
+          noch einmal.
+        </p>
+      </div>
+    );
   }
 
   if (neueAdresse) {
@@ -63,6 +114,9 @@ export function EmailBestaetigen({ token }: { token: string }) {
 
   return (
     <>
+      <p className="mt-3 text-sm text-muted-foreground">
+        Danach läuft dein Zugang zum Portal über diese Adresse. Bis zu diesem Klick gilt die bisherige.
+      </p>
       <button
         type="button"
         onClick={bestaetigen}

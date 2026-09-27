@@ -47,8 +47,14 @@ export async function POST(request: NextRequest) {
       objektTyp: "Person",
       objektId: ergebnis.person.id,
       akteurId: ergebnis.person.id,
-      vorher: { email: ergebnis.alteEmail },
-      nachher: { email: ergebnis.neueEmail },
+      // Ohne die Adressen (Code-Review 4, M6c) — siehe EMAIL_AENDERUNG_BEANTRAGT.
+      // Die Zahl der entwerteten Auskunfts- und Anmeldelinks (sie lagen im
+      // bisherigen Postfach).
+      nachher: {
+        geaenderteFelder: ["email"],
+        entwerteteAuskunftslinks: ergebnis.entwerteteAuskunftslinks,
+        entwerteteAnmeldelinks: ergebnis.entwerteteAnmeldelinks,
+      },
       headers: request.headers,
     });
 

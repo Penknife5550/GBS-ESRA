@@ -2,9 +2,9 @@
  * GBS Campus — E-Mail-Versand
  *
  * Jeder Versand wird protokolliert (Tabelle email_versand), auch der
- * fehlgeschlagene. Der Magic-Link ist der einzige Kontoschlüssel: Wenn eine
- * Adresse nicht erreichbar ist, muss das in der Akte stehen und nicht nur im
- * Serverlog verschwinden.
+ * fehlgeschlagene. Für alle ohne Passwort ist der Magic-Link der einzige
+ * Kontoschlüssel: Wenn eine Adresse nicht erreichbar ist, muss das in der Akte
+ * stehen und nicht nur im Serverlog verschwinden.
  *
  * Ohne konfiguriertes SMTP wird die Nachricht nicht verschickt, sondern in die
  * Konsole geschrieben. Das ist der Entwicklungsmodus — in Produktion fehlt dann
@@ -14,6 +14,7 @@
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/db";
 import { smtpKonfiguriert } from "@/lib/konfiguration";
+import { EINRICHTUNG } from "@/lib/constants";
 
 /** Ein Dateianhang. `inhalt` sind die Rohbytes (z. B. eine erzeugte PDF). */
 export type MailAnhang = {
@@ -43,6 +44,38 @@ export type MailAuftrag = {
    */
   anhaenge?: MailAnhang[];
 };
+
+/**
+ * Log-Zeilen tragen keine Empfaengeradresse: Das Container-Log erreicht keine
+ * Anonymisierung (Art. 17), die Zeilen in `email_versand` dagegen schon. Geloggt
+ * werden deshalb Protokoll-ID (`email_versand.id`) und Vorlage — darueber findet
+ * der Betrieb die Mail in der Betriebsansicht bzw. der Datenbank. Fehlertexte
+ * von Mailservern nennen die abgewiesene Adresse gern im Wortlaut
+ * („550 5.1.1 <max@…>: Recipient address rejected"); sie werden maskiert.
+ * Ausnahme bleibt die Entwicklungsausgabe ohne SMTP (siehe `sendeMail`).
+ */
+const ADRESSE_IM_TEXT = /[^\s<>"'(),;:[\]]+@[^\s<>"'(),;:[\]]+/g;
+
+/** Ersetzt jede E-Mail-Adresse in einem Text durch „[Adresse]". */
+function ohneAdressen(text: string): string {
+  return text.replace(ADRESSE_IM_TEXT, "[Adresse]");
+}
+
+/**
+ * Fehler fuers Log: Code und Meldung, Adressen maskiert — nie das rohe
+ * Fehlerobjekt (nodemailer haengt u. a. `rejected: [adresse]` und die
+ * Server-Antwort mit Adresse an).
+ */
+export function fehlerFuersLog(fehler: unknown): string {
+  if (!(fehler instanceof Error)) return "Unbekannter Fehler";
+  const code = (fehler as { code?: unknown }).code;
+  return ohneAdressen(`${typeof code === "string" ? `${code}: ` : ""}${fehler.message}`);
+}
+
+/** Wie die Mail im Log heisst: Protokoll-ID und Vorlage, keine Adresse. */
+function mailImLog(auftrag: MailAuftrag, protokollId: string | null): string {
+  return `(Protokoll ${protokollId ?? "–"}, Vorlage ${auftrag.vorlageCode ?? "–"})`;
+}
 
 /**
  * Ein Transport fuer alle Mails statt einer pro Versand.
@@ -92,7 +125,7 @@ async function legeProtokollAn(auftrag: MailAuftrag): Promise<string | null> {
     });
     return zeile.id;
   } catch (fehler) {
-    console.error("[MAIL] Versandprotokoll konnte nicht angelegt werden fuer", auftrag.an, fehler);
+    console.error("[MAIL] Versandprotokoll konnte nicht angelegt werden", mailImLog(auftrag, null), fehlerFuersLog(fehler));
     return null;
   }
 }
@@ -111,7 +144,7 @@ async function schliesseProtokollAb(
   try {
     await prisma.emailVersand.update({ where: { id }, data: daten });
   } catch (fehler) {
-    console.error("[MAIL] Versandprotokoll konnte nicht abgeschlossen werden, Zeile bleibt WARTEND:", id, fehler);
+    console.error("[MAIL] Versandprotokoll konnte nicht abgeschlossen werden, Zeile bleibt WARTEND:", id, fehlerFuersLog(fehler));
   }
 }
 
@@ -130,7 +163,7 @@ export async function sendeMail(auftrag: MailAuftrag): Promise<{ gesendet: boole
     // In der Entwicklung braucht man den Link trotzdem, deshalb dort und nur
     // dort die Ausgabe.
     if (process.env.NODE_ENV === "production") {
-      console.error(`[MAIL] Nicht verschickt an ${auftrag.an}: SMTP ist nicht konfiguriert.`);
+      console.error(`[MAIL] Nicht verschickt ${mailImLog(auftrag, protokollId)}: SMTP ist nicht konfiguriert.`);
     } else {
       console.warn(
         `\n[MAIL — Entwicklungsmodus, nicht verschickt]\nAn:      ${auftrag.an}\nBetreff: ${auftrag.betreff}\n\n${auftrag.text}\n`,
@@ -146,7 +179,7 @@ export async function sendeMail(auftrag: MailAuftrag): Promise<{ gesendet: boole
   try {
     await holeTransport().sendMail({
       from: {
-        name: process.env.MAIL_ABSENDER_NAME ?? "Gemeindebibelschule Minden",
+        name: process.env.MAIL_ABSENDER_NAME ?? EINRICHTUNG.name,
         address: process.env.MAIL_ABSENDER_ADRESSE!,
       },
       replyTo: process.env.MAIL_ANTWORT_AN || undefined,
@@ -170,7 +203,7 @@ export async function sendeMail(auftrag: MailAuftrag): Promise<{ gesendet: boole
       status: "FEHLER",
       fehler: fehler instanceof Error ? fehler.message : "Unbekannter Fehler",
     });
-    console.error("[MAIL] Versand fehlgeschlagen an", auftrag.an, fehler);
+    console.error("[MAIL] Versand fehlgeschlagen", mailImLog(auftrag, protokollId), fehlerFuersLog(fehler));
     return { gesendet: false };
   }
 }

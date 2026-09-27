@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { ANWESENHEIT_OPTIONEN } from "@/lib/stundenplan";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
 
 type Termin = {
   id: string;
@@ -11,23 +14,31 @@ type Termin = {
   kurseinheitTitel: string | null;
   dozentId: string | null;
   anwesenheitAnzahl: number;
+  /** Gesetzt, wenn der Abend schon in einer Honorar-Abrechnung steht. */
+  abrechnung: { id: string; status: string } | null;
 };
 type Teilnehmer = { teilnahmeId: string; name: string };
 type Kurseinheit = { id: string; label: string };
 type Dozent = { id: string; name: string };
 
-const STATUS_OPTIONEN = [
-  { wert: "", label: "— nicht erfasst —" },
-  { wert: "ANWESEND", label: "anwesend" },
-  { wert: "ENTSCHULDIGT", label: "entschuldigt" },
-  { wert: "GEFEHLT", label: "gefehlt" },
-  { wert: "NACHGEARBEITET", label: "nachgearbeitet" },
-];
+// Die Verwaltung setzt alle vier Zustände; Werte und Klartexte aus stundenplan.ts.
+const STATUS_OPTIONEN = [{ wert: "", label: "— nicht erfasst —" }, ...ANWESENHEIT_OPTIONEN];
 
 const selectKlasse =
   "min-h-10 rounded-lg border border-input bg-background px-3 py-1.5 text-sm";
 const knopfKlasse =
   "min-h-10 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60";
+
+/**
+ * Hinweis an einem abgerechneten Abend — dieselbe Grenze wie die Termin-Route
+ * (`dozentWechselSperre`, 409): Der Dozent lässt sich nicht mehr wechseln und der
+ * Abend nicht löschen; das Fach bleibt frei (honorar-neutral).
+ */
+function abrechnungsHinweis(status: string): string {
+  return status === "OFFEN"
+    ? "Abgerechnet (Abrechnung noch offen): Den Dozenten wechseln oder den Abend löschen geht erst nach einem Storno der Abrechnung."
+    : "In einer freigegebenen Abrechnung: Der Dozent lässt sich nicht mehr wechseln, der Abend nicht löschen.";
+}
 
 export function StundenplanClient({
   semesters,
@@ -37,6 +48,7 @@ export function StundenplanClient({
   kurseinheiten,
   dozenten,
   anwesenheit,
+  darfHonorar,
 }: {
   semesters: { id: string; bezeichnung: string }[];
   gewaehltId: string;
@@ -45,10 +57,12 @@ export function StundenplanClient({
   kurseinheiten: Kurseinheit[];
   dozenten: Dozent[];
   anwesenheit: Record<string, Record<string, string>>;
+  /** Ob der Link zur Abrechnung angeboten wird (Recht HONORAR_ABRECHNEN). */
+  darfHonorar: boolean;
 }) {
   const router = useRouter();
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<Meldung | null>(null);
   const [offen, setOffen] = useState<string | null>(null);
   const [entwuerfe, setEntwuerfe] = useState<Record<string, string>>({});
   // Vorgemerkte Fach-/Dozentenwahl je Abend. Gespeichert wird erst per Knopf —
@@ -98,11 +112,22 @@ export function StundenplanClient({
     router.refresh();
   }
 
-  async function terminLoeschen(terminId: string) {
-    if (!window.confirm("Diesen Termin samt erfasster Anwesenheiten löschen?")) return;
-    const antwort = await sendeAnfrage(`/api/stundenplan/termine/${terminId}`, { methode: "DELETE" });
+  async function terminLoeschen(t: Termin) {
+    // Die Rückfrage nennt den Abend und was mit ihm verloren geht.
+    const anwesenheiten =
+      t.anwesenheitAnzahl === 0
+        ? "Für diesen Abend ist noch keine Anwesenheit erfasst."
+        : `Dabei ${t.anwesenheitAnzahl === 1 ? "wird 1 erfasste Anwesenheit" : `werden ${t.anwesenheitAnzahl} erfasste Anwesenheiten`} mit gelöscht.`;
+    if (!window.confirm(`Den Abend ${t.text} löschen?\n\n${anwesenheiten} Das lässt sich nicht rückgängig machen.`)) {
+      return;
+    }
+    setLaeuft(true);
+    setMeldung(null);
+    const antwort = await sendeAnfrage(`/api/stundenplan/termine/${t.id}`, { methode: "DELETE" });
+    setLaeuft(false);
     if (!antwort.ok) return melde("fehler", antwort.meldung);
-    if (offen === terminId) setOffen(null);
+    if (offen === t.id) setOffen(null);
+    melde("ok", `Der Abend ${t.text} ist gelöscht.`);
     router.refresh();
   }
 
@@ -139,36 +164,41 @@ export function StundenplanClient({
   return (
     <div className="mt-8">
       <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <label htmlFor="semesterwahl" className="block text-sm font-medium">
-            Semester
-          </label>
-          <select
-            id="semesterwahl"
-            value={gewaehltId}
-            onChange={(e) => router.push(`/verwaltung/stundenplan?semester=${e.target.value}`)}
-            className={`mt-1.5 w-full ${selectKlasse}`}
+        {/* Semesterwahl als GET-Formular mit Knopf, wie die Personen-Filter: Ein
+            Select, das schon bei onChange navigiert, springt bei Tastaturbedienung
+            durch jedes Zwischensemester (WCAG 3.2.2). */}
+        <form method="get" action="/verwaltung/stundenplan" className="flex flex-wrap items-end gap-2">
+          <div>
+            <label htmlFor="semesterwahl" className="block text-sm font-medium">
+              Semester
+            </label>
+            <select
+              id="semesterwahl"
+              name="semester"
+              key={gewaehltId}
+              defaultValue={gewaehltId}
+              className={`mt-1.5 w-full ${selectKlasse}`}
+            >
+              {semesters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.bezeichnung}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="min-h-10 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-primary"
           >
-            {semesters.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.bezeichnung}
-              </option>
-            ))}
-          </select>
-        </div>
+            Anzeigen
+          </button>
+        </form>
         <button type="button" onClick={anlegen} disabled={laeuft} className={knopfKlasse}>
           {laeuft ? "Moment …" : "Dienstagabende anlegen"}
         </button>
       </div>
 
-      {meldung && (
-        <p
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`mt-4 rounded-lg px-3 py-2 text-sm ${meldung.art === "ok" ? "bg-credo-gruen/10" : "bg-credo-rot/10"}`}
-        >
-          {meldung.text}
-        </p>
-      )}
+      <MeldungsBox meldung={meldung} className="mt-4" />
 
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         Unterrichtsabende
@@ -182,7 +212,14 @@ export function StundenplanClient({
           {termine.map((t) => (
             <li key={t.id} className="rounded-lg border border-border bg-card p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="font-medium">{t.text}</span>
+                <span className="font-medium">
+                  {t.text}
+                  {t.abrechnung && (
+                    <span className="ml-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      abgerechnet
+                    </span>
+                  )}
+                </span>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
                     aria-label={`Fach für ${t.text}`}
@@ -199,9 +236,11 @@ export function StundenplanClient({
                   </select>
                   <select
                     aria-label={`Dozent für ${t.text}`}
+                    aria-describedby={t.abrechnung ? `abrechnung-${t.id}` : undefined}
                     value={dozentWert(t)}
                     onChange={(e) => setDozentEntwurf((v) => ({ ...v, [t.id]: e.target.value }))}
-                    className={selectKlasse}
+                    disabled={t.abrechnung !== null}
+                    className={`${selectKlasse} disabled:opacity-60`}
                   >
                     <option value="">— kein Dozent —</option>
                     {dozenten.map((d) => (
@@ -222,16 +261,36 @@ export function StundenplanClient({
                   >
                     Anwesenheit ({t.anwesenheitAnzahl})
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => terminLoeschen(t.id)}
-                    aria-label="Termin löschen"
-                    className="min-h-10 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground hover:border-credo-rot hover:text-credo-rot"
-                  >
-                    ×
-                  </button>
+                  {!t.abrechnung && (
+                    <button
+                      type="button"
+                      onClick={() => terminLoeschen(t)}
+                      disabled={laeuft}
+                      aria-label={`Termin ${t.text} löschen`}
+                      className="min-h-10 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground hover:border-credo-rot hover:text-credo-rot disabled:opacity-60"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {t.abrechnung && (
+                <p id={`abrechnung-${t.id}`} className="mt-2 text-xs text-muted-foreground">
+                  {abrechnungsHinweis(t.abrechnung.status)}
+                  {darfHonorar && (
+                    <>
+                      {" "}
+                      <Link
+                        href={`/verwaltung/honorar/abrechnungen/${t.abrechnung.id}`}
+                        className="underline underline-offset-2"
+                      >
+                        Zur Abrechnung
+                      </Link>
+                    </>
+                  )}
+                </p>
+              )}
 
               {offen === t.id && (
                 <div className="mt-4 border-t border-border pt-4">

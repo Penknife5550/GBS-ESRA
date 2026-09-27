@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
+import { datumZeitSekunden } from "@/lib/datum";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 
+export const metadata = { title: "Protokoll" };
 export const dynamic = "force-dynamic";
 
 /** Mehr als das liest niemand am Stück — wer weiter zurück muss, filtert. */
@@ -58,9 +60,7 @@ export default async function ProtokollSeite({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Protokoll" />
 
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Protokoll</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
@@ -113,7 +113,7 @@ export default async function ProtokollSeite({
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium">{eintrag.aktion}</span>
                   <span className="text-xs text-muted-foreground">
-                    {eintrag.erstelltAm.toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "medium" })}
+                    {datumZeitSekunden(eintrag.erstelltAm)}
                   </span>
                 </div>
 

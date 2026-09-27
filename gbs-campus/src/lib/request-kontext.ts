@@ -45,3 +45,47 @@ function ermittleIp(headers: Headers): string | null {
 
   return null;
 }
+
+/**
+ * Schlüssel für eine Anschlussdrossel (`…_IP:<schlüssel>`): IPv4 unverändert,
+ * IPv6 auf das /64-Netz gekürzt.
+ *
+ * Ein Anschluss bekommt vom Provider in aller Regel mindestens ein ganzes /64.
+ * Ungekürzt hätte jeder Rechner dahinter 2^64 Adressen — und mit jeder neuen
+ * Adresse ein frisches Kontingent; die Drossel je Anschluss wäre für IPv6
+ * wirkungslos. Für Consent- und Audit-Nachweise bleibt die volle Adresse
+ * (`ermittleRequestKontext`), gekürzt wird nur der Drosselschlüssel.
+ *
+ * Eine IPv4-gemappte Adresse (::ffff:1.2.3.4) zählt als IPv4. Was sich nicht als
+ * Adresse lesen lässt, bleibt unverändert — lieber zu streng als gar nicht.
+ */
+export function drosselSchluesselFuerIp(ip: string): string {
+  const roh = ip.trim().toLowerCase().replace(/^\[/, "").replace(/\]$/, "").split("%")[0];
+  const gemappt = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(roh);
+  if (gemappt) return gemappt[1];
+  if (!roh.includes(":")) return roh;
+  const gruppen = ipv6Gruppen(roh);
+  if (!gruppen) return roh;
+  return `${gruppen.slice(0, 4).join(":")}::/64`;
+}
+
+/** Die acht Gruppen einer IPv6-Adresse ohne führende Nullen, oder null. */
+function ipv6Gruppen(adresse: string): string[] | null {
+  let text = adresse;
+  // Eingebettete IPv4 am Ende (z. B. 64:ff9b::1.2.3.4) in zwei Gruppen umrechnen.
+  const v4 = /(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+  if (v4) {
+    const [a, b, c, d] = v4.slice(1).map(Number);
+    if ([a, b, c, d].some((n) => n > 255)) return null;
+    text = `${text.slice(0, v4.index)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const teile = text.split("::");
+  if (teile.length > 2) return null;
+  const links = teile[0] ? teile[0].split(":") : [];
+  const rechts = teile.length === 2 && teile[1] ? teile[1].split(":") : [];
+  const fehlend = 8 - links.length - rechts.length;
+  if (teile.length === 1 ? fehlend !== 0 : fehlend < 1) return null;
+  const alle = [...links, ...Array<string>(teile.length === 2 ? fehlend : 0).fill("0"), ...rechts];
+  if (!alle.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  return alle.map((g) => g.replace(/^0+(?=.)/, ""));
+}

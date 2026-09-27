@@ -1,0 +1,33 @@
+import { NextRequest } from "next/server";
+import { pruefeZugriff, hatRecht } from "@/lib/berechtigung";
+import { RECHT } from "@/lib/constants";
+import { sendeAbrechnungsBelegNach } from "@/lib/honorar-abrechnung-io";
+import { statusFuer } from "@/lib/honorar-korrektur";
+import { erfolg, fehler } from "@/lib/api";
+
+/**
+ * Sendet den Zahlungsbeleg einer freigegebenen oder ausgezahlten Abrechnung
+ * erneut an das DMS, wenn er dort nicht angekommen ist (M12) — mit derselben
+ * Beleg-Nr, aus den eingefrorenen Posten. Der Beleg enthält die IBAN, deshalb
+ * dieselben Rechte wie die Freigabe: HONORAR_ABRECHNEN und BANKVERBINDUNG_LESEN.
+ */
+export async function POST(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
+  const benutzer = await pruefeZugriff(RECHT.HONORAR_ABRECHNEN);
+  if (benutzer instanceof Response) return benutzer;
+  if (!hatRecht(benutzer, RECHT.BANKVERBINDUNG_LESEN)) {
+    return fehler("Für den Nachversand wird zusätzlich das Recht zum Sehen der Bankverbindung benötigt, weil der Beleg die IBAN enthält.", 403);
+  }
+
+  const { id } = await kontext.params;
+
+  let ergebnis;
+  try {
+    ergebnis = await sendeAbrechnungsBelegNach(id, benutzer.id, request.headers);
+  } catch (f) {
+    console.error("[HONORAR-ABRECHNUNG] Nachversand fehlgeschlagen", f);
+    return fehler("Der Beleg konnte nicht gesendet werden. Bitte versuche es später noch einmal.", 500);
+  }
+
+  if (!ergebnis.ok) return fehler(ergebnis.meldung, statusFuer(ergebnis.code));
+  return erfolg({ belegNr: ergebnis.belegNr, dmsGesendet: true });
+}

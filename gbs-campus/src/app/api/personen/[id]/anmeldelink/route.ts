@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { pruefeNeueEmail } from "@/lib/eigene-daten";
 import { fordereMagicLinkAn } from "@/lib/magic-link";
@@ -16,8 +16,8 @@ import { ermittleRequestKontext } from "@/lib/request-kontext";
  * Adresse ändern, und genau das steht als eigener Vorgang im Audit-Log.
  */
 export async function POST(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_BEARBEITEN_ALLE);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_BEARBEITEN_ALLE);
+  if (benutzer instanceof Response) return benutzer;
 
   const { id } = await kontext.params;
   const person = await prisma.person.findUnique({ where: { id }, include: { status: true } });
@@ -45,17 +45,28 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
   }
 
   const { ipAdresse, userAgent } = ermittleRequestKontext(request.headers);
-  const { gedrosselt } = await fordereMagicLinkAn(person.email, ipAdresse, userAgent);
+  const { gedrosselt, drossel, gesendet } = await fordereMagicLinkAn(person.email, ipAdresse, userAgent);
 
   await protokolliere({
     aktion: "ANMELDELINK_DURCH_VERWALTUNG",
     objektTyp: "Person",
     objektId: id,
     akteurId: benutzer.id,
-    nachher: { empfaenger: person.email, gedrosselt },
+    // Ohne die Adresse (Code-Review 4, M6c): Sie steht im Versandprotokoll,
+    // wo eine Anonymisierung sie erreicht — im unlöschbaren Audit nicht.
+    nachher: { gedrosselt, drossel, gesendet },
     headers: request.headers,
   });
 
+  // Der Grund wird benannt: Die Drossel je Anschluss zählt auch die Anfragen
+  // aller Kolleginnen am selben Büroanschluss — die Meldung „zu viele Links für
+  // diese Adresse" schickte die Verwaltung dann auf die falsche Fährte.
+  if (drossel === "IP") {
+    return fehler(
+      "Von diesem Anschluss wurden zuletzt zu viele Anmeldelinks angefordert. Bitte etwas warten und noch einmal versuchen.",
+      429,
+    );
+  }
   if (gedrosselt) {
     return fehler(
       "Für diese Adresse wurden zuletzt zu viele Links angefordert. Bitte etwas warten und noch einmal versuchen.",
@@ -63,5 +74,9 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ id
     );
   }
 
-  return erfolg({ gesendet: true, empfaenger: person.email });
+  // Der echte Ausgang statt eines festen `true`: Bei ausgefallenem oder nicht
+  // eingerichtetem Mailversand sagte die Oberfläche sonst „verschickt", und am
+  // Telefon wartete jemand auf einen Link, der nie kommt. Die FEHLER-Zeile
+  // steht dann im Versandprotokoll (Verwaltung → Betrieb).
+  return erfolg({ gesendet, empfaenger: person.email });
 }

@@ -58,14 +58,3 @@ export function entschluesseln(wert: string): string {
 
   return Buffer.concat([decipher.update(Buffer.from(datenB64, "base64")), decipher.final()]).toString("utf8");
 }
-
-/**
- * Letzte vier Stellen einer IBAN fuer die Anzeige — damit die Verwaltung einen
- * Datensatz zuordnen kann, ohne dass die vollstaendige IBAN auf dem Bildschirm
- * steht.
- */
-export function ibanMaskiert(iban: string): string {
-  const bereinigt = iban.replace(/\s+/g, "");
-  if (bereinigt.length < 4) return "••••";
-  return `•••• •••• ${bereinigt.slice(-4)}`;
-}

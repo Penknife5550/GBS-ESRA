@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
+import { RECHT } from "@/lib/constants";
 import { protokolliere } from "@/lib/audit";
 import { holeOderErzeugeEntwurf } from "@/lib/formular";
+import { erfolg, fehler } from "@/lib/api";
 
 const schema = z.object({ formularCode: z.string().min(1).max(50) });
 
@@ -13,18 +15,14 @@ const schema = z.object({ formularCode: z.string().min(1).max(50) });
  * nie versehentlich an einer Fassung gearbeitet, die bereits jemand ausfüllt.
  */
 export async function POST(request: NextRequest) {
-  const benutzer = await ladeMitRecht("FORMULAR_BEARBEITEN");
-  if (!benutzer) {
-    return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
-  }
+  const benutzer = await pruefeZugriff(RECHT.FORMULAR_BEARBEITEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
-  if (!geprueft.success) {
-    return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
-  }
+  if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);
 
   const formular = await prisma.formular.findUnique({ where: { code: geprueft.data.formularCode } });
-  if (!formular) return NextResponse.json({ error: "Dieses Formular gibt es nicht." }, { status: 404 });
+  if (!formular) return fehler("Dieses Formular gibt es nicht.", 404);
 
   const versionId = await holeOderErzeugeEntwurf(formular.id);
 
@@ -36,5 +34,5 @@ export async function POST(request: NextRequest) {
     headers: request.headers,
   });
 
-  return NextResponse.json({ data: { versionId } });
+  return erfolg({ versionId });
 }

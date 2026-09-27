@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { pruefeNeueEmail } from "@/lib/eigene-daten";
 import { ermittleRequestKontext } from "@/lib/request-kontext";
@@ -17,8 +17,8 @@ const schema = z.object({ email: z.string() });
  * zum Portal, ein Tippfehler würde sonst dauerhaft aussperren.
  */
 export async function POST(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_BEARBEITEN_EIGENE);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_BEARBEITEN_EIGENE);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Bitte eine gültige E-Mail-Adresse angeben.", 400);
@@ -44,9 +44,11 @@ export async function POST(request: NextRequest) {
     objektTyp: "Person",
     objektId: person.id,
     akteurId: person.id,
-    // Die gewünschte Adresse steht bewusst im Protokoll: Wer sich selbst
-    // aussperrt, muss nachvollziehbar sein.
-    nachher: { neueEmail: ergebnis.email },
+    // Die gewünschte Adresse steht NICHT im unlöschbaren Protokoll (Code-Review
+    // 4, M6c). Nachvollziehbar bleibt sie trotzdem: im offenen Antrag
+    // (`email_aenderungen`) und im Versandprotokoll (Bestätigungslink an die
+    // neue, Hinweis an die bisherige Adresse) — beides erreicht die Anonymisierung.
+    nachher: { geaenderteFelder: ["email"], mailGesendet: antrag.gesendet },
     headers: request.headers,
   });
 

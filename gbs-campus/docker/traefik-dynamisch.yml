@@ -1,0 +1,24 @@
+# =============================================================================
+# GBS Campus — dynamische Traefik-Konfiguration (Datei-Provider)
+#
+# Die Sicherheits-Header hingen frueher als Labels am traefik-Container. Dafuer
+# brauchte der Container traefik.enable=true — und Traefik legte fuer ihn einen
+# Default-Router (Host(`<containername>`)) samt Service ohne Port an: harmlos,
+# aber unnoetig, und im Log als Fehler sichtbar. Hier stehen die Header
+# unabhaengig von jedem Container: Sie bleiben auch definiert, waehrend die App
+# neu startet, und der traefik-Container bleibt ohne Router.
+#
+# Eingebunden in docker-compose.yml (--providers.file.filename) und fuer den
+# Entrypoint websecure als gbs-sicherheit@file gesetzt — so werden sie nicht pro
+# Route vergessen.
+# =============================================================================
+
+http:
+  middlewares:
+    gbs-sicherheit:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin

@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/db";
 import { ROLLE } from "@/lib/constants";
 import type { ExportZeile } from "@/lib/semester";
+import { PERSON_ZAEHLT_AKTIV, TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
 
 export type TeilnehmerZeile = ExportZeile & { personId: string };
 
@@ -16,14 +17,15 @@ export type TeilnehmerZeile = ExportZeile & { personId: string };
  * Alle Personen, die diesem Semester zugeordnet sind UND deren Status als
  * aktiv gilt. Der Statusschalter `istAktiv` ist die führende Quelle: Wer
  * abgebrochen hat, behält seine Teilnahme als Historie, steht aber nicht mehr
- * auf der Liste.
+ * auf der Liste. Ebenso fehlt, wessen Teilnahme für dieses Semester abgemeldet
+ * ist („bin raus" oder keine Rückmeldung zur Überleitung, `TEILNAHME_ZAEHLT`).
  *
  * Die Teilnahmeform kommt aus der Teilnahme, nicht aus der Person — sie darf
  * sich zwischen Semestern ändern (vom Hörer zum Schüler und zurück).
  */
 export async function ladeTeilnehmer(semesterId: string): Promise<TeilnehmerZeile[]> {
   const teilnahmen = await prisma.teilnahme.findMany({
-    where: { semesterId, person: { status: { istAktiv: true } } },
+    where: { semesterId, ...TEILNAHME_ZAEHLT, person: PERSON_ZAEHLT_AKTIV },
     select: {
       teilnahmeform: true,
       person: {
@@ -80,10 +82,28 @@ export async function zaehleOhneTeilnahme(semesterId: string): Promise<number> {
   return prisma.person.count({ where: nochNichtImSemester(semesterId) });
 }
 
-/** Die gemeinsame Bedingung von Zählung und Sammelübernahme — eine Wahrheit. */
+/**
+ * Wie viele aktive Personen für dieses Semester abgemeldet sind — sie fehlen
+ * bewusst in der Liste, und die Seite sagt das, statt sie lautlos wegzulassen.
+ */
+export async function zaehleAbgemeldete(semesterId: string): Promise<number> {
+  return prisma.teilnahme.count({
+    where: { semesterId, abgemeldetAm: { not: null }, person: PERSON_ZAEHLT_AKTIV },
+  });
+}
+
+/**
+ * Die gemeinsame Bedingung von Zählung und Sammelübernahme — eine Wahrheit.
+ *
+ * Bewusst `none` über ALLE Teilnahmen des Semesters, auch abgemeldete: Wer
+ * „bin raus" gesagt hat oder ohne Rückmeldung herausgefallen ist, HAT eine
+ * Teilnahme und gilt deshalb nicht als „noch nicht zugeordnet". Sonst legte die
+ * Sammelübernahme ihn stillschweigend wieder an — zurück kommt er nur über
+ * „Wieder aufnehmen" auf der Überleitungsseite.
+ */
 export function nochNichtImSemester(semesterId: string) {
   return {
-    status: { istAktiv: true },
+    ...PERSON_ZAEHLT_AKTIV,
     rollen: { some: { rolleCode: ROLLE.TEILNEHMER } },
     teilnahmen: { none: { semesterId } },
   };

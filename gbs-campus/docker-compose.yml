@@ -27,6 +27,16 @@ services:
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      # Traefik erreicht die Dienste nur ueber edge. Haengt ein Dienst in
+      # mehreren Netzen (app: edge + data), nimmt Traefik ohne diese Angabe
+      # irgendeine seiner IPs — erwischt es die aus data (internal: true),
+      # laufen alle Anfragen in einen 504, je nach Neustart mal ja, mal nein.
+      # Der Name ist unten unter networks fest vergeben (ohne Projekt-Praefix).
+      - "--providers.docker.network=gbs_edge"
+      # Sicherheits-Header aus einer Datei statt aus Labels am traefik-Container:
+      # Mit traefik.enable=true legte Traefik fuer sich selbst einen unnoetigen
+      # Default-Router an (siehe docker/traefik-dynamisch.yml).
+      - "--providers.file.filename=/etc/traefik/dynamisch.yml"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
@@ -36,7 +46,7 @@ services:
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
       # Beleg-Uploads: Standardlimit ist kleiner als ein Foto vom Zugticket.
       # Siehe 1_Bauplan.html Kap. 08, Fallstrick 3.
-      - "--entrypoints.websecure.http.middlewares=gbs-sicherheit@docker"
+      - "--entrypoints.websecure.http.middlewares=gbs-sicherheit@file"
       - "--log.level=INFO"
       - "--accesslog=true"
     ports:
@@ -45,16 +55,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
+      # Sicherheits-Header zentral, damit sie nicht pro Route vergessen werden
+      - ./docker/traefik-dynamisch.yml:/etc/traefik/dynamisch.yml:ro
     networks:
       - edge
-    labels:
-      # Sicherheits-Header zentral, damit sie nicht pro Route vergessen werden
-      - "traefik.enable=true"
-      - "traefik.http.middlewares.gbs-sicherheit.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.gbs-sicherheit.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.gbs-sicherheit.headers.frameDeny=true"
-      - "traefik.http.middlewares.gbs-sicherheit.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.gbs-sicherheit.headers.referrerPolicy=strict-origin-when-cross-origin"
+    # Bewusst keine Labels und kein traefik.enable: Der traefik-Container selbst
+    # wird nicht geroutet (exposedbydefault=false).
 
   app:
     build:
@@ -77,8 +83,18 @@ services:
       # APP_DATABASE_URL um — den rechtebeschraenkten Nutzer gbs_app (nur DML,
       # audit_log/einwilligungen append-only). Opt-in: ohne APP_DB_PASSWORD bleibt
       # der Server am Eigentuemer-Zugang.
+      # Die URL steht hier immer, auch bei leerem Passwort ("gbs_app:@db…") —
+      # umgeschaltet wird deshalb im Entrypoint nur, wenn APP_DB_PASSWORD nicht
+      # leer ist. Das Passwort wird zusaetzlich ausdruecklich durchgereicht, damit
+      # URL und Umschalter garantiert aus derselben Quelle stammen. Nach dem
+      # Umschalten entfernt der Entrypoint DB_PASSWORD (kommt ueber env_file) aus
+      # der Umgebung des Serverprozesses — NUR dort: In der Container-
+      # Konfiguration bleiben DB_PASSWORD und diese Eigentuemer-DATABASE_URL
+      # stehen, der Healthcheck unten und jedes `docker exec` bekommen sie mit
+      # (siehe docker/entrypoint.sh, offene Entscheidung Migrationsdienst).
       - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
-      - APP_DATABASE_URL=postgresql://gbs_app:${APP_DB_PASSWORD}@db:5432/gbs_campus?schema=public
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD:-}
+      - APP_DATABASE_URL=postgresql://gbs_app:${APP_DB_PASSWORD:-}@db:5432/gbs_campus?schema=public
     env_file:
       - .env
     depends_on:
@@ -95,6 +111,9 @@ services:
       - data
     labels:
       - "traefik.enable=true"
+      # Doppelt haelt besser: Auch ohne den globalen Schalter am traefik-Dienst
+      # nimmt Traefik fuer die App nur die IP aus edge, nie die aus data.
+      - "traefik.docker.network=gbs_edge"
       - "traefik.http.routers.gbs.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.routers.gbs.entrypoints=websecure"
       - "traefik.http.routers.gbs.tls.certresolver=le"
@@ -105,7 +124,9 @@ services:
   # T-14/-7/-3 und den DSGVO-Aufraeumlauf), stuendlich und idempotent. Ersetzt
   # den externen Zeitgeber — der HTTP-Endpunkt /api/cron/erinnerungen bleibt
   # zusaetzlich fuer manuelles Ausloesen. Gleiches Image wie die App, nur ein
-  # anderer Einstiegspunkt; kein Port, keine traefik-Route.
+  # anderer Einstiegspunkt; kein Port, keine traefik-Route. Nach jedem Lauf
+  # schreibt er ein Lebenszeichen nach /tmp/gbs-worker-lebenszeichen, das der
+  # Healthcheck prueft.
   worker:
     image: gbs-campus:latest
     container_name: gbs-worker
@@ -116,12 +137,27 @@ services:
     environment:
       - TZ=Europe/Berlin
       - NODE_ENV=production
+      # Bewusst weiter als Eigentuemer (siehe UEBERGABE.md): Der Worker startet
+      # nicht ueber entrypoint.sh, der Umschalter auf gbs_app gilt nur fuer den
+      # Server. APP_DB_PASSWORD kommt zwar ueber env_file an, bleibt hier aber
+      # ungenutzt — ein leeres Passwort kann den Worker also nicht lahmlegen.
       - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
+    # Bewusst KEIN depends_on auf app: Der Worker wartet selbst auf das Schema.
+    healthcheck:
+      # Lebenszeichen aus scripts/worker.ts (nach jedem stündlichen Lauf neu
+      # geschrieben). Den Pfad nur gemeinsam mit LEBENSZEICHEN_DATEI ändern.
+      # grep -q ist nötig, weil find ohne Treffer mit Code 0 endet.
+      test: ["CMD-SHELL", "find /tmp/gbs-worker-lebenszeichen -mmin -130 | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      # warteAufSchema wartet bis zu 10 Minuten auf die Migrationen.
+      start_period: 15m
     networks:
       - edge
       - data
@@ -171,5 +207,9 @@ volumes:
 
 networks:
   edge:
+    # Fester Name statt "<projekt>_edge": Traefik wird ueber
+    # --providers.docker.network und das Label traefik.docker.network genau auf
+    # dieses Netz festgelegt, und der Name darf nicht vom Ordnernamen abhaengen.
+    name: gbs_edge
   data:
     internal: true

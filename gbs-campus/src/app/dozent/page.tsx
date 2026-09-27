@@ -6,10 +6,12 @@ import { ladeEigeneDozentTermine } from "@/lib/stundenplan-io";
 import { ladeEigeneDozentKurseinheiten } from "@/lib/leistung-io";
 import { offeneErfassung } from "@/lib/stundenplan";
 import { Icon, type IconName } from "@/components/icons";
-import { AbmeldenKnopf } from "@/app/verwaltung/abmelden-knopf";
-import { NotenMatrix } from "@/app/verwaltung/noten/noten-matrix";
+import { AbmeldenKnopf } from "@/components/ui/abmelden-knopf";
+import { LadeHinweis } from "@/components/ui/lade-hinweis";
+import { NotenMatrix } from "@/components/noten/noten-matrix";
 import { StundenplanDozent } from "./stundenplan-dozent";
 
+export const metadata = { title: "Mein Unterricht" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -60,6 +62,7 @@ export default async function DozentSeite() {
           </p>
           <Link href="/meine-daten" className="mt-3 inline-block text-sm text-muted-foreground underline underline-offset-4">
             Meine persönlichen Daten (Adresse, Bankverbindung) →
+            <LadeHinweis className="ml-2" />
           </Link>
         </div>
         <AbmeldenKnopf />
@@ -90,13 +93,13 @@ export default async function DozentSeite() {
             <section className="mt-6 rounded-lg border border-border border-l-4 border-l-credo-gelb bg-card p-4">
               <h2 className="text-sm font-semibold">Offene Aufgaben</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Diese vergangenen Abende sind noch nicht vollständig erfasst. Trag die Anwesenheit unten im Stundenplan
-                nach.
+                Diese vergangenen Abende sind noch nicht vollständig erfasst. „Jetzt erfassen“ springt zum Abend im
+                Stundenplan und klappt die Erfassung auf.
               </p>
               <ul className="mt-3 space-y-2">
-                {offeneAufgaben.map((a, i) => (
+                {offeneAufgaben.map((a) => (
                   <li
-                    key={`${a.text}-${i}`}
+                    key={a.terminId}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background p-3"
                   >
                     <span className="min-w-0 text-sm">
@@ -104,8 +107,19 @@ export default async function DozentSeite() {
                       {a.fach && <span className="text-muted-foreground"> · {a.fach}</span>}
                       <span className="block text-xs text-muted-foreground">{a.semester}</span>
                     </span>
-                    <span className="inline-flex rounded-full bg-credo-gelb/25 px-2.5 py-0.5 text-xs font-medium text-foreground">
-                      {a.erfasst} von {a.gesamt} erfasst
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex rounded-full bg-credo-gelb/25 px-2.5 py-0.5 text-xs font-medium text-foreground">
+                        {a.erfasst} von {a.gesamt} erfasst
+                      </span>
+                      {/* Ein schlichter Anker (kein next/link): Nur so feuert der
+                          Browser `hashchange`, auf das der Stundenplan hört. */}
+                      <a
+                        href={`#termin-${a.terminId}`}
+                        className="inline-flex min-h-11 items-center rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-primary"
+                        aria-label={`Anwesenheit für ${a.text} jetzt erfassen`}
+                      >
+                        Jetzt erfassen
+                      </a>
                     </span>
                   </li>
                 ))}
@@ -127,7 +141,7 @@ export default async function DozentSeite() {
           <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Meine Noten</h2>
           <p className="mt-2 mb-4 max-w-prose text-sm text-muted-foreground">
             Bewerte die Teilnehmer deiner eigenen Fächer. Pflicht ist nur das Ergebnis; Punkte und Note sind optional
-            (nur wo benotet wird, z. B. Bibelkunde).
+            (nur wo benotet wird, z. B. Bibelkunde). Hörer werden nicht benotet und stehen deshalb nicht in der Liste.
           </p>
           {notenGruppen.map((g) => (
             <div key={g.semesterId} className="mt-6 first:mt-0">

@@ -12,16 +12,17 @@
 
 import type { PdfBlock } from "@/lib/pdf";
 import type { ZeugnisSnapshot } from "@/lib/zeugnis";
+import { EINRICHTUNG } from "@/lib/constants";
 
 /** Einleitungssatz je Typ — neutral und faktisch. */
 function einleitung(snapshot: ZeugnisSnapshot): string {
   switch (snapshot.typ) {
     case "ABSCHLUSS":
-      return "Die Gemeindebibelschule Minden bescheinigt die Teilnahme an der Ausbildung mit den folgenden Gesamtleistungen.";
+      return `Die ${EINRICHTUNG.name} bescheinigt die Teilnahme an der Ausbildung mit den folgenden Gesamtleistungen.`;
     case "BESCHEINIGUNG":
-      return "Die Gemeindebibelschule Minden bescheinigt die Teilnahme an den folgenden Fächern als Hörer (ohne Prüfung).";
+      return `Die ${EINRICHTUNG.name} bescheinigt die Teilnahme an den folgenden Fächern als Hörer (ohne Prüfung).`;
     default:
-      return "Die Gemeindebibelschule Minden bescheinigt die Teilnahme und die erbrachten Leistungen im folgenden Ausbildungsabschnitt.";
+      return `Die ${EINRICHTUNG.name} bescheinigt die Teilnahme und die erbrachten Leistungen im folgenden Ausbildungsabschnitt.`;
   }
 }
 
@@ -33,14 +34,42 @@ function leistungWert(l: ZeugnisSnapshot["leistungen"][number]): string {
   return teile.join(" · ");
 }
 
-/** Baut die PDF-Bausteine EINES Zeugnisses aus seinem Snapshot. Rein, ohne Datenbank. */
-export function baueZeugnisBloecke(snapshot: ZeugnisSnapshot): PdfBlock[] {
+/**
+ * Vermerk für ein ERSETZTES Zeugnis: welche Ausfertigung an seine Stelle trat und
+ * wann (bereits formatiert). Beide Angaben können fehlen, wenn der Nachfolger
+ * nicht mehr auffindbar ist — der Vermerk „ungültig“ bleibt trotzdem.
+ */
+export type UngueltigVermerk = { durchBelegNr: string | null; am: string | null };
+
+/** Der Kopfvermerk eines ersetzten Zeugnisses, z. B. „UNGÜLTIG – ersetzt durch Beleg ZEU-… am 01.08.2026“. */
+export function ungueltigVermerkText(v: UngueltigVermerk): string {
+  if (!v.durchBelegNr) return "UNGÜLTIG – dieses Dokument wurde durch eine neue Ausfertigung ersetzt.";
+  return `UNGÜLTIG – ersetzt durch Beleg ${v.durchBelegNr}${v.am ? ` am ${v.am}` : ""}.`;
+}
+
+/**
+ * Baut die PDF-Bausteine EINES Zeugnisses aus seinem Snapshot. Rein, ohne
+ * Datenbank. Mit `ungueltig` (nur für ein ERSETZTES Zeugnis, Nachdruck durch die
+ * Schulleitung) steht vor allem anderen ein Kopfvermerk — der Snapshot selbst
+ * bleibt unverändert, sonst sähe der Nachdruck wie ein gültiges Zeugnis aus.
+ */
+export function baueZeugnisBloecke(snapshot: ZeugnisSnapshot, ungueltig: UngueltigVermerk | null = null): PdfBlock[] {
   const b: PdfBlock[] = [];
+
+  if (ungueltig) {
+    b.push({ art: "h2", text: ungueltigVermerkText(ungueltig) });
+    b.push({
+      art: "absatz",
+      // Neutral gefasst: Das Dokument kann auch eine Teilnahmebescheinigung sein,
+      // und der genannte Nachfolger kann selbst schon wieder ersetzt sein.
+      text: "Dieses Dokument ist nicht mehr gültig. Maßgeblich ist allein die jeweils gültige Ausfertigung.",
+    });
+  }
 
   b.push({ art: "titel", text: snapshot.titel });
   b.push({
     art: "klein",
-    text: `Gemeindebibelschule Minden · Christliches Werk Esra e.V. · Beleg-Nr. ${snapshot.belegNr}${
+    text: `${EINRICHTUNG.name} · ${EINRICHTUNG.traeger} · Beleg-Nr. ${snapshot.belegNr}${
       snapshot.version > 1 ? ` · Ausfertigung ${snapshot.version}` : ""
     }`,
   });

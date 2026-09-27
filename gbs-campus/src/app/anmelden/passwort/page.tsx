@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { PasswortAnmeldung } from "./passwort-anmeldung";
 
 export const metadata = { title: "Mit Passwort anmelden" };
@@ -6,9 +7,7 @@ export const metadata = { title: "Mit Passwort anmelden" };
 export default function PasswortSeite() {
   return (
     <main className="mx-auto max-w-md px-6 py-24">
-      <Link href="/anmelden" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Mit Anmeldelink stattdessen
-      </Link>
+      <ZurueckLeiste href="/anmelden" label="Mit Anmeldelink stattdessen" />
 
       <h1 className="mt-6 text-3xl font-bold tracking-tight">Mit Passwort anmelden</h1>
       <p className="mt-3 text-sm text-muted-foreground">

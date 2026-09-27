@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendeAnfrage } from "@/lib/api-client";
+import { MeldungsBox, type Meldung } from "@/components/ui/meldung";
+import {
+  aktenfeldVerlangtArt9,
+  behalteVorhandeneZuordnungen,
+  bereinigeOptionenUndZuordnung,
+  normalisiereOptionen,
+} from "@/lib/formular-optionen";
 
 /**
  * Der Formular-Builder.
@@ -39,6 +46,19 @@ export type Abschnitt = {
   beschreibung: string | null;
   felder: Feld[];
 };
+
+/**
+ * Builder-interne Fassung mit einer stabilen `uid` je Abschnitt und Feld.
+ *
+ * Die uid ist rein clientseitig: Sie dient als React-Key und als Basis der
+ * Element-IDs und wird vor dem Senden wieder entfernt (`zumSenden`). Vorher
+ * hingen Key und IDs an Abschnittstitel bzw. Feldschlüssel — genau den Werten,
+ * die hier bearbeitet werden. Jeder Tastendruck ergab einen neuen Key, React
+ * baute das Element neu auf, und der Fokus war weg; ein vorübergehend doppelter
+ * Schlüssel ergab zudem doppelte DOM-IDs.
+ */
+type BuilderFeld = Feld & { uid: string };
+type BuilderAbschnitt = Omit<Abschnitt, "felder"> & { uid: string; felder: BuilderFeld[] };
 
 const FELDTYPEN: { wert: FeldTypWert; name: string }[] = [
   { wert: "TEXT", name: "Text, einzeilig" },
@@ -80,6 +100,60 @@ function verschiebe<T>(liste: T[], von: number, nach: number): T[] {
   return kopie;
 }
 
+/**
+ * uid für einen im Builder neu angelegten Abschnitt bzw. ein neues Feld. Läuft
+ * nur im Klickhandler, also im Browser. Ohne sicheren Kontext (http über eine
+ * LAN-Adresse) fehlt crypto.randomUUID — dann reicht ein Zähler, denn die uid
+ * muss nur innerhalb dieser Seite eindeutig sein.
+ */
+let uidZaehler = 0;
+function neueUid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  uidZaehler += 1;
+  return `neu-${uidZaehler}`;
+}
+
+/**
+ * Startzustand mit uid. Für die geladenen Einträge ist die uid die Ladeposition
+ * („a0", „a0-f3") statt crypto.randomUUID(): Der Builder wird auf dem Server
+ * vorgerendert, und eine Zufalls-uid fiele dort anders aus als beim Hydrieren
+ * im Browser — die Element-IDs im HTML passten dann nicht zu denen, die React
+ * erwartet. Die Ladeposition ist auf beiden Seiten gleich, wandert beim
+ * Verschieben mit dem Eintrag mit und hängt an keinem bearbeitbaren Wert.
+ */
+function mitUids(abschnitte: Abschnitt[]): BuilderAbschnitt[] {
+  return abschnitte.map((abschnitt, i) => ({
+    ...abschnitt,
+    uid: `a${i}`,
+    felder: abschnitt.felder.map((feld, j) => ({ ...feld, uid: `a${i}-f${j}` })),
+  }));
+}
+
+/**
+ * Was an den Server geht: ausdrücklich aufgezählte Felder ohne uid, die
+ * Antwortmöglichkeiten normalisiert und die Teilnahmeform-Zuordnung auf die
+ * noch vorhandenen Antworten beschnitten. Das Normalisieren passiert zwar schon
+ * beim Verlassen des Antwortfelds, hier aber noch einmal, damit nie ein
+ * ungetrimmter Stand oder eine verwaiste Zuordnung gespeichert wird.
+ */
+function zumSenden(abschnitte: BuilderAbschnitt[]): Abschnitt[] {
+  return abschnitte.map((abschnitt) => ({
+    titel: abschnitt.titel,
+    beschreibung: abschnitt.beschreibung,
+    felder: abschnitt.felder.map((feld) => ({
+      code: feld.code,
+      typ: feld.typ,
+      label: feld.label,
+      hilfetext: feld.hilfetext,
+      platzhalter: feld.platzhalter,
+      pflicht: feld.pflicht,
+      personFeld: feld.personFeld,
+      istArt9: feld.istArt9,
+      ...bereinigeOptionenUndZuordnung(feld),
+    })),
+  }));
+}
+
 export function FormularBuilder({
   versionId,
   version,
@@ -95,8 +169,8 @@ export function FormularBuilder({
 }) {
   const router = useRouter();
   const [einleitung, setEinleitung] = useState(einleitungStart);
-  const [abschnitte, setAbschnitte] = useState<Abschnitt[]>(abschnitteStart);
-  const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string; punkte?: string[] } | null>(null);
+  const [abschnitte, setAbschnitte] = useState<BuilderAbschnitt[]>(() => mitUids(abschnitteStart));
+  const [meldung, setMeldung] = useState<(Meldung & { punkte?: string[] }) | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [vorschau, setVorschau] = useState(false);
 
@@ -105,7 +179,7 @@ export function FormularBuilder({
     [abschnitte],
   );
 
-  function aendereAbschnitt(index: number, teil: Partial<Abschnitt>) {
+  function aendereAbschnitt(index: number, teil: Partial<BuilderAbschnitt>) {
     setAbschnitte((alt) => alt.map((a, i) => (i === index ? { ...a, ...teil } : a)));
   }
 
@@ -130,7 +204,7 @@ export function FormularBuilder({
 
     const antwort = await sendeAnfrage<{ felder: number }>(`/api/formulare/${versionId}`, {
       methode: "PUT",
-      rumpf: { einleitung: einleitung || null, abschnitte },
+      rumpf: { einleitung: einleitung || null, abschnitte: zumSenden(abschnitte) },
     });
     setLaeuft(false);
 
@@ -154,7 +228,7 @@ export function FormularBuilder({
 
     const gespeichert = await sendeAnfrage(`/api/formulare/${versionId}`, {
       methode: "PUT",
-      rumpf: { einleitung: einleitung || null, abschnitte },
+      rumpf: { einleitung: einleitung || null, abschnitte: zumSenden(abschnitte) },
     });
     if (!gespeichert.ok) {
       setLaeuft(false);
@@ -173,7 +247,9 @@ export function FormularBuilder({
       setMeldung({
         art: "fehler",
         text: antwort.meldung,
-        punkte: antwort.details?.map((d) => d.meldung),
+        // Auch hier mit Feldschlüssel: Die Veröffentlichung prüft die
+        // Felddefinition noch einmal, deren Mängel hängen an einem Feld.
+        punkte: antwort.details?.map((d) => (d.feld ? `${d.feld}: ${d.meldung}` : d.meldung)),
       });
       return;
     }
@@ -222,23 +298,16 @@ export function FormularBuilder({
         </div>
       </header>
 
-      {meldung && (
-        <div
-          role={meldung.art === "ok" ? "status" : "alert"}
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            meldung.art === "ok" ? "border-credo-gruen/40 bg-credo-gruen/5" : "border-credo-rot/40 bg-credo-rot/5"
-          }`}
-        >
-          <p className="font-medium">{meldung.text}</p>
-          {meldung.punkte && meldung.punkte.length > 0 && (
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-              {meldung.punkte.map((punkt) => (
-                <li key={punkt}>{punkt}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <MeldungsBox meldung={meldung} className="font-medium">
+        {meldung?.punkte && meldung.punkte.length > 0 && (
+          <ul className="mt-2 list-disc space-y-1 pl-5 font-normal text-muted-foreground">
+            {/* Index als Key: Zwei Felder können dieselbe Meldung tragen. */}
+            {meldung.punkte.map((punkt, i) => (
+              <li key={i}>{punkt}</li>
+            ))}
+          </ul>
+        )}
+      </MeldungsBox>
 
       {vorschau ? (
         <Vorschau einleitung={einleitung} abschnitte={abschnitte} />
@@ -259,19 +328,26 @@ export function FormularBuilder({
           </section>
 
           {abschnitte.map((abschnitt, abschnittIndex) => (
-            <section key={`${abschnittIndex}-${abschnitt.titel}`} className="rounded-lg border border-border bg-card p-5">
+            <section key={abschnitt.uid} className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-start gap-3">
                 <div className="flex-1">
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <label
+                    htmlFor={`builder-${abschnitt.uid}-titel`}
+                    className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
                     Abschnitt {abschnittIndex + 1}
+                    <span className="sr-only">, Überschrift</span>
                   </label>
                   <input
+                    id={`builder-${abschnitt.uid}-titel`}
                     value={abschnitt.titel}
                     disabled={!bearbeitbar}
                     onChange={(e) => aendereAbschnitt(abschnittIndex, { titel: e.target.value })}
                     className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm font-medium disabled:opacity-60"
                   />
                   <input
+                    id={`builder-${abschnitt.uid}-beschreibung`}
+                    aria-label={`Abschnitt ${abschnittIndex + 1}, Beschreibung (optional)`}
                     value={abschnitt.beschreibung ?? ""}
                     disabled={!bearbeitbar}
                     placeholder="Erklärender Text unter der Überschrift (optional)"
@@ -296,6 +372,7 @@ export function FormularBuilder({
                     <button
                       type="button"
                       title="Abschnitt löschen"
+                      aria-label={`Abschnitt ${abschnittIndex + 1} löschen`}
                       onClick={() => {
                         if (confirm(`Abschnitt „${abschnitt.titel}“ mit ${abschnitt.felder.length} Feldern löschen?`)) {
                           setAbschnitte((alt) => alt.filter((_, i) => i !== abschnittIndex));
@@ -312,7 +389,7 @@ export function FormularBuilder({
               <div className="mt-5 space-y-3">
                 {abschnitt.felder.map((feld, feldIndex) => (
                   <FeldZeile
-                    key={feld.code}
+                    key={feld.uid}
                     feld={feld}
                     bearbeitbar={bearbeitbar}
                     istErstes={feldIndex === 0}
@@ -344,6 +421,7 @@ export function FormularBuilder({
                       felder: [
                         ...abschnitt.felder,
                         {
+                          uid: neueUid(),
                           code: neuerFeldcode(),
                           typ: "TEXT",
                           label: "Neue Frage",
@@ -369,9 +447,12 @@ export function FormularBuilder({
           {bearbeitbar && (
             <button
               type="button"
-              onClick={() =>
-                setAbschnitte((alt) => [...alt, { titel: "Neuer Abschnitt", beschreibung: null, felder: [] }])
-              }
+              onClick={() => {
+                // uid ausserhalb der Update-Funktion erzeugen: Die muss rein
+                // sein und laeuft im Strict Mode doppelt.
+                const uid = neueUid();
+                setAbschnitte((alt) => [...alt, { uid, titel: "Neuer Abschnitt", beschreibung: null, felder: [] }]);
+              }}
               className="w-full rounded-lg border border-dashed border-input px-4 py-3 text-sm font-medium text-muted-foreground"
             >
               + Abschnitt hinzufügen
@@ -426,7 +507,7 @@ function FeldZeile({
   onVerschieben,
   onLoeschen,
 }: {
-  feld: Feld;
+  feld: BuilderFeld;
   bearbeitbar: boolean;
   istErstes: boolean;
   istLetztes: boolean;
@@ -436,7 +517,9 @@ function FeldZeile({
 }) {
   const brauchtOptionen = MIT_OPTIONEN.includes(feld.typ);
   const istTeilnahmeform = feld.personFeld === "TEILNAHMEFORM";
-  const basis = `builder-${feld.code}`;
+  const art9Pflicht = aktenfeldVerlangtArt9(feld.personFeld);
+  // uid statt Feldschluessel: Der Schluessel wird in dieser Zeile bearbeitet.
+  const basis = `builder-${feld.uid}`;
 
   return (
     <div className="rounded-lg border border-border bg-background p-4">
@@ -489,7 +572,12 @@ function FeldZeile({
               id={`${basis}-akte`}
               value={feld.personFeld}
               disabled={!bearbeitbar || feld.typ === "HINWEIS"}
-              onChange={(e) => onAendern({ personFeld: e.target.value as PersonFeldWert })}
+              onChange={(e) => {
+                const personFeld = e.target.value as PersonFeldWert;
+                // Die Gemeinde ist immer Art. 9 — das Häkchen wird mitgesetzt
+                // (und unten gesperrt), der Server prüft es ebenso.
+                onAendern(aktenfeldVerlangtArt9(personFeld) ? { personFeld, istArt9: true } : { personFeld });
+              }}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
             >
               {AKTENFELDER.map((f) => (
@@ -518,15 +606,18 @@ function FeldZeile({
               <label htmlFor={`${basis}-optionen`} className="mb-1 block text-xs font-medium text-muted-foreground">
                 Antwortmöglichkeiten — eine je Zeile, mindestens zwei
               </label>
-              <textarea
+              <OptionenEingabe
                 id={`${basis}-optionen`}
-                rows={Math.max(2, (feld.optionen ?? []).length)}
-                value={(feld.optionen ?? []).join("\n")}
-                disabled={!bearbeitbar}
-                onChange={(e) =>
-                  onAendern({ optionen: e.target.value.split("\n").map((z) => z.trim()).filter(Boolean) })
+                optionen={feld.optionen}
+                bearbeitbar={bearbeitbar}
+                onUebernehmen={(optionen) =>
+                  onAendern({
+                    optionen,
+                    // Die Zuordnung haengt am Antworttext: Zu einer umbenannten
+                    // oder geloeschten Antwort bleibt kein Eintrag stehen.
+                    teilnahmeformZuordnung: behalteVorhandeneZuordnungen(feld.teilnahmeformZuordnung, optionen),
+                  })
                 }
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
               />
             </div>
           )}
@@ -539,14 +630,24 @@ function FeldZeile({
                 mit Prüfung“ ergab dabei Hörer. Deshalb bitte ausdrücklich zuordnen.
               </p>
               <div className="space-y-2">
-                {(feld.optionen ?? []).map((option) => (
-                  <div key={option} className="flex flex-wrap items-center gap-2 text-sm">
-                    <label htmlFor={`${basis}-tf-${option}`} className="flex-1 min-w-40">
+                {/* Key und ID ueber die Position, nicht ueber den Antworttext:
+                    Der ist bearbeitbar, kann doppelt vorkommen und enthaelt
+                    Leerzeichen, die in einer ID nichts zu suchen haben. */}
+                {(feld.optionen ?? []).map((option, optionIndex) => (
+                  <div key={optionIndex} className="flex flex-wrap items-center gap-2 text-sm">
+                    <label htmlFor={`${basis}-tf-${optionIndex}`} className="flex-1 min-w-40">
                       {option}
                     </label>
                     <select
-                      id={`${basis}-tf-${option}`}
-                      value={feld.teilnahmeformZuordnung?.[option] ?? ""}
+                      id={`${basis}-tf-${optionIndex}`}
+                      // Nur eigene Einträge: Bei einer Antwort „constructor“ oder
+                      // „toString“ fände `zuordnung[option]` sonst die geerbte
+                      // Funktion (wie leseTeilnahmeformZuordnung auf dem Server).
+                      value={
+                        feld.teilnahmeformZuordnung && Object.hasOwn(feld.teilnahmeformZuordnung, option)
+                          ? feld.teilnahmeformZuordnung[option]
+                          : ""
+                      }
                       disabled={!bearbeitbar}
                       onChange={(e) =>
                         onAendern({
@@ -583,11 +684,19 @@ function FeldZeile({
               <input
                 type="checkbox"
                 checked={feld.istArt9}
-                disabled={!bearbeitbar || feld.typ === "HINWEIS"}
+                // Gesperrt nur, solange das Häkchen gesetzt ist: Ein älterer
+                // Entwurf ohne Häkchen lässt sich so noch korrigieren.
+                disabled={!bearbeitbar || feld.typ === "HINWEIS" || (art9Pflicht && feld.istArt9)}
+                aria-describedby={art9Pflicht ? `${basis}-art9-pflicht` : undefined}
                 onChange={(e) => onAendern({ istArt9: e.target.checked })}
               />
               Besonders geschützt (Art. 9 DSGVO)
             </label>
+            {art9Pflicht && (
+              <span id={`${basis}-art9-pflicht`} className="text-xs text-muted-foreground">
+                Bei der Gemeindezugehörigkeit immer gesetzt.
+              </span>
+            )}
 
             <div className="ml-auto">
               <label htmlFor={`${basis}-code`} className="mr-2 text-xs text-muted-foreground">
@@ -632,20 +741,63 @@ function FeldZeile({
   );
 }
 
+/**
+ * Die Antwortmöglichkeiten, eine je Zeile.
+ *
+ * Der Rohtext bleibt beim Tippen unangetastet in lokalem State. Vorher wurde
+ * bei jedem Tastendruck normalisiert (trim, leere Zeilen weg) und der Wert
+ * zurückgeschrieben: Ein Enter am Zeilenende verschwand sofort, eine dritte
+ * Antwort ließ sich nicht anlegen, und „Ja, gemeinsam mit …" wurde beim Tippen
+ * zu „Ja,gemeinsammit…". Normalisiert wird jetzt erst beim Verlassen des Felds
+ * und vor dem Senden noch einmal (`zumSenden`).
+ *
+ * Die Komponente wird nur für Auswahlfelder eingehängt; wechselt die Art der
+ * Frage von „Text" auf „Auswahl", startet sie also mit den Vorgabe-Antworten.
+ */
+function OptionenEingabe({
+  id,
+  optionen,
+  bearbeitbar,
+  onUebernehmen,
+}: {
+  id: string;
+  optionen: string[] | null;
+  bearbeitbar: boolean;
+  onUebernehmen: (optionen: string[]) => void;
+}) {
+  const [text, setText] = useState(() => (optionen ?? []).join("\n"));
+
+  return (
+    <textarea
+      id={id}
+      rows={Math.max(2, text.split("\n").length)}
+      value={text}
+      disabled={!bearbeitbar}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={(e) => {
+        const normalisiert = normalisiereOptionen(e.currentTarget.value);
+        setText(normalisiert.join("\n"));
+        onUebernehmen(normalisiert);
+      }}
+      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+    />
+  );
+}
+
 /** Zeigt das Formular so, wie es der Anmeldende sehen wird. */
-function Vorschau({ einleitung, abschnitte }: { einleitung: string; abschnitte: Abschnitt[] }) {
+function Vorschau({ einleitung, abschnitte }: { einleitung: string; abschnitte: BuilderAbschnitt[] }) {
   return (
     <div className="rounded-lg border border-border bg-card p-6">
       {einleitung && <p className="mb-8 max-w-prose text-sm text-muted-foreground">{einleitung}</p>}
 
-      {abschnitte.map((abschnitt, i) => (
-        <section key={`${i}-${abschnitt.titel}`} className="mb-10">
+      {abschnitte.map((abschnitt) => (
+        <section key={abschnitt.uid} className="mb-10">
           <h2 className="text-lg font-semibold">{abschnitt.titel}</h2>
           {abschnitt.beschreibung && <p className="mt-1 text-sm text-muted-foreground">{abschnitt.beschreibung}</p>}
 
           <div className="mt-5 space-y-5">
-            {abschnitt.felder.map((feld, j) => (
-              <div key={feld.code}>
+            {abschnitt.felder.map((feld) => (
+              <div key={feld.uid}>
                 {feld.typ === "HINWEIS" ? (
                   <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">{feld.label}</p>
                 ) : (
@@ -688,8 +840,9 @@ function VorschauEingabe({ feld }: { feld: Feld }) {
     case "AUSWAHL_MEHRFACH":
       return (
         <div className="space-y-1.5 text-sm">
-          {(feld.optionen ?? []).map((option) => (
-            <label key={option} className="flex items-center gap-2">
+          {/* Index als Key: Antworttexte können (vorübergehend) doppelt sein. */}
+          {(feld.optionen ?? []).map((option, i) => (
+            <label key={i} className="flex items-center gap-2">
               <input type={feld.typ === "AUSWAHL_EINFACH" ? "radio" : "checkbox"} disabled /> {option}
             </label>
           ))}

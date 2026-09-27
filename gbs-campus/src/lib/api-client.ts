@@ -15,6 +15,19 @@
 
 const ZEITGRENZE_MS = 30_000;
 
+/**
+ * Text der 401-Antwort aller geschützten API-Routen (`nichtAngemeldet()` in
+ * api.ts). Er steht hier und nicht in api.ts, weil api.ts `next/server`
+ * importiert und nicht ins Browser-Bundle gehört.
+ *
+ * Bewusst KEINE automatische Umleitung zur Anmeldung: Sie würfe alles weg, was
+ * gerade eingetippt wurde. Man meldet sich in einem zweiten Tab neu an (das
+ * Cookie gilt dann auch hier) und drückt denselben Knopf noch einmal.
+ */
+export const SITZUNG_ABGELAUFEN =
+  "Deine Sitzung ist abgelaufen. Bitte melde dich in einem neuen Tab an und versuche es dann hier noch einmal — " +
+  "deine Eingaben bleiben so lange stehen.";
+
 export type AnfrageErgebnis<T> =
   | { ok: true; daten: T }
   | { ok: false; status: number; meldung: string; details?: FehlerDetail[] };
@@ -60,17 +73,21 @@ export async function sendeAnfrage<T>(pfad: string, optionen: Optionen = {}): Pr
       meldung:
         antwort.status >= 500
           ? "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später noch einmal."
-          : "Der Server hat unerwartet geantwortet. Bitte lade die Seite neu.",
+          : antwort.status === 401
+            ? SITZUNG_ABGELAUFEN
+            : "Der Server hat unerwartet geantwortet. Bitte lade die Seite neu.",
     };
   }
 
   const objekt = (inhalt ?? {}) as { data?: T; error?: string; details?: FehlerDetail[] };
 
   if (!antwort.ok) {
+    // 401 mit eigenem Text (falsches Passwort, abgelaufener Anmeldelink) zeigt
+    // diesen Text; nur ein 401 ohne Text gilt als abgelaufene Sitzung.
     return {
       ok: false,
       status: antwort.status,
-      meldung: objekt.error ?? "Das hat nicht geklappt.",
+      meldung: objekt.error ?? (antwort.status === 401 ? SITZUNG_ABGELAUFEN : "Das hat nicht geklappt."),
       details: objekt.details,
     };
   }

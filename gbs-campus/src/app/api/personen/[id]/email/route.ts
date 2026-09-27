@@ -2,12 +2,12 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
-import { MAIL_VORLAGE, RECHT } from "@/lib/constants";
+import { erfolg, fehler } from "@/lib/api";
+import { MAIL_VORLAGE, RECHT, STATUS } from "@/lib/constants";
 import { pruefeNeueEmail } from "@/lib/eigene-daten";
-import { fuelleVorlage, sendeMail } from "@/lib/mailer";
+import { sendeNachVorlage } from "@/lib/selbstpflege";
 
 const schema = z.object({ email: z.string() });
 
@@ -31,12 +31,15 @@ const schema = z.object({ email: z.string() });
  *    Tippfehler sperrte den Bedienenden sofort selbst aus.
  *  - Beide Adressen werden benachrichtigt, die alte und die neue.
  *  - Der alte Zugang wird vollständig entwertet: offene Änderungsanträge,
- *    offene Anmeldelinks und ein etwaiges Passwort.
- *  - Der Vorgang steht im Audit-Log, das niemand löschen kann.
+ *    offene Anmeldelinks, offene Auskunftslinks und ein etwaiges Passwort.
+ *  - Der Vorgang steht im Audit-Log, das niemand löschen kann — mit Akteur,
+ *    Zeitpunkt und IP, aber ohne die Adressen selbst (Code-Review 4, M6c): Die
+ *    stehen im Versandprotokoll (Benachrichtigung an alt und neu), wo eine
+ *    Anonymisierung sie erreicht.
  */
 export async function PUT(request: NextRequest, kontext: { params: Promise<{ id: string }> }) {
-  const benutzer = await ladeMitRecht(RECHT.PERSON_BEARBEITEN_ALLE);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.PERSON_BEARBEITEN_ALLE);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Bitte eine gültige E-Mail-Adresse angeben.", 400);
@@ -47,6 +50,11 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
     include: { rollen: { include: { rolle: { include: { rechte: true } } } } },
   });
   if (!person) return fehler("Diese Person gibt es nicht.", 404);
+  // Eine anonymisierte Person hat kein Konto mehr, das jemand zurückbekommen
+  // könnte — eine neue Adresse wäre nur neuer Personenbezug.
+  if (person.statusCode === STATUS.ANONYMISIERT) {
+    return fehler("Für eine anonymisierte Person lässt sich keine Anmeldeadresse setzen.", 409);
+  }
 
   if (person.id === benutzer.id) {
     return fehler(
@@ -77,10 +85,37 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
   const passwortWarGesetzt = person.passwortHash !== null;
 
   let entwerteteLinks = 0;
+  let entwerteteAuskuenfte = 0;
+  const jetzt = new Date();
   try {
-    const [, , links] = await prisma.$transaction([
-      prisma.person.update({
-        where: { id },
+    // Reihenfolge wie bei der Anonymisierung: erst die Zeilen, die an der
+    // Person hängen, dann die Person — in umgekehrter Reihenfolge warteten
+    // beide aufeinander (Deadlock).
+    const [, links, auskuenfte, geschrieben] = await prisma.$transaction([
+      prisma.emailAenderung.updateMany({
+        where: { personId: id, benutztAm: null },
+        data: { benutztAm: new Date() },
+      }),
+      // Offene Anmeldelinks der alten Adresse: Sie gelten bis zu 24 Stunden und
+      // lägen sonst weiter im übernommenen Postfach — der neue Zugang wäre
+      // sofort wieder offen.
+      prisma.magicLink.updateMany({
+        where: { personId: id, benutztAm: null },
+        data: { benutztAm: new Date() },
+      }),
+      // Offene Auskunftslinks ebenso: Sie gelten 72 Stunden, lassen sich
+      // beliebig oft abrufen und liefern die volle Datenkopie mit IBAN und
+      // Glaubensangaben — genau in das Postfach, um dessen Verlust es hier geht
+      // (Code-Review 4). Abgelaufen heißt: `laeuftAb` liegt ab jetzt zurück.
+      prisma.datenauskunft.updateMany({
+        where: { personId: id, laeuftAb: { gt: jetzt } },
+        data: { laeuftAb: jetzt },
+      }),
+      // Bedingt: Committet zwischen der Prüfung oben und hier eine
+      // Anonymisierung, stünde sonst wieder eine echte Adresse im gelöschten
+      // Datensatz — und es gingen Mails an alt und neu.
+      prisma.person.updateMany({
+        where: { id, statusCode: { not: STATUS.ANONYMISIERT } },
         data: {
           email: ergebnis.email,
           // Ein etwaiges Passwort fliegt mit hinaus. Der ganze Zweck dieses
@@ -94,19 +129,15 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
           passwortGeaendertAm: new Date(),
         },
       }),
-      prisma.emailAenderung.updateMany({
-        where: { personId: id, benutztAm: null },
-        data: { benutztAm: new Date() },
-      }),
-      // Offene Anmeldelinks der alten Adresse: Sie gelten bis zu 24 Stunden und
-      // lägen sonst weiter im übernommenen Postfach — der neue Zugang wäre
-      // sofort wieder offen.
-      prisma.magicLink.updateMany({
-        where: { personId: id, benutztAm: null },
-        data: { benutztAm: new Date() },
-      }),
     ]);
+    // Ohne Treffer ist die Person inzwischen anonymisiert. Die Entwertungen
+    // davor haben dann nichts gefunden — die Anonymisierung löscht diese
+    // Zeilen selbst.
+    if (geschrieben.count !== 1) {
+      return fehler("Für eine anonymisierte Person lässt sich keine Anmeldeadresse setzen.", 409);
+    }
     entwerteteLinks = links.count;
+    entwerteteAuskuenfte = auskuenfte.count;
   } catch (ausnahme) {
     if (ausnahme instanceof Prisma.PrismaClientKnownRequestError && ausnahme.code === "P2002") {
       // Hier darf die Auskunft deutlich sein: Wer dieses Recht hat, sieht die
@@ -121,48 +152,43 @@ export async function PUT(request: NextRequest, kontext: { params: Promise<{ id:
     objektTyp: "Person",
     objektId: id,
     akteurId: benutzer.id,
-    vorher: { email: alteEmail, passwortGesetzt: passwortWarGesetzt },
+    vorher: { passwortGesetzt: passwortWarGesetzt },
     // Ob ein Passwort entfernt wurde, nicht welches — der Hash gehört nirgends
-    // hin, wo er breiter lesbar ist als der Datensatz selbst.
-    nachher: { email: ergebnis.email, passwortEntfernt: passwortWarGesetzt, entwerteteAnmeldelinks: entwerteteLinks },
+    // hin, wo er breiter lesbar ist als der Datensatz selbst. Ebenso nur, DASS
+    // sich die Adresse geändert hat, nicht die Adressen (siehe Kopf).
+    nachher: {
+      geaenderteFelder: ["email"],
+      passwortEntfernt: passwortWarGesetzt,
+      entwerteteAnmeldelinks: entwerteteLinks,
+      entwerteteAuskunftslinks: entwerteteAuskuenfte,
+    },
     headers: request.headers,
   });
 
-  const vorlage = await prisma.emailVorlage.findUnique({
-    where: { code: MAIL_VORLAGE.EMAIL_GEAENDERT_DURCH_VERWALTUNG },
-  });
-  const werte = { vorname: person.vorname, neueAdresse: ergebnis.email };
-  const betreff = fuelleVorlage(vorlage?.betreff ?? "Deine E-Mail-Adresse wurde geändert", werte);
-  // Der Hinweis auf das entfernte Passwort wird angehängt und nicht in die
-  // Vorlage geschrieben: Die Vorlage ist über die Oberfläche änderbar, und ein
-  // neuer Platzhalter darin würde bei allen bereits angepassten Texten fehlen.
-  const text =
-    fuelleVorlage(
-      vorlage?.textMd ?? "Hallo {{vorname}},\n\ndeine Adresse wurde auf {{neueAdresse}} geändert.",
-      werte,
-    ) +
-    (passwortWarGesetzt
+  // Ab hier ist die Adresse geändert und committet. `sendeNachVorlage` wirft
+  // nie: Eine unlesbare Vorlage oder ein hakendes SMTP wird zu
+  // `mailGesendet: false` statt zu einem 500 — sonst hielte die Verwaltung die
+  // Änderung für gescheitert, und ein zweiter Versuch liefe auf „identische
+  // Adresse“ (Code-Review 4).
+  const mail = {
+    personId: id,
+    vorlageCode: MAIL_VORLAGE.EMAIL_GEAENDERT_DURCH_VERWALTUNG,
+    werte: { vorname: person.vorname, neueAdresse: ergebnis.email },
+    ersatzBetreff: "Deine E-Mail-Adresse wurde geändert",
+    ersatzText: "Hallo {{vorname}},\n\ndeine Adresse wurde auf {{neueAdresse}} geändert.",
+    // Der Hinweis auf das entfernte Passwort wird angehängt und nicht in die
+    // Vorlage geschrieben (siehe `anhang` in selbstpflege.ts).
+    anhang: passwortWarGesetzt
       ? "\n\nHinweis: Ein für dieses Konto gesetztes Passwort wurde dabei entfernt. Melde dich mit " +
         "einem Anmeldelink an; danach kannst du unter „Meine Daten“ ein neues Passwort setzen."
-      : "");
+      : undefined,
+  };
 
   // An die neue Adresse, damit die Person weiß, dass es geklappt hat — und an
   // die alte, falls sie doch noch erreichbar ist und jemand ohne Auftrag
   // gehandelt hat.
-  const neu = await sendeMail({
-    an: ergebnis.email,
-    personId: id,
-    vorlageCode: MAIL_VORLAGE.EMAIL_GEAENDERT_DURCH_VERWALTUNG,
-    betreff,
-    text,
-  });
-  await sendeMail({
-    an: alteEmail,
-    personId: id,
-    vorlageCode: MAIL_VORLAGE.EMAIL_GEAENDERT_DURCH_VERWALTUNG,
-    betreff,
-    text,
-  });
+  const neu = await sendeNachVorlage({ ...mail, an: ergebnis.email });
+  await sendeNachVorlage({ ...mail, an: alteEmail });
 
   return erfolg({
     gespeichert: true,

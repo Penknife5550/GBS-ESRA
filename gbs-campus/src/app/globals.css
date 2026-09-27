@@ -28,12 +28,8 @@
   --color-border: #e2e2e0;
   --color-input: #dadada;
 
-  /* Status-Farben — an die CREDO-Linie gebunden, nicht frei gewaehlt */
-  --color-status-offen: #009ac6;
-  --color-status-laufend: #fbc900;
-  --color-status-erledigt: #6baa24;
-  --color-status-problem: #e2001a;
-  --color-status-ruhend: #6b6b6a;
+  /* Status-Tints nehmen die CREDO-Akzentfarben direkt (components/ui/badges.tsx).
+     Die frueheren --color-status-* waren Kopien davon und nirgends genutzt. */
 }
 
 @layer base {

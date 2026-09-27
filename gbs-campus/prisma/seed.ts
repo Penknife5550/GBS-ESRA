@@ -3,6 +3,9 @@
  *
  * Idempotent: laeuft bei jedem Start des App-Containers und legt nur an, was
  * fehlt. Bestehende Datensaetze werden aktualisiert, nicht dupliziert.
+ * Ausnahmen — nur anlegen, nie ueberschreiben: Einwilligungstexte (Nachweis),
+ * Semester (gehoeren nach dem Erststart dem Betrieb), das Anmeldeformular und
+ * die Werte der Einstellungen.
  *
  * Was hier steht, ist bewusst KEINE Konfiguration im Code: Status, Rollen und
  * Rechte liegen als Daten in der Datenbank und lassen sich ohne Deploy
@@ -10,6 +13,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { RECHT } from "../src/lib/constants";
 import { EINSTELLUNGEN } from "../src/lib/einstellungen";
 import { HONORAR_SATZ_FALLBACK } from "../src/lib/honorar";
 import { ABSCHNITTE, EINLEITUNG } from "./anmeldeformular-definition";
@@ -68,12 +72,16 @@ const STATUS = [
   {
     code: "ABSOLVENT",
     bezeichnung: "Absolvent",
-    beschreibung: "Ausbildung abgeschlossen.",
+    // Kein Endzustand (Code-Review 4, Fachentscheidung): Absolventen behalten
+    // den Portalzugang — sonst kämen sie nicht mehr an ihr Abschlusszeugnis.
+    // Sie zählen aber nicht als aktiv und bekommen keine Automatik-Mails
+    // (Überleitung, Erinnerungen).
+    beschreibung: "Ausbildung abgeschlossen. Zugang zum Portal bleibt, keine automatischen Mails.",
     istAktiv: false,
-    istTerminal: true,
+    istTerminal: false,
     beitragLaeuft: false,
     anwesenheitZaehlt: false,
-    automatikMails: true,
+    automatikMails: false,
     sortierung: 50,
   },
   {
@@ -129,51 +137,59 @@ const STATUS = [
 
 // -----------------------------------------------------------------------------
 // Rechte (1_Bauplan.html Kap. 04)
+//
+// Die Codes kommen aus RECHT (src/lib/constants.ts): Ein vertippter Code ist so
+// ein Compile-Fehler statt lautlosem Rechteentzug, und
+// scripts/pruefe-benutzerverwaltung.ts gleicht diese Liste in beide Richtungen
+// mit RECHT ab. Vier Rechte prueft heute noch keine Route
+// (MAIL_VERTEILER_SENDEN, MAIL_VORLAGEN_BEARBEITEN, FINANZ_DATEN_LESEN,
+// IMPERSONATION) — ihre Bezeichnung sagt das. Ob sie entfallen, ist eine
+// Rollenentscheidung.
 // -----------------------------------------------------------------------------
 const RECHTE = [
-  { code: "PERSON_LESEN_EIGENE", bezeichnung: "Eigene Daten sehen", bereich: "PERSON" },
-  { code: "PERSON_BEARBEITEN_EIGENE", bezeichnung: "Eigene Daten aendern", bereich: "PERSON" },
-  { code: "PERSON_LESEN_ALLE", bezeichnung: "Alle Personen sehen", bereich: "PERSON" },
-  { code: "PERSON_BEARBEITEN_ALLE", bezeichnung: "Stammdaten aller Personen aendern", bereich: "PERSON" },
-  { code: "PERSON_STATUS_WECHSELN", bezeichnung: "Teilnehmerstatus aendern", bereich: "PERSON" },
-  { code: "PERSON_EXPORTIEREN", bezeichnung: "Teilnehmerliste exportieren", bereich: "PERSON" },
-  { code: "PERSON_ANONYMISIEREN", bezeichnung: "Person anonymisieren (Löschung nach Art. 17 DSGVO)", bereich: "PERSON" },
-  { code: "SEMESTER_VERWALTEN", bezeichnung: "Semester anlegen und das laufende festlegen", bereich: "PERSON" },
+  { code: RECHT.PERSON_LESEN_EIGENE, bezeichnung: "Eigene Daten sehen", bereich: "PERSON" },
+  { code: RECHT.PERSON_BEARBEITEN_EIGENE, bezeichnung: "Eigene Daten aendern", bereich: "PERSON" },
+  { code: RECHT.PERSON_LESEN_ALLE, bezeichnung: "Alle Personen sehen", bereich: "PERSON" },
+  { code: RECHT.PERSON_BEARBEITEN_ALLE, bezeichnung: "Stammdaten aller Personen aendern", bereich: "PERSON" },
+  { code: RECHT.PERSON_STATUS_WECHSELN, bezeichnung: "Teilnehmerstatus aendern", bereich: "PERSON" },
+  { code: RECHT.PERSON_EXPORTIEREN, bezeichnung: "Teilnehmerliste exportieren", bereich: "PERSON" },
+  { code: RECHT.PERSON_ANONYMISIEREN, bezeichnung: "Person anonymisieren (Löschung nach Art. 17 DSGVO)", bereich: "PERSON" },
+  { code: RECHT.SEMESTER_VERWALTEN, bezeichnung: "Semester anlegen und das laufende festlegen", bereich: "PERSON" },
   // Release 0.3 — Dozenten-Self-Service: der Dozent sieht seine eigenen Abende
   // (read-only) und erfasst die Anwesenheit der EIGENEN Abende an der Quelle.
   // Der eigentliche Schutz ist der Scope-Guard termin.dozentId === eigene Id;
   // das Recht oeffnet nur die Tuer. GASTDOZENT bleibt bewusst rechtlos (Token-Flow).
-  { code: "EIGENE_TERMINE_LESEN", bezeichnung: "Eigene Unterrichtsabende sehen", bereich: "UNTERRICHT" },
-  { code: "ANWESENHEIT_ERFASSEN_EIGENE", bezeichnung: "Anwesenheit der eigenen Abende erfassen", bereich: "UNTERRICHT" },
+  { code: RECHT.EIGENE_TERMINE_LESEN, bezeichnung: "Eigene Unterrichtsabende sehen", bereich: "UNTERRICHT" },
+  { code: RECHT.ANWESENHEIT_ERFASSEN_EIGENE, bezeichnung: "Anwesenheit der eigenen Abende erfassen", bereich: "UNTERRICHT" },
   // Release 0.4 — Noten Stufe 1. Der Dozent bewertet nur seine EIGENEN
   // Kurseinheiten (Scope-Guard: es existiert ein eigener Abend zu Kurseinheit und
   // Semester); die Schulleitung verwaltet alle Fächer. Bewusst NICHT bei der
   // Verwaltung — Noten sind eine paedagogische Entscheidung (wie PERSON_ANONYMISIEREN).
-  { code: "NOTEN_ERFASSEN_EIGENE", bezeichnung: "Noten der eigenen Kurseinheiten erfassen", bereich: "UNTERRICHT" },
-  { code: "NOTEN_VERWALTEN", bezeichnung: "Noten aller Fächer verwalten", bereich: "UNTERRICHT" },
-  { code: "ANMELDUNG_LESEN", bezeichnung: "Anmeldungen einsehen", bereich: "ANMELDUNG" },
-  { code: "ANMELDUNG_ENTSCHEIDEN", bezeichnung: "Anmeldungen annehmen oder ablehnen", bereich: "ANMELDUNG" },
-  { code: "FORMULAR_BEARBEITEN", bezeichnung: "Anmeldeformulare gestalten", bereich: "ANMELDUNG" },
-  { code: "FORMULAR_VEROEFFENTLICHEN", bezeichnung: "Formularfassung veroeffentlichen", bereich: "ANMELDUNG" },
-  { code: "MAIL_VERTEILER_SENDEN", bezeichnung: "Rundmail an einen Verteiler senden", bereich: "KOMMUNIKATION" },
-  { code: "MAIL_VORLAGEN_BEARBEITEN", bezeichnung: "E-Mail-Vorlagen bearbeiten", bereich: "KOMMUNIKATION" },
-  { code: "FINANZ_DATEN_LESEN", bezeichnung: "Beitragsstatus sehen", bereich: "FINANZEN" },
+  { code: RECHT.NOTEN_ERFASSEN_EIGENE, bezeichnung: "Noten der eigenen Kurseinheiten erfassen", bereich: "UNTERRICHT" },
+  { code: RECHT.NOTEN_VERWALTEN, bezeichnung: "Noten aller Fächer verwalten", bereich: "UNTERRICHT" },
+  { code: RECHT.ANMELDUNG_LESEN, bezeichnung: "Anmeldungen einsehen", bereich: "ANMELDUNG" },
+  { code: RECHT.ANMELDUNG_ENTSCHEIDEN, bezeichnung: "Anmeldungen annehmen oder ablehnen", bereich: "ANMELDUNG" },
+  { code: RECHT.FORMULAR_BEARBEITEN, bezeichnung: "Anmeldeformulare gestalten", bereich: "ANMELDUNG" },
+  { code: RECHT.FORMULAR_VEROEFFENTLICHEN, bezeichnung: "Formularfassung veroeffentlichen", bereich: "ANMELDUNG" },
+  { code: RECHT.MAIL_VERTEILER_SENDEN, bezeichnung: "Rundmail an einen Verteiler senden (noch ohne Funktion)", bereich: "KOMMUNIKATION" },
+  { code: RECHT.MAIL_VORLAGEN_BEARBEITEN, bezeichnung: "E-Mail-Vorlagen bearbeiten (noch ohne Funktion)", bereich: "KOMMUNIKATION" },
+  { code: RECHT.FINANZ_DATEN_LESEN, bezeichnung: "Beitragsstatus sehen (noch ohne Funktion)", bereich: "FINANZEN" },
   // Bewusst getrennt vom Beitragsstatus: die IBAN sieht nur, wer sie zum
   // Arbeiten braucht (Datenminimierung, DSGVO Art. 5 Abs. 1 lit. c).
-  { code: "BANKVERBINDUNG_LESEN", bezeichnung: "Bankverbindung sehen", bereich: "FINANZEN" },
+  { code: RECHT.BANKVERBINDUNG_LESEN, bezeichnung: "Bankverbindung sehen", bereich: "FINANZEN" },
   // Read-only ab Release 0.2: Anzahl gehaltener Abende je Dozent x Honorarsatz.
-  { code: "HONORAR_LESEN", bezeichnung: "Honorarübersicht der Dozenten sehen", bereich: "FINANZEN" },
+  { code: RECHT.HONORAR_LESEN, bezeichnung: "Honorarübersicht der Dozenten sehen", bereich: "FINANZEN" },
   // Release 0.3: einen Honorarsatz mit Gueltig-ab-Datum genehmigen. Das Eintragen
   // ist die Genehmigung; danach geht ein Beleg an das DMS.
-  { code: "HONORAR_SATZ_GENEHMIGEN", bezeichnung: "Honorarsatz genehmigen", bereich: "FINANZEN" },
+  { code: RECHT.HONORAR_SATZ_GENEHMIGEN, bezeichnung: "Honorarsatz genehmigen", bereich: "FINANZEN" },
   // Release 0.3: Honorar-Abrechnungen erstellen, freigeben und als ausgezahlt
   // markieren. Die Freigabe (Beleg mit IBAN ans DMS) verlangt zusaetzlich
   // BANKVERBINDUNG_LESEN — geprueft in der Route.
-  { code: "HONORAR_ABRECHNEN", bezeichnung: "Honorar abrechnen und auszahlen", bereich: "FINANZEN" },
-  { code: "BENUTZER_VERWALTEN", bezeichnung: "Konten und Rollen verwalten", bereich: "SYSTEM" },
-  { code: "SYSTEM_EINSTELLUNGEN", bezeichnung: "Systemeinstellungen aendern", bereich: "SYSTEM" },
-  { code: "AUDIT_LESEN", bezeichnung: "Audit-Log lesen", bereich: "SYSTEM" },
-  { code: "IMPERSONATION", bezeichnung: "Sicht einer anderen Person einnehmen", bereich: "SYSTEM" },
+  { code: RECHT.HONORAR_ABRECHNEN, bezeichnung: "Honorar abrechnen und auszahlen", bereich: "FINANZEN" },
+  { code: RECHT.BENUTZER_VERWALTEN, bezeichnung: "Konten und Rollen verwalten", bereich: "SYSTEM" },
+  { code: RECHT.SYSTEM_EINSTELLUNGEN, bezeichnung: "Systemeinstellungen aendern", bereich: "SYSTEM" },
+  { code: RECHT.AUDIT_LESEN, bezeichnung: "Audit-Log lesen", bereich: "SYSTEM" },
+  { code: RECHT.IMPERSONATION, bezeichnung: "Sicht einer anderen Person einnehmen (noch ohne Funktion)", bereich: "SYSTEM" },
 ];
 
 // -----------------------------------------------------------------------------
@@ -187,14 +203,14 @@ const ROLLEN = [
     aktivAbRelease: "0.1",
     sortierung: 10,
     rechte: [
-      "BENUTZER_VERWALTEN",
-      "SYSTEM_EINSTELLUNGEN",
-      "AUDIT_LESEN",
-      "IMPERSONATION",
-      "PERSON_LESEN_ALLE",
-      "MAIL_VORLAGEN_BEARBEITEN",
-      "PERSON_LESEN_EIGENE",
-      "PERSON_BEARBEITEN_EIGENE",
+      RECHT.BENUTZER_VERWALTEN,
+      RECHT.SYSTEM_EINSTELLUNGEN,
+      RECHT.AUDIT_LESEN,
+      RECHT.IMPERSONATION,
+      RECHT.PERSON_LESEN_ALLE,
+      RECHT.MAIL_VORLAGEN_BEARBEITEN,
+      RECHT.PERSON_LESEN_EIGENE,
+      RECHT.PERSON_BEARBEITEN_EIGENE,
     ],
   },
   {
@@ -204,34 +220,34 @@ const ROLLEN = [
     aktivAbRelease: "0.1",
     sortierung: 20,
     rechte: [
-      "PERSON_LESEN_ALLE",
-      "PERSON_BEARBEITEN_ALLE",
-      "PERSON_STATUS_WECHSELN",
-      "PERSON_EXPORTIEREN",
+      RECHT.PERSON_LESEN_ALLE,
+      RECHT.PERSON_BEARBEITEN_ALLE,
+      RECHT.PERSON_STATUS_WECHSELN,
+      RECHT.PERSON_EXPORTIEREN,
       // Die Anonymisierung (Art. 17 DSGVO) ist eine schwerwiegende, endgueltige
       // Entscheidung — sie liegt bei der Schulleitung, nicht bei der Verwaltung.
-      "PERSON_ANONYMISIEREN",
-      "SEMESTER_VERWALTEN",
+      RECHT.PERSON_ANONYMISIEREN,
+      RECHT.SEMESTER_VERWALTEN,
       // Noten aller Fächer — paedagogische Entscheidung, bewusst nur hier (nicht
       // bei der Verwaltung).
-      "NOTEN_VERWALTEN",
-      "ANMELDUNG_LESEN",
-      "ANMELDUNG_ENTSCHEIDEN",
-      "FORMULAR_BEARBEITEN",
-      "FORMULAR_VEROEFFENTLICHEN",
-      "MAIL_VERTEILER_SENDEN",
-      "MAIL_VORLAGEN_BEARBEITEN",
-      "FINANZ_DATEN_LESEN",
-      "HONORAR_LESEN",
-      "HONORAR_SATZ_GENEHMIGEN",
-      "HONORAR_ABRECHNEN",
+      RECHT.NOTEN_VERWALTEN,
+      RECHT.ANMELDUNG_LESEN,
+      RECHT.ANMELDUNG_ENTSCHEIDEN,
+      RECHT.FORMULAR_BEARBEITEN,
+      RECHT.FORMULAR_VEROEFFENTLICHEN,
+      RECHT.MAIL_VERTEILER_SENDEN,
+      RECHT.MAIL_VORLAGEN_BEARBEITEN,
+      RECHT.FINANZ_DATEN_LESEN,
+      RECHT.HONORAR_LESEN,
+      RECHT.HONORAR_SATZ_GENEHMIGEN,
+      RECHT.HONORAR_ABRECHNEN,
       // Ohne dieses Recht sähe die Schulleitung die Protokollansicht nicht — und
       // genau die Vorgänge dort sind ihre: Meldungen aus dem Hilfeformular,
       // Adressänderungen an fremden Konten, fehlgeschlagene Anmeldeversuche.
       // Bei Bus-Faktor 1 darf das nicht an einem einzigen Konto hängen.
-      "AUDIT_LESEN",
-      "PERSON_LESEN_EIGENE",
-      "PERSON_BEARBEITEN_EIGENE",
+      RECHT.AUDIT_LESEN,
+      RECHT.PERSON_LESEN_EIGENE,
+      RECHT.PERSON_BEARBEITEN_EIGENE,
     ],
   },
   {
@@ -241,19 +257,19 @@ const ROLLEN = [
     aktivAbRelease: "0.1",
     sortierung: 30,
     rechte: [
-      "PERSON_LESEN_ALLE",
-      "PERSON_BEARBEITEN_ALLE",
-      "PERSON_EXPORTIEREN",
-      "SEMESTER_VERWALTEN",
-      "ANMELDUNG_LESEN",
-      "FINANZ_DATEN_LESEN",
-      "BANKVERBINDUNG_LESEN",
-      "HONORAR_LESEN",
-      "HONORAR_SATZ_GENEHMIGEN",
-      "HONORAR_ABRECHNEN",
-      "MAIL_VERTEILER_SENDEN",
-      "PERSON_LESEN_EIGENE",
-      "PERSON_BEARBEITEN_EIGENE",
+      RECHT.PERSON_LESEN_ALLE,
+      RECHT.PERSON_BEARBEITEN_ALLE,
+      RECHT.PERSON_EXPORTIEREN,
+      RECHT.SEMESTER_VERWALTEN,
+      RECHT.ANMELDUNG_LESEN,
+      RECHT.FINANZ_DATEN_LESEN,
+      RECHT.BANKVERBINDUNG_LESEN,
+      RECHT.HONORAR_LESEN,
+      RECHT.HONORAR_SATZ_GENEHMIGEN,
+      RECHT.HONORAR_ABRECHNEN,
+      RECHT.MAIL_VERTEILER_SENDEN,
+      RECHT.PERSON_LESEN_EIGENE,
+      RECHT.PERSON_BEARBEITEN_EIGENE,
     ],
   },
   {
@@ -262,7 +278,7 @@ const ROLLEN = [
     beschreibung: "Schueler oder Hoerer. Sieht ausschliesslich die eigenen Daten.",
     aktivAbRelease: "0.1",
     sortierung: 40,
-    rechte: ["PERSON_LESEN_EIGENE", "PERSON_BEARBEITEN_EIGENE"],
+    rechte: [RECHT.PERSON_LESEN_EIGENE, RECHT.PERSON_BEARBEITEN_EIGENE],
   },
   {
     code: "DOZENT",
@@ -271,11 +287,11 @@ const ROLLEN = [
     aktivAbRelease: "0.2",
     sortierung: 50,
     rechte: [
-      "PERSON_LESEN_EIGENE",
-      "PERSON_BEARBEITEN_EIGENE",
-      "EIGENE_TERMINE_LESEN",
-      "ANWESENHEIT_ERFASSEN_EIGENE",
-      "NOTEN_ERFASSEN_EIGENE",
+      RECHT.PERSON_LESEN_EIGENE,
+      RECHT.PERSON_BEARBEITEN_EIGENE,
+      RECHT.EIGENE_TERMINE_LESEN,
+      RECHT.ANWESENHEIT_ERFASSEN_EIGENE,
+      RECHT.NOTEN_ERFASSEN_EIGENE,
     ],
   },
   {
@@ -325,6 +341,11 @@ const EINWILLIGUNGEN = [
 // E-Mail-Vorlagen
 // Inhaltlich bewusst schlicht: persoenliche Mails formuliert der Schulleiter
 // selbst. Automatisiert ist nur die Mechanik, nicht der Ton.
+//
+// Betreffs tragen NIE einen Personennamen: Der gefuellte Betreff landet in
+// `email_versand.betreff`, und diese Zeile haengt bei Verwaltungs-Mails an der
+// personId des EMPFAENGERS. Die Anonymisierung (Art. 17 DSGVO) erreicht sie
+// deshalb nicht. Der Name steht nur im Text, und der wird nicht protokolliert.
 // -----------------------------------------------------------------------------
 const MAIL_VORLAGEN = [
   {
@@ -365,7 +386,7 @@ const MAIL_VORLAGEN = [
   {
     code: "ANMELDUNG_VERWALTUNG",
     bezeichnung: "Hinweis an die Verwaltung",
-    betreff: "Neue Anmeldung: {{name}}",
+    betreff: "Neue Anmeldung eingegangen",
     textMd:
       "Es ist eine neue Anmeldung eingegangen:\n\n" +
       "{{name}}, {{email}}\nTeilnahmeform: {{teilnahmeform}}\n\n" +
@@ -414,7 +435,7 @@ const MAIL_VORLAGEN = [
   {
     code: "ZUGANG_HILFE_MELDUNG",
     bezeichnung: "Meldung „Ich komme nicht mehr ins Portal“",
-    betreff: "Kommt nicht ins Portal: {{name}}",
+    betreff: "Meldung zum Portalzugang",
     textMd:
       "{{name}} kommt nicht mehr ins Portal.\n\n" +
       "Erreichbar unter: {{erreichbar}}\n" +
@@ -429,7 +450,7 @@ const MAIL_VORLAGEN = [
   {
     code: "DATENAENDERUNG_VERWALTUNG",
     bezeichnung: "Hinweis bei geänderten Stammdaten",
-    betreff: "Stammdaten geändert: {{name}}",
+    betreff: "Stammdaten geändert",
     textMd:
       "{{name}} hat die eigenen Daten geändert.\n\n" +
       "Geändert wurde: {{felder}}\n\n" +
@@ -491,6 +512,28 @@ const MAIL_VORLAGEN = [
       "Die Notbremse beim Passwort: Wer diesen Hinweis bekommt, ohne etwas geändert zu haben, weiß, dass jemand an seinem Konto war.",
   },
   {
+    // Geht an die hinterlegte Adresse, wenn IBAN oder Kontoinhaber ueber die
+    // Selbstpflege geaendert werden. Die Aenderung wirkt sofort (Honorar,
+    // kuenftiger Beitragseinzug) — wer eine Sitzung uebernommen hat, koennte
+    // sonst unbemerkt Zahlungen umleiten. Gegen eine Postfach-Uebernahme hilft
+    // der Hinweis nicht (er landet beim Angreifer); dafuer steht Entscheidung E1
+    // (Freigabe-Bestaetigung) aus. Nie die IBAN selbst im Text. Jedes (erste
+    // oder neue) Passwort setzt passwortGeaendertAm und beendet fremde Sitzungen
+    // — deshalb der Rat an alle, nicht nur an Personen mit Passwort.
+    code: "BANKVERBINDUNG_GEAENDERT",
+    bezeichnung: "Hinweis auf eine geänderte Bankverbindung",
+    betreff: "Deine Bankverbindung bei GBS Campus wurde geändert",
+    textMd:
+      "Hallo {{vorname}},\n\n" +
+      "in deinem Konto bei GBS Campus wurde soeben geändert: {{felder}}. " +
+      "Die neue Bankverbindung steht aus Sicherheitsgründen nicht in dieser Nachricht.\n\n" +
+      "Warst du das nicht, melde dich umgehend bei der Schulleitung und setze unter „Meine Daten“ ein (neues) " +
+      "Passwort, damit fremde Sitzungen enden.\n\n" +
+      "Gemeindebibelschule Minden",
+    beschreibung:
+      "Die Notbremse bei der Bankverbindung: Geht an die hinterlegte Adresse, wenn jemand über „Meine Daten“ IBAN oder Kontoinhaber ändert.",
+  },
+  {
     code: "AUSKUNFT_BEREIT",
     bezeichnung: "Datenauskunft nach Art. 15 DSGVO steht bereit",
     betreff: "Deine Datenauskunft der Gemeindebibelschule steht bereit",
@@ -513,11 +556,12 @@ const MAIL_VORLAGEN = [
       "Hallo {{vorname}},\n\n" +
       "das nächste Semester an der Gemeindebibelschule Minden steht an: {{semester}} " +
       "({{zeitraum}}).\n\n" +
-      "Bist du wieder dabei? Ein Klick genügt:\n\n{{link}}\n\n" +
-      "Möchtest du pausieren oder aussteigen, melde dich einfach bei der Schulleitung.\n\n" +
+      "Bist du wieder dabei? Über diesen Link sagst du mit einem Klick „Ich bin dabei“ oder „Ich bin raus“:\n\n{{link}}\n\n" +
+      "Antworten – und deine Antwort über denselben Link ändern – kannst du bis einschließlich {{frist}}. " +
+      "Ohne Rückmeldung bis dahin gilt deine Teilnahme am neuen Semester als abgemeldet.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
-      "Startet die Semesterüberleitung: geht an alle aktiven Teilnehmer des laufenden Semesters mit dem persönlichen „bin dabei\"-Link.",
+      "Startet die Semesterüberleitung: geht an alle Teilnehmer des laufenden Semesters mit dem persönlichen Link für „Ich bin dabei“ oder „Ich bin raus“.",
   },
   {
     code: "UEBERLEITUNG_ERINNERUNG",
@@ -526,10 +570,13 @@ const MAIL_VORLAGEN = [
     textMd:
       "Hallo {{vorname}},\n\n" +
       "kurze Erinnerung: Für {{semester}} ({{zeitraum}}) fehlt uns noch deine " +
-      "Rückmeldung. Bist du dabei?\n\n{{link}}\n\n" +
+      "Rückmeldung. Bist du dabei oder bist du raus? Ein Klick auf den Link genügt:\n\n{{link}}\n\n" +
+      "Bitte nimm den Link aus dieser neuesten E-Mail — ältere Links gelten nicht mehr. Antworten kannst du " +
+      "bis einschließlich {{frist}}; ohne Rückmeldung bis dahin gilt deine Teilnahme am neuen Semester als " +
+      "abgemeldet.\n\n" +
       "Gemeindebibelschule Minden",
     beschreibung:
-      "Automatische Erinnerung (T-14/-7/-3 vor Semesterstart) an alle, die noch nicht bestätigt haben. Denselben Link wie in der Einladung.",
+      "Automatische Erinnerung (T-14/-7/-3 vor Semesterstart) an alle Eingeladenen ohne Antwort. Jede zugestellte Erinnerung trägt einen frischen Link; ältere verfallen damit. Eine gescheiterte Erinnerung wird nicht wiederholt – die nächste Stufe versucht es erneut. Fällt die Einladung auf einen Stichtag oder später, zählt sie für diese Stichtage mit (nie zwei Mails am selben Tag).",
   },
 ];
 
@@ -538,7 +585,7 @@ const MAIL_VORLAGEN = [
 //
 // Bewusst als Datensatz statt als Konstante im Code: Der Satz laesst sich ohne
 // Deploy aendern, und weitere Faelle kommen ueber die Jahre dazu. Der
-// Beitragslauf, der diese Saetze anwendet, entsteht mit Release 0.3.
+// Beitragslauf, der diese Saetze anwendet, entsteht in einem kuenftigen Release.
 // -----------------------------------------------------------------------------
 const ERMAESSIGUNGEN = [
   {
@@ -557,8 +604,9 @@ const ERMAESSIGUNGEN = [
 //
 // Termine aus der Kursübersicht von gbs-minden.de. Genau EIN Semester ist das
 // laufende (2026-H, Kursstart 15.09.2026) — abgesichert durch den partiellen
-// Unique-Index `semester_genau_ein_aktuelles`. `istAktuell` wird deshalb nur
-// beim Anlegen gesetzt, nie in einem Re-Seed aktualisiert (siehe main()).
+// Unique-Index `semester_genau_ein_aktuelles`. Der Seed legt die Liste nur bei
+// leerer Semestertabelle an und aktualisiert sie nie (siehe main()) — auch
+// `istAktuell` wird damit nur beim Erstanlegen gesetzt.
 // lehrjahr/halbjahr verorten das Semester im Kursraster (halbjahr 1 = Herbst,
 // 2 = Frühling). Datumsangaben als UTC-Mitternacht (Felder sind @db.Date).
 // -----------------------------------------------------------------------------
@@ -665,25 +713,50 @@ async function main() {
 
   console.log("[Seed] Rollen und Rechtematrix...");
   for (const { rechte, ...rolle } of ROLLEN) {
-    await prisma.rolle.upsert({ where: { code: rolle.code }, update: rolle, create: rolle });
-
     // Die Matrix wird je Rolle neu gesetzt, damit entzogene Rechte auch
-    // wirklich verschwinden und nicht als Altlast haengen bleiben.
-    await prisma.rolleRecht.deleteMany({ where: { rolleCode: rolle.code } });
-    if (rechte.length > 0) {
-      await prisma.rolleRecht.createMany({
-        data: rechte.map((rechtCode) => ({ rolleCode: rolle.code, rechtCode })),
-      });
-    }
+    // wirklich verschwinden und nicht als Altlast haengen bleiben. Je Rolle in
+    // EINER Transaktion: Bricht der Seed zwischen Loeschen und Neuanlegen ab
+    // (Neustart, DB-Aussetzer), stuende die Rolle sonst ohne Rechte da — bei
+    // ADMIN/SCHULLEITER sperrte das die Verwaltung bis zum naechsten Start aus.
+    await prisma.$transaction(async (tx) => {
+      await tx.rolle.upsert({ where: { code: rolle.code }, update: rolle, create: rolle });
+      await tx.rolleRecht.deleteMany({ where: { rolleCode: rolle.code } });
+      if (rechte.length > 0) {
+        await tx.rolleRecht.createMany({
+          data: rechte.map((rechtCode) => ({ rolleCode: rolle.code, rechtCode })),
+        });
+      }
+    });
   }
 
   console.log("[Seed] Einwilligungstexte...");
+  // Nur anlegen, NIE ueberschreiben: Erteilte Einwilligungen verweisen auf ihre
+  // Fassung (code, version). Setzte der Seed Titel oder Text einer bestehenden
+  // Fassung neu, zeigten alle bisherigen Einwilligungen still auf einen Text,
+  // dem niemand zugestimmt hat (Nachweis nach Art. 7 Abs. 1 DSGVO). Ein
+  // geaenderter Text ist deshalb immer eine neue Fassung (version + 1). Die
+  // Datenbank sperrt das zusaetzlich per Trigger (Migration
+  // 20260927100000_einwilligungstexte_unveraenderlich) — bewusst kein upsert,
+  // damit der Seed nicht einmal ein leeres UPDATE absetzt.
   for (const einwilligung of EINWILLIGUNGEN) {
-    await prisma.einwilligungsText.upsert({
+    const vorhanden = await prisma.einwilligungsText.findUnique({
       where: { code_version: { code: einwilligung.code, version: einwilligung.version } },
-      update: einwilligung,
-      create: einwilligung,
     });
+    if (!vorhanden) {
+      await prisma.einwilligungsText.create({ data: einwilligung });
+      continue;
+    }
+    const abweichend =
+      vorhanden.titel !== einwilligung.titel ||
+      vorhanden.text !== einwilligung.text ||
+      vorhanden.istArt9 !== einwilligung.istArt9 ||
+      vorhanden.pflicht !== einwilligung.pflicht;
+    if (abweichend) {
+      console.warn(
+        `[Seed] WARNUNG: Einwilligungstext ${einwilligung.code} Fassung ${einwilligung.version} weicht vom Seed ab ` +
+          "und bleibt unveraendert. Ein geaenderter Text braucht eine neue Fassung (version + 1).",
+      );
+    }
   }
 
   console.log("[Seed] E-Mail-Vorlagen...");
@@ -759,22 +832,21 @@ async function main() {
   }
 
   console.log("[Seed] Semester...");
-  for (const s of SEMESTER) {
-    // `istAktuell` bewusst NICHT im update: Was der Betrieb als laufendes
-    // Semester gesetzt hat, darf ein Seed-Lauf nach dem naechsten Deploy nicht
-    // zuruecksetzen — und der partielle Unique-Index liesse zwei true-Zeilen
-    // ohnehin nicht zu. Nur beim Erstanlegen wird 2026-H als laufend markiert.
-    await prisma.semester.upsert({
-      where: { code: s.code },
-      update: {
-        bezeichnung: s.bezeichnung,
-        start: s.start,
-        ende: s.ende,
-        lehrjahr: s.lehrjahr,
-        halbjahr: s.halbjahr,
-      },
-      create: s,
-    });
+  // Nur bei LEERER Semestertabelle anlegen, danach nie wieder anfassen. Ab dem
+  // ersten Start gehoeren die Semester dem Betrieb: Bezeichnung, Daten und
+  // Kuerzel pflegt die Verwaltung in der Oberflaeche, und ein Deploy darf das
+  // nicht zuruecksetzen (an `start` haengen Erinnerungen, Link-Ablauf und
+  // Dienstagstermine). Ein upsert ueber `code` tat genau das — und legte ein
+  // umbenanntes Semester unter dem alten Kuerzel neu an, bei 2026-H mit
+  // istAktuell = true. Das verletzte `semester_genau_ein_aktuelles`, der Seed
+  // endete mit Exit 1 und der Container startete in einer Endlosschleife neu.
+  // `istAktuell` setzt der Seed deshalb nur hier beim Erstanlegen (2026-H); in
+  // einem Zug per createMany, damit ein Abbruch keine halbe Liste hinterlaesst.
+  const semesterVorhanden = await prisma.semester.count();
+  if (semesterVorhanden === 0) {
+    await prisma.semester.createMany({ data: SEMESTER });
+  } else {
+    console.log("[Seed] Semester existieren bereits — unveraendert gelassen.");
   }
 
   console.log("[Seed] Faecher...");

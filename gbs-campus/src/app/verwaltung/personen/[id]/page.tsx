@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
+import { AnmeldungStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht, hatRecht } from "@/lib/berechtigung";
 import { RECHT, STATUS } from "@/lib/constants";
-import { deutscherTag, teilnahmeformName } from "@/lib/semester";
+import { abmeldegrundText, alsHeutigerTag, alsTagText, deutscherTag, teilnahmeformName } from "@/lib/semester";
+import { waehlbareZiele } from "@/lib/status";
 import { datum } from "@/lib/datum";
+import { art9EinwilligungenWirksam } from "@/lib/anmeldung-antworten";
 import { ladeEigeneLeistungen, ladePersonNoten } from "@/lib/leistung-io";
 import { ladeEigeneUnterrichtstermine } from "@/lib/stundenplan-io";
 import { ladeEigeneZeugnisse } from "@/lib/zeugnis-io";
@@ -15,8 +18,18 @@ import { QuoteChip } from "@/components/ui/quote-ampel";
 import { NotenInline } from "@/components/personen/noten-inline";
 import { AnwesenheitListe } from "@/components/personen/anwesenheit-liste";
 import { PersonAktionen } from "@/components/personen/person-aktionen";
+import { AusbildungStatus } from "@/components/personen/ausbildung-status";
 
+export const metadata = { title: "Personenakte" };
 export const dynamic = "force-dynamic";
+
+/**
+ * „abgemeldet (Grund)" zu einer Teilnahme der Semesterüberleitung — der Grund
+ * im selben Wortlaut wie in der Überleitungsübersicht (`abmeldegrundText`).
+ */
+function abgemeldetText(grund: string | null): string {
+  return grund ? `abgemeldet (${abmeldegrundText(grund)})` : "abgemeldet";
+}
 
 export default async function PersonDetailSeite({ params }: { params: Promise<{ id: string }> }) {
   const benutzer = await ladeMitRecht(RECHT.PERSON_LESEN_ALLE);
@@ -32,37 +45,87 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
   // (Schulleitung), NICHT für Verwaltung/Administrator, die zwar PERSON_LESEN_ALLE
   // tragen. Es gibt kein separates „Noten-Lesen"-Recht; NOTEN_VERWALTEN ist die Grenze.
   const darfNoten = hatRecht(benutzer, RECHT.NOTEN_VERWALTEN);
+  // Status und Ausbildungsdaten (Geburtsdatum, Gemeinde, Teilnahmeform) — nur
+  // die Schulleitung (Code-Review 4, M9).
+  const darfStatus = hatRecht(benutzer, RECHT.PERSON_STATUS_WECHSELN);
 
-  const person = await prisma.person.findUnique({
-    where: { id },
-    include: {
-      status: true,
-      ermaessigung: true,
-      rollen: { select: { rolle: { select: { code: true } } } },
-      teilnahmen: { include: { semester: true }, orderBy: { semester: { start: "desc" } } },
-    },
-  });
+  // Beide Abfragen sind unabhängig voneinander — gebündelt statt nacheinander.
+  const [person, aktuellesSemester] = await Promise.all([
+    prisma.person.findUnique({
+      where: { id },
+      include: {
+        status: true,
+        ermaessigung: true,
+        rollen: { select: { rolle: { select: { code: true } } } },
+        teilnahmen: { include: { semester: true }, orderBy: { semester: { start: "desc" } } },
+      },
+    }),
+    prisma.semester.findFirst({
+      where: { istAktuell: true },
+      select: { id: true, bezeichnung: true },
+    }),
+  ]);
   if (!person) notFound();
 
   const istAnonym = person.status.code === STATUS.ANONYMISIERT;
-  const aktuellesSemester = await prisma.semester.findFirst({
-    where: { istAktuell: true },
-    select: { id: true, bezeichnung: true },
-  });
   const aktuelleTeilnahme = aktuellesSemester
     ? person.teilnahmen.find((t) => t.semesterId === aktuellesSemester.id) ?? null
     : null;
-  const anzeigeForm = aktuelleTeilnahme?.teilnahmeform ?? person.teilnahmen[0]?.teilnahmeform ?? person.teilnahmeform;
+  // Eine abgemeldete Teilnahme zählt nicht (Semesterüberleitung) — für den
+  // Block „Ausbildungsdaten & Status" gilt sie nicht als laufend.
+  const zaehlendeTeilnahme = aktuelleTeilnahme && !aktuelleTeilnahme.abgemeldetAm ? aktuelleTeilnahme : null;
+  // Kopf und Fakt „Teilnahme“ nach derselben Regel wie der Editor
+  // „Ausbildungsdaten“: nie aus einer abgemeldeten Teilnahme.
+  const anzeigeForm =
+    zaehlendeTeilnahme?.teilnahmeform ??
+    person.teilnahmen.find((t) => !t.abgemeldetAm)?.teilnahmeform ??
+    person.teilnahmeform;
+  // Die Teilnahmen, für die ein Wechsel der Teilnahmeform mitgilt: die des
+  // laufenden Semesters und schon angelegte für noch nicht begonnene Semester —
+  // dieselbe Auswahl wie `/api/personen/[id]/ausbildungsdaten`. Abgemeldete
+  // gehen mit (sonst gälte nach einer Wiederaufnahme die alte Form) und werden
+  // als solche benannt.
+  const heute = alsHeutigerTag(new Date());
+  const offeneSemester = person.teilnahmen
+    .filter((t) => t.semesterId === aktuellesSemester?.id || t.semester.start.getTime() > heute.getTime())
+    .map((t) => (t.abgemeldetAm ? `${t.semester.bezeichnung} (abgemeldet)` : t.semester.bezeichnung))
+    .reverse();
 
-  const [leistungGruppen, anwesenheitGruppen, zeugnisse, personNoten, alleRollen] = await Promise.all([
-    darfNoten ? ladeEigeneLeistungen(person.id) : Promise.resolve([]),
-    ladeEigeneUnterrichtstermine(person.id, new Date()),
-    darfNoten ? ladeEigeneZeugnisse(person.id) : Promise.resolve([]),
-    darfNoten && aktuellesSemester ? ladePersonNoten(person.id, aktuellesSemester.id) : Promise.resolve(null),
-    darfRollen
-      ? prisma.rolle.findMany({ select: { code: true, bezeichnung: true }, orderBy: { sortierung: "asc" } })
-      : Promise.resolve([] as { code: string; bezeichnung: string }[]),
-  ]);
+  const zeigeAusbildung = darfStatus && !istAnonym;
+  // Den eigenen Status lehnt die Statusroute ab (403) — dann gibt es keine Auswahl.
+  const eigeneAkte = person.id === benutzer.id;
+  // Noten nur für Personen, die noch benotet werden: nicht im Endzustand und
+  // nicht anonymisiert (der Schreibweg nimmt dafür ohnehin nichts an).
+  const zeigeNotenEditor = darfNoten && Boolean(aktuellesSemester) && !person.status.istTerminal;
+  const [leistungGruppen, anwesenheitGruppen, zeugnisse, personNoten, alleRollen, statusListe, art9, offeneAnmeldungen] =
+    await Promise.all([
+      darfNoten ? ladeEigeneLeistungen(person.id) : Promise.resolve([]),
+      ladeEigeneUnterrichtstermine(person.id, new Date()),
+      darfNoten ? ladeEigeneZeugnisse(person.id) : Promise.resolve([]),
+      zeigeNotenEditor && aktuellesSemester ? ladePersonNoten(person.id, aktuellesSemester.id) : Promise.resolve(null),
+      darfRollen
+        ? prisma.rolle.findMany({ select: { code: true, bezeichnung: true }, orderBy: { sortierung: "asc" } })
+        : Promise.resolve([] as { code: string; bezeichnung: string }[]),
+      zeigeAusbildung && !eigeneAkte
+        ? prisma.teilnehmerStatus.findMany({
+            select: { code: true, bezeichnung: true, istTerminal: true, istAktiv: true },
+            orderBy: { sortierung: "asc" },
+          })
+        : Promise.resolve([] as { code: string; bezeichnung: string; istTerminal: boolean; istAktiv: boolean }[]),
+      // Alle Art.-9-Texte (je Text gilt die jüngste Zeile, alle müssen wirksam
+      // sein) — dieselbe Regel wie die Anmeldungsansicht und die Route.
+      zeigeAusbildung
+        ? prisma.einwilligung.findMany({
+            where: { personId: person.id, text: { istArt9: true } },
+            select: { erteilt: true, zeitpunkt: true, text: { select: { code: true } } },
+          })
+        : Promise.resolve([] as { erteilt: boolean; zeitpunkt: Date; text: { code: string } }[]),
+      // Solange über eine eingereichte Anmeldung nicht entschieden ist, gibt es
+      // keinen Statuswechsel von Hand (siehe `pruefeStatuswechsel`).
+      zeigeAusbildung && person.statusCode === STATUS.INTERESSENT
+        ? prisma.anmeldung.count({ where: { personId: person.id, status: AnmeldungStatus.EINGEREICHT } })
+        : Promise.resolve(0),
+    ]);
 
   const aktuelleQuote = aktuelleTeilnahme
     ? anwesenheitGruppen.find((g) => g.teilnahmeId === aktuelleTeilnahme.id)?.quote ?? null
@@ -74,12 +137,24 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
     : leistungGruppen;
 
   const facts: { bezeichnung: string; wert: ReactNode }[] = [
-    { bezeichnung: "Semester", wert: aktuelleTeilnahme && aktuellesSemester ? aktuellesSemester.bezeichnung : "nicht eingeschrieben" },
+    {
+      bezeichnung: "Semester",
+      // Eine abgemeldete Teilnahme (Semesterüberleitung) zählt nicht — sie
+      // erscheint deshalb nicht als laufend, sondern mit ihrem Grund.
+      wert:
+        aktuelleTeilnahme && aktuellesSemester
+          ? aktuelleTeilnahme.abgemeldetAm
+            ? `${aktuellesSemester.bezeichnung} — ${abgemeldetText(aktuelleTeilnahme.abmeldeGrund)}`
+            : aktuellesSemester.bezeichnung
+          : "nicht eingeschrieben",
+    },
     { bezeichnung: "Teilnahme", wert: teilnahmeformName(anzeigeForm) || "—" },
     { bezeichnung: "Geburtsdatum", wert: deutscherTag(person.geburtsdatum) || "—" },
     { bezeichnung: "Gemeinde", wert: person.gemeinde || "—" },
     { bezeichnung: "Anwesenheit", wert: aktuelleQuote ? <QuoteChip quote={aktuelleQuote} /> : "—" },
-    { bezeichnung: "Angelegt", wert: deutscherTag(person.erstelltAm) },
+    // Ein Zeitpunkt, kein Kalendertag: in Europe/Berlin formatieren (`deutscherTag`
+    // rechnet in UTC und zeigte nachts angelegte Personen mit dem Vortag).
+    { bezeichnung: "Angelegt", wert: datum(person.erstelltAm) },
   ];
   if (person.ermaessigung) facts.push({ bezeichnung: "Ermäßigung", wert: person.ermaessigung.bezeichnung });
 
@@ -143,6 +218,39 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
             darfAnonymisieren={darfAnonymisieren}
             darfRollenVerwalten={darfRollen}
             alleRollen={alleRollen}
+            istEigeneAkte={eigeneAkte}
+          />
+        </div>
+      )}
+
+      {zeigeAusbildung && (
+        <div className="mt-6">
+          <AusbildungStatus
+            personId={person.id}
+            name={`${person.vorname} ${person.nachname}`}
+            status={{
+              code: person.status.code,
+              bezeichnung: person.status.bezeichnung,
+              istTerminal: person.status.istTerminal,
+              istAktiv: person.status.istAktiv,
+            }}
+            ziele={
+              eigeneAkte
+                ? []
+                : waehlbareZiele(statusListe, person.statusCode, person.status.istTerminal, offeneAnmeldungen > 0)
+            }
+            eigeneAkte={eigeneAkte}
+            offeneAnmeldung={offeneAnmeldungen > 0}
+            daten={{
+              geburtsdatum: alsTagText(person.geburtsdatum),
+              gemeinde: person.gemeinde ?? "",
+              teilnahmeform: zaehlendeTeilnahme?.teilnahmeform ?? person.teilnahmeform ?? "",
+            }}
+            offeneSemester={offeneSemester}
+            laufendesSemester={zaehlendeTeilnahme && aktuellesSemester ? aktuellesSemester.bezeichnung : null}
+            art9Eingewilligt={art9EinwilligungenWirksam(
+              art9.map((e) => ({ erteilt: e.erteilt, zeitpunkt: e.zeitpunkt, code: e.text.code })),
+            )}
           />
         </div>
       )}
@@ -163,9 +271,16 @@ export default async function PersonDetailSeite({ params }: { params: Promise<{ 
               />
             ) : (
               <p className="px-4 py-6 text-sm text-muted-foreground">
-                {aktuellesSemester
-                  ? "Diese Person ist im laufenden Semester nicht eingeschrieben — hier gibt es nichts zu benoten."
-                  : "Es ist kein Semester als laufend gesetzt."}
+                {person.status.istTerminal
+                  ? `Status „${person.status.bezeichnung}“ — für diese Person werden keine Noten mehr erfasst.`
+                  : !aktuellesSemester
+                    ? "Es ist kein Semester als laufend gesetzt."
+                    : aktuelleTeilnahme?.abgemeldetAm
+                      ? `Diese Person ist für das laufende Semester ${abgemeldetText(aktuelleTeilnahme.abmeldeGrund)} — ` +
+                        "eine abgemeldete Teilnahme wird nicht benotet."
+                      : aktuelleTeilnahme?.teilnahmeform === "HOERER"
+                        ? "Diese Person nimmt im laufenden Semester als Hörer teil — Hörer werden nicht benotet."
+                        : "Diese Person ist im laufenden Semester nicht eingeschrieben — hier gibt es nichts zu benoten."}
               </p>
             )}
 

@@ -1,12 +1,14 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ladeMitRecht } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { alsTagText, deutscherTag } from "@/lib/semester";
+import { TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
+import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { SemesterFormular } from "./semester-formular";
 import { SemesterZeile } from "./semester-zeile";
 
+export const metadata = { title: "Semester" };
 export const dynamic = "force-dynamic";
 
 export default async function SemesterSeite() {
@@ -15,16 +17,16 @@ export default async function SemesterSeite() {
 
   const semester = await prisma.semester.findMany({
     orderBy: { start: "desc" },
-    include: { _count: { select: { teilnahmen: true } } },
+    // Gezählt wird wie in der Teilnehmerliste: Für das Semester Abgemeldete
+    // zählen nicht.
+    include: { _count: { select: { teilnahmen: { where: TEILNAHME_ZAEHLT } } } },
   });
 
   const laufend = semester.find((s) => s.istAktuell);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/verwaltung" className="text-sm text-muted-foreground underline underline-offset-4">
-        ← Verwaltung
-      </Link>
+      <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Semester" />
 
       <h1 className="mt-6 text-2xl font-bold tracking-tight">Semester</h1>
       <p className="mt-2 max-w-prose text-sm text-muted-foreground">
@@ -74,6 +76,10 @@ export default async function SemesterSeite() {
                     : null,
                 istAktuell: s.istAktuell,
                 teilnehmer: s._count.teilnahmen,
+                raster:
+                  s.lehrjahr !== null && s.halbjahr !== null
+                    ? `${s.lehrjahr}. Lehrjahr · ${s.halbjahr === 1 ? "Herbst" : "Frühling"}`
+                    : null,
                 felder: {
                   code: s.code,
                   bezeichnung: s.bezeichnung,
@@ -81,6 +87,8 @@ export default async function SemesterSeite() {
                   ende: alsTagText(s.ende),
                   anmeldungVon: alsTagText(s.anmeldungVon),
                   anmeldungBis: alsTagText(s.anmeldungBis),
+                  lehrjahr: s.lehrjahr !== null ? String(s.lehrjahr) : "",
+                  halbjahr: s.halbjahr !== null ? String(s.halbjahr) : "",
                 },
               }}
             />

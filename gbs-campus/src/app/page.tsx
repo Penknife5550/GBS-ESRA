@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EINRICHTUNG } from "@/lib/constants";
 
 /**
  * Startseite unter gbs.fes-credo.de.
@@ -8,16 +9,17 @@ import Link from "next/link";
  * Anmeldung. Am 20.08. ist das die erste Seite, die ein Interessent sieht.
  */
 export const metadata = {
-  title: "Gemeindebibelschule Minden",
+  // Ohne „· GBS Campus": Die Startseite ist die Seite der Bibelschule.
+  title: { absolute: EINRICHTUNG.name },
 };
 
 export default function Startseite() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-24">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        Christliches Werk Esra e.V.
+        {EINRICHTUNG.traeger}
       </p>
-      <h1 className="mt-4 text-4xl font-bold tracking-tight">Gemeindebibelschule Minden</h1>
+      <h1 className="mt-4 text-4xl font-bold tracking-tight">{EINRICHTUNG.name}</h1>
       <p className="mt-4 max-w-prose text-muted-foreground">
         Drei Jahre Bibelschule am Abend, getragen von sechs Gemeinden. Hier meldest du dich an — und hier
         findest du später deine Unterlagen.

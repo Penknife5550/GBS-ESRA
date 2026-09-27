@@ -35,8 +35,11 @@ export type FormularAbschnittDefinition = {
   felder: FormularFeldDefinition[];
 };
 
+// Ohne den Satz „Mit * gekennzeichnete Felder sind Pflichtangaben." — den zeigt
+// das Formular selbst direkt darunter (oeffentliches-formular.tsx); in der
+// Einleitung stand er doppelt.
 export const EINLEITUNG =
-  "Willkommen bei der Anmeldung zur Gemeindebibelschule Minden. Mit * gekennzeichnete Felder sind Pflichtangaben. " +
+  "Willkommen bei der Anmeldung zur Gemeindebibelschule Minden. " +
   "Die Angaben zu Glaube und Gemeinde brauchen wir für die Aufnahme an einer Bibelschule; ihnen stimmst du weiter unten gesondert zu.";
 
 export const ABSCHNITTE: FormularAbschnittDefinition[] = [

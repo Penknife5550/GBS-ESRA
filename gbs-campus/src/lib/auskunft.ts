@@ -18,7 +18,8 @@ import { prisma } from "@/lib/db";
 import { entschluesseln } from "@/lib/encryption";
 import { erzeugePdf } from "@/lib/pdf";
 import { hashToken } from "@/lib/magic-link";
-import { STATUS } from "@/lib/constants";
+import { STATUS, STUNDE_MS } from "@/lib/constants";
+import { abrechnungStatusText } from "@/lib/honorar";
 import {
   baueAuskunftBloecke,
   mappeAntworten,
@@ -47,7 +48,7 @@ export async function erzeugeAuskunftToken(personId: string, erstelltVonId: stri
     data: {
       personId,
       tokenHash: hashToken(token),
-      laeuftAb: new Date(Date.now() + GUELTIG_STUNDEN * 60 * 60 * 1000),
+      laeuftAb: new Date(Date.now() + GUELTIG_STUNDEN * STUNDE_MS),
       erstelltVonId,
     },
   });
@@ -112,7 +113,28 @@ export async function sammleAuskunft(personId: string): Promise<AuskunftDaten | 
       ermaessigung: true,
       einwilligungen: { include: { text: true }, orderBy: { zeitpunkt: "asc" } },
       statusWechsel: { include: { von: true, nach: true }, orderBy: { erstelltAm: "asc" } },
-      teilnahmen: { include: { semester: true }, orderBy: { erstelltAm: "asc" } },
+      // Alle Teilnahmen, auch abgemeldete — mit allem, was an ihnen hängt
+      // (Anwesenheit samt Selbstbestätigung, Bewertungen). Eine Auskunft zeigt
+      // den gespeicherten Bestand, nicht nur, was eine Liste gerade zählt.
+      teilnahmen: {
+        include: {
+          semester: true,
+          anwesenheiten: { include: { termin: { include: { kurseinheit: { select: { titel: true } } } } } },
+          leistungen: {
+            include: { kurseinheit: { select: { titel: true, sortierung: true, fach: { select: { bezeichnung: true } } } } },
+          },
+        },
+        orderBy: { erstelltAm: "asc" },
+      },
+      zeugnisse: { include: { semester: { select: { bezeichnung: true } } }, orderBy: { ausgestelltAm: "asc" } },
+      dozentTermine: {
+        include: { semester: { select: { bezeichnung: true } }, kurseinheit: { select: { titel: true } } },
+        orderBy: { beginn: "asc" },
+      },
+      honorarAbrechnungen: {
+        include: { semester: { select: { bezeichnung: true } }, posten: { orderBy: { datum: "asc" } } },
+        orderBy: { erstelltAm: "asc" },
+      },
       anmeldungen: {
         orderBy: { erstelltAm: "asc" },
         include: {
@@ -183,6 +205,9 @@ export async function sammleAuskunft(personId: string): Promise<AuskunftDaten | 
         eingereichtAm: a.eingereichtAm,
         entschiedenAm: a.entschiedenAm,
         teilnahmeform: a.teilnahmeform,
+        // Pflicht-Freitext der Schulleitung beim Ablehnen; die Person bekommt ihn
+        // sonst nie zu sehen (bei einer Ablehnung geht keine Mail raus).
+        ablehnungsgrundVorhanden: Boolean(a.ablehnungsgrund && a.ablehnungsgrund.trim().length > 0),
         antworten: mappeAntworten(antworten, felder),
       };
     }),
@@ -204,7 +229,65 @@ export async function sammleAuskunft(personId: string): Promise<AuskunftDaten | 
     teilnahmen: person.teilnahmen.map((t) => ({
       semester: t.semester.bezeichnung,
       teilnahmeform: teilnahmeformText(t.teilnahmeform),
+      eingeladenAm: t.eingeladenAm,
       bestaetigtAm: t.bestaetigtAm,
+      abgemeldetAm: t.abgemeldetAm,
+      abmeldeGrund: t.abmeldeGrund,
+    })),
+    anwesenheiten: person.teilnahmen
+      .flatMap((t) => t.anwesenheiten)
+      .map((a) => ({
+        beginn: a.termin.beginn,
+        fach: a.termin.kurseinheit?.titel ?? null,
+        status: a.status,
+        // Selbst bestätigt heißt: die Person hat den Eintrag selbst gesetzt —
+        // dieselbe Unterscheidung wie `darfSelbstSetzen` in selbstbestaetigung.ts.
+        selbstBestaetigt: a.erfasstVonId === person.id,
+        vermerk: Boolean(a.notiz && a.notiz.trim().length > 0),
+      }))
+      .sort((x, y) => x.beginn.getTime() - y.beginn.getTime()),
+    leistungen: person.teilnahmen.flatMap((t) =>
+      t.leistungen
+        .slice()
+        .sort(
+          (x, y) =>
+            x.kurseinheit.sortierung - y.kurseinheit.sortierung ||
+            x.kurseinheit.fach.bezeichnung.localeCompare(y.kurseinheit.fach.bezeichnung),
+        )
+        .map((l) => ({
+          semester: t.semester.bezeichnung,
+          fach: l.kurseinheit.fach.bezeichnung,
+          titel: l.kurseinheit.titel,
+          ergebnis: l.ergebnis,
+          punkte: l.punkte,
+          note: l.note,
+        })),
+    ),
+    zeugnisse: person.zeugnisse.map((z) => ({
+      belegNr: z.belegNr,
+      typ: z.typ,
+      status: z.status,
+      version: z.version,
+      semester: z.semester.bezeichnung,
+      ausgestelltAm: z.ausgestelltAm,
+      dmsGesendetAm: z.dmsGesendetAm,
+    })),
+    unterrichtsabende: person.dozentTermine.map((u) => ({
+      beginn: u.beginn,
+      semester: u.semester.bezeichnung,
+      fach: u.kurseinheit?.titel ?? null,
+    })),
+    honorarAbrechnungen: person.honorarAbrechnungen.map((h) => ({
+      semester: h.semester.bezeichnung,
+      statusText: abrechnungStatusText(h.status),
+      summe: h.summe,
+      belegNr: h.belegNr,
+      erstelltAm: h.erstelltAm,
+      freigegebenAm: h.freigegebenAm,
+      ausgezahltAm: h.ausgezahltAm,
+      dmsGesendetAm: h.dmsGesendetAm,
+      vermerk: Boolean(h.notiz && h.notiz.trim().length > 0),
+      posten: h.posten.map((p) => ({ datum: p.datum, fach: p.fach, betrag: p.betrag })),
     })),
   };
 }

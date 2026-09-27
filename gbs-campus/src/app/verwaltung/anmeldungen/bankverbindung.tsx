@@ -6,17 +6,21 @@ import { sendeAnfrage } from "@/lib/api-client";
 /**
  * Zeigt die Bankverbindung auf ausdrückliche Anforderung.
  *
- * Standardmäßig stehen nur die letzten vier Stellen da — genug, um einen
- * Datensatz zuzuordnen, zu wenig für eine Lastschrift. Der Klartext kommt erst
- * auf Klick, und jeder dieser Klicks steht mit Namen im Audit-Log.
+ * Standardmäßig steht nur „hinterlegt" da — keine einzige Stelle der IBAN. Die
+ * Seite kennt nur, OB eine verschlüsselte IBAN existiert; jede Ziffer daraus
+ * hieße entschlüsseln, und das geschieht ausschließlich über den protokollierten
+ * Weg. (Vorher stand hier eine Maske „•••• •••• XXXX" aus einem Platzhalter —
+ * sie sah nach den letzten vier Stellen aus, war aber für jede Person gleich.)
+ * Der Klartext kommt erst auf Klick, und jeder dieser Klicks steht mit Akteur
+ * und Zeitpunkt im Audit-Log (BANKVERBINDUNG_EINGESEHEN).
  */
-export function Bankverbindung({ personId, maskiert }: { personId: string; maskiert: string | null }) {
+export function Bankverbindung({ personId, hinterlegt }: { personId: string; hinterlegt: boolean }) {
   const [iban, setIban] = useState<string | null>(null);
   const [inhaber, setInhaber] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
 
-  if (!maskiert) {
+  if (!hinterlegt) {
     return <span className="text-muted-foreground">keine hinterlegt</span>;
   }
 
@@ -43,8 +47,11 @@ export function Bankverbindung({ personId, maskiert }: { personId: string; maski
     setLaeuft(true);
     setFehler(null);
 
+    // POST, obwohl nur gelesen wird: Die Route nimmt nur POST an, damit die
+    // Herkunftsprüfung der Middleware greift (siehe Route).
     const antwort = await sendeAnfrage<{ iban: string; kontoinhaber: string | null }>(
       `/api/personen/${personId}/bankverbindung`,
+      { methode: "POST" },
     );
     setLaeuft(false);
 
@@ -58,7 +65,7 @@ export function Bankverbindung({ personId, maskiert }: { personId: string; maski
 
   return (
     <span className="inline-flex flex-wrap items-baseline gap-x-2">
-      <span className="font-mono">{maskiert}</span>
+      <span>hinterlegt</span>
       <button
         type="button"
         onClick={anzeigen}

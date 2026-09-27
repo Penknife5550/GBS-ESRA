@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { FormularVersionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
+import { RECHT } from "@/lib/constants";
 import { protokolliere } from "@/lib/audit";
-import { alsFeldEingaben, pruefeVeroeffentlichung } from "@/lib/formular";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { alsFeldEingaben, pruefeFelddefinition, pruefeVeroeffentlichung } from "@/lib/formular";
+import { erfolg, fehler } from "@/lib/api";
 
 /**
  * Veröffentlicht einen Entwurf. Ab diesem Moment ist die Fassung unveränderlich
@@ -12,10 +13,8 @@ import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
  * hängen die bereits eingegangenen Anmeldungen.
  */
 export async function POST(request: NextRequest, kontext: { params: Promise<{ versionId: string }> }) {
-  const benutzer = await ladeMitRecht("FORMULAR_VEROEFFENTLICHEN");
-  if (!benutzer) {
-    return keineBerechtigung();
-  }
+  const benutzer = await pruefeZugriff(RECHT.FORMULAR_VEROEFFENTLICHEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const { versionId } = await kontext.params;
 
@@ -31,13 +30,18 @@ export async function POST(request: NextRequest, kontext: { params: Promise<{ ve
     return fehler("Nur ein Entwurf kann veröffentlicht werden.", 409);
   }
 
-  const maengel = pruefeVeroeffentlichung(alsFeldEingaben(version.abschnitte));
+  // Auch die Felddefinition selbst wird hier noch einmal geprueft, nicht nur
+  // beim Speichern: Ein Entwurf entsteht auch als Kopie einer frueheren Fassung
+  // (holeOderErzeugeEntwurf) und kann ohne Speichern veroeffentlicht werden —
+  // eine vor einer neuen Regel (etwa Art. 9 fuer die Gemeinde) entstandene
+  // Fassung ginge sonst ungeprueft wieder online.
+  const felder = alsFeldEingaben(version.abschnitte);
+  const maengel = [
+    ...pruefeFelddefinition(felder).map((m) => ({ feld: m.feldCode, meldung: m.meldung })),
+    ...pruefeVeroeffentlichung(felder).map((m) => ({ meldung: m })),
+  ];
   if (maengel.length > 0) {
-    return fehler(
-      "Das Formular ist noch nicht veröffentlichungsreif.",
-      400,
-      maengel.map((m) => ({ meldung: m })),
-    );
+    return fehler("Das Formular ist noch nicht veröffentlichungsreif.", 400, maengel);
   }
 
   // Auch hier die Bedingung in die schreibende Anweisung: Zwei gleichzeitige

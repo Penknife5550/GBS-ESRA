@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ladeMitRecht } from "@/lib/berechtigung";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { pruefeZugriff } from "@/lib/berechtigung";
+import { erfolg, fehler } from "@/lib/api";
 import { RECHT } from "@/lib/constants";
 import { generiereDienstagstermine } from "@/lib/stundenplan-io";
 
@@ -15,8 +15,8 @@ const schema = z.object({
  * wöchentlich). Idempotent — ein zweiter Aufruf legt nichts doppelt an.
  */
 export async function POST(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.SEMESTER_VERWALTEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.SEMESTER_VERWALTEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) return fehler("Ungültige Anfrage.", 400);

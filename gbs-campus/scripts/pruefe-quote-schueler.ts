@@ -8,6 +8,7 @@
  * nie auf die Anzahl.
  */
 
+import { readFileSync } from "fs";
 import {
   abendWort,
   istQuoteDringend,
@@ -29,6 +30,14 @@ function pruefe(bezeichnung: string, bedingung: boolean, zusatz?: unknown) {
     fehlgeschlagen++;
     console.log(`  FEHLT ${bezeichnung}`);
     if (zusatz !== undefined) console.log("        ", JSON.stringify(zusatz));
+  }
+}
+
+function lies(pfad: string): string {
+  try {
+    return readFileSync(pfad, "utf8");
+  } catch {
+    return "";
   }
 }
 
@@ -117,23 +126,38 @@ pruefe("fehlender Status zählt NICHT als versäumt", zaehltAlsVersaeumt(null) =
 console.log("\n10. Quote-Klartext: Wortlaut & Dringlichkeit (die Aussage an den Schüler)");
 pruefe("abendWort(1) → Abend (Singular)", abendWort(1) === "Abend");
 pruefe("abendWort(2) → Abende (Plural)", abendWort(2) === "Abende");
-pruefe("Hinweis ERFUELLT nennt „gesichert“", quoteHinweis(quoteModellA(5, 4, 0, 80)).includes("gesichert"));
-pruefe("Hinweis NICHT_ERREICHBAR nennt „nicht mehr erreichbar“", quoteHinweis(quoteModellA(20, 3, 5, 80)).includes("nicht mehr erreichbar"));
+pruefe("Hinweis ERFUELLT nennt „gesichert“", quoteHinweis(quoteModellA(5, 4, 0, 80), "schueler").includes("gesichert"));
+pruefe("Hinweis NICHT_ERREICHBAR nennt „nicht mehr erreichbar“", quoteHinweis(quoteModellA(20, 3, 5, 80), "schueler").includes("nicht mehr erreichbar"));
 pruefe(
   "Hinweis ohne Puffer: kein Abend mehr",
-  quoteHinweis(quoteModellA(20, 3, 4, 80)) === "Achtung: Es darf kein Abend mehr fehlen, sonst reißt die Grenze.",
-  quoteHinweis(quoteModellA(20, 3, 4, 80)),
+  quoteHinweis(quoteModellA(20, 3, 4, 80), "schueler") === "Achtung: Es darf kein Abend mehr fehlen, sonst reißt die Grenze.",
+  quoteHinweis(quoteModellA(20, 3, 4, 80), "schueler"),
 );
 pruefe(
   "Hinweis bei 1 Puffer: Singular „1 Abend“",
-  quoteHinweis(quoteModellA(20, 8, 3, 80)) === "Es dürfen noch 1 Abend fehlen.",
-  quoteHinweis(quoteModellA(20, 8, 3, 80)),
+  quoteHinweis(quoteModellA(20, 8, 3, 80), "schueler") === "Es dürfen noch 1 Abend fehlen.",
+  quoteHinweis(quoteModellA(20, 8, 3, 80), "schueler"),
 );
 pruefe(
   "Hinweis bei 2 Puffer: Plural „2 Abende“",
-  quoteHinweis(quoteModellA(20, 8, 2, 80)) === "Es dürfen noch 2 Abende fehlen.",
-  quoteHinweis(quoteModellA(20, 8, 2, 80)),
+  quoteHinweis(quoteModellA(20, 8, 2, 80), "schueler") === "Es dürfen noch 2 Abende fehlen.",
+  quoteHinweis(quoteModellA(20, 8, 2, 80), "schueler"),
 );
+{
+  // Dieselbe Quote in der Detailakte: Der Schulleitung „Bitte wende dich an die
+  // Schulleitung." zu sagen, führte ins Leere.
+  const verwaltung = quoteHinweis(quoteModellA(20, 3, 5, 80), "verwaltung");
+  pruefe(
+    "Hinweis NICHT_ERREICHBAR in der Verwaltungssicht: ohne „wende dich an die Schulleitung“",
+    verwaltung.includes("nicht mehr erreichbar") && !/wende dich/.test(verwaltung),
+    verwaltung,
+  );
+  pruefe(
+    "die Detailakte zeigt die Verwaltungssicht, die Schüler-Akte die Schülersicht",
+    /<QuoteAmpel quote=\{gruppe\.quote\} sicht="verwaltung" \/>/.test(lies("src/components/personen/anwesenheit-liste.tsx")) &&
+      /<QuoteAmpel quote=\{gruppe\.quote\} sicht="schueler" \/>/.test(lies("src/app/meine-daten/anwesenheit-abschnitt.tsx")),
+  );
+}
 pruefe("dringend: NICHT_ERREICHBAR", istQuoteDringend(quoteModellA(20, 3, 5, 80)) === true);
 pruefe("dringend: OFFEN ohne Puffer (0)", istQuoteDringend(quoteModellA(20, 3, 4, 80)) === true);
 pruefe("nicht dringend: OFFEN mit Puffer", istQuoteDringend(quoteModellA(20, 8, 2, 80)) === false);
@@ -143,7 +167,7 @@ pruefe("quoteErfuellt: 3 von 4 bei 80 % (75 %)", quoteErfuellt(3, 4, 80) === fal
 pruefe("quoteErfuellt: ohne Abende gilt als erfüllt", quoteErfuellt(0, 0, 80) === true);
 
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 51;
+const ERWARTET = 53;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

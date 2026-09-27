@@ -4,11 +4,19 @@
  * Bewusst getrennt von `auskunft.ts` (Datenbank, Token, PDF-Erzeugung): Dieses
  * Modul importiert zur Laufzeit nichts aus der Datenbank — nur so lässt es sich
  * per Pruefskript ohne DB und mutationssicher testen (Projektregel 2). Der
- * FeldTyp wird nur als Typ importiert (zur Laufzeit entfernt).
+ * FeldTyp wird nur als Typ importiert (zur Laufzeit entfernt). Die Klartexte zu
+ * Abmeldegrund, Leistungsergebnis, Anwesenheit und Zeugnistyp kommen aus den
+ * ebenfalls DB-freien Fachmodulen — dieselben Wörter wie in der Oberfläche.
  */
 
 import type { FeldTyp } from "@prisma/client";
 import type { PdfBlock } from "@/lib/pdf";
+import { abmeldegrundText } from "@/lib/semester";
+import { anmeldestatusName } from "@/lib/anmeldestatus";
+import { ergebnisName } from "@/lib/leistung";
+import { abendWort, anwesenheitName, terminText } from "@/lib/stundenplan";
+import { zeugnisTitel } from "@/lib/zeugnis";
+import { euro } from "@/lib/honorar";
 
 export type AntwortZeile = { label: string; wert: string; istArt9: boolean };
 export type FeldInfo = { code: string; label: string; typ: FeldTyp; istArt9: boolean };
@@ -64,6 +72,7 @@ export function mappeAntworten(antworten: Record<string, unknown>, felder: FeldI
 // Moduls (auskunft.ts) unverändert bleiben.
 export { datum, datumZeit } from "@/lib/datum";
 import { datum, datumZeit } from "@/lib/datum";
+import { EINRICHTUNG } from "@/lib/constants";
 
 export function teilnahmeformText(f: string | null | undefined): string {
   if (f === "SCHUELER") return "Schüler (mit Prüfung und Zeugnis)";
@@ -82,12 +91,9 @@ export function anmeldungsstatusText(status: string): string {
       return "Entwurf (noch nicht abgesendet)";
     case "EINGEREICHT":
       return "Eingereicht, wartet auf Entscheidung";
-    case "ANGENOMMEN":
-      return "Angenommen";
-    case "ABGELEHNT":
-      return "Abgelehnt";
     default:
-      return status;
+      // Annahme, Ablehnung und Unbekanntes: derselbe Wortlaut wie in der Verwaltung.
+      return anmeldestatusName(status);
   }
 }
 
@@ -104,6 +110,9 @@ export type AuskunftDaten = {
     eingereichtAm: Date | null;
     entschiedenAm: Date | null;
     teilnahmeform: string | null;
+    /** Ein Ablehnungsgrund (Freitext der Schulleitung) liegt vor — wie der
+     * interne Vermerk nur benannt, nicht abgedruckt. */
+    ablehnungsgrundVorhanden: boolean;
     antworten: AntwortZeile[];
   }[];
   einwilligungen: {
@@ -115,17 +124,105 @@ export type AuskunftDaten = {
     ipAdresse: string | null;
   }[];
   statusWechsel: { von: string | null; nach: string; grund: string | null; automatisch: boolean; zeitpunkt: Date }[];
-  teilnahmen: { semester: string; teilnahmeform: string; bestaetigtAm: Date | null }[];
+  /**
+   * Auch abgemeldete Teilnahmen — sie zählen für das Semester nicht, sind aber
+   * gespeichert. `abmeldeGrund` ist der rohe Code (`ABMELDEGRUND`), den Klartext
+   * liefert `abmeldegrundText`.
+   */
+  teilnahmen: {
+    semester: string;
+    teilnahmeform: string;
+    eingeladenAm: Date | null;
+    bestaetigtAm: Date | null;
+    abgemeldetAm: Date | null;
+    abmeldeGrund: string | null;
+  }[];
+  /** `status` roh (Anwesenheitsstatus); `vermerk`: ein Freitext der Schule liegt vor (wie `internerVermerkVorhanden`). */
+  anwesenheiten: { beginn: Date; fach: string | null; status: string; selbstBestaetigt: boolean; vermerk: boolean }[];
+  /** `ergebnis` roh (Leistungsergebnis). */
+  leistungen: { semester: string; fach: string; titel: string; ergebnis: string; punkte: number | null; note: string | null }[];
+  /** `typ` und `status` roh (Zeugnistyp, Zeugnisstatus). */
+  zeugnisse: {
+    belegNr: string;
+    typ: string;
+    status: string;
+    version: number;
+    semester: string;
+    ausgestelltAm: Date;
+    dmsGesendetAm: Date | null;
+  }[];
+  /** Unterrichtsabende, denen die Person als Dozent zugeordnet ist. */
+  unterrichtsabende: { beginn: Date; semester: string; fach: string | null }[];
+  honorarAbrechnungen: {
+    semester: string;
+    statusText: string;
+    summe: number;
+    belegNr: string | null;
+    erstelltAm: Date;
+    freigegebenAm: Date | null;
+    ausgezahltAm: Date | null;
+    /** Übermittlung des Zahlungsbelegs (mit IBAN) an das DMS. */
+    dmsGesendetAm: Date | null;
+    vermerk: boolean;
+    posten: { datum: Date; fach: string | null; betrag: number }[];
+  }[];
 };
 
 const ART9_HINWEIS = " (besondere Kategorie nach Art. 9 DSGVO)";
+
+/** Ein Freitext der Schule an einem Eintrag — wie der interne Vermerk an der Person nur benannt, nicht abgedruckt. */
+const VERMERK_HINWEIS = "mit Freitext-Vermerk der Schule (wird nach Einzelprüfung gesondert herausgegeben)";
+
+/**
+ * Eine Teilnahme als Zeile: Form, Rückmeldung zur Semesterüberleitung und —
+ * wenn abgemeldet — Datum und Grund. Eine abgemeldete Teilnahme darf nicht wie
+ * eine gewöhnliche aussehen.
+ */
+export function teilnahmeText(t: AuskunftDaten["teilnahmen"][number]): string {
+  const teile = [t.teilnahmeform];
+  if (t.eingeladenAm) teile.push(`zur Rückmeldung eingeladen am ${datum(t.eingeladenAm)}`);
+  if (t.bestaetigtAm) teile.push(`bestätigt am ${datum(t.bestaetigtAm)}`);
+  if (t.abgemeldetAm) teile.push(`abgemeldet am ${datum(t.abgemeldetAm)}, Grund: ${abmeldegrundText(t.abmeldeGrund)}`);
+  return teile.join(" · ");
+}
+
+/** Eine erfasste Anwesenheit als Zeile — mit der Angabe, ob die Person sie selbst bestätigt hat. */
+export function anwesenheitText(a: AuskunftDaten["anwesenheiten"][number]): string {
+  const teile = [anwesenheitName(a.status)];
+  if (a.fach) teile.push(a.fach);
+  teile.push(a.selbstBestaetigt ? "von Ihnen selbst bestätigt" : "von der Schule erfasst");
+  if (a.vermerk) teile.push(VERMERK_HINWEIS);
+  return teile.join(" · ");
+}
+
+/** Eine Bewertung als Zeile: Titel der Kurseinheit, Ergebnis, optionale Punkte und Note. */
+export function leistungText(l: AuskunftDaten["leistungen"][number]): string {
+  return (
+    `${l.titel}: ${ergebnisName(l.ergebnis)}` +
+    (l.punkte != null ? ` · ${l.punkte} Punkte` : "") +
+    (l.note ? ` · Note ${l.note}` : "")
+  );
+}
+
+/**
+ * Ein Zeugnis als Zeile: Typ, Semester, Datum, Fassung/Stand und die
+ * Übermittlung an das DMS. Den eingefrorenen Inhalt (Name, Geburtsdatum,
+ * Ergebnisse im Stand der Ausstellung) benennt der Hinweis unter dem Abschnitt.
+ */
+export function zeugnisText(z: AuskunftDaten["zeugnisse"][number]): string {
+  return (
+    `${zeugnisTitel(z.typ)} · ${z.semester} · ausgestellt am ${datum(z.ausgestelltAm)} · ` +
+    (z.status === "ERSETZT" ? `Fassung ${z.version}, durch eine Neuausstellung ersetzt` : `Fassung ${z.version}, gültig`) +
+    (z.dmsGesendetAm ? ` · an das Dokumentenarchiv (DMS) übermittelt am ${datum(z.dmsGesendetAm)}` : "")
+  );
+}
 
 /** Baut aus den gesammelten Daten die PDF-Bausteine. Rein, ohne Datenbank. */
 export function baueAuskunftBloecke(daten: AuskunftDaten): PdfBlock[] {
   const b: PdfBlock[] = [];
 
   b.push({ art: "titel", text: "Datenauskunft nach Art. 15 DSGVO" });
-  b.push({ art: "klein", text: `Erstellt am ${datumZeit(daten.erstelltAm)} · Gemeindebibelschule Minden · Christliches Werk Esra e.V.` });
+  b.push({ art: "klein", text: `Erstellt am ${datumZeit(daten.erstelltAm)} · ${EINRICHTUNG.name} · ${EINRICHTUNG.traeger}` });
   b.push({
     art: "absatz",
     text:
@@ -158,6 +255,7 @@ export function baueAuskunftBloecke(daten: AuskunftDaten): PdfBlock[] {
     b.push({ art: "kv", label: "Bearbeitungsstand", wert: anmeldungsstatusText(a.status) });
     b.push({ art: "kv", label: "Eingereicht am", wert: datumZeit(a.eingereichtAm) });
     b.push({ art: "kv", label: "Entschieden am", wert: datumZeit(a.entschiedenAm) });
+    if (a.ablehnungsgrundVorhanden) b.push({ art: "kv", label: "Ablehnungsgrund", wert: VERMERK_HINWEIS });
     b.push({ art: "kv", label: "Teilnahmeform", wert: teilnahmeformText(a.teilnahmeform) });
     for (const z of a.antworten) {
       b.push({ art: "kv", label: z.label + (z.istArt9 ? ART9_HINWEIS : ""), wert: z.wert });
@@ -193,11 +291,76 @@ export function baueAuskunftBloecke(daten: AuskunftDaten): PdfBlock[] {
     b.push({ art: "absatz", text: "Es ist keine Semesterteilnahme gespeichert." });
   }
   for (const t of daten.teilnahmen) {
+    b.push({ art: "kv", label: t.semester, wert: teilnahmeText(t) });
+  }
+  if (daten.teilnahmen.some((t) => t.abgemeldetAm)) {
     b.push({
-      art: "kv",
-      label: t.semester,
-      wert: `${t.teilnahmeform}${t.bestaetigtAm ? " · bestätigt am " + datum(t.bestaetigtAm) : ""}`,
+      art: "klein",
+      text:
+        "Eine abgemeldete Teilnahme zählt für ihr Semester nicht: Sie steht in keiner Liste dieses Semesters, " +
+        "und es werden dafür keine Anwesenheit, keine Noten und kein Zeugnis erfasst.",
     });
+  }
+
+  b.push({ art: "h2", text: "6. Anwesenheit" });
+  if (daten.anwesenheiten.length === 0) {
+    b.push({ art: "absatz", text: "Es ist keine Anwesenheit gespeichert." });
+  }
+  for (const a of daten.anwesenheiten) {
+    b.push({ art: "kv", label: terminText(a.beginn), wert: anwesenheitText(a) });
+  }
+
+  b.push({ art: "h2", text: "7. Leistungen und Noten" });
+  if (daten.leistungen.length === 0) {
+    b.push({ art: "absatz", text: "Es ist keine Bewertung gespeichert." });
+  }
+  for (const l of daten.leistungen) {
+    b.push({ art: "kv", label: `${l.semester} · ${l.fach}`, wert: leistungText(l) });
+  }
+
+  b.push({ art: "h2", text: "8. Zeugnisse und Bescheinigungen" });
+  if (daten.zeugnisse.length === 0) {
+    b.push({ art: "absatz", text: "Es ist kein Zeugnis und keine Bescheinigung gespeichert." });
+  }
+  for (const z of daten.zeugnisse) {
+    b.push({ art: "kv", label: `Beleg-Nr. ${z.belegNr}`, wert: zeugnisText(z) });
+  }
+  if (daten.zeugnisse.length > 0) {
+    b.push({
+      art: "klein",
+      text:
+        "Ein Zeugnis hält Name, Geburtsdatum und die Ergebnisse im Stand der Ausstellung fest. Eine Kopie gültiger " +
+        "Zeugnisse und Bescheinigungen erhalten Sie auf Anfrage bei der Schulverwaltung; solange Ihr Portalzugang " +
+        "besteht, auch als PDF unter „Meine Daten“.",
+    });
+  }
+
+  b.push({ art: "h2", text: "9. Unterricht als Dozent und Honorarabrechnungen" });
+  if (daten.unterrichtsabende.length === 0) {
+    b.push({ art: "absatz", text: "Sie sind keinem Unterrichtsabend als Dozent zugeordnet." });
+  }
+  for (const u of daten.unterrichtsabende) {
+    b.push({ art: "kv", label: terminText(u.beginn), wert: `${u.semester}${u.fach ? " · " + u.fach : ""}` });
+  }
+  if (daten.honorarAbrechnungen.length === 0) {
+    b.push({ art: "absatz", text: "Es ist keine Honorarabrechnung gespeichert." });
+  }
+  for (const h of daten.honorarAbrechnungen) {
+    b.push({ art: "leer" });
+    b.push({ art: "kv", label: "Honorarabrechnung", wert: h.semester });
+    b.push({ art: "kv", label: "Stand", wert: h.statusText });
+    if (h.belegNr) b.push({ art: "kv", label: "Beleg-Nr.", wert: h.belegNr });
+    b.push({ art: "kv", label: "Erstellt am", wert: datumZeit(h.erstelltAm) });
+    if (h.freigegebenAm) b.push({ art: "kv", label: "Freigegeben am", wert: datumZeit(h.freigegebenAm) });
+    if (h.ausgezahltAm) b.push({ art: "kv", label: "Ausgezahlt am", wert: datum(h.ausgezahltAm) });
+    if (h.dmsGesendetAm) {
+      b.push({ art: "kv", label: "An das Dokumentenarchiv (DMS) übermittelt am", wert: datum(h.dmsGesendetAm) });
+    }
+    if (h.vermerk) b.push({ art: "kv", label: "Vermerk", wert: VERMERK_HINWEIS });
+    for (const p of h.posten) {
+      b.push({ art: "kv", label: `${datum(p.datum)}${p.fach ? " · " + p.fach : ""}`, wert: euro(p.betrag) });
+    }
+    b.push({ art: "kv", label: `Summe (${h.posten.length} ${abendWort(h.posten.length)})`, wert: euro(h.summe) });
   }
 
   for (const block of BEGLEITANGABEN) b.push(block);
@@ -212,21 +375,21 @@ export function baueAuskunftBloecke(daten: AuskunftDaten): PdfBlock[] {
  * (weitere Empfaenger ab Release 0.3, Optigem) hier nachziehen.
  */
 const BEGLEITANGABEN: PdfBlock[] = [
-  { art: "h2", text: "6. Angaben nach Art. 15 Abs. 1 DSGVO" },
+  { art: "h2", text: "10. Angaben nach Art. 15 Abs. 1 DSGVO" },
   {
     art: "kv",
     label: "Verantwortlicher",
-    wert: "Christliches Werk Esra e.V. (Träger der Gemeindebibelschule Minden). Fragen zum Datenschutz richten Sie bitte an die Schulverwaltung.",
+    wert: `${EINRICHTUNG.traeger} (Träger der ${EINRICHTUNG.name}). Fragen zum Datenschutz richten Sie bitte an die Schulverwaltung.`,
   },
   {
     art: "kv",
     label: "Zwecke der Verarbeitung",
-    wert: "Anmeldung, Aufnahme und Verwaltung der Teilnahme an der Gemeindebibelschule, Kommunikation mit den Teilnehmern und Verwaltung des Semesterbeitrags.",
+    wert: "Anmeldung, Aufnahme und Verwaltung der Teilnahme an der Gemeindebibelschule, Anwesenheit, Leistungsnachweise und Zeugnisse, Kommunikation mit den Teilnehmern, Verwaltung des Semesterbeitrags sowie Einsatzplanung und Honorarabrechnung der Dozenten.",
   },
   {
     art: "kv",
     label: "Kategorien personenbezogener Daten",
-    wert: "Stammdaten, Kontaktdaten, Bankverbindung, Angaben zu Glaube und Gemeindezugehörigkeit (Art. 9), Anmeldeangaben, Einwilligungen und Verwaltungsverlauf — wie oben aufgeführt.",
+    wert: "Stammdaten, Kontaktdaten, Bankverbindung, Angaben zu Glaube und Gemeindezugehörigkeit (Art. 9), Anmeldeangaben, Einwilligungen, Verwaltungsverlauf, Teilnahmen, Anwesenheit, Leistungen und Zeugnisse sowie bei Dozenten Unterrichtsabende und Honorarabrechnungen — wie oben aufgeführt.",
   },
   {
     art: "kv",
@@ -251,7 +414,7 @@ const BEGLEITANGABEN: PdfBlock[] = [
   {
     art: "kv",
     label: "Herkunft der Daten",
-    wert: "Die Daten stammen aus Ihren eigenen Angaben im Anmeldeformular sowie aus dem Verwaltungsverlauf innerhalb dieser Software.",
+    wert: "Die Daten stammen aus Ihren eigenen Angaben (Anmeldeformular, Selbstpflege im Portal, selbst bestätigte Anwesenheit) sowie aus der Erfassung durch Schulleitung, Verwaltung und Dozenten innerhalb dieser Software.",
   },
   {
     art: "kv",

@@ -4,16 +4,17 @@ import { prisma } from "@/lib/db";
 import { hatRecht, ladeAngemeldeten } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { deutscherTag, teilnahmeformName } from "@/lib/semester";
-import { datum } from "@/lib/datum";
+import { datum, datumZeit } from "@/lib/datum";
 import { zahl } from "@/lib/einstellungen";
 import { ladeEigeneUnterrichtstermine } from "@/lib/stundenplan-io";
 import { ladeEigeneLeistungen } from "@/lib/leistung-io";
 import { ladeEigeneZeugnisse } from "@/lib/zeugnis-io";
+import { TEILNAHME_ZAEHLT } from "@/lib/teilnahme-filter";
 import { ZurueckLeiste } from "@/components/ui/zurueck-leiste";
 import { PersonKopf } from "@/components/personen/person-kopf";
 import { StatusBadge, TeilnahmeformBadge } from "@/components/ui/badges";
 import { QuoteChip } from "@/components/ui/quote-ampel";
-import { AbmeldenKnopf } from "@/app/verwaltung/abmelden-knopf";
+import { AbmeldenKnopf } from "@/components/ui/abmelden-knopf";
 import { StammdatenFormular } from "./stammdaten-formular";
 import { EmailAendern } from "./email-aendern";
 import { PasswortAbschnitt } from "./passwort-abschnitt";
@@ -21,6 +22,7 @@ import { AnwesenheitAbschnitt } from "./anwesenheit-abschnitt";
 import { MeineNotenAbschnitt } from "./meine-noten-abschnitt";
 import { MeineZeugnisseAbschnitt } from "./meine-zeugnisse-abschnitt";
 
+export const metadata = { title: "Meine Daten" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -43,12 +45,22 @@ export default async function MeineDatenSeite() {
     include: {
       status: true,
       ermaessigung: true,
-      teilnahmen: { include: { semester: true }, orderBy: { semester: { start: "desc" } }, take: 5 },
+      // Nur zählende Teilnahmen: Eine abgemeldete (Semesterüberleitung) legt die
+      // Teilnahmeform im Kopf nicht fest.
+      teilnahmen: {
+        where: TEILNAHME_ZAEHLT,
+        include: { semester: true },
+        orderBy: { semester: { start: "desc" } },
+        take: 5,
+      },
     },
   });
   if (!person) redirect("/anmelden");
 
   const hatVerwaltungsbereich = hatRecht(benutzer, RECHT.PERSON_LESEN_ALLE);
+  // Dozenten kommen von „Mein Unterricht“ (/dozent verlinkt hierher) und
+  // brauchen denselben definierten Rückweg (Plan-Regel 7).
+  const hatDozentenbereich = hatRecht(benutzer, RECHT.EIGENE_TERMINE_LESEN);
   const darfBearbeiten = hatRecht(benutzer, RECHT.PERSON_BEARBEITEN_EIGENE);
 
   const [offenerEmailAntrag, anwesenheitGruppen, notenGruppen, zeugnisse, passwortMinLaenge] = await Promise.all([
@@ -93,6 +105,8 @@ export default async function MeineDatenSeite() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         {hatVerwaltungsbereich ? (
           <ZurueckLeiste href="/verwaltung" label="Verwaltung" breadcrumb="Verwaltung · Meine Daten" />
+        ) : hatDozentenbereich ? (
+          <ZurueckLeiste href="/dozent" label="Mein Unterricht" breadcrumb="Mein Unterricht · Meine Daten" />
         ) : (
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Meine Akte</p>
         )}
@@ -182,6 +196,7 @@ export default async function MeineDatenSeite() {
                 kontoinhaber: person.kontoinhaber ?? "",
               }}
               hatBankverbindung={Boolean(person.ibanVerschluesselt)}
+              istDozent={hatDozentenbereich}
             />
           </section>
 
@@ -193,10 +208,7 @@ export default async function MeineDatenSeite() {
                 offenerEmailAntrag
                   ? {
                       neueEmail: offenerEmailAntrag.neueEmail,
-                      gueltigBis: offenerEmailAntrag.laeuftAb.toLocaleString("de-DE", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      }),
+                      gueltigBis: datumZeit(offenerEmailAntrag.laeuftAb),
                     }
                   : null
               }
@@ -208,7 +220,7 @@ export default async function MeineDatenSeite() {
             <PasswortAbschnitt
               hatPasswort={Boolean(person.passwortHash)}
               mindestLaenge={passwortMinLaenge}
-              gesetztAm={person.passwortGeaendertAm?.toLocaleDateString("de-DE") ?? null}
+              gesetztAm={person.passwortGeaendertAm ? datum(person.passwortGeaendertAm) : null}
             />
           </section>
         </>

@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { RECHT } from "@/lib/constants";
 import { genehmigeHonorarSatz } from "@/lib/honorar-io";
 import { HONORAR_SATZ_MIN, HONORAR_SATZ_MAX } from "@/lib/honorar";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { alsTagesdatum } from "@/lib/semester";
+import { erfolg, fehler } from "@/lib/api";
 
 const schema = z.object({
   betrag: z
@@ -23,21 +24,19 @@ const schema = z.object({
  * liegt in `genehmigeHonorarSatz`, damit sie ohne HTTP testbar bleibt.
  */
 export async function POST(request: NextRequest) {
-  const benutzer = await ladeMitRecht(RECHT.HONORAR_SATZ_GENEHMIGEN);
-  if (!benutzer) return keineBerechtigung();
+  const benutzer = await pruefeZugriff(RECHT.HONORAR_SATZ_GENEHMIGEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) {
     return fehler(geprueft.error?.issues[0]?.message ?? "Ungültige Anfrage.", 400);
   }
 
-  const gueltigAb = new Date(geprueft.data.gueltigAb);
-  // Round-Trip gegen die Eingabe: `new Date("2026-02-30")` wirft nicht, sondern
-  // rollt still auf den 02.03. — der reine getTime-Check würde das durchlassen
-  // und einen Satz mit falschem Gültig-ab lohnwirksam anlegen.
-  if (Number.isNaN(gueltigAb.getTime()) || gueltigAb.toISOString().slice(0, 10) !== geprueft.data.gueltigAb) {
-    return fehler("Das Gültig-ab-Datum ist ungültig.", 400);
-  }
+  // Geprüfter Kalendertag-Parser mit Round-Trip: `new Date("2026-02-30")` wirft
+  // nicht, sondern rollt still auf den 02.03. — ein reiner getTime-Check würde
+  // das durchlassen und einen Satz mit falschem Gültig-ab lohnwirksam anlegen.
+  const gueltigAb = alsTagesdatum(geprueft.data.gueltigAb);
+  if (!gueltigAb) return fehler("Das Gültig-ab-Datum ist ungültig.", 400);
 
   // Bei einer finanzwirksamen Genehmigung nicht auf den generischen 500 des
   // Frameworks verlassen: ein DB-Ausfall im create soll eine deutsche Meldung
@@ -61,5 +60,5 @@ export async function POST(request: NextRequest) {
     return fehler(ergebnis.meldung, 400);
   }
 
-  return erfolg({ belegNr: ergebnis.belegNr, dmsGesendet: ergebnis.dmsGesendet });
+  return erfolg({ belegNr: ergebnis.belegNr, dmsGesendet: ergebnis.dmsGesendet, dmsVersand: ergebnis.dmsVersand });
 }

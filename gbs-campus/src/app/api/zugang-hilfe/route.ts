@@ -4,7 +4,7 @@ import { erfolg, fehler } from "@/lib/api";
 import { protokolliere } from "@/lib/audit";
 import { zahl } from "@/lib/einstellungen";
 import { drosselUeberschritten } from "@/lib/magic-link";
-import { ermittleRequestKontext } from "@/lib/request-kontext";
+import { drosselSchluesselFuerIp, ermittleRequestKontext } from "@/lib/request-kontext";
 import { ROLLE } from "@/lib/constants";
 import { sendeAnRollen } from "@/lib/verteiler";
 import { hilfeMeldung, hilfeWerte, pruefeHilfeAnfrage } from "@/lib/zugang-hilfe";
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
   // soll das gemeinsame Kontingent nicht auch noch aufbrauchen.
   const gedrosselt =
     !ipAdresse ||
-    (await drosselUeberschritten(`ZUGANG_HILFE_IP:${ipAdresse}`, maxProIp, fensterMinuten)) ||
+    (await drosselUeberschritten(`ZUGANG_HILFE_IP:${drosselSchluesselFuerIp(ipAdresse)}`, maxProIp, fensterMinuten)) ||
     (await drosselUeberschritten("ZUGANG_HILFE_GESAMT", maxGesamt, fensterMinuten));
 
   if (gedrosselt) {
@@ -118,7 +118,9 @@ export async function POST(request: NextRequest) {
     rollen: [ROLLE.SCHULLEITER, ROLLE.VERWALTUNG],
     vorlageCode: VORLAGE_CODE,
     werte: hilfeWerte(werte),
-    ersatzBetreff: `Kommt nicht ins Portal: ${werte.vorname} ${werte.nachname}`,
+    // Ohne Namen, wie die Vorlage im Seed: Der Betreff steht im
+    // Versandprotokoll und in der Betriebsansicht (Code-Review 4, M6b).
+    ersatzBetreff: "Meldung zum Portalzugang",
     ersatzText: hilfeMeldung(werte),
   });
 
@@ -131,7 +133,8 @@ export async function POST(request: NextRequest) {
     aktion: "ZUGANG_HILFE_GEMELDET",
     objektTyp: "Person",
     quelle: "SYSTEM",
-    nachher: { empfaenger: versand.empfaenger, gesendet: versand.gesendet },
+    // Zahlen, keine Adressen — der Schlüssel heißt deshalb nicht „empfaenger".
+    nachher: { empfaengerAnzahl: versand.empfaenger, gesendet: versand.gesendet },
     ipAdresse,
     userAgent,
   });

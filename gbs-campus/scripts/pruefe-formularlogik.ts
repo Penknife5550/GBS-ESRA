@@ -6,8 +6,11 @@
  * Es braucht keine Datenbank.
  */
 
+import { readFileSync } from "fs";
 import { FeldTyp, PersonFeld, Teilnahmeform } from "@prisma/client";
 import {
+  alsBuilderAbschnitte,
+  alsFeldEingaben,
   bereinigeEntwurf,
   FeldEingabe,
   geheimeFeldcodes,
@@ -17,6 +20,11 @@ import {
   pruefeFelddefinition,
   pruefeVeroeffentlichung,
 } from "../src/lib/formular";
+import {
+  behalteVorhandeneZuordnungen,
+  bereinigeOptionenUndZuordnung,
+  normalisiereOptionen,
+} from "../src/lib/formular-optionen";
 
 let geprueft = 0;
 let fehlgeschlagen = 0;
@@ -275,12 +283,236 @@ pruefe("Geburtsjahr 2090 wird abgewiesen", !zuSpaet.ok);
 const zuFrueh = pruefeAntworten(formular, { vorname: "P", email: "a@b.de", geburtsdatum: "1000-01-01" }, true);
 pruefe("Geburtsjahr 1000 wird abgewiesen", !zuFrueh.ok);
 
+console.log("\n9. Builder: Antwortmöglichkeiten und Teilnahmeform-Zuordnung");
+// Rohtext wie aus der Textarea: Rand-Leerzeichen, eine Leerzeile, ein Enter am
+// Ende. Die Leerzeichen innerhalb der Antwort muessen stehen bleiben — genau
+// die gingen verloren, solange bei jedem Tastendruck normalisiert wurde.
+const optionenRoh = "  Ja, gemeinsam mit meinem Ehepartner \n\n Nein\n";
+pruefe(
+  "Antwortmöglichkeiten: Ränder getrimmt, leere Zeilen weg, Leerzeichen im Text bleiben",
+  JSON.stringify(normalisiereOptionen(optionenRoh)) === JSON.stringify(["Ja, gemeinsam mit meinem Ehepartner", "Nein"]),
+  normalisiereOptionen(optionenRoh),
+);
+
+const beschnitten = behalteVorhandeneZuordnungen(
+  {
+    "Als Schüler": Teilnahmeform.SCHUELER,
+    "Als Hörer": Teilnahmeform.HOERER,
+    "Alter Antworttext": Teilnahmeform.SCHUELER,
+  },
+  ["Als Schüler", "Als Hörer"],
+);
+pruefe(
+  "Zuordnung einer umbenannten Antwort bleibt nicht verwaist stehen",
+  beschnitten !== null && !("Alter Antworttext" in beschnitten),
+  beschnitten,
+);
+pruefe(
+  "Zuordnungen der vorhandenen Antworten bleiben erhalten",
+  beschnitten?.["Als Schüler"] === Teilnahmeform.SCHUELER && beschnitten?.["Als Hörer"] === Teilnahmeform.HOERER,
+  beschnitten,
+);
+// null statt {}: Die PUT-Route schreibt validierung nur bei einer Zuordnung,
+// ein leeres Objekt landete als { teilnahmeform: {} } in der Datenbank.
+pruefe(
+  "bleibt keine Zuordnung übrig, kommt null zurück",
+  behalteVorhandeneZuordnungen({ "Alter Antworttext": Teilnahmeform.HOERER }, ["Neu"]) === null,
+);
+// „— bitte wählen —" liefert "": Das ist keine Zuordnung. Bliebe es stehen,
+// scheiterte das Speichern an der Zod-Pruefung mit einer allgemeinen Meldung
+// statt mit dem Hinweis, fuer welche Antwort die Angabe fehlt.
+pruefe(
+  "„— bitte wählen —“ (leerer Wert) zählt nicht als Zuordnung",
+  behalteVorhandeneZuordnungen({ "Als Hörer": "" }, ["Als Hörer"]) === null,
+);
+pruefe(
+  "Antwort, die beim Normalisieren nur ihr Rand-Leerzeichen verliert, behält ihre Zuordnung",
+  behalteVorhandeneZuordnungen({ "Als Hörer ": Teilnahmeform.HOERER }, ["Als Hörer"])?.["Als Hörer"] ===
+    Teilnahmeform.HOERER,
+);
+pruefe(
+  "ohne Aktenfeld Teilnahmeform wird keine Zuordnung mitgeschickt",
+  bereinigeOptionenUndZuordnung(
+    feld({
+      code: "gemeinde",
+      typ: FeldTyp.AUSWAHL_EINFACH,
+      personFeld: PersonFeld.GEMEINDE,
+      optionen: ["FeG Minden", "Andere"],
+      teilnahmeformZuordnung: { "FeG Minden": Teilnahmeform.SCHUELER, Andere: Teilnahmeform.HOERER },
+    }),
+  ).teilnahmeformZuordnung === null,
+);
+
+// Rundweg wie im Builder: validierung so, wie die PUT-Route sie schreibt →
+// alsFeldEingaben (so laedt die Builder-Seite) → bereinigeOptionenUndZuordnung
+// (so sendet der Builder) → pruefeFelddefinition (so prueft die PUT-Route).
+// Vorher fehlte die Zuordnung nach dem Laden, und jedes Speichern scheiterte,
+// bis beide Antworten neu zugeordnet waren.
+const geladen = alsFeldEingaben([
+  {
+    felder: [
+      {
+        code: "teilnahmeform",
+        typ: FeldTyp.AUSWAHL_EINFACH,
+        label: "Wie möchten Sie teilnehmen?",
+        hilfetext: null,
+        platzhalter: null,
+        pflicht: true,
+        reihenfolge: 0,
+        optionen: ["Als Schüler — mit Prüfungen", "Als Hörer — ohne Prüfungen"],
+        personFeld: PersonFeld.TEILNAHMEFORM,
+        istArt9: false,
+        validierung: {
+          teilnahmeform: { "Als Schüler — mit Prüfungen": "SCHUELER", "Als Hörer — ohne Prüfungen": "HOERER" },
+        },
+      },
+    ],
+  },
+]);
+pruefe(
+  "gespeicherte Zuordnung kommt beim Laden mit",
+  geladen[0]?.teilnahmeformZuordnung?.["Als Hörer — ohne Prüfungen"] === Teilnahmeform.HOERER,
+  geladen[0],
+);
+const erneutGespeichert = pruefeFelddefinition(geladen.map((f) => ({ ...f, ...bereinigeOptionenUndZuordnung(f) })));
+pruefe("erneutes Speichern ohne Neuwahl besteht die Prüfung", erneutGespeichert.length === 0, erneutGespeichert);
+
+/** Quelltext einer Datei, relativ zu gbs-campus/ (dort laeuft `npm run pruefen`). Fehlt sie: leer — die Pruefung wird rot. */
+function lies(pfad: string): string {
+  try {
+    return readFileSync(pfad, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+// Die Builder-Seite selbst: Der eigentliche M17-Fehler lag in ihrer eigenen
+// Nachabbildung der Felder, nicht in alsFeldEingaben. Deshalb wird genau die
+// Abbildung geprueft, die die Seite benutzt — und dass sie keine eigene hat.
+const builderAbschnitte = alsBuilderAbschnitte([
+  {
+    titel: "Teilnahme",
+    beschreibung: "Diese Frage stellt das Papierformular nicht.",
+    felder: [
+      {
+        code: "teilnahmeform",
+        typ: FeldTyp.AUSWAHL_EINFACH,
+        label: "Wie möchten Sie teilnehmen?",
+        hilfetext: null,
+        platzhalter: null,
+        pflicht: true,
+        reihenfolge: 0,
+        optionen: ["Als Schüler — mit Prüfungen", "Als Hörer — ohne Prüfungen"],
+        personFeld: PersonFeld.TEILNAHMEFORM,
+        istArt9: false,
+        validierung: {
+          teilnahmeform: { "Als Schüler — mit Prüfungen": "SCHUELER", "Als Hörer — ohne Prüfungen": "HOERER" },
+        },
+      },
+    ],
+  },
+]);
+pruefe(
+  "Builder-Seite: Titel, Beschreibung und gespeicherte Zuordnung kommen im Builder an (alsBuilderAbschnitte)",
+  builderAbschnitte[0]?.titel === "Teilnahme" &&
+    builderAbschnitte[0]?.beschreibung === "Diese Frage stellt das Papierformular nicht." &&
+    builderAbschnitte[0]?.felder[0]?.teilnahmeformZuordnung?.["Als Schüler — mit Prüfungen"] === Teilnahmeform.SCHUELER,
+  builderAbschnitte,
+);
+const builderRundweg = pruefeFelddefinition(
+  builderAbschnitte.flatMap((a) => a.felder).map((f, i) => ({ ...f, reihenfolge: i, ...bereinigeOptionenUndZuordnung(f) })),
+);
+pruefe(
+  "Builder-Seite: Laden → unverändert Speichern besteht die Prüfung",
+  builderRundweg.length === 0,
+  builderRundweg,
+);
+const builderSeite = lies("src/app/verwaltung/formulare/[versionId]/page.tsx");
+pruefe(
+  "Builder-Seite bildet die Felder nicht selbst ab, sondern nutzt alsBuilderAbschnitte",
+  /alsBuilderAbschnitte\(version\.abschnitte\)/.test(builderSeite) && !builderSeite.includes("alsFeldEingaben"),
+);
+
+// Der Server beschneidet selbst, statt dem Builder zu glauben: Andere Clients
+// (curl, spaetere Oberflaechen) speicherten sonst verwaiste Zuordnungen. Und
+// geprueft wie gespeichert wird dieselbe, bereinigte Liste — der Rohrumpf
+// (`geprueft.data.abschnitte`) kommt genau einmal vor, beim Bereinigen.
+const putRoute = lies("src/app/api/formulare/[versionId]/route.ts");
+pruefe(
+  "PUT /api/formulare/[versionId] bereinigt Antworten und Zuordnung selbst und speichert nur die bereinigte Fassung",
+  /bereinigeOptionenUndZuordnung\(feld\)/.test(putRoute) && (putRoute.match(/geprueft\.data\.abschnitte/g) ?? []).length === 1,
+);
+const veroeffentlichenRoute = lies("src/app/api/formulare/[versionId]/veroeffentlichen/route.ts");
+pruefe(
+  "Veröffentlichen prüft die Felddefinition noch einmal (auch ungespeicherte Kopien)",
+  /pruefeFelddefinition\(felder\)/.test(veroeffentlichenRoute),
+);
+
+console.log("\n10. Art. 9 ist für das Aktenfeld Gemeinde nicht abwählbar");
+pruefe(
+  "Aktenfeld Gemeinde ohne Art.-9-Kennzeichnung wird abgewiesen",
+  pruefeFelddefinition([feld({ code: "gemeinde", typ: FeldTyp.TEXT, personFeld: PersonFeld.GEMEINDE, istArt9: false })]).some(
+    (f) => f.meldung.includes("Art. 9"),
+  ),
+);
+pruefe(
+  "Aktenfeld Gemeinde mit Art.-9-Kennzeichnung ist in Ordnung",
+  pruefeFelddefinition([feld({ code: "gemeinde", typ: FeldTyp.TEXT, personFeld: PersonFeld.GEMEINDE, istArt9: true })])
+    .length === 0,
+);
+
+// Zur Laufzeit gilt die Regel auch für eine Fassung, die VOR ihr mit
+// abgewähltem Häkchen veröffentlicht wurde (giltAlsArt9).
+const alteGemeinde = feld({ code: "gemeinde", typ: FeldTyp.TEXT, personFeld: PersonFeld.GEMEINDE, istArt9: false });
+const alteFassung = pruefeAntworten([alteGemeinde], { gemeinde: "Gemeinde am Ort" }, false);
+pruefe(
+  "Laufzeit: Gemeinde aus einer alten Fassung ohne Häkchen wird ohne Einwilligung verworfen (nicht in Antwort, nicht in Akte)",
+  alteFassung.ok && alteFassung.werte.gemeinde === null && alteFassung.personDaten.gemeinde === undefined,
+  alteFassung,
+);
+pruefe(
+  "Laufzeit: … und nicht zwischengespeichert",
+  !("gemeinde" in bereinigeEntwurf([alteGemeinde], { gemeinde: "Gemeinde am Ort" })),
+);
+pruefe(
+  "Anmeldeseite blendet die Gemeinde auch ohne Häkchen wie ein Art.-9-Feld ein und aus",
+  /istArt9: feld\.istArt9 \|\| aktenfeldVerlangtArt9\(feld\.personFeld\)/.test(lies("src/app/anmeldung/page.tsx")) &&
+    !/aktenfeldVerlangtArt9/.test(lies("src/lib/formular.ts").slice(lies("src/lib/formular.ts").indexOf("export function alsFeldEingaben"))),
+);
+
+console.log("\n11. Teilnahmeform-Zuordnung: nur eigene Einträge zählen");
+// Mit einem schlichten `zuordnung[antwort]` fand „constructor" die geerbte
+// Methode von Object.prototype und galt als zugeordnet.
+const prototypFeld = feld({
+  code: "teilnahmeform",
+  typ: FeldTyp.AUSWAHL_EINFACH,
+  personFeld: PersonFeld.TEILNAHMEFORM,
+  optionen: ["constructor", "toString", "Als Hörer"],
+  teilnahmeformZuordnung: { "Als Hörer": Teilnahmeform.HOERER },
+});
+pruefe(
+  "Antworten „constructor“ und „toString“ ohne Zuordnung werden gemeldet",
+  pruefeFelddefinition([prototypFeld]).some((f) => f.meldung.includes("constructor") && f.meldung.includes("toString")),
+  pruefeFelddefinition([prototypFeld]),
+);
+const prototypAntwort = pruefeAntworten([prototypFeld], { teilnahmeform: "toString" }, true);
+pruefe(
+  "Antwort „toString“ setzt keine Teilnahmeform (keine geerbte Funktion in der Akte)",
+  prototypAntwort.ok && prototypAntwort.personDaten.teilnahmeform === undefined,
+  prototypAntwort.ok ? typeof prototypAntwort.personDaten.teilnahmeform : prototypAntwort,
+);
+pruefe(
+  "Builder liest die Zuordnung nur aus eigenen Einträgen (Object.hasOwn), kein geerbtes „toString“ im <select>",
+  /Object\.hasOwn\(feld\.teilnahmeformZuordnung, option\)/.test(lies("src/app/verwaltung/formulare/formular-builder.tsx")) &&
+    !/feld\.teilnahmeformZuordnung\?\.\[option\]/.test(lies("src/app/verwaltung/formulare/formular-builder.tsx")),
+);
+
 // Soll-Anzahl. Dieses Skript hat zwei Abschnitte, die in einem `if (…ok)`
 // stehen. Wird einer davon nicht mehr betreten, laufen bis zu zehn Pruefungen
 // nicht — ohne diese Zeile faellt das niemandem auf, weil ein nicht gelaufener
 // Test nun einmal nicht fehlschlaegt. Beim Ergaenzen einer Pruefung gehoert die
 // Zahl mit angehoben.
-const ERWARTET = 43;
+const ERWARTET = 65;
 // `geprueft` steht beim Auswerten der Bedingung noch auf dem Stand VOR dieser
 // Zeile — `pruefe` zaehlt erst im Rumpf hoch. Deshalb hier ausdruecklich um eins
 // vorgegriffen, damit sich die Pruefung selbst mitzaehlt.

@@ -241,11 +241,127 @@ pruefe(
   hilfeQuelltext.length > 0 && !/person\.(update|create|delete)/.test(hilfeQuelltext),
 );
 
+console.log("\n7. Adresswechsel: Token nicht im Log, alte Links entwertet, Versand nach dem Commit (Quelltext)");
+function lies(pfad: string): string {
+  try {
+    return readFileSync(pfad, "utf8");
+  } catch {
+    return "";
+  }
+}
+const selbstpflege = lies("src/lib/selbstpflege.ts");
+// Der Bestätigungstoken gehört ins Fragment: Die Bestätigung geht ohne
+// Sitzung, ein Token im Zugriffslog wäre selbst einlösbar (Code-Review 4).
+pruefe(
+  "der Bestätigungslink trägt den Token im Fragment, nicht im Query-String",
+  /\/meine-daten\/email#token=\$\{token\}/.test(selbstpflege) && !/\/meine-daten\/email\?token=/.test(selbstpflege),
+);
+pruefe(
+  "die Bestätigungsseite liest den Token nicht serverseitig, sondern aus location.hash",
+  !/searchParams/.test(lies("src/app/meine-daten/email/page.tsx")) &&
+    /window\.location\.hash/.test(lies("src/app/meine-daten/email/bestaetigen.tsx")),
+);
+{
+  // Offene Auskunftslinks liegen im bisherigen Postfach und liefern 72 Stunden
+  // die volle Datenkopie mit IBAN — beide Adresswechsel entwerten sie in
+  // derselben Transaktion, vor dem Schreiben der Person (Sperrreihenfolge).
+  const verwaltung = lies("src/app/api/personen/[id]/email/route.ts");
+  const tx = verwaltung.indexOf("prisma.$transaction([");
+  const auskunft = verwaltung.indexOf("prisma.datenauskunft.updateMany(");
+  pruefe(
+    "die Adressänderung durch die Verwaltung entwertet offene Auskunftslinks und protokolliert die Zahl",
+    tx > 0 &&
+      auskunft > tx &&
+      auskunft < verwaltung.indexOf("prisma.person.updateMany(") &&
+      /where: \{ personId: id, laeuftAb: \{ gt: jetzt \} \},\s*data: \{ laeuftAb: jetzt \}/.test(verwaltung) &&
+      /entwerteteAuskunftslinks: entwerteteAuskuenfte/.test(verwaltung),
+  );
+  const einloesen = selbstpflege.slice(Math.max(0, selbstpflege.indexOf("export async function loeseEmailAenderungEin")));
+  const auskunftSelbst = einloesen.indexOf("tx.datenauskunft.updateMany(");
+  pruefe(
+    "die selbst bestätigte Adressänderung entwertet offene Auskunftslinks und protokolliert die Zahl",
+    auskunftSelbst > 0 &&
+      auskunftSelbst < einloesen.indexOf("tx.person.update(") &&
+      /where: \{ personId: eintrag\.personId, laeuftAb: \{ gt: jetzt \} \},\s*data: \{ laeuftAb: jetzt \}/.test(einloesen) &&
+      /entwerteteAuskunftslinks: ergebnis\.entwerteteAuskunftslinks/.test(lies("src/app/api/meine-daten/email/bestaetigen/route.ts")),
+  );
+  // Dasselbe für offene Anmeldelinks: Sie öffnen bis zu 24 Stunden eine volle
+  // Sitzung und lägen sonst weiter im bisherigen Postfach (wie beim Weg über
+  // die Verwaltung).
+  const anmeldeSelbst = einloesen.indexOf("tx.magicLink.updateMany(");
+  pruefe(
+    "die selbst bestätigte Adressänderung entwertet offene Anmeldelinks (vor der Person) und protokolliert die Zahl",
+    anmeldeSelbst > 0 &&
+      anmeldeSelbst < einloesen.indexOf("tx.person.update(") &&
+      /tx\.magicLink\.updateMany\(\{\s*where: \{ personId: eintrag\.personId, benutztAm: null \},\s*data: \{ benutztAm: jetzt \}/.test(einloesen) &&
+      /entwerteteAnmeldelinks: ergebnis\.entwerteteAnmeldelinks/.test(lies("src/app/api/meine-daten/email/bestaetigen/route.ts")),
+  );
+}
+{
+  // Nach dem Commit darf weder das Lesen der Vorlage noch der Versand einen
+  // 500 auslösen — beides läuft über `sendeNachVorlage`, das nie wirft.
+  const wege = ["src/app/api/personen/[id]/email/route.ts", "src/app/api/personen/[id]/auskunft/route.ts"];
+  const ungeschuetzt = wege.filter((pfad) => {
+    const text = lies(pfad);
+    return !/sendeNachVorlage\(/.test(text) || /emailVorlage\.findUnique|\bsendeMail\(/.test(text);
+  });
+  pruefe(
+    "Adressänderung und Auskunft verschicken nach dem Commit nur über sendeNachVorlage",
+    ungeschuetzt.length === 0 && /export async function sendeNachVorlage\(/.test(selbstpflege),
+    ungeschuetzt,
+  );
+}
+
+console.log("\n8. Geänderte Bankverbindung: Hinweis an den Kontoinhaber selbst (Quelltext)");
+{
+  // Die IBAN wirkt sofort. Wer über eine übernommene Sitzung die Bankverbindung
+  // tauscht, darf nicht unbemerkt bleiben — die Mail an die Verwaltung erreicht
+  // den Betroffenen nicht.
+  const route = lies("src/app/api/meine-daten/route.ts");
+  const hinweis = selbstpflege.slice(
+    Math.max(0, selbstpflege.indexOf("export async function benachrichtigeKontoinhaberUeberBankverbindung")),
+  );
+  pruefe(
+    "der Hinweis geht an die hinterlegte Adresse der Person, mit eigener Vorlage und nie wirfend",
+    /return sendeNachVorlage\(\{\s*an: person\.email,/.test(hinweis) &&
+      /vorlageCode: MAIL_VORLAGE\.BANKVERBINDUNG_GEAENDERT,/.test(hinweis),
+  );
+  pruefe(
+    "Selbstpflege: bei geänderter IBAN oder geändertem Kontoinhaber wird der Hinweis verschickt und gemeldet",
+    /f === FELD_BEZEICHNUNG\.iban \|\| f === FELD_BEZEICHNUNG\.kontoinhaber/.test(route) &&
+      /benachrichtigeKontoinhaberUeberBankverbindung\(person, bankFelder\)/.test(route) &&
+      /return erfolg\(\{ gespeichert: true, geaendert, mailGesendet, hinweisGesendet \}\)/.test(route),
+  );
+  const seed = lies("prisma/seed.ts");
+  const vorlage = seed.slice(seed.indexOf('code: "BANKVERBINDUNG_GEAENDERT"'), seed.indexOf('code: "AUSKUNFT_BEREIT"'));
+  pruefe(
+    "die Vorlage ist geseedet, ohne IBAN-Platzhalter und mit Betreff ohne Namen",
+    /betreff: "[^"{]*",/.test(vorlage) && /\{\{felder\}\}/.test(vorlage) && !/\{\{\s*iban/i.test(vorlage),
+  );
+  pruefe(
+    "die Oberfläche sagt, ob der Sicherheitshinweis zugestellt wurde",
+    /hinweisGesendet === false/.test(lies("src/app/meine-daten/stammdaten-formular.tsx")),
+  );
+  const hinweisStart = route.indexOf("benachrichtigeKontoinhaberUeberBankverbindung(person, bankFelder)");
+  pruefe(
+    "Hinweis an den Kontoinhaber und Verwaltungsmeldung laufen parallel (die SMTP-Wartezeiten addieren sich nicht)",
+    hinweisStart > 0 &&
+      hinweisStart < route.indexOf("await benachrichtigeVerwaltungUeberAenderung(") &&
+      /const hinweisGesendet = hinweis \? \(await hinweis\)\.gesendet : null;/.test(route),
+  );
+  pruefe(
+    "der Hinweis rät allen (nicht nur mit Passwort), ein (neues) Passwort zu setzen — das beendet fremde Sitzungen",
+    vorlage.includes("damit fremde Sitzungen enden") &&
+      !vorlage.includes("Hast du ein Passwort gesetzt") &&
+      selbstpflege.includes("damit fremde Sitzungen enden"),
+  );
+}
+
 // Soll-Anzahl. Ohne sie verschwindet eine Prüfung lautlos, sobald ein
 // `if (…ok)`-Block nicht mehr betreten wird — der Lauf meldet dann einfach
 // weniger Zeilen und trotzdem „0 fehlgeschlagen". Beim Ergänzen einer Prüfung
 // gehört diese Zahl mit angehoben; das ist der Zweck.
-const ERWARTET = 46;
+const ERWARTET = 58;
 // `geprueft` steht beim Auswerten der Bedingung noch auf dem Stand VOR dieser
 // Zeile — `pruefe` zählt erst im Rumpf hoch. Deshalb wird hier ausdrücklich um
 // eins vorgegriffen, damit sich die Prüfung selbst mitzählt.

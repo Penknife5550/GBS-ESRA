@@ -1,0 +1,60 @@
+# =============================================================================
+# GBS Campus — Pruefungen bei jedem Push und Pull Request
+#
+# Gatet den Merge, sobald der Job in den GitHub-Einstellungen als Pflicht-Check
+# fuer main eingetragen ist (Branch-Schutz), und ergaenzt das Dockerfile, das
+# dieselben Pruefungen vor `next build` ausfuehrt:
+#   1. Abhaengigkeiten wie im Image (npm ci --ignore-scripts + prisma generate)
+#   2. Typpruefung (tsc --noEmit)
+#   3. DB-freie Pruefskripte (npm run pruefen) in Europe/Berlin — in UTC
+#      blieben die Datums- und Sommerzeitpruefungen gruen, ohne etwas zu beweisen.
+#
+# Bewusst NICHT hier: `npm run pruefen:db` und scripts/durchstich.sh (brauchen
+# eine Datenbank bzw. Docker) — die laufen vor jedem Release von Hand.
+# =============================================================================
+
+name: Pruefen
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruefen-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruefen:
+    name: Typpruefung und Pruefskripte
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gbs-campus
+    env:
+      TZ: Europe/Berlin
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Wie das Image (node:24-alpine).
+          node-version: 24
+          cache: npm
+          cache-dependency-path: gbs-campus/package-lock.json
+
+      - name: Abhaengigkeiten (wie Dockerfile, Stufe deps)
+        run: npm ci --ignore-scripts
+
+      - name: Prisma-Client erzeugen
+        run: npx prisma generate
+
+      - name: Typpruefung
+        run: npx tsc --noEmit
+
+      - name: Pruefskripte (DB-frei, Europe/Berlin)
+        run: npm run pruefen

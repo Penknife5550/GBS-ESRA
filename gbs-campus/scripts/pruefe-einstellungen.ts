@@ -9,7 +9,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { EINSTELLUNGEN, setzeZahl, zahl } from "../src/lib/einstellungen";
+import { EINSTELLUNGEN, istEinstellungSchluessel, setzeZahl, zahl } from "../src/lib/einstellungen";
 import { gueltigkeitAlsText } from "../src/lib/magic-link";
 
 const prisma = new PrismaClient();
@@ -127,9 +127,33 @@ async function main() {
     pruefe('120 → "2 Stunden"', gueltigkeitAlsText(120) === "2 Stunden");
     pruefe('1440 → "einen Tag"', gueltigkeitAlsText(1440) === "einen Tag");
     pruefe('90 → "90 Minuten"', gueltigkeitAlsText(90) === "90 Minuten");
+
+    // Die API (api/einstellungen) lässt nur Schlüssel durch, die diese Prüfung
+    // besteht. Vorher stand dort `schluessel in EINSTELLUNGEN` — das ist auch
+    // für Namen aus der Prototypkette wahr und endete in einem 500 statt 404.
+    console.log("\n5. Nur bekannte Schlüssel — auch nicht über die Prototypkette");
+    pruefe(
+      "jeder definierte Schlüssel wird erkannt",
+      Object.keys(EINSTELLUNGEN).every((s) => istEinstellungSchluessel(s)),
+    );
+    const prototypNamen = ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"];
+    pruefe(
+      "Namen aus der Prototypkette gelten nicht als Einstellung",
+      prototypNamen.every((s) => !istEinstellungSchluessel(s)),
+      prototypNamen.filter((s) => istEinstellungSchluessel(s)),
+    );
+    pruefe(
+      "unbekannter und leerer Schlüssel gelten nicht als Einstellung",
+      !istEinstellungSchluessel("GIBT_ES_NICHT") && !istEinstellungSchluessel(""),
+    );
   } finally {
     await stelleWiederHer(SCHLUESSEL, original);
   }
+
+  // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
+  const ERWARTET = 19;
+  const gelaufen = geprueft + 1;
+  pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 
   console.log(`\n${geprueft} Prüfungen, ${fehlgeschlagen} fehlgeschlagen.\n`);
   process.exit(fehlgeschlagen === 0 ? 0 : 1);

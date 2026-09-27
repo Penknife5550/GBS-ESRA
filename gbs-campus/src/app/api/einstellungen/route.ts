@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ladeMitRecht } from "@/lib/berechtigung";
+import { pruefeZugriff } from "@/lib/berechtigung";
 import { protokolliere } from "@/lib/audit";
-import { EINSTELLUNGEN, EinstellungSchluessel, setzeZahl } from "@/lib/einstellungen";
-import { erfolg, fehler, keineBerechtigung } from "@/lib/api";
+import { istEinstellungSchluessel, setzeZahl } from "@/lib/einstellungen";
+import { RECHT } from "@/lib/constants";
+import { erfolg, fehler } from "@/lib/api";
 
 const schema = z.object({
   schluessel: z.string().min(1),
@@ -12,10 +13,8 @@ const schema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-  const benutzer = await ladeMitRecht("SYSTEM_EINSTELLUNGEN");
-  if (!benutzer) {
-    return keineBerechtigung();
-  }
+  const benutzer = await pruefeZugriff(RECHT.SYSTEM_EINSTELLUNGEN);
+  if (benutzer instanceof Response) return benutzer;
 
   const geprueft = schema.safeParse(await request.json().catch(() => null));
   if (!geprueft.success) {
@@ -24,10 +23,12 @@ export async function PUT(request: NextRequest) {
 
   // Nur bekannte Schlüssel: sonst liessen sich über diesen Endpunkt beliebige
   // Zeilen anlegen, für die es im Code weder Grenzen noch Rückfallwert gibt.
-  if (!(geprueft.data.schluessel in EINSTELLUNGEN)) {
+  // Nicht mit `in` prüfen — das ließe „constructor" & Co. durch (siehe
+  // istEinstellungSchluessel).
+  const schluessel = geprueft.data.schluessel;
+  if (!istEinstellungSchluessel(schluessel)) {
     return fehler("Diese Einstellung gibt es nicht.", 404);
   }
-  const schluessel = geprueft.data.schluessel as EinstellungSchluessel;
 
   const vorher = await prisma.einstellung.findUnique({ where: { schluessel } });
 

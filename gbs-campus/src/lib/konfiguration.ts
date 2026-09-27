@@ -18,6 +18,8 @@
  * Ausgegeben wird immer nur „gesetzt" oder „fehlt", nie ein Wert.
  */
 
+import { erwarteterOrigin } from "@/lib/herkunft";
+
 type Pflichtpruefung = {
   name: string;
   pruefe: (wert: string | undefined) => string | null;
@@ -39,16 +41,57 @@ const PFLICHT: Pflichtpruefung[] = [
   },
   {
     name: "APP_URL",
-    pruefe: (w) => {
-      if (!w) return "fehlt";
-      if (!/^https?:\/\//.test(w)) return "muss mit http:// oder https:// beginnen";
-      if (process.env.NODE_ENV === "production" && w.includes("localhost")) {
-        return "zeigt auf localhost — dann gehen alle Anmeldelinks ins Leere";
-      }
-      return null;
-    },
+    pruefe: (w) =>
+      pruefeAppUrl(w, { produktion: process.env.NODE_ENV === "production", appDomain: process.env.APP_DOMAIN }),
   },
 ];
+
+/**
+ * Prüft APP_URL. Eigene Funktion statt Einzeiler in PFLICHT, damit
+ * scripts/pruefe-herkunft.ts die Regeln ohne Eingriff in process.env prüfen kann.
+ *
+ * Seit der Herkunftsprüfung (lib/herkunft.ts) hängt an APP_URL mehr als die
+ * Adresse in den Anmeldelinks: Jede schreibende Anfrage aus dem Browser muss
+ * genau ihre Herkunft tragen. Zwei Fälle kamen vorher durch den Start und
+ * sperrten danach jede Änderung (Code-Review 4):
+ *
+ *  - Eine Adresse ohne Host wie „https://" besteht den Schema-Test, ergibt aber
+ *    keine Herkunft — die Middleware wies dann jede Änderung als
+ *    `app-url-ungueltig` ab, obwohl der Start „vollständig" meldete.
+ *  - APP_DOMAIN (Traefik-Regel `Host(...)` in docker-compose.yml) und APP_URL
+ *    sind getrennte Variablen. Laufen sie auseinander, liefert Traefik das
+ *    Portal unter APP_DOMAIN aus, die Herkunftsprüfung erwartet aber APP_URL.
+ *    Verglichen wird nur in Produktion und nur, wenn APP_DOMAIN gesetzt ist:
+ *    Ohne Traefik (npm run dev, Durchstich) spielt APP_DOMAIN keine Rolle. Und
+ *    nur der Hostname, ohne Port — so vergleicht auch Traefik.
+ *  - Unter denselben Bedingungen (Produktion hinter Traefik) muss das Schema
+ *    https sein: Die Traefik-Route kennt nur `websecure`, Port 80 leitet auf
+ *    https um. Browser schicken deshalb immer `https://APP_DOMAIN` als Herkunft
+ *    — mit APP_URL=http://… wiese die Middleware jede Änderung ab, auch die
+ *    Anmeldung selbst. Den Port prüft der Start nicht (hängt an der
+ *    Port-Zuordnung in docker-compose.yml).
+ */
+export function pruefeAppUrl(
+  wert: string | undefined,
+  umgebung: { produktion: boolean; appDomain: string | undefined },
+): string | null {
+  if (!wert) return "fehlt";
+  if (!/^https?:\/\//.test(wert)) return "muss mit http:// oder https:// beginnen";
+  if (erwarteterOrigin(wert) === null) {
+    return "ist keine vollständige Adresse (Schema und Host, etwa https://gbs.fes-credo.de)";
+  }
+  if (umgebung.produktion && wert.includes("localhost")) {
+    return "zeigt auf localhost — dann gehen alle Anmeldelinks ins Leere";
+  }
+  const domain = umgebung.appDomain?.trim().toLowerCase();
+  if (umgebung.produktion && domain && new URL(wert).protocol !== "https:") {
+    return "muss mit https:// beginnen — hinter Traefik ist das Portal nur über https erreichbar, sonst wird jede Änderung abgewiesen";
+  }
+  if (umgebung.produktion && domain && new URL(wert).hostname !== domain) {
+    return "passt nicht zu APP_DOMAIN — der Host muss derselbe sein, sonst wird jede Änderung im Portal abgewiesen";
+  }
+  return null;
+}
 
 export type Konfigurationsbefund = { name: string; problem: string };
 
@@ -80,6 +123,24 @@ export function smtpKonfiguriert(): boolean {
  */
 export function cronKonfiguriert(): boolean {
   return Boolean(process.env.CRON_SECRET && process.env.CRON_SECRET.length >= 16);
+}
+
+/**
+ * Passwort des rechtebeschränkten Anwendungsnutzers `gbs_app` (Opt-in, geprüft
+ * in `prisma/setup-app-nutzer.ts` vor dem Anlegen der Rolle). docker-compose
+ * setzt es UNKODIERT in `APP_DATABASE_URL` ein. Ein `/`, `+`, `@`, `:`, `#` oder
+ * `%` (etwa aus `openssl rand -base64`) zerlegt diese URL: Das Setup legte die
+ * Rolle trotzdem an, der Entrypoint schaltete um, und der Server stand ohne
+ * DB-Zugriff da — Login, Anmeldung und Healthcheck fielen aus, obwohl der Start
+ * sauber aussah. Deshalb nur Buchstaben und Ziffern, und bei allem anderen
+ * scheitert der Start laut. Liefert das Problem oder null, wenn es taugt.
+ */
+export function pruefeAppDbPasswort(passwort: string): string | null {
+  if (passwort.length < 16) return "ist zu kurz (mindestens 16 Zeichen)";
+  if (!/^[A-Za-z0-9]+$/.test(passwort)) {
+    return "darf nur Buchstaben und Ziffern enthalten (steht unkodiert in der Verbindungs-URL)";
+  }
+  return null;
 }
 
 /**

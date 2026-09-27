@@ -33,6 +33,42 @@ export function datumZeit(d: Date | null | undefined): string {
   return d ? DATUM_ZEIT.format(d) : "—";
 }
 
+const DATUM_ZEIT_SEKUNDEN = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+/**
+ * Datum und Uhrzeit mit Sekunden, „TT.MM.JJJJ, hh:mm:ss" — für das Protokoll,
+ * wo mehrere Einträge in derselben Minute stehen. „—" wenn leer.
+ */
+export function datumZeitSekunden(d: Date | null | undefined): string {
+  return d ? DATUM_ZEIT_SEKUNDEN.format(d) : "—";
+}
+
+/**
+ * Wandelt „JJJJ-MM-TT" in einen Kalendertag um (UTC-Mitternacht) oder liefert
+ * null. Die Gegenprobe über `toISOString()` ist nötig, weil JavaScript den
+ * 31.02. stillschweigend zum 03.03. macht.
+ *
+ * Die eine Stelle für diese Prüfung: Semester, Honorar, Ausbildungsdaten und
+ * das Datumsfeld des Anmeldeformulars (`formular.ts`) nehmen sie von hier;
+ * `semester.ts` reicht sie für bestehende Aufrufer weiter.
+ */
+export function alsTagesdatum(text: unknown): Date | null {
+  if (typeof text !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(text.trim())) return null;
+  const sauber = text.trim();
+  const tag = new Date(`${sauber}T00:00:00.000Z`);
+  if (Number.isNaN(tag.getTime())) return null;
+  if (tag.toISOString().slice(0, 10) !== sauber) return null;
+  return tag;
+}
+
 // en-CA liefert „JJJJ-MM-TT" — das Format eines <input type="date">.
 const ISO_TAG = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Berlin",
@@ -42,10 +78,21 @@ const ISO_TAG = new Intl.DateTimeFormat("en-CA", {
 });
 
 /**
+ * Der Berliner Kalendertag eines Zeitpunkts als „JJJJ-MM-TT" — aus den Teilen
+ * gebaut, also unabhängig vom Datumsmuster der Locale. Grundlage der
+ * Beleg-Nummern (`beleg-nr.ts`).
+ */
+export function berlinerTag(am: Date): string {
+  const teile = ISO_TAG.formatToParts(am);
+  const teil = (typ: Intl.DateTimeFormatPartTypes) => teile.find((t) => t.type === typ)?.value ?? "";
+  return `${teil("year")}-${teil("month")}-${teil("day")}`;
+}
+
+/**
  * Heutiges Datum als „JJJJ-MM-TT" in Europe/Berlin — für Vorbelegungen von
  * Datumsfeldern. Nicht `new Date().toISOString()` verwenden: das rechnet in UTC
  * und liefert in den frühen Morgenstunden (Berliner Zeit) noch den Vortag.
  */
 export function heuteBerlin(): string {
-  return ISO_TAG.format(new Date());
+  return berlinerTag(new Date());
 }
