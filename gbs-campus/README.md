@@ -102,6 +102,15 @@ dieser Umgebung, die feststehenden Entscheidungen und was als Nächstes gebaut w
 - **Honorar (Release 0.2/0.3)**, **Dozenten- und Schülerbereich (0.3)**, **Noten und Zeugnisse (0.4)** —
   siehe die Abschnitte weiter unten.
 
+> ### 🟡 Neue Oberfläche (Branch `feat/oberflaeche`, 27.09.2026 nachts)
+>
+> Feste Leiste statt Kachel-Startseite, „Heute“ mit Aufgaben, Listen statt Karten, Lesen und Bearbeiten getrennt,
+> Handy zuerst für Dozenten und Teilnehmer, Anmeldeformular in Schritten. Rahmen in `src/components/rahmen/`,
+> Navigation in `src/lib/navigation.ts`, Bausteine in `src/components/ui/` (Seitenkopf, Segment, Liste,
+> StatusPunkt, Menü, Blatt, Hinweis, Anzeige). Geprüft: `tsc`, 1443 Prüfungen in 22 Skripten, `next build`;
+> Durchstich (`SOLL=851`) und `pruefen:db` stehen noch aus (Docker). Einzelheiten ganz oben in
+> [`UEBERGABE.md`](UEBERGABE.md).
+
 > ### 🟢 Stand 27.09.2026: Code-Review 4 behoben, Anrede „Sie“, Schutz vor Massenanmeldungen, Semesterbetrieb
 >
 > Alle 19 MAJOR-Befunde aus [`../10_Code-Review-4.md`](../10_Code-Review-4.md) und der größte Teil der

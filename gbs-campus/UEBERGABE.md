@@ -1,4 +1,4 @@
-# Übergabe — Stand 27.09.2026
+# Übergabe — Stand 27.09.2026 (nachts)
 
 Diese Datei ist der Einstieg in eine neue Arbeitssitzung. Sie enthält, was man wissen muss, ohne den
 bisherigen Gesprächsverlauf zu kennen: was zuerst zu tun ist, wie man das Projekt zum Laufen bringt,
@@ -13,7 +13,43 @@ Fachliche Fragen beantwortet [`../1_Bauplan.html`](../1_Bauplan.html), technisch
 
 ---
 
-## Neuester Stand (27.09.2026, spät): Empfehlungen für den Semesterbetrieb
+## Neuester Stand (27.09.2026, nachts): neue Oberfläche nach dem Plan „Weniger suchen, schneller erledigt“
+
+Auf dem Branch **`feat/oberflaeche`** ist der vom Projektverantwortlichen freigegebene Oberflächenplan umgesetzt
+(Vorher/Nachher-Plan als claude.ai-Artefakt „Oberflächenplan GBS Campus“). Funktionen, Rechte, API-Routen und Daten
+sind unverändert; geändert sind Menü, Anordnung, Texte und Wege.
+
+**Geprüft (Sandbox):** `tsc` 0 Fehler, **1443 Prüfungen in 22 Skripten** grün (neu `pruefe-navigation.ts` 39 und
+`pruefe-heute.ts` 63), `next build` grün (43 Seiten). **Noch nicht gelaufen**, weil Docker Desktop ausfiel (Platte
+voll): Docker-Build, **Durchstich** (angepasst, `SOLL=851`) und `pruefen:db`. **Vor dem Merge nach `main` nachholen.**
+
+- **Rahmen (Etappe 1):** feste Leiste links (`src/components/rahmen/`, Layouts unter `/verwaltung`, `/dozent`,
+  `/meine-daten`), am Handy Kopfzeile mit Menü (Verwaltung) bzw. Leiste unten (Dozent, Teilnehmer). Welche Punkte
+  jemand sieht, regelt `src/lib/navigation.ts` mit denselben Rechten wie früher die Kacheln; die Suche links führt
+  in die Personenliste (`ansicht=alle&suche=…`). „Mein Unterricht“ steht jetzt auch für die Schulleitung im Menü.
+- **Bausteine** in `src/components/ui/`: `knopf.ts`, `seitenkopf.tsx` (+ `Inhalt`), `segment.tsx`, `liste.tsx`,
+  `status-punkt.tsx`, `menue.tsx` („…“), `blatt.tsx` (natives `<dialog>`), `hinweis.tsx`, `anzeige.tsx` (Kalenderblock,
+  Balken, Ring). Neue Theme-Farben `leiste`, `linie`, `dezent`, `feld`. Keine neuen Pakete.
+- **Seiten:** „Heute“ statt Kachelwand (Aufgaben mit Knopf); Personen mit Umschalter „Dieses Semester · Interessenten
+  · Alle“ (`/verwaltung/teilnehmer` ist „Dieses Semester“); Anmeldungen als Postfach mit Entscheidung oben;
+  Personenakte als Leseansicht mit „Bearbeiten“ und Menü „…“; Unterricht als Plan nach Abenden (Anker
+  `#termin-<id>` öffnet die Erfassung); Noten & Zeugnisse mit Umschalter und einer Sammelaktion; Semester mit
+  Zeitleiste zur Einladung; Honorar, Formulare, Einstellungen, Protokoll, Betrieb im neuen Aufbau; Dozent und
+  Teilnehmer am Handy (`/dozent`, `/dozent/noten`, `/meine-daten`, `/meine-daten/abende`, `/meine-daten/ich`);
+  öffentliches Formular in Schritten (ein Schritt je Abschnitt + „Prüfen und absenden“), Start und Login neu.
+- **Bewusste Entscheidungen beim Umbau:** Die Anmeldeliste zeigt keine Motivationszeile (Art. 9, jeder Abruf wird
+  protokolliert) und öffnet keine Anmeldung von selbst. Freitext-Gründe im Verlauf der Akte sieht nur, wer den
+  Status ändern darf (Schulleitung). „Person anlegen“ bleibt beim Recht `BENUTZER_VERWALTEN`.
+- **Offen:** Die Einleitung der veröffentlichten Formularfassung sagt noch „ihnen stimmen Sie weiter unten gesondert
+  zu“ (im Builder als neue Fassung anpassen). Die Quote spricht von „Abenden“, gezählt werden Unterrichtseinheiten.
+  „Abende anlegen“ füllt Pausen auf (Rückfrage wäre sinnvoll). Das Protokoll zeigt Aktionscodes statt Klartext.
+  `kachel.tsx` und `zurueck-leiste.tsx` sind unbenutzt, werden aber noch von `pruefe-betrieb.ts` gelesen — beim
+  Aufräumen beides zusammen ändern. Lokal gebaute Kandidaten für gemeinsame Bausteine: `SemesterWahl`
+  (Honorar/Noten), `HandySeite`, eine `Zeile` als Knopf.
+
+---
+
+## Stand 27.09.2026, spät: Empfehlungen für den Semesterbetrieb
 
 Umgesetzt sind die sieben Empfehlungen für den laufenden Semesterbetrieb, die der Projektverantwortliche
 freigegeben hat. Verifiziert mit Docker gegen PostgreSQL 16: Build mit **1341 Prüfungen in 20 Skripten** grün

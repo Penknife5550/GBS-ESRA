@@ -95,6 +95,9 @@ der Plan zum UI-Umbau ([`8_UI-Neustrukturierung-Plan.html`](8_UI-Neustrukturieru
 
 ## Was als Nächstes ansteht
 
+0. **Neue Oberfläche prüfen und mergen** — Branch `feat/oberflaeche` (Plan „Weniger suchen, schneller erledigt“):
+   nach dem Neustart von Docker Build, Durchstich (`SOLL=851`) und `pruefen:db` laufen lassen, dann nach `main`.
+
 1. **Neuen Stand ausrollen** — `main` enthält Code-Review 4, Anrede „Sie“ und den Schutz vor
    Massenanmeldungen; dazu kommen die Empfehlungen für den Semesterbetrieb (E-24, mit einer neuen Migration für
    den Zeugnis-Storno); alle Prüfungen grün (Durchstich 850). Nach dem Deploy das Anmeldeformular einmal neu

@@ -222,16 +222,16 @@ der Teilnehmerliste des Folgesemesters: Steht eine Person, die „bin raus“ ge
 „Zuletzt abgemeldet“, und lässt sie sich einzeln übernehmen, während die Sammelübernahme sie auslässt?
 
 **C3 · Noten eintragen.**
-„Trag für ein Fach Noten ein und wechsle dann zu einem anderen Semester.“ — Die Auswahl wechselt erst mit
-„Anzeigen“; bei ungespeicherten Noten fragt der Browser nach. Hörer stehen nicht in der Liste (der Hinweistext
+„Trag für ein Fach Noten ein und wechsle dann zu einem anderen Semester.“ — Die Semesterwahl wirkt sofort
+(ohne „Anzeigen“); bei ungespeicherten Noten fragt die Seite bzw. der Browser nach. Hörer stehen nicht in der Liste (der Hinweistext
 sagt das). In der Personenakte ist „— nicht bewertet“ bei schon bewerteten Fächern gesperrt, und nach dem
 Speichern stimmt die Anzeige.
 
 **C4 · Zeugnisse ausstellen.**
-„Stell für das Semester die Zeugnisse aus.“ — Semester und Art wählen, „Anzeigen“, dann „Alle ausstellen“.
+„Stell für das Semester die Zeugnisse aus.“ — Semester und Art wählen (wirkt sofort), dann „Alle ausstellen“.
 Nennt die Rückfrage verständliche Zahlen (unbewertete Fächer, Teilnehmer ohne jede Bewertung), und lässt sie
 sich abbrechen? Bei Art „Abschlusszeugnis“ außerhalb des letzten Semesters ist der Knopf gesperrt — ist der
-Grund verständlich? Solange eine geänderte Auswahl nicht angezeigt ist, ist „Alle ausstellen“ gesperrt.
+Grund verständlich? Sagt der Hinweis oben, wann Zeugnisse dran sind und was vorher fehlt?
 Erscheint der gelbe Kasten „noch nicht im DMS archiviert“, ist klar, was „An das DMS nachsenden“ tut?
 Ein falsch ausgestelltes Zeugnis stornieren: Verlangt die Seite einen Grund, und sagt die Rückfrage, dass das
 Zeugnis als Nachweis bleibt, für die Person aber nicht mehr abrufbar ist? Bei einem Hörer ohne besuchten Abend:
@@ -387,17 +387,18 @@ dort seinen `__Host-`-Namen.
   aktualisieren“ geklickt wird.
 - [ ] „Rollen speichern“ fragt mit den entzogenen und hinzugefügten Rollen nach; beim Entzug der eigenen
   Administratorrolle kommt eine eigene Warnung.
-- [ ] „Anonymisieren“ steht abgesetzt unter „Löschung nach Art. 17 DSGVO“, die Rückfrage nennt Zeugnisse,
-  geschlossene Anmeldungen und Rollen.
-- [ ] Die Personenliste zeigt die Quote wie die Akte (✓ erfüllt / • offen / ✕ nicht erreichbar); „Person
-  anlegen“ führt zur neuen Akte. Bei einer nicht mehr erreichbaren Quote rät die Detailakte der Schulleitung
+- [ ] „Anonymisieren …“ steht in der Akte ganz unten im Menü „…“ (rot, abgesetzt), die Rückfrage nennt
+  Zeugnisse, geschlossene Anmeldungen und Rollen.
+- [ ] Die Personenliste zeigt die Anwesenheit als Punkt mit Wort („im Soll“, „2× entschuldigt“, „3× gefehlt“),
+  passend zur Akte; „+ Person“ öffnet „Person anlegen“ und führt danach zur neuen Akte. Bei einer nicht mehr erreichbaren Quote rät die Detailakte der Schulleitung
   nicht, sich „an die Schulleitung“ zu wenden.
-- [ ] Stundenplan: Die Semesterwahl wechselt erst mit „Anzeigen“; abgerechnete Abende sind gekennzeichnet.
+- [ ] Unterricht: Die Semesterwahl wirkt sofort; abgerechnete Einheiten sind gekennzeichnet; „Erfassen“ auf
+  „Heute“ öffnet die Erfassung der richtigen Einheit.
 - [ ] Rückmeldungen (gespeichert, Fehler) werden von der Vorlesesoftware angesagt.
 
 **Dozent und Teilnehmer**
-- [ ] Als Dozent in „Meine Daten“: Der Rückweg „← Mein Unterricht“ ist da. „Jetzt erfassen“ bei den offenen
-  Aufgaben springt zum Abend.
+- [ ] Als Dozent am Handy: Die Leiste unten führt zu Unterricht, Noten und Ich. „Jetzt erfassen“ öffnet die
+  Erfassung als Blatt; „Alle als anwesend markieren“ und „Da · Fehlt“ gehen mit einem Daumen.
 - [ ] Nach einer IBAN-Änderung in „Meine Daten“ geht die Hinweis-Mail an die hinterlegte Adresse (im Test: Log).
 - [ ] Die Einladung und die Erinnerungen der Überleitung nennen die Antwortfrist.
 
