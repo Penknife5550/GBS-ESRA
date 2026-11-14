@@ -661,7 +661,7 @@ ins Image wandert).
 | auskunft | 55 | anonymisierung | 47 |
 | beitrag | 16 | herkunft | 42 |
 | faecher | 17 | anmeldung-antworten | 58 |
-| stundenplan | 45 | betrieb | 117 |
+| stundenplan | 45 | betrieb | 128 |
 | quote-schueler | 53 | anmelde-schutz | 52 |
 | | | **`npm run pruefen` gesamt** | **1341 in 20 Skripten** |
 | leistung | 67 | `npm run pruefen:db` (einstellungen + auskunft-db) | 19 + 18 |

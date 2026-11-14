@@ -1,67 +1,36 @@
 # =============================================================================
-# GBS Campus — Docker Compose (Produktion)
+# GBS Campus — Docker Compose (Produktion, hinter dem gemeinsamen Caddy)
+#
+# Gleiches Muster wie das CREDO HR-Portal: KEIN eigener Reverse Proxy im Stack.
+# TLS und die Weiterleitung uebernimmt der bereits laufende Caddy auf dem
+# Server; er erreicht die App ueber das externe Docker-Netz `reverse_proxy`.
+# Den passenden Caddy-Block liefert Caddyfile.gbs-campus.
 #
 # Start:  docker compose up -d --build
-# Stack:  traefik (TLS) · app (Next.js) · db (PostgreSQL 16) · backup (restic)
+# Stack:  app (Next.js) · worker (Erinnerungen/Aufraeumen) · db (PostgreSQL 16)
+#         · backup (naechtlicher pg_dump)
 #
-# Netze (1_Bauplan.html Kap. 08):
-#   edge — hat Internetzugang, hier liegt der einzige Weg von aussen (traefik)
-#   data — internal: true, kein Internetzugang, kein Port nach aussen
-# Die Datenbank haengt ausschliesslich im data-Netz und kommt damit weder ins
-# Internet noch ist sie von aussen erreichbar.
+# Voraussetzung auf dem Server (einmalig, existiert schon fuer das HR-Portal):
+#   docker network create reverse_proxy
 #
-# Bewusst kein redis: Magic-Links sind ueber die Spalte benutztAm in Postgres
-# single-use, und das Rate-Limiting laeuft ueber die Tabelle rate_limit — bei
-# 150 Konten voellig ausreichend und ein Container weniger im Notfall-Runbook.
+# Netze:
+#   reverse_proxy — extern, gehoert dem Caddy. Nur die App haengt daran.
+#   data          — internal: true, kein Internet, kein Port nach aussen.
+#                   Die Datenbank haengt ausschliesslich hier.
+#   ausgang       — normales Bridge-Netz nur fuer den Worker, damit er die
+#                   Erinnerungs-Mails per SMTP verschicken kann, ohne am
+#                   Caddy-Netz zu haengen.
 #
-# Der `worker` ist mit Release 0.2 dazugekommen (Re-Enrollment-Trigger): er
-# fuehrt die Erinnerungen T-14/-7/-3 und den Aufraeumlauf stuendlich und
-# idempotent aus — damit braucht es keinen externen Zeitgeber mehr.
+# Fuer einen Server OHNE Caddy (eigener Traefik auf 80/443) gibt es weiterhin
+# docker-compose.traefik.yml:  docker compose -f docker-compose.traefik.yml up -d
 # =============================================================================
 
-services:
-  traefik:
-    image: traefik:v3.3
-    container_name: gbs-traefik
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      # Traefik erreicht die Dienste nur ueber edge. Haengt ein Dienst in
-      # mehreren Netzen (app: edge + data), nimmt Traefik ohne diese Angabe
-      # irgendeine seiner IPs — erwischt es die aus data (internal: true),
-      # laufen alle Anfragen in einen 504, je nach Neustart mal ja, mal nein.
-      # Der Name ist unten unter networks fest vergeben (ohne Projekt-Praefix).
-      - "--providers.docker.network=gbs_edge"
-      # Sicherheits-Header aus einer Datei statt aus Labels am traefik-Container:
-      # Mit traefik.enable=true legte Traefik fuer sich selbst einen unnoetigen
-      # Default-Router an (siehe docker/traefik-dynamisch.yml).
-      - "--providers.file.filename=/etc/traefik/dynamisch.yml"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      # Beleg-Uploads: Standardlimit ist kleiner als ein Foto vom Zugticket.
-      # Siehe 1_Bauplan.html Kap. 08, Fallstrick 3.
-      - "--entrypoints.websecure.http.middlewares=gbs-sicherheit@file"
-      - "--log.level=INFO"
-      - "--accesslog=true"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - letsencrypt:/letsencrypt
-      # Sicherheits-Header zentral, damit sie nicht pro Route vergessen werden
-      - ./docker/traefik-dynamisch.yml:/etc/traefik/dynamisch.yml:ro
-    networks:
-      - edge
-    # Bewusst keine Labels und kein traefik.enable: Der traefik-Container selbst
-    # wird nicht geroutet (exposedbydefault=false).
+# Fester Projektname: Volumes heissen damit immer gbs-campus_pgdata usw. —
+# unabhaengig davon, in welchen Ordner das Repo auf dem Server geklont wird.
+# Ein anderer Ordnername ergaebe sonst eine LEERE neue Datenbank.
+name: gbs-campus
 
+services:
   app:
     build:
       context: .
@@ -70,28 +39,14 @@ services:
     container_name: gbs-app
     restart: unless-stopped
     # Speichergrenze: Ohne sie holt sich der OOM-Killer im Zweifel die Datenbank
-    # statt der Anwendung (siehe UEBERGABE.md). 768 MB reichen für den
-    # Next.js-Standalone-Server bei ~150 Konten mit Reserve.
+    # statt der Anwendung (siehe UEBERGABE.md).
     mem_limit: 768m
-    # Container laufen per Default in UTC. Die Semester- und Fristenlogik rechnet
-    # mit Datumsgrenzen — siehe 1_Bauplan.html Kap. 08, Fallstrick 4.
     environment:
       - TZ=Europe/Berlin
       - NODE_ENV=production
-      # DATABASE_URL = Eigentuemer: fuer Migration, Setup des App-Nutzers und Seed
-      # im Entrypoint (brauchen DDL). Der laufende Server schaltet danach auf
-      # APP_DATABASE_URL um — den rechtebeschraenkten Nutzer gbs_app (nur DML,
-      # audit_log/einwilligungen append-only). Opt-in: ohne APP_DB_PASSWORD bleibt
-      # der Server am Eigentuemer-Zugang.
-      # Die URL steht hier immer, auch bei leerem Passwort ("gbs_app:@db…") —
-      # umgeschaltet wird deshalb im Entrypoint nur, wenn APP_DB_PASSWORD nicht
-      # leer ist. Das Passwort wird zusaetzlich ausdruecklich durchgereicht, damit
-      # URL und Umschalter garantiert aus derselben Quelle stammen. Nach dem
-      # Umschalten entfernt der Entrypoint DB_PASSWORD (kommt ueber env_file) aus
-      # der Umgebung des Serverprozesses — NUR dort: In der Container-
-      # Konfiguration bleiben DB_PASSWORD und diese Eigentuemer-DATABASE_URL
-      # stehen, der Healthcheck unten und jedes `docker exec` bekommen sie mit
-      # (siehe docker/entrypoint.sh, offene Entscheidung Migrationsdienst).
+      # DATABASE_URL = Eigentuemer (Migration, Setup gbs_app, Seed im Entrypoint).
+      # Mit gesetztem APP_DB_PASSWORD schaltet der Server danach auf gbs_app um
+      # (siehe docker/entrypoint.sh). Ueberschreibt eine DATABASE_URL aus der .env.
       - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
       - APP_DB_PASSWORD=${APP_DB_PASSWORD:-}
       - APP_DATABASE_URL=postgresql://gbs_app:${APP_DB_PASSWORD:-}@db:5432/gbs_campus?schema=public
@@ -105,42 +60,26 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     networks:
-      - edge
+      - reverse_proxy
       - data
-    labels:
-      - "traefik.enable=true"
-      # Doppelt haelt besser: Auch ohne den globalen Schalter am traefik-Dienst
-      # nimmt Traefik fuer die App nur die IP aus edge, nie die aus data.
-      - "traefik.docker.network=gbs_edge"
-      - "traefik.http.routers.gbs.rule=Host(`${APP_DOMAIN}`)"
-      - "traefik.http.routers.gbs.entrypoints=websecure"
-      - "traefik.http.routers.gbs.tls.certresolver=le"
-      - "traefik.http.services.gbs.loadbalancer.server.port=3000"
-    # Kein Port-Mapping — die App ist ausschliesslich ueber traefik erreichbar.
+    # Kein Port-Mapping — die App ist ausschliesslich ueber Caddy erreichbar
+    # (Caddyfile: reverse_proxy gbs-app:3000).
 
-  # Worker: fuehrt die zeitgesteuerten Aufgaben aus (Ueberleitungs-Erinnerungen
-  # T-14/-7/-3 und den DSGVO-Aufraeumlauf), stuendlich und idempotent. Ersetzt
-  # den externen Zeitgeber — der HTTP-Endpunkt /api/cron/erinnerungen bleibt
-  # zusaetzlich fuer manuelles Ausloesen. Gleiches Image wie die App, nur ein
-  # anderer Einstiegspunkt; kein Port, keine traefik-Route. Nach jedem Lauf
-  # schreibt er ein Lebenszeichen nach /tmp/gbs-worker-lebenszeichen, das der
-  # Healthcheck prueft.
+  # Worker: Ueberleitungs-Erinnerungen T-14/-7/-3 und DSGVO-Aufraeumlauf,
+  # stuendlich und idempotent. Gleiches Image wie die App, anderer Einstieg.
   worker:
     image: gbs-campus:latest
+    # Das Image baut der Dienst `app` — nie aus einer Registry ziehen wollen.
+    pull_policy: never
     container_name: gbs-worker
     restart: unless-stopped
-    # Der Worker macht nur stündlich kurze Läufe — deutlich weniger als die App.
     mem_limit: 256m
     entrypoint: ["node", "worker.js"]
     environment:
       - TZ=Europe/Berlin
       - NODE_ENV=production
-      # Bewusst weiter als Eigentuemer (siehe UEBERGABE.md): Der Worker startet
-      # nicht ueber entrypoint.sh, der Umschalter auf gbs_app gilt nur fuer den
-      # Server. APP_DB_PASSWORD kommt zwar ueber env_file an, bleibt hier aber
-      # ungenutzt — ein leeres Passwort kann den Worker also nicht lahmlegen.
       - DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db:5432/gbs_campus?schema=public
     env_file:
       - .env
@@ -149,18 +88,14 @@ services:
         condition: service_healthy
     # Bewusst KEIN depends_on auf app: Der Worker wartet selbst auf das Schema.
     healthcheck:
-      # Lebenszeichen aus scripts/worker.ts (nach jedem stündlichen Lauf neu
-      # geschrieben). Den Pfad nur gemeinsam mit LEBENSZEICHEN_DATEI ändern.
-      # grep -q ist nötig, weil find ohne Treffer mit Code 0 endet.
       test: ["CMD-SHELL", "find /tmp/gbs-worker-lebenszeichen -mmin -130 | grep -q ."]
       interval: 5m
       timeout: 10s
       retries: 3
-      # warteAufSchema wartet bis zu 10 Minuten auf die Migrationen.
       start_period: 15m
     networks:
-      - edge
       - data
+      - ausgang
 
   db:
     image: postgres:16-alpine
@@ -188,28 +123,26 @@ services:
     restart: unless-stopped
     environment:
       PGPASSWORD: ${DB_PASSWORD}
+      BACKUP_AUFBEWAHRUNG_TAGE: ${BACKUP_AUFBEWAHRUNG_TAGE:-60}
       TZ: Europe/Berlin
     volumes:
       - ./docker/backup.sh:/backup.sh:ro
-      - backups:/backups
+      # Wie beim HR-Portal als Ordner neben der docker-compose.yml — so liegen
+      # die Dumps sichtbar auf dem Host und lassen sich einfach wegkopieren.
+      - ./backups:/backups
     entrypoint: ["/bin/sh", "/backup.sh"]
     depends_on:
       db:
         condition: service_healthy
     networks:
       - data
-      - edge
 
 volumes:
   pgdata:
-  backups:
-  letsencrypt:
 
 networks:
-  edge:
-    # Fester Name statt "<projekt>_edge": Traefik wird ueber
-    # --providers.docker.network und das Label traefik.docker.network genau auf
-    # dieses Netz festgelegt, und der Name darf nicht vom Ordnernamen abhaengen.
-    name: gbs_edge
+  reverse_proxy:
+    external: true
   data:
     internal: true
+  ausgang:

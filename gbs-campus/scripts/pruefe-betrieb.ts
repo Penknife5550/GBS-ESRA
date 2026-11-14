@@ -91,9 +91,13 @@ pruefe(
   { posMigration, posSetup, posServer },
 );
 
-console.log("\n3. docker-compose.yml: Traefik-Netz (M1) und Worker (M2)");
-const compose = lies("docker-compose.yml");
-pruefe("docker-compose.yml ist lesbar", compose.length > 0);
+// Seit dem Umstieg auf den gemeinsamen Caddy (Muster HR-Portal) gibt es zwei
+// Compose-Dateien: docker-compose.yml (Standard, hinter Caddy, Abschnitt 3b) und
+// docker-compose.traefik.yml (eigener Traefik fuer einen Server ohne Caddy). Die
+// Traefik-Prüfungen gelten weiter — jetzt für die Traefik-Variante.
+console.log("\n3. docker-compose.traefik.yml: Traefik-Netz (M1) und Worker (M2)");
+const compose = lies("docker-compose.traefik.yml");
+pruefe("docker-compose.traefik.yml ist lesbar", compose.length > 0);
 function dienstBloecke(yml: string): Map<string, string> {
   const bloecke = new Map<string, string>();
   const start = yml.indexOf("\nservices:\n");
@@ -126,6 +130,63 @@ const worker = dienste.get("worker") ?? "";
 pruefe(
   "der Worker verbindet sich als Eigentümer, nie über APP_DATABASE_URL",
   worker.includes("DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db") && !worker.includes("APP_DATABASE_URL"),
+);
+
+console.log("\n3b. docker-compose.yml: Standard hinter dem gemeinsamen Caddy");
+const composeCaddy = lies("docker-compose.yml");
+pruefe("docker-compose.yml ist lesbar", composeCaddy.length > 0);
+const diensteCaddy = dienstBloecke(composeCaddy);
+pruefe(
+  "die Dienste app, worker, db und backup werden gefunden, kein eigener traefik",
+  ["app", "worker", "db", "backup"].every((d) => diensteCaddy.has(d)) && !diensteCaddy.has("traefik"),
+  [...diensteCaddy.keys()],
+);
+pruefe(
+  "fester Projektname gbs-campus (Volumes hängen nicht am Ordnernamen)",
+  /^name: gbs-campus$/m.test(composeCaddy),
+);
+pruefe(
+  "das Netz reverse_proxy ist extern, data ist internal",
+  /\nnetworks:\n {2}reverse_proxy:\n\s+external: true\n/.test(composeCaddy) &&
+    /\n {2}data:\n\s+internal: true\n/.test(composeCaddy),
+);
+const appCaddy = diensteCaddy.get("app") ?? "";
+pruefe(
+  "die App hängt an reverse_proxy und data, ohne Port nach außen",
+  /\n\s+- reverse_proxy\n/.test(appCaddy + "\n") && /\n\s+- data\n/.test(appCaddy + "\n") && !/\n\s+ports:/.test(appCaddy),
+);
+pruefe(
+  "die Datenbank hängt nur im data-Netz und hat keinen Port",
+  /networks:\n\s+- data\n?(\s*#[^\n]*\n?)*\s*$/.test((diensteCaddy.get("db") ?? "").trimEnd() + "\n") &&
+    !/\n\s+ports:/.test(diensteCaddy.get("db") ?? ""),
+);
+pruefe(
+  "nur die App hängt am Caddy-Netz",
+  [...diensteCaddy].filter(([, b]) => /\n\s+- reverse_proxy\n/.test(b + "\n")).map(([n]) => n).join() === "app",
+);
+const workerCaddy = diensteCaddy.get("worker") ?? "";
+pruefe(
+  "der Worker verbindet sich als Eigentümer, nie über APP_DATABASE_URL",
+  workerCaddy.includes("DATABASE_URL=postgresql://gbs:${DB_PASSWORD}@db") && !workerCaddy.includes("APP_DATABASE_URL"),
+);
+const caddyfile = lies("Caddyfile.gbs-campus");
+const caddyZiel = appCaddy.match(/container_name: (\S+)/)?.[1] ?? "";
+pruefe(
+  "Caddyfile.gbs-campus leitet auf den Containernamen der App (Port 3000)",
+  caddyZiel.length > 0 && caddyfile.includes(`reverse_proxy ${caddyZiel}:3000`),
+  caddyZiel,
+);
+pruefe(
+  "Caddy setzt X-Real-IP selbst (die App vertraut dem Header, sonst wäre die IP fälschbar)",
+  /\n\s+header_up X-Real-IP \{remote_host\}\n/.test(caddyfile),
+);
+pruefe(
+  "Caddy setzt dieselben Sicherheits-Header wie Traefik, Referrer-Policy nie no-referrer",
+  caddyfile.includes('Strict-Transport-Security "max-age=31536000; includeSubDomains"') &&
+    caddyfile.includes('X-Frame-Options "DENY"') &&
+    caddyfile.includes('X-Content-Type-Options "nosniff"') &&
+    caddyfile.includes('Referrer-Policy "strict-origin-when-cross-origin"') &&
+    !/Referrer-Policy "no-referrer"/.test(caddyfile),
 );
 
 console.log("\n4. Seed: Einwilligungstexte und Semester nur anlegen (M3, M8)");
@@ -897,7 +958,7 @@ console.log("\n19. Oberfläche: gemeinsame Bausteine statt Kopien (Code-Review 4
 }
 
 // Soll-Anzahl: fängt lautlos entfallene Prüfungen ab. Beim Ergänzen anheben.
-const ERWARTET = 117;
+const ERWARTET = 128;
 const gelaufen = geprueft + 1;
 pruefe(`alle ${ERWARTET} Prüfungen sind gelaufen`, gelaufen === ERWARTET, gelaufen);
 

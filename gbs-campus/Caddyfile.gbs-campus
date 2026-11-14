@@ -1,0 +1,37 @@
+# =============================================================================
+# GBS Campus — Block fuer den gemeinsamen Caddy (gleiches Muster wie
+# Caddyfile.hr-portal im HR-Portal). In das Caddyfile des Servers einfuegen
+# und Caddy neu laden:  docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile
+#
+# Der Domainname muss zu APP_DOMAIN / APP_URL in der .env passen, sonst weist
+# die Herkunftspruefung der App jede Aenderung ab.
+# =============================================================================
+gbs.fes-credo.de {
+    # Beleg-Fotos (Zugticket o. ae.); Next puffert intern bis 10 MB.
+    request_body {
+        max_size 20MB
+    }
+
+    header {
+        # Bisher aus docker/traefik-dynamisch.yml (Middleware gbs-sicherheit).
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        # Darf NIE no-referrer sein — sonst schicken Browser Origin: null und
+        # die Herkunftspruefung lehnt jede Aenderung ab.
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    encode gzip
+
+    reverse_proxy gbs-app:3000 {
+        # PFLICHT: Die App liest die Besucher-IP zuerst aus X-Real-IP
+        # (src/lib/request-kontext.ts). Traefik hat den Header immer selbst
+        # gesetzt, Caddy tut das NICHT und reicht einen vom Besucher
+        # mitgeschickten Wert sonst unveraendert durch. Ohne diese Zeile liesse
+        # sich die IP faelschen: Rate-Limit gegen Massenanmeldungen umgangen,
+        # Consent-/Audit-Protokoll wertlos.
+        header_up X-Real-IP {remote_host}
+    }
+}

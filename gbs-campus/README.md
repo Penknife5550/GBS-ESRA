@@ -184,11 +184,17 @@ Pflicht-Check für `main` einzutragen (Branch-Schutz).
 
 ## Produktivbetrieb
 
+> **Stand 14.11.2026:** Standard ist jetzt der Betrieb hinter dem gemeinsamen **Caddy** des
+> CREDO-Servers (Muster HR-Portal), ohne eigenen Traefik. Die Schritt-für-Schritt-Anleitung steht in
+> [`DEPLOY.md`](DEPLOY.md). Der folgende Abschnitt beschreibt die Variante mit eigenem Traefik. Sie
+> liegt jetzt in `docker-compose.traefik.yml` und wird mit
+> `docker compose -f docker-compose.traefik.yml up -d --build` gestartet.
+
 ```bash
-cp .env.example .env && docker compose up -d --build
+cp .env.example .env && docker compose up -d --build   # Caddy-Variante, siehe DEPLOY.md
 ```
 
-Der Stack besteht aus **traefik** (TLS, Let's Encrypt), **app** (Next.js Standalone), **worker**
+Der Stack (Traefik-Variante) besteht aus **traefik** (TLS, Let's Encrypt), **app** (Next.js Standalone), **worker**
 (zeitgesteuerte Läufe), **db** (PostgreSQL 16) und **backup** (nächtlicher Dump). Zwei Netze: `edge` mit
 Internetzugang — fest benannt **`gbs_edge`** —, `data` mit `internal: true`: Die Datenbank hat weder
 Internetzugang noch einen Port nach außen. Traefik ist über `--providers.docker.network=gbs_edge` und das

@@ -81,8 +81,13 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/
 # Prisma-CLI fuer "migrate deploy" im Entrypoint. Global installiert, weil beim
 # Kopieren aus der deps-Stage die Symlinks in node_modules/.bin fehlen.
 # Die Version muss exakt der aus package-lock.json entsprechen — sonst weicht
-# die Migrations-Engine vom generierten Client ab.
-RUN npm install -g prisma@6.19.3
+# die Migrations-Engine vom generierten Client ab. Deshalb (wie im HR-Portal)
+# direkt aus dem Lockfile gelesen statt als feste Nummer gepflegt.
+COPY package-lock.json ./lock-fuer-prisma.json
+RUN PRISMA_VERSION="$(node -p "require('./lock-fuer-prisma.json').packages['node_modules/prisma'].version")" \
+ && echo "Prisma CLI: $PRISMA_VERSION (muss zum generierten Client passen)" \
+ && npm install -g "prisma@$PRISMA_VERSION" \
+ && rm lock-fuer-prisma.json
 
 COPY --chown=nextjs:nodejs docker/entrypoint.sh ./
 RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
